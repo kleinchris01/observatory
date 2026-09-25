@@ -22,6 +22,7 @@ export const jiraLinks = {
   issue: (o, key) => (o && key ? `${o}/browse/${enc(key)}` : null),
   project: (o, key) => (o && key ? `${o}/browse/${enc(key)}` : null),
   projectRoles: (o, key) => (o && key ? `${o}/plugins/servlet/project-config/${enc(key)}/roles` : null),
+  projectSettings: (o, key) => (o && key ? `${o}/plugins/servlet/project-config/${enc(key)}/summary` : null),
   filter: (o, id) => (o && present(id) ? `${o}/issues/?filter=${enc(id)}` : null),
   dashboard: (o, id) => (o && present(id) ? `${o}/jira/dashboards/${enc(id)}` : null),
   // RapidBoard resolves any board by id, whichever project (or person) it lives under.

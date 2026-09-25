@@ -1006,6 +1006,96 @@ async function computeBoardStatusIds(installationKey) {
 // configuration, not project data, and this resolver returns no project names or issue
 // keys. The per-scheme project counts that DO need filtering live in
 // getWorkflowInventory, which enforces them.
+// The workflow findings, uncapped: duplicate groups, per-scheme category balance, and the
+// orphaned statuses with their automation / board reachability joined in. getWorkflowInsights
+// trims these for the tab; remediation reads them whole, so an epic tickets every item its
+// finding counts -- from the same computation, never a second derivation of it.
+async function computeWorkflowInsightsFull(installationKey, version) {
+  const [schemes, statuses, schemeStatuses] = await Promise.all([
+    loadWorkflowSchemes(installationKey, version),
+    loadStatusesCatalog(installationKey, version),
+    loadWorkflowSchemeStatuses(installationKey, version),
+  ]);
+
+  // Issue counts are optional. They come from the universe scan, which is versioned
+  // independently and may never have run -- an empty map means "unknown", and every
+  // downstream claim about a status being safe to delete is suppressed accordingly.
+  const issueCounts = await loadStatusIssueCounts(installationKey).catch(fallbackOn("insights.status_counts_load_failed", () => new Map(), { installationKey }));
+  const hasIssueCounts = issueCounts.size > 0;
+
+  // "Ever been in" is measured separately from "currently in": the first comes from JQL
+  // WAS queries, the second from the universe scan. They refresh independently, so each
+  // is reported with its own availability flag rather than assumed to arrive together.
+  const history = await loadStatusHistoryCounts(installationKey).catch(fallbackOn("insights.status_history_load_failed", () => ({ counts: new Map(), measuredAt: null }), { installationKey }));
+  const hasHistoryCounts = history.counts.size > 0;
+
+  // The scheme->status mapping is best-effort in the build: if the workflow expansion
+  // failed, every status looks orphaned and every scheme looks empty. Say so rather
+  // than presenting a confidently wrong catalogue of findings.
+  const schemeStatusesAvailable = schemeStatuses.length > 0;
+
+  const duplicateGroups = findDuplicateStatusGroups(statuses);
+  const balance = schemeStatusesAvailable
+    ? computeSchemeCategoryBalance(schemes, schemeStatuses, statuses)
+    : [];
+
+  // Which of these statuses an automation rule actually references.
+  //
+  // The tab has carried a blanket caveat since before the automation pillar existed:
+  // "Automation rules are not included. Jira does not expose them to Forge apps." That
+  // was true then; it stopped being true when rule exports started being shredded into
+  // automation_references, where every status a rule reads, writes or transitions to is a
+  // row. A warning that applies to every status tells a reader nothing about any status.
+  //
+  // Looked up BEFORE the orphan list is built rather than joined onto it afterwards.
+  // Joining afterwards meant the per-status answer and the summary disagreed: the rows
+  // knew which statuses a rule held open, and summarizeWorkflowInsights -- which the
+  // health score reads -- did not, so it counted every one of them as dead configuration.
+  //
+  // Best-effort: no automation analysis means the caveat is still the honest answer, so
+  // failure here degrades to the old warning rather than to a false all-clear.
+  //
+  // Computed only when the underlying data supports them. Deriving these and then
+  // hiding the lists still leaked the numbers into the summary, which rendered
+  // "435 unreachable statuses" directly above a warning saying the data was missing.
+  const provisionalOrphans = schemeStatusesAvailable
+    ? findOrphanedStatuses(statuses, schemeStatuses, hasIssueCounts ? issueCounts : null)
+    : [];
+
+  let automationByStatus = null;
+  if (provisionalOrphans.length) {
+    try {
+      automationByStatus = await loadStatusAutomationReferences(
+        installationKey,
+        provisionalOrphans.map((o) => o.name).filter(Boolean)
+      );
+    } catch (error) {
+      logger.warn("workflow-insights.status_automation_lookup_failed", {
+        installationKey, error: String(error?.message || error),
+      });
+    }
+  }
+
+  // Board columns are the other thing that holds a status open with no scheme and no rule
+  // touching it -- see computeBoardStatusIds. Best-effort, same reasoning as automation
+  // above: no board inventory degrades to "not checked" rather than a false all-clear.
+  const boardStatusIds = await computeBoardStatusIds(installationKey).catch((error) => {
+    logger.warn("workflow-insights.status_board_lookup_failed", {
+      installationKey, error: String(error?.message || error),
+    });
+    return null;
+  });
+
+  const orphans = schemeStatusesAvailable
+    ? findOrphanedStatuses(statuses, schemeStatuses, hasIssueCounts ? issueCounts : null, automationByStatus, boardStatusIds)
+    : [];
+
+  return {
+    schemes, statuses, schemeStatusesAvailable, issueCounts, hasIssueCounts, history, hasHistoryCounts,
+    duplicateGroups, balance, orphans, automationByStatus,
+  };
+}
+
 async function getWorkflowInsights({ context }) {
   incrMetric(METRIC_NAMES.resolver);
   try {
@@ -1021,84 +1111,10 @@ async function getWorkflowInsights({ context }) {
       };
     }
 
-    const [schemes, statuses, schemeStatuses] = await Promise.all([
-      loadWorkflowSchemes(installationKey, meta.version),
-      loadStatusesCatalog(installationKey, meta.version),
-      loadWorkflowSchemeStatuses(installationKey, meta.version),
-    ]);
-
-    // Issue counts are optional. They come from the universe scan, which is versioned
-    // independently and may never have run -- an empty map means "unknown", and every
-    // downstream claim about a status being safe to delete is suppressed accordingly.
-    const issueCounts = await loadStatusIssueCounts(installationKey).catch(fallbackOn("insights.status_counts_load_failed", () => new Map(), { installationKey }));
-    const hasIssueCounts = issueCounts.size > 0;
-
-    // "Ever been in" is measured separately from "currently in": the first comes from JQL
-    // WAS queries, the second from the universe scan. They refresh independently, so each
-    // is reported with its own availability flag rather than assumed to arrive together.
-    const history = await loadStatusHistoryCounts(installationKey).catch(fallbackOn("insights.status_history_load_failed", () => ({ counts: new Map(), measuredAt: null }), { installationKey }));
-    const hasHistoryCounts = history.counts.size > 0;
-
-    // The scheme->status mapping is best-effort in the build: if the workflow expansion
-    // failed, every status looks orphaned and every scheme looks empty. Say so rather
-    // than presenting a confidently wrong catalogue of findings.
-    const schemeStatusesAvailable = schemeStatuses.length > 0;
-
-    const duplicateGroups = findDuplicateStatusGroups(statuses);
-    const balance = schemeStatusesAvailable
-      ? computeSchemeCategoryBalance(schemes, schemeStatuses, statuses)
-      : [];
-
-    // Which of these statuses an automation rule actually references.
-    //
-    // The tab has carried a blanket caveat since before the automation pillar existed:
-    // "Automation rules are not included. Jira does not expose them to Forge apps." That
-    // was true then; it stopped being true when rule exports started being shredded into
-    // automation_references, where every status a rule reads, writes or transitions to is a
-    // row. A warning that applies to every status tells a reader nothing about any status.
-    //
-    // Looked up BEFORE the orphan list is built rather than joined onto it afterwards.
-    // Joining afterwards meant the per-status answer and the summary disagreed: the rows
-    // knew which statuses a rule held open, and summarizeWorkflowInsights -- which the
-    // health score reads -- did not, so it counted every one of them as dead configuration.
-    //
-    // Best-effort: no automation analysis means the caveat is still the honest answer, so
-    // failure here degrades to the old warning rather than to a false all-clear.
-    //
-    // Computed only when the underlying data supports them. Deriving these and then
-    // hiding the lists still leaked the numbers into the summary, which rendered
-    // "435 unreachable statuses" directly above a warning saying the data was missing.
-    const provisionalOrphans = schemeStatusesAvailable
-      ? findOrphanedStatuses(statuses, schemeStatuses, hasIssueCounts ? issueCounts : null)
-      : [];
-
-    let automationByStatus = null;
-    if (provisionalOrphans.length) {
-      try {
-        automationByStatus = await loadStatusAutomationReferences(
-          installationKey,
-          provisionalOrphans.map((o) => o.name).filter(Boolean)
-        );
-      } catch (error) {
-        logger.warn("workflow-insights.status_automation_lookup_failed", {
-          installationKey, error: String(error?.message || error),
-        });
-      }
-    }
-
-    // Board columns are the other thing that holds a status open with no scheme and no rule
-    // touching it -- see computeBoardStatusIds. Best-effort, same reasoning as automation
-    // above: no board inventory degrades to "not checked" rather than a false all-clear.
-    const boardStatusIds = await computeBoardStatusIds(installationKey).catch((error) => {
-      logger.warn("workflow-insights.status_board_lookup_failed", {
-        installationKey, error: String(error?.message || error),
-      });
-      return null;
-    });
-
-    const orphans = schemeStatusesAvailable
-      ? findOrphanedStatuses(statuses, schemeStatuses, hasIssueCounts ? issueCounts : null, automationByStatus, boardStatusIds)
-      : [];
+    const {
+      statuses, schemeStatusesAvailable, issueCounts, hasIssueCounts, history, hasHistoryCounts,
+      duplicateGroups, balance, orphans, automationByStatus,
+    } = await computeWorkflowInsightsFull(installationKey, meta.version);
     const orphanPage = orphans.slice(0, 200);
 
     return {
@@ -3924,9 +3940,10 @@ async function getRemediationCandidates({ payload, context }) {
   // the Field Browser shows for the same field.
   const NO_ISSUE_CODES = new Set(["orphaned", "configured-no-issues"]);
   if (findingKey === "field-cleanup") {
-    const meta = await readSnapshotMeta(installationKey).catch(() => null);
-    if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
-    const fields = await loadSnapshotFields(installationKey, meta.version);
+    // Hydrated against the current thresholds, exactly as getAdminOverview counts the
+    // finding -- the stored findings reflect whatever thresholds applied at scan time.
+    const fields = await hydratedFields(installationKey);
+    if (!fields) return { available: false, reason: "no-snapshot", items: [] };
     const items = fields
       // Stored findings are buildGovernanceFindings' object ({ reasons, tags, ... }), not a
       // list. This read `.some()` straight off that object and threw on every real site; the
@@ -4193,6 +4210,207 @@ const REMEDIATION_CANDIDATE_LOADERS = {
     return a.available ? { available: true, items: a.insights.bareTypes } : a.result;
   },
 };
+
+// ── Fields, workflows, projects, screens, automation ───────────────────────
+
+Object.assign(REMEDIATION_CANDIDATE_LOADERS, {
+  "field-admin-attention": ({ installationKey }) => fieldItems(installationKey, (f) => (f.findings?.tags?.adminAttention ? f.findings.reasons : null)),
+  "field-risky": ({ installationKey }) => fieldItems(installationKey, (f) => (f.findings?.tags?.risky ? f.findings.reasons.filter((r) => r.category === "risky") : null)),
+  "field-global-context-low-usage": ({ installationKey }) => fieldItems(installationKey, reasonsWithCode("global-context-low-usage")),
+  "field-dead-configuration": ({ installationKey }) => fieldItems(installationKey, reasonsWithCode("dead-configuration")),
+  "field-stale": ({ installationKey }) => fieldItems(installationKey, reasonsWithCode("stale")),
+  "field-context-sprawl": ({ installationKey }) => fieldItems(installationKey, reasonsWithCode("context-sprawl")),
+  "field-missing-description": ({ installationKey }) => fieldItems(installationKey, reasonsWithCode("missing-description")),
+
+  "workflow-duplicate-statuses": ({ installationKey }) => workflowItems(installationKey, (w) => w.duplicateGroups.map((g) => ({
+    id: g.key,
+    key: g.key,
+    kind: g.kind,
+    count: g.count,
+    statuses: g.statuses.map((st) => {
+      const statusId = String(st.statusId ?? st.id);
+      return { statusId, name: st.name, issueCount: w.hasIssueCounts ? Number(w.issueCounts.get(statusId) ?? 0) : null };
+    }),
+  }))),
+  "rule-only-statuses": ({ installationKey }) => workflowItems(installationKey, (w) => w.orphans
+    .filter((o) => o.ruleOnly)
+    .map((o) => ({ id: String(o.statusId), name: o.name, automationRuleCount: o.automationRuleCount ?? null, issueCount: o.issueCount ?? null }))),
+  "unreachable-with-issues": ({ installationKey }) => workflowItems(installationKey, (w) => w.orphans
+    .filter((o) => !o.ruleOnly && (o.issueCount ?? 0) > 0)
+    .map((o) => ({ id: String(o.statusId), name: o.name, issueCount: o.issueCount }))),
+  "workflow-scheme-structure": ({ installationKey }) => workflowItems(installationKey, (w) => w.balance
+    .filter((b) => b.flags.length > 0)
+    .map((b) => ({ id: b.schemeId, name: b.name, projectCount: b.projectCount, flags: b.flags.map((f) => f.message) }))),
+
+  "project-over-configured": ({ installationKey }) => projectItems(installationKey, ({ insights }) => {
+    const idle = new Set(insights.idleOverConfigured.map((p) => p.projectKey));
+    return insights.overConfigured.map((p) => ({ id: p.projectKey, ...p, idle: idle.has(p.projectKey) }));
+  }),
+  "unused-projects": ({ installationKey }) => projectItems(installationKey, ({ insights }) => insights.unusedProjects.map((p) => ({ id: p.projectKey, ...p }))),
+  "stale-projects": ({ installationKey }) => projectItems(installationKey, ({ insights }) => insights.staleProjects.map((p) => ({ id: p.projectKey, ...p }))),
+  "projects-fell-off": ({ installationKey }) => projectItems(installationKey, ({ adoption }) => adoptionFlagged(adoption, "fellOff")),
+  "projects-never-adopted": ({ installationKey }) => projectItems(installationKey, ({ adoption }) => adoptionFlagged(adoption, "neverAdopted")),
+
+  "screen-empty": ({ installationKey }) => screenItems(installationKey, "empty"),
+  "screen-unresolved": ({ installationKey }) => screenItems(installationKey, "unresolved"),
+  "screen-unreached": ({ installationKey }) => screenItems(installationKey, "unreached", { needsWorkflow: true }),
+  "screen-transition-only": ({ installationKey }) => screenItems(installationKey, "transition-only", { needsWorkflow: true }),
+  // One task per screen scheme, listing each operation that points at a missing screen.
+  "screen-dangling": async ({ installationKey }) => {
+    const meta = await readScreenSnapshotMeta(installationKey).catch(() => null);
+    if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
+    const [ops, schemes] = await Promise.all([
+      loadScreenSchemeOperations(installationKey, meta.version),
+      loadScreenSchemes(installationKey, meta.version),
+    ]);
+    const names = new Map(schemes.map((sc) => [String(sc.schemeId), sc.name]));
+    const bySchemeId = new Map();
+    for (const op of ops.filter((o) => o.dangling)) {
+      const id = String(op.schemeId);
+      if (!bySchemeId.has(id)) bySchemeId.set(id, { id, name: names.get(id) || null, operations: [] });
+      bySchemeId.get(id).operations.push({ operation: op.operation, screenId: op.screenId || null });
+    }
+    return { available: true, items: [...bySchemeId.values()] };
+  },
+  "screen-unused-schemes": async ({ installationKey }) => {
+    const meta = await readScreenSnapshotMeta(installationKey).catch(() => null);
+    if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
+    const schemes = await loadScreenSchemes(installationKey, meta.version);
+    return { available: true, items: schemes.filter((sc) => (sc.issueTypeSchemeCount ?? 0) === 0).map((sc) => ({ id: String(sc.schemeId), name: sc.name })) };
+  },
+
+  "automation-disabled": async ({ installationKey }) => {
+    const directory = await readAutomationPart(installationKey, "directory").catch(() => null);
+    if (!directory) return { available: false, reason: "no-automation-index", items: [] };
+    return { available: true, items: [...hydrateRuleDirectory(directory).values()].filter((r) => !r.enabled) };
+  },
+  "automation-credentials": ({ installationKey }) => automationRiskItems(installationKey, "embedded-credential", "credentialRuleCount"),
+  "automation-external": ({ installationKey }) => automationRiskItems(installationKey, "external-http", "externalHttpCount"),
+  "automation-inert": ({ installationKey }) => automationRiskItems(installationKey, "no-actions", "noActionCount"),
+  "automation-self-triggering": async ({ installationKey }) => {
+    const [analysis, directory] = await Promise.all([
+      readAutomationAnalysis(installationKey).catch(() => null),
+      readAutomationPart(installationKey, "directory").catch(() => null),
+    ]);
+    if (!analysis) return { available: false, reason: "no-analysis", items: [] };
+    const rules = directory ? hydrateRuleDirectory(directory) : new Map();
+    const seen = new Map();
+    for (const c of analysis.cascades || []) {
+      if (!c.selfTriggering || seen.has(String(c.sourceId))) continue;
+      const rule = rules.get(c.sourceId) || rules.get(Number(c.sourceId)) || {};
+      seen.set(String(c.sourceId), { ...rule, id: c.sourceId, name: rule.name || c.sourceName || null });
+    }
+    return partialOf([...seen.values()], analysis.estate?.health?.selfTriggeringCount);
+  },
+});
+
+// Every field, hydrated for governance against the CURRENT thresholds -- the computation
+// getAdminOverview's field counts come from, so each field epic matches its Overview number.
+async function hydratedFields(installationKey) {
+  const meta = await readSnapshotMeta(installationKey).catch(() => null);
+  if (!meta?.version) return null;
+  const [fields, config] = await Promise.all([loadSnapshotFields(installationKey, meta.version), readAdminConfig()]);
+  const dup = buildDuplicateNameCountMap(fields);
+  return fields.map((f) => hydrateFieldForGovernance(f, null, dup.get(normalizeFieldName(f.name)) ?? 1, config.governanceThresholds));
+}
+
+const reasonsWithCode = (code) => (f) => {
+  const hits = (f.findings?.reasons || []).filter((r) => r.code === code);
+  return hits.length ? hits : null;
+};
+
+// `reasonsOf(field)` returns the reasons that put the field in this finding, or null.
+async function fieldItems(installationKey, reasonsOf) {
+  const fields = await hydratedFields(installationKey);
+  if (!fields) return { available: false, reason: "no-snapshot", items: [] };
+  const items = [];
+  for (const f of fields) {
+    const reasons = reasonsOf(f);
+    if (!reasons) continue;
+    items.push({
+      id: f.id,
+      name: f.name || null,
+      type: f.type || null,
+      configuredProjectCount: f.configuredProjectCount ?? null,
+      totalIssueCount: f.totalIssueCount ?? null,
+      reasons: reasons.map((r) => r.title || r.detail || r.code),
+    });
+  }
+  return { available: true, items };
+}
+
+async function workflowItems(installationKey, pick) {
+  const meta = await readWorkflowSnapshotMeta(installationKey).catch(() => null);
+  if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
+  const w = await computeWorkflowInsightsFull(installationKey, meta.version);
+  if (!w.schemeStatusesAvailable) return { available: false, reason: "no-scheme-mapping", items: [] };
+  return { available: true, items: pick(w) };
+}
+
+async function projectItems(installationKey, pick) {
+  const meta = await readSnapshotMeta(installationKey).catch(() => null);
+  if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
+  const projects = await attachUniqueIssueCounts(installationKey, await listSnapshotProjects(installationKey, meta.version));
+  const activity = await loadProjectActivity(installationKey)
+    .catch(fallbackOn("remediation.project_activity_load_failed", () => new Map(), { installationKey }));
+  return {
+    available: true,
+    items: pick({ insights: buildProjectInsights(projects, { listLimit: Infinity }), adoption: summarizeAdoption(projects, activity) }),
+  };
+}
+
+// The adoption flags, on exactly the terms the Overview counts them: judged projects only
+// (measured, old enough), and nothing at all while the activity data is stale.
+function adoptionFlagged(adoption, flag) {
+  if (!adoption?.available || adoption.dataStale) return [];
+  return adoption.projects
+    .filter((p) => p.measured && p.oldEnough && p[flag])
+    .map((p) => ({
+      id: p.projectKey,
+      projectKey: p.projectKey,
+      projectName: p.projectName,
+      issuesPerDay: p.issuesPerDay != null ? Math.round(p.issuesPerDay * 100) / 100 : null,
+      recentIssuesPerDay: p.recentIssuesPerDay != null ? Math.round(p.recentIssuesPerDay * 100) / 100 : null,
+      peakMonth: p.peakMonth || null,
+      ageDays: p.ageDays ?? null,
+    }));
+}
+
+async function screenItems(installationKey, filter, { needsWorkflow = false } = {}) {
+  const meta = await readScreenSnapshotMeta(installationKey).catch(() => null);
+  if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
+  const workflowMeta = await readWorkflowSnapshotMeta(installationKey).catch(() => null);
+  const workflowVersion = workflowMeta?.version || null;
+  if (needsWorkflow && !workflowVersion) return { available: false, reason: "no-workflow-snapshot", items: [] };
+  const rows = await loadAllScreenPages(installationKey, meta.version, { workflowVersion, filter });
+  return { available: true, items: rows.map((r) => ({ id: String(r.screenId), name: r.name, tabCount: r.tabCount, fieldCount: r.fieldCount })) };
+}
+
+// The stored analysis keeps a preview of the highest-severity rules, not every flagged
+// rule. `partial` and `expected` say so, so the tab can state how many are not listed
+// rather than present the preview as the whole finding.
+async function automationRiskItems(installationKey, riskCode, countKey) {
+  const analysis = await readAutomationAnalysis(installationKey).catch(() => null);
+  if (!analysis) return { available: false, reason: "no-analysis", items: [] };
+  const items = (analysis.findingsPreview || [])
+    .filter((f) => (f.r || []).some((r) => r.c === riskCode))
+    .map((f) => ({
+      id: f.id,
+      name: f.n || null,
+      enabled: f.e === 1,
+      triggerType: f.t || null,
+      projectCount: f.p ?? null,
+      hosts: (f.r || []).find((r) => r.c === riskCode)?.h || [],
+    }));
+  return partialOf(items, analysis.estate?.health?.[countKey]);
+}
+
+function partialOf(items, expected) {
+  const total = Number(expected);
+  return Number.isFinite(total) && total > items.length
+    ? { available: true, partial: true, expected: total, items }
+    : { available: true, items };
+}
 
 async function filterItemsWith(installationKey, code) {
   const meta = await readFilterSnapshotMeta(installationKey).catch(() => null);

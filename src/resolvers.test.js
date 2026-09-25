@@ -7045,12 +7045,14 @@ describe("getRemediationCandidates", () => {
 
   test("field-cleanup: fields with no populated issues -- orphaned or configured-but-unused", async () => {
     mocks.readSnapshotMeta.mockResolvedValue({ version: "s1" });
+    // Findings are recomputed from each field's own numbers against the current thresholds --
+    // the same hydration the Overview counts with -- so the stored findings (even a stale
+    // or missing one) do not decide membership.
     mocks.loadSnapshotFields.mockResolvedValue([
-      // The stored shape: buildGovernanceFindings' object, not a bare list.
-      { id: "customfield_1", name: "Old Field", type: "text", description: null, findings: { reasons: [{ code: "orphaned" }] } },
-      { id: "customfield_2", name: "Used Field", type: "text", description: "In use", findings: { reasons: [{ code: "stale" }] } },
-      { id: "customfield_3", name: "Never scored", type: "text", description: null, findings: null },
-      { id: "customfield_4", name: "Configured Only", type: "text", description: null, findings: { reasons: [{ code: "configured-no-issues" }] } },
+      { id: "customfield_1", name: "Old Field", type: "text", description: null, configuredProjectCount: 0, activeProjectCount: 0, totalIssueCount: 0, findings: null },
+      { id: "customfield_2", name: "Used Field", type: "text", description: "In use", configuredProjectCount: 1, activeProjectCount: 1, totalIssueCount: 40, findings: { reasons: [{ code: "orphaned" }] } },
+      { id: "customfield_3", name: "Light Use", type: "text", description: null, configuredProjectCount: 1, activeProjectCount: 1, totalIssueCount: 5, findings: null },
+      { id: "customfield_4", name: "Configured Only", type: "text", description: null, configuredProjectCount: 3, activeProjectCount: 0, totalIssueCount: 0, findings: null },
     ]);
 
     const r = await getRemediationCandidates({ payload: { findingKey: "field-cleanup" }, context: ctxWithAccount() });
@@ -10594,5 +10596,213 @@ describe("getRemediationCandidates -- filters, dashboards, people, issue types, 
   test("Assets: an unlicensed site says so", async () => {
     mocks.readAssetSnapshotMeta.mockResolvedValueOnce({ state: "unavailable" });
     expect(await run("asset-bare-types")).toMatchObject({ available: false, reason: "assets-not-enabled" });
+  });
+});
+
+describe("getRemediationCandidates -- fields, workflows, projects, screens, automation", () => {
+  const run = (findingKey) => getRemediationCandidates({ payload: { findingKey }, context: { installContext: "ari:cloud:jira::site/x", accountId: "admin-1" } });
+
+  test("fields: each code reads the threshold-aware findings, with the reason text on the item", async () => {
+    mocks.readSnapshotMeta.mockResolvedValueOnce({ version: "s1" });
+    mocks.loadSnapshotFields.mockResolvedValueOnce([
+      // Widely used, no description.
+      { id: "customfield_1", name: "Team", type: "select", description: "", configuredProjectCount: 40, activeProjectCount: 40, totalIssueCount: 90000, findings: null },
+      { id: "customfield_2", name: "Budget", type: "number", description: "Money", configuredProjectCount: 1, activeProjectCount: 1, totalIssueCount: 10, findings: null },
+    ]);
+    const r = await run("field-missing-description");
+    expect(r.available).toBe(true);
+    expect(r.items.map((f) => f.id)).toEqual(["customfield_1"]);
+    expect(r.items[0].reasons[0]).toEqual(expect.any(String));
+  });
+
+  test("fields: unavailable before any field snapshot exists", async () => {
+    mocks.readSnapshotMeta.mockResolvedValueOnce(null);
+    expect(await run("field-stale")).toMatchObject({ available: false, reason: "no-snapshot" });
+  });
+
+  function workflowFixture() {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValueOnce({ version: "w1" });
+    mocks.loadWorkflowSchemes.mockResolvedValueOnce([{ id: "10", name: "No Done", projectCount: 2 }]);
+    mocks.loadStatusesCatalog.mockResolvedValueOnce([
+      { id: "1", name: "Open", statusCategory: "new" },
+      { id: "2", name: "open", statusCategory: "new" },
+      { id: "3", name: "Legacy", statusCategory: "indeterminate" },
+      { id: "4", name: "Robot only", statusCategory: "indeterminate" },
+    ]);
+    mocks.loadWorkflowSchemeStatuses.mockResolvedValueOnce([{ schemeId: "10", statusId: "1" }, { schemeId: "10", statusId: "2" }]);
+    mocks.loadStatusIssueCounts.mockResolvedValueOnce(new Map([["1", 5], ["2", 1], ["3", 7], ["4", 0]]));
+    mocks.loadStatusHistoryCounts.mockResolvedValueOnce({ counts: new Map(), measuredAt: null });
+    mocks.loadStatusAutomationReferences.mockResolvedValueOnce({ "robot only": { ruleCount: 2, enabledRuleCount: 2 } });
+  }
+
+  test("workflows: duplicate groups, rule-only, unreachable-with-issues and scheme structure", async () => {
+    workflowFixture();
+    const dupes = await run("workflow-duplicate-statuses");
+    expect(dupes.items[0].statuses.map((st) => [st.name, st.issueCount])).toEqual([["Open", 5], ["open", 1]]);
+
+    workflowFixture();
+    expect((await run("unreachable-with-issues")).items).toEqual([{ id: "3", name: "Legacy", issueCount: 7 }]);
+
+    workflowFixture();
+    const structure = await run("workflow-scheme-structure");
+    expect(structure.items[0]).toMatchObject({ id: "10", name: "No Done", flags: expect.arrayContaining([expect.stringMatching(/No Done/)]) });
+  });
+
+  test("workflows: unavailable, not empty, when the scheme->status mapping is missing", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValueOnce({ version: "w1" });
+    mocks.loadWorkflowSchemes.mockResolvedValueOnce([]);
+    mocks.loadStatusesCatalog.mockResolvedValueOnce([{ id: "1", name: "Open" }]);
+    mocks.loadWorkflowSchemeStatuses.mockResolvedValueOnce([]);
+    mocks.loadStatusIssueCounts.mockResolvedValueOnce(new Map());
+    mocks.loadStatusHistoryCounts.mockResolvedValueOnce({ counts: new Map(), measuredAt: null });
+    expect(await run("rule-only-statuses")).toMatchObject({ available: false, reason: "no-scheme-mapping" });
+  });
+
+  test("projects: over-configured (idle marked) and unused, every one rather than the Overview's top 8", async () => {
+    const projects = [
+      ...Array.from({ length: 12 }, (_, i) => ({ projectId: `${i}`, projectKey: `P${i}`, projectName: `P${i}`, fieldCount: 50, totalIssueCount: 10 })),
+      ...Array.from({ length: 12 }, (_, i) => ({ projectId: `n${i}`, projectKey: `N${i}`, projectName: `N${i}`, fieldCount: 2, totalIssueCount: 5000 })),
+      { projectId: "u", projectKey: "UNUSED", projectName: "Unused", fieldCount: 3, totalIssueCount: 0 },
+    ];
+    for (let i = 0; i < 2; i += 1) {
+      mocks.readSnapshotMeta.mockResolvedValueOnce({ version: "s1" });
+      mocks.listSnapshotProjects.mockResolvedValueOnce(projects);
+      mocks.loadProjectActivity.mockResolvedValueOnce(new Map());
+    }
+    const over = await run("project-over-configured");
+    expect(over.items).toHaveLength(12);
+    expect(over.items.every((p) => p.idle)).toBe(true);
+    expect((await run("unused-projects")).items.map((p) => p.projectKey)).toEqual(["UNUSED"]);
+  });
+
+  test("projects: no adoption tasks while the activity data is stale or unmeasured", async () => {
+    mocks.readSnapshotMeta.mockResolvedValueOnce({ version: "s1" });
+    mocks.listSnapshotProjects.mockResolvedValueOnce([{ projectId: "1", projectKey: "A", projectName: "A", fieldCount: 3, totalIssueCount: 9 }]);
+    mocks.loadProjectActivity.mockResolvedValueOnce(new Map());
+    expect(await run("projects-fell-off")).toEqual({ available: true, items: [] });
+  });
+
+  test("screens: a filtered screen list, and unreachable needs the workflow snapshot", async () => {
+    mocks.readScreenSnapshotMeta.mockResolvedValueOnce({ version: "sv1" });
+    mocks.readWorkflowSnapshotMeta.mockResolvedValueOnce(null);
+    mocks.loadScreensPage.mockResolvedValueOnce({ rows: [{ screenId: "7", name: "Blank", tabCount: 1, fieldCount: 0 }] });
+    expect((await run("screen-empty")).items).toEqual([{ id: "7", name: "Blank", tabCount: 1, fieldCount: 0 }]);
+    expect(mocks.loadScreensPage.mock.calls[0][2]).toMatchObject({ filter: "empty" });
+
+    mocks.readScreenSnapshotMeta.mockResolvedValueOnce({ version: "sv1" });
+    mocks.readWorkflowSnapshotMeta.mockResolvedValueOnce(null);
+    expect(await run("screen-unreached")).toMatchObject({ available: false, reason: "no-workflow-snapshot" });
+  });
+
+  test("screens: dangling operations grouped per scheme; unused schemes", async () => {
+    mocks.readScreenSnapshotMeta.mockResolvedValueOnce({ version: "sv1" });
+    mocks.loadScreenSchemeOperations.mockResolvedValueOnce([
+      { schemeId: "s1", operation: "create", screenId: "99", dangling: true },
+      { schemeId: "s1", operation: "edit", screenId: "98", dangling: true },
+      { schemeId: "s2", operation: "view", screenId: "1", dangling: false },
+    ]);
+    mocks.loadScreenSchemes.mockResolvedValueOnce([{ schemeId: "s1", name: "Broken", issueTypeSchemeCount: 1 }, { schemeId: "s2", name: "Fine", issueTypeSchemeCount: 1 }]);
+    const dangling = await run("screen-dangling");
+    expect(dangling.items).toEqual([{ id: "s1", name: "Broken", operations: [{ operation: "create", screenId: "99" }, { operation: "edit", screenId: "98" }] }]);
+
+    mocks.readScreenSnapshotMeta.mockResolvedValueOnce({ version: "sv1" });
+    mocks.loadScreenSchemes.mockResolvedValueOnce([{ schemeId: "s3", name: "Orphan", issueTypeSchemeCount: 0 }, { schemeId: "s2", name: "Fine", issueTypeSchemeCount: 2 }]);
+    expect((await run("screen-unused-schemes")).items).toEqual([{ id: "s3", name: "Orphan" }]);
+  });
+
+  test("automation: disabled rules in full from the directory", async () => {
+    mocks.readAutomationPart.mockResolvedValueOnce({ rules: [[1, "On", 1, null, 2, null], [2, "Off", 0, "jira:issue_created", 1, null]] });
+    expect((await run("automation-disabled")).items).toEqual([expect.objectContaining({ id: 2, name: "Off", enabled: false })]);
+  });
+
+  test("automation: risk findings are marked partial when the preview holds fewer than the count", async () => {
+    mocks.readAutomationAnalysis.mockResolvedValueOnce({
+      estate: { health: { credentialRuleCount: 9 } },
+      findingsPreview: [
+        { id: 1, n: "Webhook", e: 1, r: [{ c: "embedded-credential", s: "high" }] },
+        { id: 2, n: "Other", e: 1, r: [{ c: "external-http", h: ["x.io"] }] },
+      ],
+    });
+    const r = await run("automation-credentials");
+    expect(r).toMatchObject({ available: true, partial: true, expected: 9 });
+    expect(r.items).toEqual([expect.objectContaining({ id: 1, name: "Webhook", enabled: true })]);
+  });
+
+  test("automation: not partial when the preview holds every flagged rule", async () => {
+    mocks.readAutomationAnalysis.mockResolvedValueOnce({
+      estate: { health: { externalHttpCount: 1 } },
+      findingsPreview: [{ id: 2, n: "Other", e: 1, r: [{ c: "external-http", h: ["x.io"] }] }],
+    });
+    const r = await run("automation-external");
+    expect(r.partial).toBeUndefined();
+    expect(r.items[0].hosts).toEqual(["x.io"]);
+  });
+
+  test("automation: self-triggering rules from the stored cascades, once each", async () => {
+    mocks.readAutomationAnalysis.mockResolvedValueOnce({
+      estate: { health: { selfTriggeringCount: 1 } },
+      cascades: [
+        { sourceId: 5, sourceName: "Loop", targetId: 5, selfTriggering: true },
+        { sourceId: 5, sourceName: "Loop", targetId: 5, selfTriggering: true },
+        { sourceId: 6, targetId: 7, selfTriggering: false },
+      ],
+    });
+    mocks.readAutomationPart.mockResolvedValueOnce(null);
+    expect((await run("automation-self-triggering")).items).toEqual([expect.objectContaining({ id: 5, name: "Loop" })]);
+  });
+});
+
+describe("getRemediationCandidates -- every new loader is explicitly unavailable before its data exists", () => {
+  const run = (findingKey) => getRemediationCandidates({ payload: { findingKey }, context: { installContext: "ari:cloud:jira::site/x", accountId: "admin-1" } });
+
+  test.each([
+    ["field-admin-attention", "readSnapshotMeta", "no-snapshot"],
+    ["field-risky", "readSnapshotMeta", "no-snapshot"],
+    ["workflow-duplicate-statuses", "readWorkflowSnapshotMeta", "no-snapshot"],
+    ["unused-projects", "readSnapshotMeta", "no-snapshot"],
+    ["screen-empty", "readScreenSnapshotMeta", "no-snapshot"],
+    ["screen-dangling", "readScreenSnapshotMeta", "no-snapshot"],
+    ["screen-unused-schemes", "readScreenSnapshotMeta", "no-snapshot"],
+    ["filters-shared-everyone", "readFilterSnapshotMeta", "no-snapshot"],
+    ["dashboards-empty", "readDashboardSnapshotMeta", "no-snapshot"],
+    ["people-offroster-automation-refs", "readUserSnapshotMeta", "no-snapshot"],
+    ["issue-type-hierarchy", "readIssueTypeSnapshotMeta", "no-snapshot"],
+    ["estate-duplicate-priorities", "readEstateSnapshotMeta", "no-snapshot"],
+    ["asset-bare-types", "readAssetSnapshotMeta", "no-snapshot"],
+  ])("%s", async (key, metaMock, reason) => {
+    mocks[metaMock].mockResolvedValueOnce(null);
+    expect(await run(key)).toMatchObject({ available: false, reason, items: [] });
+  });
+
+  test.each([
+    ["automation-disabled", "no-automation-index"],
+    ["automation-inert", "no-analysis"],
+    ["automation-self-triggering", "no-analysis"],
+  ])("%s", async (key, reason) => {
+    mocks.readAutomationAnalysis.mockResolvedValueOnce(null);
+    mocks.readAutomationPart.mockResolvedValueOnce(null);
+    expect(await run(key)).toMatchObject({ available: false, reason });
+  });
+
+  test("rule-only statuses: the orphans an automation rule still names", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValueOnce({ version: "w1" });
+    mocks.loadWorkflowSchemes.mockResolvedValueOnce([{ id: "10", name: "S", projectCount: 1 }]);
+    mocks.loadStatusesCatalog.mockResolvedValueOnce([{ id: "1", name: "Open" }, { id: "4", name: "Robot only" }]);
+    mocks.loadWorkflowSchemeStatuses.mockResolvedValueOnce([{ schemeId: "10", statusId: "1" }]);
+    mocks.loadStatusIssueCounts.mockResolvedValueOnce(new Map([["4", 0]]));
+    mocks.loadStatusHistoryCounts.mockResolvedValueOnce({ counts: new Map(), measuredAt: null });
+    mocks.loadStatusAutomationReferences.mockResolvedValueOnce({ "robot only": { ruleCount: 2, enabledRuleCount: 1 } });
+    const r = await run("rule-only-statuses");
+    expect(r.items).toEqual([expect.objectContaining({ id: "4", name: "Robot only" })]);
+  });
+
+  test("stale projects: every project untouched for over 180 days", async () => {
+    mocks.readSnapshotMeta.mockResolvedValueOnce({ version: "s1" });
+    mocks.listSnapshotProjects.mockResolvedValueOnce([
+      { projectId: "1", projectKey: "OLD", projectName: "Old", fieldCount: 3, totalIssueCount: 9, latestIssueUpdatedAt: "2024-01-01T00:00:00Z" },
+      { projectId: "2", projectKey: "NEW", projectName: "New", fieldCount: 3, totalIssueCount: 9, latestIssueUpdatedAt: new Date().toISOString() },
+    ]);
+    mocks.loadProjectActivity.mockResolvedValueOnce(new Map());
+    expect((await run("stale-projects")).items.map((p) => p.projectKey)).toEqual(["OLD"]);
   });
 });

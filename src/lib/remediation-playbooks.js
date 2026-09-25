@@ -1096,6 +1096,428 @@ Object.assign(REMEDIATION_PLAYBOOKS, {
   }),
 });
 
+// ── Fields ──────────────────────────────────────────────────────────────────
+//
+// Every field finding is one field to adjust, so one shape serves all seven: what the
+// finding says, the field's own numbers, and the steps that finding calls for.
+
+const fieldCfNumber = (id) => (String(id || "").match(/^customfield_(\d+)$/) || [])[1] || null;
+
+function fieldPlaybook({ key, finding, label, epicSummary, why, strategy, steps }) {
+  return definePlaybook({
+    pillar: "fields",
+    label,
+    findings: [finding],
+    epic: { summary: epicSummary, why, strategy, done: `Every child task is closed and the next Observatory scan no longer flags these fields.` },
+    task: {
+      heading: "The field",
+      summary: (it) => `${label}: "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [
+        ["Field", it.name || "(unnamed)"],
+        ["Field id", it.id],
+        ["Type", it.type],
+        ["Projects configured", it.configuredProjectCount],
+        ["Issues with a value", it.totalIssueCount],
+        ...(it.reasons || []).map((r) => ["Flagged", r]),
+      ],
+      steps: () => steps,
+      done: "The field no longer carries this finding in the next Observatory scan.",
+    },
+    links: (it, o) => [
+      [`Field: ${it.name || it.id}`, L.field(o, it.id)],
+      ["Field contexts", L.fieldContexts(o, it.id)],
+      ...(fieldCfNumber(it.id) ? [["Issues with a value", L.search(o, `cf[${fieldCfNumber(it.id)}] is not EMPTY`)]] : []),
+    ],
+  });
+}
+
+Object.assign(REMEDIATION_PLAYBOOKS, {
+  "field-admin-attention": fieldPlaybook({
+    finding: "admin-attention",
+    label: "Field needing admin attention",
+    epicSummary: (n) => `Review ${n} custom ${plural(n, "field")} flagged for admin attention`,
+    why: (n) => `${n} ${plural(n, "field carries", "fields carry")} a high-severity governance finding, or enough lesser ones to add up to one. These are the fields most likely to cause a problem or cost the most to leave alone.`,
+    strategy: `Each task lists why its field was flagged. Work the reasons in order of severity; the field's own findings in the Field Browser explain each one.`,
+    steps: ["Read the reasons listed above.", "Open the field (links below) and address each reason, or record why it stands.", "Re-check the field in Observatory's Field Browser."],
+  }),
+  "field-risky": fieldPlaybook({
+    finding: "risky",
+    label: "High-impact field",
+    epicSummary: (n) => `Review ${n} high-impact custom ${plural(n, "field")}`,
+    why: (n) => `${n} ${plural(n, "field is", "fields are")} flagged risky: used so widely, or by an app so heavily, that a careless change reaches a large share of the site.`,
+    strategy: `No field here is broken. Each task makes sure someone owns the field, its description says what it is for, and changes to it go through review.`,
+    steps: ["Confirm who owns this field and record it in the description.", "Check its contexts and options are deliberate.", "Treat any future change to it as a reviewed change."],
+  }),
+  "field-global-context-low-usage": fieldPlaybook({
+    finding: "field-global-context-low-usage",
+    label: "Global field used by few projects",
+    epicSummary: (n) => `Scope ${n} global ${plural(n, "field")} to the projects that use them`,
+    why: (n) => `${n} ${plural(n, "field has", "fields have")} a global context -- offered in every project -- but hardly any issues use it. Every project sees it in pickers, screens and search for nothing.`,
+    strategy: `Replace each global context with one scoped to the projects that actually use the field.`,
+    steps: ["Use the search link below to see which projects have values in it.", "Edit the field's context (links below) so it applies to those projects only."],
+  }),
+  "field-dead-configuration": fieldPlaybook({
+    finding: "field-dead-configuration",
+    label: "Field configured where it is not used",
+    epicSummary: (n) => `Remove dead configuration from ${n} custom ${plural(n, "field")}`,
+    why: (n) => `${n} ${plural(n, "field is", "fields are")} configured for many projects but used in only a few. The rest carry the field for nothing.`,
+    strategy: `Trim each field's contexts to the projects with values in it.`,
+    steps: ["Use the search link below to see which projects use it.", "Remove the other projects from its contexts (links below)."],
+  }),
+  "field-stale": fieldPlaybook({
+    finding: "field-stale",
+    label: "Field nobody has filled in recently",
+    epicSummary: (n) => `Review ${n} custom ${plural(n, "field")} nobody has filled in recently`,
+    why: (n) => `${n} ${plural(n, "field has", "fields have")} values, but none has been set in a long time. Either the process that used ${plural(n, "it", "them")} ended, or ${plural(n, "it is", "they are")} kept only for history.`,
+    strategy: `Confirm with the owning team. Remove a field no longer needed from its screens (history stays); delete it only if the history does not matter.`,
+    steps: ["Ask the owning team whether the field is still part of their process.", "If not, take it off its screens so nobody fills it in by mistake.", "Delete it only if its historical values are not needed."],
+  }),
+  "field-context-sprawl": fieldPlaybook({
+    finding: "field-context-sprawl",
+    label: "Field with many contexts",
+    epicSummary: (n) => `Consolidate contexts on ${n} custom ${plural(n, "field")}`,
+    why: (n) => `${n} ${plural(n, "field has", "fields have")} many contexts. Each context carries its own option list and default, so the same field behaves differently from project to project and every option change has to be made several times.`,
+    strategy: `Merge contexts that share the same options, leaving separate contexts only where projects genuinely need different ones.`,
+    steps: ["Open the field's contexts (links below).", "Merge contexts with identical options; keep separate ones only where the options really differ."],
+  }),
+  "field-missing-description": fieldPlaybook({
+    finding: "field-missing-description",
+    label: "Widely used field with no description",
+    epicSummary: (n) => `Describe ${n} widely used custom ${plural(n, "field")}`,
+    why: (n) => `${n} ${plural(n, "field is", "fields are")} used across many projects or issues and ${plural(n, "has", "have")} no description, so the only way to learn what ${plural(n, "it is", "they are")} for is to ask someone.`,
+    strategy: `Write one sentence per field: what it records and who owns it.`,
+    steps: ["Open the field (link below) -> Edit details.", "Add a one-sentence description: what it records, and who owns it."],
+  }),
+});
+
+// ── Workflows ───────────────────────────────────────────────────────────────
+
+Object.assign(REMEDIATION_PLAYBOOKS, {
+  "workflow-duplicate-statuses": definePlaybook({
+    pillar: "workflows",
+    label: "Duplicate statuses",
+    findings: ["duplicate-statuses", "reducible-statuses"],
+    granularity: "group",
+    epic: {
+      summary: (n) => `Consolidate ${n} ${plural(n, "group")} of duplicate statuses`,
+      why: (n) => `${n} ${plural(n, "group")} of statuses are the same status under different spellings. Boards, filters and reports split across the variants, and people pick whichever they see first.`,
+      strategy: `For each group, keep the most-used status, change every workflow to use it, move issues off the others, then delete them.`,
+      done: `Every child task is closed and the next scan reports no duplicate statuses.`,
+    },
+    task: {
+      heading: "The statuses",
+      summary: (it) => `Consolidate ${it.count || (it.statuses || []).length || 0} duplicate statuses ("${(it.statuses || [])[0]?.name || it.key || "?"}")`,
+      facts: (it) => [["Match", it.kind], ...(it.statuses || []).map((st) => [st.name || st.statusId, st.issueCount != null ? `${st.issueCount} issues now` : `id ${st.statusId}`])],
+      steps: () => [
+        "Pick the survivor -- usually the one with the most issues.",
+        "In every workflow using the others, swap in the survivor (workflow schemes migrate issues when published).",
+        "Delete the leftover statuses once no workflow uses them.",
+      ],
+      done: "Only one status remains from this group, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [["Statuses admin", L.statusAdmin(o)], ...(it.statuses || []).map((st) => [`Issues in "${st.name || st.statusId}"`, L.search(o, `status = ${st.statusId}`)])],
+  }),
+
+  "rule-only-statuses": definePlaybook({
+    pillar: "workflows",
+    label: "Statuses only automation reaches",
+    findings: ["rule-only-statuses"],
+    epic: {
+      summary: (n) => `Resolve ${n} ${plural(n, "status", "statuses")} only an automation rule can reach`,
+      why: (n) => `${n} ${plural(n, "status is", "statuses are")} on no workflow, yet an automation rule still names ${plural(n, "it", "them")}. The rule either fails when it runs or sets a status no workflow can move an issue out of.`,
+      strategy: `For each status, either put it back on the workflow that should have it, or change the rule to use a status that exists in that workflow.`,
+      done: `Every child task is closed and the next scan reports no rule-only statuses.`,
+    },
+    task: {
+      heading: "The status",
+      summary: (it) => `Resolve rule-only status "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [["Status", it.name], ["Status id", it.id], ["Rules naming it", it.automationRuleCount], ["Issues in it now", it.issueCount]],
+      steps: () => ["Find the rules naming this status (Workflows tab -> the status's detail).", "Add the status to the workflow that should have it, or repoint the rule to an existing status."],
+      done: "A workflow reaches the status or no rule names it, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [["Statuses admin", L.statusAdmin(o)], [`Issues in "${it.name || it.id}"`, it.id ? L.search(o, `status = ${it.id}`) : null]],
+  }),
+
+  "unreachable-with-issues": definePlaybook({
+    pillar: "workflows",
+    label: "Unreachable statuses still holding issues",
+    findings: ["unreachable-with-issues"],
+    epic: {
+      summary: (n) => `Rescue issues stuck in ${n} unreachable ${plural(n, "status", "statuses")}`,
+      why: (n) => `${n} ${plural(n, "status holds", "statuses hold")} issues, but no workflow includes ${plural(n, "it", "them")} any more. Those issues cannot be transitioned: they are stuck until someone moves them by hand.`,
+      strategy: `Move each status's issues into a status their workflow does have, then retire the status.`,
+      done: `Every child task is closed and the next scan reports no unreachable status holding issues.`,
+    },
+    task: {
+      heading: "The status",
+      summary: (it) => `Move ${it.issueCount ?? "the"} ${plural(Number(it.issueCount) || 0, "issue")} out of unreachable status "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [["Status", it.name], ["Status id", it.id], ["Issues stuck in it", it.issueCount]],
+      steps: () => [
+        "Open the stuck issues (link below).",
+        "Temporarily add the status back to their workflow with a transition out, or migrate the project's workflow scheme and map the status.",
+        "Move the issues out, then remove the status from the workflow again.",
+      ],
+      done: "No issue sits in the status, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[`Issues in "${it.name || it.id}"`, it.id ? L.search(o, `status = ${it.id}`) : null], ["Statuses admin", L.statusAdmin(o)]],
+  }),
+
+  "workflow-scheme-structure": definePlaybook({
+    pillar: "workflows",
+    label: "Workflow schemes with a structural problem",
+    findings: ["scheme-balance", "scheme-no-done"],
+    epic: {
+      summary: (n) => `Fix ${n} workflow ${plural(n, "scheme")} with a structural problem`,
+      why: (n) => `${n} workflow ${plural(n, "scheme has", "schemes have")} a structural problem: no Done status (nothing can ever be completed), uncategorised statuses that fall out of reporting, far more In Progress than Done statuses, or too many statuses to hold in your head.`,
+      strategy: `Each task lists its scheme's problems. Fix no-Done first -- it breaks resolution, reports and board completion outright.`,
+      done: `Every child task is closed and the next scan reports no flagged workflow schemes.`,
+    },
+    task: {
+      heading: "The workflow scheme",
+      summary: (it) => `Fix workflow scheme "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [["Scheme", it.name], ["Scheme id", it.id], ["Projects using it", it.projectCount], ...(it.flags || []).map((f) => ["Problem", f])],
+      steps: () => [
+        "Open the scheme (link below) and edit the workflows it uses.",
+        "No Done status: add one and a transition into it. Uncategorised: give each status a category.",
+        "Too many statuses: merge the ones that mean the same thing.",
+      ],
+      done: "The scheme has no structural finding in the next Observatory scan.",
+    },
+    links: (it, o) => [[`Workflow scheme: ${it.name || it.id}`, L.workflowScheme(o, it.id)]],
+  }),
+});
+
+// ── Projects ────────────────────────────────────────────────────────────────
+
+function projectPlaybook({ key, findings, label, epicSummary, why, strategy, facts, steps }) {
+  return definePlaybook({
+    pillar: "projects",
+    label,
+    findings,
+    epic: { summary: epicSummary, why, strategy, done: `Every child task is closed and the next Observatory scan no longer flags these projects.` },
+    task: {
+      heading: "The project",
+      summary: (it) => `${label}: ${it.projectKey || it.id || "(unknown)"}`,
+      facts: (it) => [["Project", it.projectName ? `${it.projectName} (${it.projectKey})` : it.projectKey], ...facts(it)],
+      steps: () => steps,
+      done: "The project no longer carries this finding in the next Observatory scan.",
+    },
+    links: (it, o) => [[`${it.projectKey} project`, L.project(o, it.projectKey)], [`${it.projectKey} settings`, L.projectSettings(o, it.projectKey)]],
+  });
+}
+
+Object.assign(REMEDIATION_PLAYBOOKS, {
+  "project-over-configured": projectPlaybook({
+    findings: ["over-configured", "idle-over-configured"],
+    label: "Over-configured project",
+    epicSummary: (n) => `Trim field configuration in ${n} over-configured ${plural(n, "project")}`,
+    why: (n) => `${n} ${plural(n, "project carries", "projects carry")} at least twice the site's typical number of fields -- more to fill in on every create screen, and more for every field change to reach. Idle projects among them carry it for almost no work.`,
+    strategy: `For each project, remove the fields it never fills in from its screens and contexts. Idle projects first: they carry the most configuration per issue.`,
+    facts: (it) => [["Fields in use", it.fieldCount], ["Issue volume", it.volume], ["Idle", it.idle ? "yes -- very little work for its size" : null]],
+    steps: ["Open the project in Observatory's Projects tab to see which fields it never fills in.", "Remove those fields from its screens, and the project from their contexts."],
+  }),
+  "unused-projects": projectPlaybook({
+    findings: ["unused-projects"],
+    label: "Project with no issues",
+    epicSummary: (n) => `Archive or delete ${n} ${plural(n, "project")} with no issues`,
+    why: (n) => `${n} ${plural(n, "project has", "projects have")} fields configured but no issues at all -- set up and never used, still in every project picker.`,
+    strategy: `Confirm with each lead, then archive the project (or delete it if it was never meant to exist).`,
+    facts: (it) => [["Fields configured", it.fieldCount]],
+    steps: ["Confirm with the project lead that it is not about to be used.", "Archive it (Project settings -> Archive), or delete it."],
+  }),
+  "stale-projects": projectPlaybook({
+    findings: ["stale-projects"],
+    label: "Project untouched for six months",
+    epicSummary: (n) => `Review ${n} ${plural(n, "project")} nobody has touched in six months`,
+    why: (n) => `No issue in ${n} ${plural(n, "project has", "projects have")} been updated in over 180 days. Either the work moved elsewhere or the project is finished.`,
+    strategy: `Confirm with each lead, then archive finished projects so they leave pickers and search.`,
+    facts: (it) => [["Last issue update", it.latestIssueUpdatedAt], ["Fields", it.fieldCount]],
+    steps: ["Confirm with the lead whether the project is finished or the work moved.", "Archive it if it is done."],
+  }),
+  "projects-fell-off": projectPlaybook({
+    findings: ["projects-fell-off"],
+    label: "Project whose activity fell off",
+    epicSummary: (n) => `Check on ${n} ${plural(n, "project")} whose activity fell off`,
+    why: (n) => `${n} ${plural(n, "project is", "projects are")} running far below ${plural(n, "its", "their")} own historical rate. Work may have moved to another project or tool, leaving this one half-used.`,
+    strategy: `Ask each lead where the work went. Consolidate or archive where it moved; leave alone where it is simply quiet.`,
+    facts: (it) => [["Issues per day now", it.recentIssuesPerDay], ["Issues per day historically", it.issuesPerDay], ["Peak month", it.peakMonth]],
+    steps: ["Ask the lead where the project's work is happening now.", "Consolidate into the project it moved to, archive, or record that it is simply quiet."],
+  }),
+  "projects-never-adopted": projectPlaybook({
+    findings: ["projects-never-adopted"],
+    label: "Project never adopted",
+    epicSummary: (n) => `Check on ${n} ${plural(n, "project")} that never took off`,
+    why: (n) => `${n} ${plural(n, "project was", "projects were")} set up and used a little, but never reached a working rate.`,
+    strategy: `Ask each lead whether the project is still wanted. Archive the ones that are not.`,
+    facts: (it) => [["Issues per day", it.issuesPerDay], ["Age (days)", it.ageDays]],
+    steps: ["Ask the lead whether the project is still wanted.", "Archive it if not."],
+  }),
+});
+
+// ── Screens ─────────────────────────────────────────────────────────────────
+
+function screenPlaybook({ finding, label, epicSummary, why, strategy, steps }) {
+  return definePlaybook({
+    pillar: "screens",
+    label,
+    findings: [finding],
+    epic: { summary: epicSummary, why, strategy, done: `Every child task is closed and the next Observatory scan no longer flags these screens.` },
+    task: {
+      heading: "The screen",
+      summary: (it) => `${label}: "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [["Screen", it.name], ["Screen id", it.id], ["Tabs", it.tabCount], ["Fields", it.fieldCount]],
+      steps: () => steps,
+      done: "The screen no longer carries this finding in the next Observatory scan.",
+    },
+    links: (it, o) => [[`Screen: ${it.name || it.id}`, L.screen(o, it.id)]],
+  });
+}
+
+Object.assign(REMEDIATION_PLAYBOOKS, {
+  "screen-empty": screenPlaybook({
+    finding: "screen-empty",
+    label: "Screen with no fields",
+    epicSummary: (n) => `Delete or fill ${n} ${plural(n, "screen")} with no fields`,
+    why: (n) => `${n} ${plural(n, "screen carries", "screens carry")} no fields at all. Anything routed to one shows an empty form.`,
+    strategy: `Delete screens nothing routes to; add fields to any a scheme still uses.`,
+    steps: ["Open the screen (link below) and check which screen schemes use it.", "Delete it if none do; otherwise add the fields it was meant to carry."],
+  }),
+  "screen-unreached": screenPlaybook({
+    finding: "screen-unreached",
+    label: "Screen nothing reaches",
+    epicSummary: (n) => `Delete ${n} ${plural(n, "screen")} nothing reaches`,
+    why: (n) => `${n} ${plural(n, "screen is", "screens are")} used by no screen scheme and opened by no workflow transition. Nobody can ever see ${plural(n, "it", "them")}; ${plural(n, "it is", "they are")} clutter in every screen search.`,
+    strategy: `Confirm each is unused, then delete it.`,
+    steps: ["Open the screen (link below) and confirm no scheme or transition uses it.", "Delete it."],
+  }),
+  "screen-transition-only": screenPlaybook({
+    finding: "screen-transition-only",
+    label: "Screen opened only by a transition",
+    epicSummary: (n) => `Review ${n} ${plural(n, "screen")} opened only by a workflow transition`,
+    why: (n) => `${n} ${plural(n, "screen is", "screens are")} reached only as a transition screen. That is often deliberate -- but a transition screen that asks for fields nobody reads is friction on every transition.`,
+    strategy: `For each, confirm the transition still needs to ask for these fields; drop the screen from the transition if not.`,
+    steps: ["Open the screen (link below) and find the transition that shows it (Workflows tab).", "Keep it if the transition genuinely needs the input; otherwise remove it from the transition and delete it."],
+  }),
+  "screen-unresolved": screenPlaybook({
+    finding: "screen-unresolved",
+    label: "Screen whose contents could not be read",
+    epicSummary: (n) => `Check ${n} ${plural(n, "screen")} Observatory could not read`,
+    why: (n) => `Observatory could not read the tabs and fields of ${n} ${plural(n, "screen")}, so every screen finding for ${plural(n, "it", "them")} is "unknown" rather than clean.`,
+    strategy: `Open each screen to confirm it is intact; a screen Jira itself cannot render is usually broken and should be rebuilt or deleted.`,
+    steps: ["Open the screen (link below).", "If it renders, re-run the screen scan; if it does not, rebuild or delete it."],
+  }),
+  "screen-dangling": definePlaybook({
+    pillar: "screens",
+    label: "Screen schemes pointing at a missing screen",
+    findings: ["screen-dangling"],
+    granularity: "group",
+    epic: {
+      summary: (n) => `Repair ${n} screen ${plural(n, "scheme")} pointing at a missing screen`,
+      why: (n) => `${n} screen ${plural(n, "scheme maps", "schemes map")} an operation (create, edit, view) to a screen that no longer exists. Jira falls back unpredictably for those operations.`,
+      strategy: `For each scheme, point every listed operation at a screen that exists.`,
+      done: `Every child task is closed and the next scan reports no dangling screen operations.`,
+    },
+    task: {
+      heading: "The screen scheme",
+      summary: (it) => `Repair ${(it.operations || []).length || "the"} dangling ${plural((it.operations || []).length, "operation")} in screen scheme "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [["Screen scheme", it.name], ["Scheme id", it.id], ...(it.operations || []).map((op) => [`Operation: ${op.operation}`, `missing screen ${op.screenId || "(none)"}`])],
+      steps: () => ["Open the screen scheme (link below).", "For each listed operation, choose a screen that exists."],
+      done: "Every operation in the scheme maps to a real screen, and the next Observatory scan agrees.",
+    },
+    links: (it, o) => [[`Screen scheme: ${it.name || it.id}`, L.screenScheme(o, it.id)]],
+  }),
+  "screen-unused-schemes": definePlaybook({
+    pillar: "screens",
+    label: "Screen schemes nothing uses",
+    findings: ["screen-unused-schemes"],
+    epic: {
+      summary: (n) => `Delete ${n} screen ${plural(n, "scheme")} no issue type screen scheme uses`,
+      why: (n) => `${n} screen ${plural(n, "scheme is", "schemes are")} mapped by no issue type screen scheme, so ${plural(n, "it", "they")} can route nothing to any project.`,
+      strategy: `Confirm each is unused, then delete it.`,
+      done: `Every child task is closed and the next scan reports no unused screen schemes.`,
+    },
+    task: {
+      heading: "The screen scheme",
+      summary: (it) => `Delete unused screen scheme "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [["Screen scheme", it.name], ["Scheme id", it.id]],
+      steps: () => ["Open the scheme (link below) and confirm nothing maps to it.", "Delete it."],
+      done: "The scheme no longer exists and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[`Screen scheme: ${it.name || it.id}`, L.screenScheme(o, it.id)]],
+  }),
+});
+
+// ── Automation ──────────────────────────────────────────────────────────────
+//
+// Only disabled rules are known in full: the rule directory lists every rule. The risk
+// findings come from the stored analysis, which keeps a preview of the highest-severity rules
+// -- the loaders say so (`partial`) rather than presenting the preview as the whole list.
+
+function automationPlaybook({ finding, label, epicSummary, why, strategy, facts = () => [], steps }) {
+  return definePlaybook({
+    pillar: "automation",
+    label,
+    findings: [finding],
+    epic: { summary: epicSummary, why, strategy, done: `Every child task is closed and the next automation import no longer flags these rules.` },
+    task: {
+      heading: "The rule",
+      summary: (it) => `${label}: "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [["Rule", it.name], ["Rule id", it.id], ["Enabled", it.enabled == null ? null : it.enabled ? "yes" : "no"], ["Trigger", it.triggerType], ["Projects", it.projectCount], ...facts(it)],
+      steps: () => steps,
+      done: "The rule no longer carries this finding after the next automation import.",
+    },
+    links: (it, o) => [[`Rule: ${it.name || it.id}`, L.automationRule(o, it.id)]],
+  });
+}
+
+Object.assign(REMEDIATION_PLAYBOOKS, {
+  "automation-credentials": automationPlaybook({
+    finding: "automation-credentials",
+    label: "Rule storing a credential in plaintext",
+    epicSummary: (n) => `Rotate and remove plaintext credentials from ${n} automation ${plural(n, "rule")}`,
+    why: (n) => `${n} automation ${plural(n, "rule stores", "rules store")} a credential -- a token, secret or password -- in plaintext. Anyone who can view the rule, or its audit log or export, can read it.`,
+    strategy: `Treat every credential here as exposed: rotate it at the source first, then change the rule to authenticate without embedding it. This ticket never contains the credential itself.`,
+    steps: [
+      "Identify the system the credential belongs to (the rule's web request or action).",
+      "Rotate the credential at its source now -- assume it is compromised.",
+      "Change the rule to authenticate without a plaintext secret (a connection or a narrowly scoped token), or remove the action.",
+    ],
+  }),
+  "automation-external": automationPlaybook({
+    finding: "automation-external",
+    label: "Rule calling an external host",
+    epicSummary: (n) => `Review ${n} automation ${plural(n, "rule")} sending data to external hosts`,
+    why: (n) => `${n} automation ${plural(n, "rule sends", "rules send")} web requests outside Atlassian. Each is a path for issue data to leave the site, and fails silently if the host changes.`,
+    strategy: `Confirm each host is approved and still needed; remove requests to anything unrecognised.`,
+    facts: (it) => [["Hosts", (it.hosts || []).join(", ")]],
+    steps: ["Confirm the host is an approved destination.", "Check what issue data the request sends.", "Remove or disable the request if the host is not approved or no longer needed."],
+  }),
+  "automation-inert": automationPlaybook({
+    finding: "automation-inert",
+    label: "Rule with no actions",
+    epicSummary: (n) => `Finish or delete ${n} automation ${plural(n, "rule")} with no actions`,
+    why: (n) => `${n} automation ${plural(n, "rule has", "rules have")} a trigger but no actions -- ${plural(n, "it runs", "they run")}, count against the execution limit, and ${plural(n, "does", "do")} nothing.`,
+    strategy: `Finish each rule if it was abandoned half-built; delete it otherwise.`,
+    steps: ["Open the rule and confirm it has no actions.", "Add the actions it was meant to have, or delete it."],
+  }),
+  "automation-self-triggering": automationPlaybook({
+    finding: "automation-self-triggering",
+    label: "Rule that can trigger itself",
+    epicSummary: (n) => `Guard ${n} automation ${plural(n, "rule")} that can trigger ${plural(n, "itself", "themselves")}`,
+    why: (n) => `${n} automation ${plural(n, "rule changes", "rules change")} the very thing that triggers ${plural(n, "it", "them")}. Without a guard condition, one event can loop until Jira's loop limit stops it -- burning executions and spamming history.`,
+    strategy: `Add a condition that stops the second run, or narrow the trigger.`,
+    steps: ["Open the rule and find the action that re-triggers it.", "Add a condition that is false after the rule's own change, or narrow the trigger."],
+  }),
+  "automation-disabled": automationPlaybook({
+    finding: "automation-disabled",
+    label: "Disabled rule",
+    epicSummary: (n) => `Delete or re-enable ${n} disabled automation ${plural(n, "rule")}`,
+    why: (n) => `${n} automation ${plural(n, "rule is", "rules are")} disabled. Each is clutter in the rule list and a question for the next admin: switched off on purpose, or by accident?`,
+    strategy: `Confirm with each rule's owner. Delete rules nobody needs; re-enable the ones switched off by mistake.`,
+    steps: ["Check with the rule's author or owning team.", "Delete it if obsolete, or re-enable it if it was switched off by mistake."],
+  }),
+});
+
 // ── Links and finding coverage for the hand-written playbooks ──────────────
 
 const LEGACY_META = {

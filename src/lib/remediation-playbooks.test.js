@@ -94,6 +94,33 @@ describe("finding coverage", () => {
     }
   });
 
+  it("covers every Overview finding that has items to fix", () => {
+    // Every finding the Overview can raise except adoption-data-stale, whose fix is a rescan.
+    const OVERVIEW_FINDINGS = [
+      "admin-attention", "risky", "duplicate-statuses", "unused-statuses", "rule-only-statuses", "scheme-balance",
+      "reducible-statuses", "unreachable-with-issues", "scheme-no-done", "over-configured", "idle-over-configured",
+      "field-global-context-low-usage", "field-dead-configuration", "field-no-populated-issues", "field-stale",
+      "field-context-sprawl", "field-missing-description", "automation-credentials", "automation-self-triggering",
+      "automation-external", "automation-inert", "automation-disabled", "dashboards-orphaned", "dashboards-open-edit",
+      "dashboards-empty", "dashboards-published-unused", "filters-orphaned", "filters-broken-scope", "filters-unknown-type",
+      "filters-zombie-subscriptions", "filters-shared-everyone", "filters-duplicates", "screen-dangling", "screen-unresolved",
+      "screen-unreached", "screen-transition-only", "screen-empty", "screen-unused-schemes", "issue-type-orphans",
+      "issue-type-hierarchy", "issue-type-duplicates", "issue-type-unused-schemes", "people-deactivated-licence",
+      "people-orphaned-ownership", "people-offroster-automation-refs", "asset-broken-references", "asset-broken-hierarchy",
+      "asset-dead-schemas", "asset-bare-types", "permission-risky", "permission-unused", "security-broken-levels",
+      "security-unused", "role-empty-admin", "role-offroster-actors", "notification-fragile", "notification-unused",
+      "estate-duplicate-resolutions", "estate-duplicate-priorities", "projects-fell-off", "projects-never-adopted",
+      "unused-projects", "stale-projects",
+    ];
+    const missing = OVERVIEW_FINDINGS.filter((f) => !REMEDIATION_FINDING_INDEX[f]);
+    expect(missing).toEqual([]);
+  });
+
+  it("never writes a credential into an automation ticket", () => {
+    const text = getPlaybook("automation-credentials").taskDescription({ id: 5, name: "Sync", secret: "hunter2", token: "abc" });
+    expect(text).not.toMatch(/hunter2|abc/);
+  });
+
   it("declares a granularity on every playbook", () => {
     for (const entry of listPlaybookCatalog()) expect(["item", "group", "bounded"]).toContain(entry.granularity);
   });

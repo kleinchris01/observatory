@@ -346,3 +346,19 @@ describe("RemediationTab — quarters, confirmation, deep links", () => {
     expect(headings.indexOf("Fields")).toBeLessThan(headings.indexOf("Saved Filters"));
   });
 });
+
+describe("RemediationTab — partial lists", () => {
+  test("says plainly when a finding's list is only a preview", async () => {
+    mockInvoke({
+      getRemediationTickets: { available: false, total: 0, groups: [] },
+      getRemediationCandidates: (payload) => (payload.findingKey === "filter-ownership"
+        ? { available: true, partial: true, expected: 9, items: [{ id: "1", name: "Webhook" }] }
+        : { available: false, items: [] }),
+    });
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    await checkItems(user);
+    expect(await screen.findByRole("note")).toHaveTextContent("Only the 1 highest-severity of 9 flagged rules are listed");
+    expect(screen.getByRole("note")).toHaveTextContent("the other 8 cannot be ticketed from here yet");
+  });
+});

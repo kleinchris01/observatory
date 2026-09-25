@@ -175,7 +175,9 @@ function percentile(sortedValues, fraction) {
   return sortedValues[index];
 }
 
-export function buildProjectInsights(projects) {
+// `listLimit` caps the finding lists (over-configured, idle, unused, stale) for the Overview,
+// which shows the worst few; remediation passes Infinity to ticket every project counted.
+export function buildProjectInsights(projects, { listLimit = DASHBOARD_TOP_N } = {}) {
   // True when the Universal Scan has measured distinct issues for at least one project.
   // Partial coverage still counts: a project the scan has not reached keeps a null and is
   // rendered as unmeasured rather than as zero.
@@ -254,12 +256,12 @@ export function buildProjectInsights(projects) {
   });
 
   const overConfiguredAll = projects.filter(isOverConfigured).sort((a, b) => b.fieldCount - a.fieldCount);
-  const overConfigured = overConfiguredAll.slice(0, DASHBOARD_TOP_N).map(shapeProject);
+  const overConfigured = overConfiguredAll.slice(0, listLimit).map(shapeProject);
 
   // Over-configured AND carrying little work. Where field governance conversations start,
   // because the cost is real and the usage is not.
   const idleOverConfiguredAll = overConfiguredAll.filter(isIdle);
-  const idleOverConfigured = idleOverConfiguredAll.slice(0, DASHBOARD_TOP_N).map(shapeProject);
+  const idleOverConfigured = idleOverConfiguredAll.slice(0, listLimit).map(shapeProject);
 
   // Fields configured, no work recorded at all -- either abandoned or never started.
   //
@@ -270,7 +272,7 @@ export function buildProjectInsights(projects) {
     .filter((p) => p.fieldCount > 0 && measuredVolumeOf(p) === 0)
     .sort((a, b) => b.fieldCount - a.fieldCount);
   const unusedProjects = unusedProjectsAll
-    .slice(0, DASHBOARD_TOP_N)
+    .slice(0, listLimit)
     .map((p) => ({ projectKey: p.projectKey, projectName: p.projectName, fieldCount: p.fieldCount }));
 
   // Staleness is a per-project signal the field view never surfaces: a project can carry
@@ -284,7 +286,7 @@ export function buildProjectInsights(projects) {
     })
     .sort((a, b) => Date.parse(a.latestIssueUpdatedAt) - Date.parse(b.latestIssueUpdatedAt));
   const staleProjects = staleProjectsAll
-    .slice(0, DASHBOARD_TOP_N)
+    .slice(0, listLimit)
     .map((p) => ({
       projectKey: p.projectKey,
       projectName: p.projectName,

@@ -182,6 +182,16 @@ function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, pro
                     ? `, ${untracked.length} not yet ticketed`
                     : ""}.
                 </p>
+                {candidates.partial && (
+                  // The stored automation analysis keeps a preview of the highest-severity
+                  // rules, not all of them. Said outright, so the epic is not mistaken for the
+                  // whole finding.
+                  <p className="remediation-candidates__summary" role="note">
+                    Only the {candidates.items.length} highest-severity of {candidates.expected} flagged rules are
+                    listed: the stored automation analysis keeps a preview, so the other{" "}
+                    {candidates.expected - candidates.items.length} cannot be ticketed from here yet.
+                  </p>
+                )}
                 <button
                   type="button"
                   className="primary-button"
