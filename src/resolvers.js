@@ -3874,7 +3874,10 @@ async function getRemediationCandidates({ payload, context }) {
     if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
     const fields = await loadSnapshotFields(installationKey, meta.version);
     const items = fields
-      .filter((f) => (f.findings || []).some((finding) => finding.code === "orphaned"))
+      // Stored findings are buildGovernanceFindings' object ({ reasons, tags, ... }), not a
+      // list. This read `.some()` straight off that object and threw on every real site; the
+      // unit test mocked an array, which is the only reason it ever passed.
+      .filter((f) => (f.findings?.reasons || []).some((finding) => finding.code === "orphaned"))
       .map((f) => ({
         id: f.id,
         name: f.name || null,

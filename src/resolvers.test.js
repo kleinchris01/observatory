@@ -6725,8 +6725,10 @@ describe("getRemediationCandidates", () => {
   test("field-cleanup: only fields carrying the orphaned finding code", async () => {
     mocks.readSnapshotMeta.mockResolvedValue({ version: "s1" });
     mocks.loadSnapshotFields.mockResolvedValue([
-      { id: "customfield_1", name: "Old Field", type: "text", description: null, findings: [{ code: "orphaned" }] },
-      { id: "customfield_2", name: "Used Field", type: "text", description: "In use", findings: [{ code: "stale" }] },
+      // The stored shape: buildGovernanceFindings' object, not a bare list.
+      { id: "customfield_1", name: "Old Field", type: "text", description: null, findings: { reasons: [{ code: "orphaned" }] } },
+      { id: "customfield_2", name: "Used Field", type: "text", description: "In use", findings: { reasons: [{ code: "stale" }] } },
+      { id: "customfield_3", name: "Never scored", type: "text", description: null, findings: null },
     ]);
 
     const r = await getRemediationCandidates({ payload: { findingKey: "field-cleanup" }, context: ctxWithAccount() });
