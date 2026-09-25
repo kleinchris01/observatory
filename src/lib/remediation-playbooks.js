@@ -807,6 +807,295 @@ Object.assign(REMEDIATION_PLAYBOOKS, {
   }),
 });
 
+// ── Filters and dashboards ──────────────────────────────────────────────────
+
+const ownerFact = (it) => it.ownerName || null;
+
+// JQL string literal for a name: double quotes, inner quotes escaped.
+const jqlString = (value) => `"${String(value ?? "").replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+
+Object.assign(REMEDIATION_PLAYBOOKS, {
+  "filters-zombie-subscriptions": definePlaybook({
+    pillar: "filters",
+    label: "Subscriptions on filters nobody opens",
+    findings: ["filters-zombie-subscriptions"],
+    epic: {
+      summary: (n) => `Review email subscriptions on ${n} saved ${plural(n, "filter")} nobody opens`,
+      why: (n) => `${n} saved ${plural(n, "filter sends", "filters send")} scheduled email to subscribers, but nobody has opened the filter in over a year. That is mail people have learned to ignore -- and the habit takes the subscriptions that matter down with it.`,
+      strategy: `Ask each owner whether anyone still reads the mail. Remove the subscriptions nobody needs; if the filter itself is dead, delete it.`,
+      done: `Every child task is closed and the next scan reports no subscribed-but-unused filters.`,
+    },
+    task: {
+      heading: "The filter",
+      summary: (it) => `Review subscriptions on filter "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [["Filter", it.name || "(unnamed)"], ["Filter id", it.id], ["Owner", ownerFact(it)], ["Subscriptions", it.subscriptionCount], ["Last opened", it.lastUsedAt || "never recorded"]],
+      steps: () => [
+        "Open the filter (link below) and check its subscriptions (Details -> Subscriptions).",
+        "Confirm with the owner whether anyone still reads the mail.",
+        "Remove unwanted subscriptions, or delete the filter if nothing uses it.",
+      ],
+      done: "The filter has no subscription nobody reads, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[`Filter: ${it.name || it.id}`, L.filter(o, it.id)]],
+  }),
+
+  "filters-shared-everyone": definePlaybook({
+    pillar: "filters",
+    label: "Filters shared with every logged-in user",
+    findings: ["filters-shared-everyone"],
+    epic: {
+      summary: (n) => `Narrow sharing on ${n} saved ${plural(n, "filter")} shared with everyone`,
+      why: (n) => `${n} saved ${plural(n, "filter is", "filters are")} shared with every logged-in user. Anyone can run them, including against projects they can browse but were never meant to survey, and they clutter everyone's filter search.`,
+      strategy: `Share each filter with the project, group or role that actually uses it. Keep site-wide sharing only for filters that genuinely serve everyone.`,
+      done: `Every child task is closed and the next scan reports no filter shared with everyone that should not be.`,
+    },
+    task: {
+      heading: "The filter",
+      summary: (it) => `Narrow sharing on filter "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [["Filter", it.name || "(unnamed)"], ["Filter id", it.id], ["Owner", ownerFact(it)], ["Favourited by", it.favouritedCount]],
+      steps: () => [
+        "Open the filter (link below) -> Details -> Edit permissions.",
+        "Replace \"Any logged-in user\" with the project, group or role that uses it.",
+      ],
+      done: "The filter is shared only with its audience, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[`Filter: ${it.name || it.id}`, L.filter(o, it.id)]],
+  }),
+
+  "dashboards-open-edit": definePlaybook({
+    pillar: "dashboards",
+    label: "Dashboards anyone can edit",
+    findings: ["dashboards-open-edit"],
+    epic: {
+      summary: (n) => `Lock down edit rights on ${n} ${plural(n, "dashboard")} anyone can edit`,
+      why: (n) => `${n} ${plural(n, "dashboard lets", "dashboards let")} any logged-in user rearrange it for everybody who uses it, and the owner is not told.`,
+      strategy: `Restrict edit rights to the owner and the team that maintains each dashboard; leave view sharing as it is.`,
+      done: `Every child task is closed and the next scan reports no dashboard editable by everyone.`,
+    },
+    task: {
+      heading: "The dashboard",
+      summary: (it) => `Restrict editing on dashboard "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [["Dashboard", it.name || "(unnamed)"], ["Dashboard id", it.id], ["Owner", ownerFact(it)], ["Favourited by", it.popularity]],
+      steps: () => [
+        "Open the dashboard (link below) -> ... -> Edit and share.",
+        "Remove \"Any logged-in user\" from the editors; add the maintaining team instead.",
+      ],
+      done: "Only its maintainers can edit the dashboard, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[`Dashboard: ${it.name || it.id}`, L.dashboard(o, it.id)]],
+  }),
+
+  "dashboards-empty": definePlaybook({
+    pillar: "dashboards",
+    label: "Empty dashboards",
+    findings: ["dashboards-empty"],
+    epic: {
+      summary: (n) => `Delete or fill ${n} empty ${plural(n, "dashboard")}`,
+      why: (n) => `${n} ${plural(n, "dashboard has", "dashboards have")} no gadgets. Anyone opening one sees an empty grid, and each is one more entry in every dashboard search.`,
+      strategy: `Ask each owner whether the dashboard was abandoned or never finished. Delete the abandoned ones.`,
+      done: `Every child task is closed and the next scan reports no empty dashboards.`,
+    },
+    task: {
+      heading: "The dashboard",
+      summary: (it) => `Delete or fill empty dashboard "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [["Dashboard", it.name || "(unnamed)"], ["Dashboard id", it.id], ["Owner", ownerFact(it)]],
+      steps: () => ["Open the dashboard (link below) and confirm it has no gadgets.", "Delete it, or add the gadgets it was meant to have."],
+      done: "The dashboard has gadgets or no longer exists, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[`Dashboard: ${it.name || it.id}`, L.dashboard(o, it.id)]],
+  }),
+
+  "dashboards-published-unused": definePlaybook({
+    pillar: "dashboards",
+    label: "Dashboards published to everyone, favourited by nobody",
+    findings: ["dashboards-published-unused"],
+    epic: {
+      summary: (n) => `Retire or unpublish ${n} site-wide ${plural(n, "dashboard")} nobody favourites`,
+      why: (n) => `${n} ${plural(n, "dashboard is", "dashboards are")} shared with every logged-in user and favourited by nobody -- published to everyone, wanted by no one, and in everyone's dashboard search.`,
+      strategy: `Check with each owner. Delete dashboards nobody uses; narrow the sharing on any that serve one team.`,
+      done: `Every child task is closed and the next scan reports no published-but-unused dashboards.`,
+    },
+    task: {
+      heading: "The dashboard",
+      summary: (it) => `Retire or unpublish dashboard "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [["Dashboard", it.name || "(unnamed)"], ["Dashboard id", it.id], ["Owner", ownerFact(it)], ["Gadgets", it.gadgetCount]],
+      steps: () => ["Open the dashboard (link below) and confirm with the owner whether anyone uses it.", "Delete it, or share it only with the team that does."],
+      done: "The dashboard is used, narrowed, or gone, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[`Dashboard: ${it.name || it.id}`, L.dashboard(o, it.id)]],
+  }),
+});
+
+// ── People, issue types, priorities, Assets ─────────────────────────────────
+
+Object.assign(REMEDIATION_PLAYBOOKS, {
+  "people-offroster-automation-refs": definePlaybook({
+    pillar: "users",
+    label: "Automation rules naming off-roster people",
+    findings: ["people-offroster-automation-refs"],
+    epic: {
+      summary: (n) => `Repoint automation rules that name ${n} off-roster ${plural(n, "person", "people")}`,
+      why: (n) => `Automation rules name ${n} ${plural(n, "account", "accounts")} no longer on the licensed roster -- assigning work to them, notifying them, or conditioning on them. Assignment to a gone account fails or lands work nowhere; conditions on them silently never match.`,
+      strategy: `One task per person: repoint each listed rule to the person or role who took over the work, or retire the rule.`,
+      done: `Every child task is closed and the next scan reports no automation rule naming an off-roster account.`,
+    },
+    task: {
+      heading: "The account and its rules",
+      summary: (it) => `Repoint ${it.ruleCount || 0} automation ${plural(it.ruleCount || 0, "rule")} naming off-roster account ${it.accountId || it.id || "(unknown)"}`,
+      facts: (it) => [
+        ["Account id", it.accountId || it.id],
+        ["Rules naming it", it.ruleCount],
+        ...(it.rules || []).slice(0, 40).map((r) => [r.name || `Rule ${r.id}`, r.direction === "write" ? "assigns or sets this account" : r.direction === "trigger" ? "triggers on this account" : "conditions on this account"]),
+      ],
+      steps: () => [
+        "Open each rule (links below); rules that assign or set the account matter most.",
+        "Replace the account with its successor, a role, or a smart value (e.g. the project lead).",
+        "Disable or delete any rule that no longer has a purpose.",
+      ],
+      done: "No rule names this account, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => (it.rules || []).slice(0, 25).map((r) => [`Rule: ${r.name || r.id}`, L.automationRule(o, r.id)]),
+  }),
+
+  "issue-type-hierarchy": definePlaybook({
+    pillar: "issueTypes",
+    label: "Issue type schemes with a broken hierarchy",
+    findings: ["issue-type-hierarchy"],
+    epic: {
+      summary: (n) => `Fix ${n} issue type ${plural(n, "scheme")} with a broken hierarchy`,
+      why: (n) => `${n} issue type ${plural(n, "scheme is", "schemes are")} configured so that issues cannot be created sensibly: only sub-task types, or a default type the scheme does not allow or that is a sub-task.`,
+      strategy: `For each scheme, add the standard types its projects need and set a standard type as the default.`,
+      done: `Every child task is closed and the next scan reports no hierarchy problems.`,
+    },
+    task: {
+      heading: "The issue type scheme",
+      summary: (it) => `Fix the hierarchy of issue type scheme "${it.name || it.schemeId || "(unknown)"}"`,
+      facts: (it) => [["Scheme", it.name || "(unnamed)"], ["Scheme id", it.schemeId], ["Projects using it", it.projectCount], ...(it.flags || []).map((f) => ["Problem", f])],
+      steps: () => [
+        "Open the scheme (link below).",
+        "Add the standard issue types its projects need, and make one of them the default.",
+      ],
+      done: "The scheme has standard types and a valid default, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[`Issue type scheme: ${it.name || it.schemeId}`, L.issueTypeScheme(o, it.schemeId)]],
+  }),
+
+  "issue-type-unused-schemes": definePlaybook({
+    pillar: "issueTypes",
+    label: "Issue type schemes no project uses",
+    findings: ["issue-type-unused-schemes"],
+    epic: {
+      summary: (n) => `Delete ${n} issue type ${plural(n, "scheme")} no project uses`,
+      why: (n) => `${n} issue type ${plural(n, "scheme is", "schemes are")} associated with no project -- one more option in every scheme picker, doing nothing.`,
+      strategy: `Confirm each is unassigned, then delete it.`,
+      done: `Every child task is closed and the next scan reports no unused issue type schemes.`,
+    },
+    task: {
+      heading: "The issue type scheme",
+      summary: (it) => `Delete unused issue type scheme "${it.name || it.schemeId || "(unknown)"}"`,
+      facts: (it) => [["Scheme", it.name || "(unnamed)"], ["Scheme id", it.schemeId]],
+      steps: () => ["Open the scheme (link below) and confirm no project uses it.", "Delete it from Issue type schemes."],
+      done: "The scheme no longer exists and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[`Issue type scheme: ${it.name || it.schemeId}`, L.issueTypeScheme(o, it.schemeId)]],
+  }),
+});
+
+function estatePlaybook({ kind, noun, nouns, admin, field }) {
+  return definePlaybook({
+    pillar: "estate",
+    label: `Near-duplicate ${nouns}`,
+    findings: [`estate-duplicate-${nouns}`],
+    granularity: "group",
+    epic: {
+      summary: (n) => `Consolidate ${n} ${plural(n, "group")} of near-duplicate ${nouns}`,
+      why: (n) => `${n} ${plural(n, "group")} of ${nouns} differ only by case, spacing or a character. Every report grouped by ${noun} is split across the synonyms, and people pick whichever they see first.`,
+      strategy: `For each group, keep the value that is used most, move issues off the others (Jira offers a replacement when you delete one), then delete them.`,
+      done: `Every child task is closed and the next scan reports no near-duplicate ${nouns}.`,
+    },
+    task: {
+      heading: `The ${nouns}`,
+      summary: (it) => `Consolidate ${it.count || (it.names || []).length || 0} near-duplicate ${nouns} ("${(it.names || [])[0] || it.key || "?"}")`,
+      facts: (it) => [["Match", it.kind], ...(it.names || []).map((name) => [`${noun[0].toUpperCase()}${noun.slice(1)}`, name])],
+      steps: () => [
+        "Use the search link below to see how many issues use each value.",
+        "Keep the most-used one; delete the others, choosing it as the replacement when Jira asks.",
+        ...(kind === "priority" ? ["Check priority schemes still list the survivor."] : []),
+      ],
+      done: `Only one ${noun} remains from this group, and the next Observatory scan no longer flags it.`,
+    },
+    links: (it, o) => [
+      [`${noun[0].toUpperCase()}${noun.slice(1)} admin`, admin(o)],
+      ...((it.names || []).length ? [[`Issues using these ${nouns}`, L.search(o, `${field} in (${it.names.map(jqlString).join(", ")})`)]] : []),
+    ],
+  });
+}
+
+Object.assign(REMEDIATION_PLAYBOOKS, {
+  "estate-duplicate-priorities": estatePlaybook({ kind: "priority", noun: "priority", nouns: "priorities", admin: L.priorityAdmin, field: "priority" }),
+  "estate-duplicate-resolutions": estatePlaybook({ kind: "resolution", noun: "resolution", nouns: "resolutions", admin: L.resolutionAdmin, field: "resolution" }),
+
+  "asset-broken-references": definePlaybook({
+    pillar: "assets",
+    label: "Assets attributes referencing a missing type",
+    findings: ["asset-broken-references"],
+    epic: {
+      summary: (n) => `Fix ${n} Assets reference ${plural(n, "attribute")} pointing at a missing object type`,
+      why: (n) => `${n} reference ${plural(n, "attribute points", "attributes point")} at an object type that no longer exists. The link can never be filled in, and anything relying on it (automation, JQL on Assets fields) silently finds nothing.`,
+      strategy: `Repoint each attribute at the type it should reference, or delete the attribute if it is obsolete.`,
+      done: `Every child task is closed and the next scan reports no broken references.`,
+    },
+    task: {
+      heading: "The attribute",
+      summary: (it) => `Fix broken reference attribute "${it.name || it.id || "(unknown)"}"${it.objectTypeName ? ` on ${it.objectTypeName}` : ""}`,
+      facts: (it) => [["Attribute", it.name || "(unnamed)"], ["Attribute id", it.id], ["On object type", it.objectTypeName || it.objectTypeId], ["References missing type id", it.referenceObjectTypeId]],
+      steps: () => ["Open the object type (link below) -> Attributes.", "Point the attribute at the right object type, or delete it."],
+      done: "The attribute references a type that exists, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[`Object type: ${it.objectTypeName || it.objectTypeId}`, L.assetType(o, it.schemaId, it.objectTypeId)]],
+  }),
+
+  "asset-broken-hierarchy": definePlaybook({
+    pillar: "assets",
+    label: "Assets object types with a missing parent",
+    findings: ["asset-broken-hierarchy"],
+    epic: {
+      summary: (n) => `Re-parent ${n} Assets object ${plural(n, "type")} whose parent is missing`,
+      why: (n) => `${n} object ${plural(n, "type names", "types name")} a parent type that no longer exists, so inherited attributes and the type tree are broken for them.`,
+      strategy: `Move each type under the right parent, or make it top-level.`,
+      done: `Every child task is closed and the next scan reports no broken hierarchy.`,
+    },
+    task: {
+      heading: "The object type",
+      summary: (it) => `Re-parent Assets object type "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [["Object type", it.name || "(unnamed)"], ["Type id", it.id], ["Missing parent id", it.parentId]],
+      steps: () => ["Open the object type (link below).", "Move it under the correct parent type, or make it a top-level type."],
+      done: "The type has a parent that exists (or none), and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[`Object type: ${it.name || it.id}`, L.assetType(o, it.schemaId, it.id)]],
+  }),
+
+  "asset-bare-types": definePlaybook({
+    pillar: "assets",
+    label: "Assets object types with no attributes of their own",
+    findings: ["asset-bare-types"],
+    epic: {
+      summary: (n) => `Model or remove ${n} bare Assets object ${plural(n, "type")}`,
+      why: (n) => `${n} concrete object ${plural(n, "type has", "types have")} no attributes beyond the system ones -- objects of that type can hold nothing but a name.`,
+      strategy: `Add the attributes each type was meant to carry, make it abstract if it is only a grouping, or delete it.`,
+      done: `Every child task is closed and the next scan reports no bare object types.`,
+    },
+    task: {
+      heading: "The object type",
+      summary: (it) => `Model or remove bare Assets object type "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [["Object type", it.name || "(unnamed)"], ["Type id", it.id], ["Schema id", it.schemaId]],
+      steps: () => ["Open the object type (link below).", "Add its attributes, mark it abstract, or delete it."],
+      done: "The type has attributes, is abstract, or is gone, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[`Object type: ${it.name || it.id}`, L.assetType(o, it.schemaId, it.id)]],
+  }),
+});
+
 // ── Links and finding coverage for the hand-written playbooks ──────────────
 
 const LEGACY_META = {

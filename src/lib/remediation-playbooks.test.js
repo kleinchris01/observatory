@@ -82,6 +82,18 @@ describe("finding coverage", () => {
     }
   });
 
+  it("covers the filter, dashboard, people, issue type, priority and Assets findings", () => {
+    for (const f of [
+      "filters-zombie-subscriptions", "filters-shared-everyone",
+      "dashboards-open-edit", "dashboards-empty", "dashboards-published-unused",
+      "people-offroster-automation-refs", "issue-type-hierarchy", "issue-type-unused-schemes",
+      "estate-duplicate-priorities", "estate-duplicate-resolutions",
+      "asset-broken-references", "asset-broken-hierarchy", "asset-bare-types",
+    ]) {
+      expect(REMEDIATION_FINDING_INDEX[f], f).toBeTruthy();
+    }
+  });
+
   it("declares a granularity on every playbook", () => {
     for (const entry of listPlaybookCatalog()) expect(["item", "group", "bounded"]).toContain(entry.granularity);
   });

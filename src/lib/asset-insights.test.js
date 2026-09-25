@@ -166,3 +166,12 @@ describe("summarizeAssetHealth", () => {
       .toEqual({ available: false, assetsEnabled: true });
   });
 });
+
+describe("summarizeAssetInsights listLimit", () => {
+  it("lists every bare type for remediation", () => {
+    const objectTypes = Array.from({ length: 60 }, (_, i) => ({ id: `t${i}`, schemaId: "s", name: `T${i}` }));
+    const base = { schemas: [{ id: "s", name: "S", objectTypeCount: 60, objectCount: 1 }], objectTypes, attributes: [] };
+    expect(summarizeAssetInsights(base).bareTypes).toHaveLength(50);
+    expect(summarizeAssetInsights({ ...base, listLimit: Infinity }).bareTypes).toHaveLength(60);
+  });
+});

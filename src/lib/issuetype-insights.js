@@ -124,7 +124,9 @@ export function analyzeSchemeHierarchy(schemes = [], membersByScheme = new Map()
 //
 // `schemes` carry { schemeId, name, defaultIssueTypeId, projectCount }. `schemeItems` is the
 // flat membership list. `types` is the catalog.
-export function summarizeIssueTypeInsights({ types = [], schemes = [], schemeItems = [] } = {}) {
+// `listLimit` trims the per-item lists for the tab; remediation passes Infinity.
+export function summarizeIssueTypeInsights({ types = [], schemes = [], schemeItems = [], listLimit = null } = {}) {
+  const cap = (n) => (listLimit == null ? n : listLimit);
   const typesById = new Map(types.map((t) => [String(t.id), t]));
   const membersByScheme = new Map();
   for (const item of schemeItems) {
@@ -159,9 +161,13 @@ export function summarizeIssueTypeInsights({ types = [], schemes = [], schemeIte
     hierarchyFlaggedSchemeCount: hierarchy.filter((s) => s.flags.length > 0).length,
     subtasksOnlySchemeCount: hierarchy.filter((s) => s.flags.some((f) => f.code === "subtasks-only")).length,
     // The worst few of each, for the tab. Full lists stay where they are built.
-    duplicateGroups: duplicateGroups.slice(0, 25),
-    orphanTypes: orphanTypes.slice(0, 50),
-    flaggedSchemes: hierarchy.filter((s) => s.flags.length > 0).slice(0, 25),
+    duplicateGroups: duplicateGroups.slice(0, cap(25)),
+    orphanTypes: orphanTypes.slice(0, cap(50)),
+    flaggedSchemes: hierarchy.filter((s) => s.flags.length > 0).slice(0, cap(25)),
+    unusedSchemes: schemes
+      .filter((s) => (s.projectCount ?? 0) === 0)
+      .map((s) => ({ schemeId: String(s.schemeId), name: s.name }))
+      .slice(0, cap(25)),
   };
 }
 
