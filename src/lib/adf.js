@@ -6,7 +6,29 @@
 //   blank line  -> paragraph break
 //   "## text"   -> level-3 heading
 //   "- text"    -> bullet list item
+//   "[label](https://...)" anywhere in a paragraph or bullet -> a link
 // Everything else is paragraph text; consecutive non-blank lines join with a space.
+//
+// Links exist because a remediation ticket has to take its reader straight to the thing it is
+// about -- the filter, the scheme, the project's roles page -- rather than leave them to go
+// searching by id. Only http(s) targets become links; anything else stays literal text.
+
+const LINK = /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g;
+
+// One run of text as ADF inline nodes: plain text, with each [label](url) as a linked text
+// node. Empty runs are dropped -- ADF rejects a text node with no text.
+export function inlineNodes(text) {
+  const nodes = [];
+  let last = 0;
+  const source = String(text || "");
+  for (const m of source.matchAll(LINK)) {
+    if (m.index > last) nodes.push({ type: "text", text: source.slice(last, m.index) });
+    nodes.push({ type: "text", text: m[1], marks: [{ type: "link", attrs: { href: m[2] } }] });
+    last = m.index + m[0].length;
+  }
+  if (last < source.length) nodes.push({ type: "text", text: source.slice(last) });
+  return nodes.length ? nodes : [{ type: "text", text: "" }];
+}
 
 export function renderADF(text) {
   const lines = String(text || "").replace(/\r\n/g, "\n").split("\n");
@@ -16,7 +38,7 @@ export function renderADF(text) {
 
   const flushPara = () => {
     if (para.length) {
-      content.push({ type: "paragraph", content: [{ type: "text", text: para.join(" ") }] });
+      content.push({ type: "paragraph", content: inlineNodes(para.join(" ")) });
       para = [];
     }
   };
@@ -26,7 +48,7 @@ export function renderADF(text) {
         type: "bulletList",
         content: bullets.map((b) => ({
           type: "listItem",
-          content: [{ type: "paragraph", content: [{ type: "text", text: b }] }],
+          content: [{ type: "paragraph", content: inlineNodes(b) }],
         })),
       });
       bullets = [];

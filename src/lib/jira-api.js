@@ -1422,6 +1422,36 @@ export async function createJiraIssue(fields, { asUser = false } = {}) {
   return response.json(); // { id, key, self }
 }
 
+// The site's base URL, for the links in remediation tickets. Cached per container: it cannot
+// change for an installation. Resolves null rather than throwing -- a ticket without links is
+// still a ticket, and the create path must never fail over a missing hyperlink.
+let cachedServerBaseUrl;
+export async function getSiteBaseUrl() {
+  if (cachedServerBaseUrl !== undefined) return cachedServerBaseUrl;
+  try {
+    const response = await api.asApp().requestJira(route`/rest/api/3/serverInfo`, { headers: { Accept: "application/json" } });
+    const data = response.ok ? await response.json() : null;
+    cachedServerBaseUrl = normalizeSiteOrigin(data?.baseUrl);
+  } catch {
+    cachedServerBaseUrl = null;
+  }
+  return cachedServerBaseUrl;
+}
+
+export function __resetSiteBaseUrlCache() {
+  cachedServerBaseUrl = undefined;
+}
+
+// https origins only: this string is written into links people will click.
+export function normalizeSiteOrigin(value) {
+  try {
+    const url = new URL(String(value || ""));
+    return url.protocol === "https:" ? url.origin : null;
+  } catch {
+    return null;
+  }
+}
+
 // Current status and assignee for a set of issue keys, in one search. Used by the hourly
 // remediation sync so the inventory shows live progress without one read per ticket.
 export async function getIssuesStatus(issueKeys = []) {

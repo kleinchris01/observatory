@@ -48,6 +48,9 @@ import {
   scheduleRateLimitedRequest,
   jiraRequest,
   jiraRequestAsUser,
+  getSiteBaseUrl,
+  normalizeSiteOrigin,
+  __resetSiteBaseUrlCache,
   getBrowsableProjectIds,
   callerHasJiraAdmin,
   paginate,
@@ -1590,5 +1593,28 @@ describe("getIssuesStatus (remediation sync)", () => {
     mockRequestJira.mockResolvedValue(jiraResponse({ body: { issues: [] } }));
     await getIssuesStatus(Array.from({ length: 200 }, (_, i) => `OPS-${i}`));
     expect(mockRequestJira).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("site base URL", () => {
+  beforeEach(() => __resetSiteBaseUrlCache());
+
+  test("normalizeSiteOrigin keeps https origins only", () => {
+    expect(normalizeSiteOrigin("https://acme.atlassian.net/jira/foo")).toBe("https://acme.atlassian.net");
+    expect(normalizeSiteOrigin("http://acme.atlassian.net")).toBeNull();
+    expect(normalizeSiteOrigin("javascript:alert(1)")).toBeNull();
+    expect(normalizeSiteOrigin(undefined)).toBeNull();
+  });
+
+  test("reads serverInfo once and caches it", async () => {
+    mockRequestJira.mockResolvedValueOnce({ ok: true, json: async () => ({ baseUrl: "https://acme.atlassian.net" }) });
+    expect(await getSiteBaseUrl()).toBe("https://acme.atlassian.net");
+    expect(await getSiteBaseUrl()).toBe("https://acme.atlassian.net");
+    expect(mockRequestJira).toHaveBeenCalledTimes(1);
+  });
+
+  test("resolves null, never throws, when serverInfo fails", async () => {
+    mockRequestJira.mockRejectedValueOnce(new Error("boom"));
+    expect(await getSiteBaseUrl()).toBeNull();
   });
 });

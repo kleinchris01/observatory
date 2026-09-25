@@ -745,3 +745,43 @@ describe("OverviewDashboard — site health", () => {
     expect(screen.getByText(/unchecked rather than clean|Nothing flagged/i)).toBeInTheDocument();
   });
 });
+
+describe("OverviewDashboard — remediation beside each finding", () => {
+  const tickets = {
+    period: "2026-Q3",
+    findingIndex: { "role-empty-admin": "role-empty-admin", "role-offroster-actors": "role-offroster-actors" },
+    groups: [{ findingKey: "role-empty-admin", isCurrent: true, period: "2026-Q3", epic: { issueKey: "ADMIN-7" }, taskCount: 4, openCount: 3 }],
+  };
+
+  test("shows the finding's epic and progress, and routes to it on the Remediation tab", async () => {
+    invoke.mockImplementation(async (name) => (name === "getRemediationTickets" ? tickets : {}));
+    const onNavigate = vi.fn();
+    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} access={access()} onNavigate={onNavigate} siteOrigin="https://acme.atlassian.net" />);
+
+    expect(await screen.findByRole("link", { name: "ADMIN-7" })).toHaveAttribute("href", "https://acme.atlassian.net/browse/ADMIN-7");
+    expect(screen.getByText(/3 of 4 tasks open/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Manage/ }));
+    expect(onNavigate).toHaveBeenCalledWith("remediation", { finding: "role-empty-admin" });
+  });
+
+  test("a finding with a playbook but no epic offers to start one", async () => {
+    invoke.mockImplementation(async (name) => (name === "getRemediationTickets" ? tickets : {}));
+    const onNavigate = vi.fn();
+    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} access={access()} onNavigate={onNavigate} />);
+
+    expect(await screen.findByText("No remediation epic for 2026-Q3")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Start remediation/ }));
+    expect(onNavigate).toHaveBeenCalledWith("remediation", { finding: "role-offroster-actors" });
+  });
+
+  test("if the remediation read fails, the findings render exactly as before", async () => {
+    invoke.mockImplementation(async (name) => {
+      if (name === "getRemediationTickets") throw new Error("down");
+      return {};
+    });
+    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} access={access()} onNavigate={vi.fn()} />);
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("getRemediationTickets", {}));
+    expect(screen.queryByText(/remediation epic/)).toBeNull();
+    expect(screen.getByText("Fields need admin attention")).toBeInTheDocument();
+  });
+});

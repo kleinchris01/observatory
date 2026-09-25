@@ -399,6 +399,7 @@ export function AdminApp() {
                 migratingNamespace={migratingNamespace}
                 onOpenRqtIndex={() => { setReportsInitialSection("rqt"); setActiveTab("reports"); }}
                 onNavigate={navigate}
+                siteOrigin={siteOrigin}
               />
             )
           ) : activeTab === "fields" ? (
@@ -435,7 +436,7 @@ export function AdminApp() {
           ) : activeTab === "automation" ? (
             <AutomationTab siteOrigin={siteOrigin} intent={navIntent} />
           ) : activeTab === "remediation" ? (
-            <RemediationTab siteOrigin={siteOrigin} />
+            <RemediationTab siteOrigin={siteOrigin} intent={navIntent} />
           ) : activeTab === "reports" ? (
             <ReportsTab siteOrigin={siteOrigin} selectedFieldIds={selectedFieldIds} onSetSelectedFieldIds={setSelectedFieldIds} autoGenerate={pendingReportGenerate} onAutoGenerateConsumed={() => setPendingReportGenerate(false)} initialSection={reportsInitialSection} projectScope={reportProjectScope} onSetProjectScope={setReportProjectScope} health={overview?.health ?? null} healthScoredAt={overviewLoadedAt} onRescore={() => loadOverview({ quiet: true })} />
           ) : activeTab === "changes" ? (

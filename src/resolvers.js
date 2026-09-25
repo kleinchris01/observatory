@@ -179,8 +179,9 @@ import {
   loadRemediationTickets,
   getRemediationEpic,
   loadTicketedItemIds,
+  currentPeriod,
 } from "./lib/project-store.js";
-import { getPlaybook } from "./lib/remediation-playbooks.js";
+import { getPlaybook, groupBounded, listPlaybookCatalog, REMEDIATION_FINDING_INDEX } from "./lib/remediation-playbooks.js";
 import { renderADF } from "./lib/adf.js";
 import { queueWorkflowSnapshotBuild, isWorkflowBuildStale, queueStatusHistoryBuild } from "./lib/workflow-engine.js";
 import { measureScreenFetchCost, probeScreenEndpoints, DEFAULT_SAMPLE_SIZE } from "./lib/screen-probe.js";
@@ -230,7 +231,7 @@ import { filterRows, sortFilters, filterFindingCounts, FILTER_SORTS } from "./li
 import { isDashboardBuildStale, queueDashboardSnapshotBuild } from "./lib/dashboard-engine.js";
 import { startFullScan, fullScanStageCatalog, startQuickScan, quickScanStageCatalog, recoverStalledScan, resumeScanRun, cancelScan, readStageProducedCounts } from "./lib/full-scan-runner.js";
 import { FULL_SCAN_STALL_MS, MAX_SCAN_TOTAL_MS } from "./lib/full-scan.js";
-import { probeEndpoint, probeStargateEndpoint, getCloudId, getAllJiraProjects, getPermissionCatalog } from "./lib/jira-api.js";
+import { probeEndpoint, probeStargateEndpoint, getCloudId, getAllJiraProjects, getPermissionCatalog, getSiteBaseUrl, normalizeSiteOrigin } from "./lib/jira-api.js";
 import {
   findDuplicateStatusGroups,
   findOrphanedStatuses,
@@ -2308,7 +2309,9 @@ async function buildAssetTypeCountCrawl({ context }) {
 // The access pillar's read: permission / issue-security / notification schemes, their
 // holders and project assignments, with the governance summary for each type. Roster
 // accountIds are joined in so an off-roster grant reads as such.
-async function getAccessInventory({ context }) {
+// The second argument is internal: Forge only ever passes the request. Remediation calls this
+// with listLimit: Infinity to read every flagged item rather than the tab's first 25.
+async function getAccessInventory({ context }, { listLimit = 25 } = {}) {
   incrMetric(METRIC_NAMES.resolver);
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
@@ -2379,18 +2382,18 @@ async function getAccessInventory({ context }) {
     permissions: {
       schemes: decorate(permSchemes, permProjects),
       holders: permHolders,
-      governance: summarizePermissionInsights({ schemes: permSchemes, holders: permHolders, schemeProjects: permProjects, rosterAccountIds }),
+      governance: summarizePermissionInsights({ schemes: permSchemes, holders: permHolders, schemeProjects: permProjects, rosterAccountIds, listLimit }),
     },
     security: {
       schemes: decorate(secSchemes, secProjects),
       levels,
       holders: secHolders,
-      governance: summarizeSecurityInsights({ schemes: secSchemes, levels, holders: secHolders, schemeProjects: secProjects, rosterAccountIds }),
+      governance: summarizeSecurityInsights({ schemes: secSchemes, levels, holders: secHolders, schemeProjects: secProjects, rosterAccountIds, listLimit }),
     },
     notifications: {
       schemes: decorate(notifSchemes, notifProjects),
       holders: notifHolders,
-      governance: summarizeNotificationInsights({ schemes: notifSchemes, holders: notifHolders, schemeProjects: notifProjects, rosterAccountIds }),
+      governance: summarizeNotificationInsights({ schemes: notifSchemes, holders: notifHolders, schemeProjects: notifProjects, rosterAccountIds, listLimit }),
     },
     roles: {
       // projectCount here means "on how many projects does this role have at least one
@@ -2406,7 +2409,7 @@ async function getAccessInventory({ context }) {
         return roleSchemes.map((s) => ({ ...s, projectCount: withActor.get(s.id)?.size || 0 }));
       })(),
       holders: roleHolders,
-      governance: summarizeRoleInsights({ roles: roleSchemes, holders: roleHolders, rosterAccountIds }),
+      governance: summarizeRoleInsights({ roles: roleSchemes, holders: roleHolders, rosterAccountIds, listLimit }),
     },
   };
 }
@@ -3598,22 +3601,53 @@ async function getRemediationTickets({ payload, context }) {
   const findingKey = payload?.findingKey ? String(payload.findingKey) : null;
   const tickets = await loadRemediationTickets(installationKey, findingKey);
 
-  // Grouped by finding, epic first, so the UI can render one block per finding without
-  // re-grouping. `open` counts anything not in the "done" status category.
+  // Grouped by finding: the most recent quarter's epic and tasks, which is what the UI works
+  // on, plus a one-line summary of each earlier quarter, so a finding that keeps coming back
+  // reads as such. `isCurrent` says whether that latest epic is this quarter's -- if not, the
+  // next "Create remediation" opens a new one. `open` counts anything not "done".
+  const period = currentPeriod();
   const byFinding = new Map();
   for (const t of tickets) {
-    if (!byFinding.has(t.findingKey)) byFinding.set(t.findingKey, { findingKey: t.findingKey, pillar: t.pillar, epic: null, tasks: [] });
-    const g = byFinding.get(t.findingKey);
-    if (t.isEpic) g.epic = t;
-    else g.tasks.push(t);
+    if (!byFinding.has(t.findingKey)) byFinding.set(t.findingKey, { findingKey: t.findingKey, pillar: t.pillar, periods: new Map() });
+    const f = byFinding.get(t.findingKey);
+    if (!f.periods.has(t.period)) f.periods.set(t.period, { period: t.period, epic: null, tasks: [] });
+    const p = f.periods.get(t.period);
+    if (t.isEpic) p.epic = t;
+    else p.tasks.push(t);
   }
-  const groups = [...byFinding.values()].map((g) => ({
-    ...g,
-    taskCount: g.tasks.length,
-    openCount: g.tasks.filter((t) => t.lastStatusCategory !== "done").length,
-  }));
+  const openOf = (tasks) => tasks.filter((t) => t.lastStatusCategory !== "done").length;
+  const groups = [...byFinding.values()].map((f) => {
+    const periods = [...f.periods.values()].sort((a, b) => String(b.period).localeCompare(String(a.period)));
+    const latest = periods[0];
+    return {
+      findingKey: f.findingKey,
+      pillar: f.pillar,
+      period: latest.period,
+      isCurrent: latest.period === period,
+      epic: latest.epic,
+      tasks: latest.tasks,
+      taskCount: latest.tasks.length,
+      openCount: openOf(latest.tasks),
+      previousPeriods: periods.slice(1).map((p) => ({
+        period: p.period,
+        epicKey: p.epic?.issueKey ?? null,
+        epicStatusCategory: p.epic?.lastStatusCategory ?? null,
+        taskCount: p.tasks.length,
+        openCount: openOf(p.tasks),
+      })),
+    };
+  });
 
-  return { available: tickets.length > 0, total: tickets.length, groups };
+  // The catalog and the finding index travel with the tickets, so neither the Remediation tab
+  // nor the Overview keeps its own copy of which playbooks exist or which finding each covers.
+  return {
+    available: tickets.length > 0,
+    total: tickets.length,
+    period,
+    groups,
+    catalog: listPlaybookCatalog(),
+    findingIndex: REMEDIATION_FINDING_INDEX,
+  };
 }
 
 async function createRemediationEpic({ payload, context }) {
@@ -3644,23 +3678,29 @@ async function createRemediationEpic({ payload, context }) {
     .map((it) => ({ ...it, id: String(it.id ?? it.name), name: it.name != null ? String(it.name).slice(0, 240) : null }));
   const pillar = payload?.pillar ? String(payload.pillar) : playbook.pillar;
   const nowIso = () => new Date().toISOString();
+  // Every ticket links straight to what it is about. The invocation context carries the site
+  // URL; serverInfo is the fallback. Neither is required -- without one, tickets go out unlinked.
+  const origin = normalizeSiteOrigin(context?.siteUrl) || await getSiteBaseUrl();
 
-  // Idempotency: an epic already exists for this finding -> add missing tasks under it.
-  let epic = await getRemediationEpic(installationKey, findingKey);
+  // One epic per finding per calendar quarter. Within the quarter a second click adds only
+  // the tasks still missing; the next quarter starts a fresh epic carrying what is flagged
+  // then (loadTicketedItemIds decides which items that is).
+  const period = currentPeriod();
+  let epic = await getRemediationEpic(installationKey, findingKey, period);
   let epicCreated = false;
   if (!epic) {
     try {
       const fields = {
         project: { key: rc.projectKey },
         issuetype: { name: rc.epicIssueType || "Epic" },
-        summary: playbook.epicSummary(items.length).slice(0, 250),
-        description: renderADF(playbook.epicDescription({ count: items.length })),
+        summary: `${period}: ${playbook.epicSummary(items.length)}`.slice(0, 250),
+        description: renderADF(playbook.epicDescription({ count: items.length, origin })),
         labels: playbook.labels,
         reporter: { id: accountId },
       };
       const created = await createJiraIssue(fields, { asUser: true });
       await recordRemediationTicket(installationKey, {
-        findingKey, pillar, isEpic: true,
+        findingKey, period, pillar, isEpic: true,
         issueKey: created.key, issueId: created.id, epicKey: created.key,
         summary: fields.summary, createdBy: accountId, createdAt: nowIso(),
       });
@@ -3671,7 +3711,7 @@ async function createRemediationEpic({ payload, context }) {
     }
   }
 
-  const alreadyTicketed = await loadTicketedItemIds(installationKey, findingKey);
+  const alreadyTicketed = await loadTicketedItemIds(installationKey, findingKey, period);
   const todo = items.filter((it) => !alreadyTicketed.has(it.id));
   const batch = todo.slice(0, MAX_SYNC_REMEDIATION_TASKS);
 
@@ -3682,7 +3722,7 @@ async function createRemediationEpic({ payload, context }) {
       project: { key: rc.projectKey },
       issuetype: { name: rc.taskIssueType || "Task" },
       summary: playbook.taskSummary(it).slice(0, 250),
-      description: renderADF(playbook.taskDescription(it)),
+      description: renderADF(playbook.taskDescription(it, { origin })),
       labels: playbook.labels,
       parent: { key: epic.issueKey },
       reporter: { id: accountId },
@@ -3694,7 +3734,7 @@ async function createRemediationEpic({ payload, context }) {
       const created = await createJiraIssue(fields, { asUser: true });
       // eslint-disable-next-line no-await-in-loop
       await recordRemediationTicket(installationKey, {
-        findingKey, pillar, itemId: it.id,
+        findingKey, period, pillar, itemId: it.id,
         issueKey: created.key, issueId: created.id, epicKey: epic.issueKey,
         summary: fields.summary, createdBy: accountId, createdAt: nowIso(),
       });
@@ -3713,6 +3753,7 @@ async function createRemediationEpic({ payload, context }) {
     ok: true,
     epicKey: epic.issueKey,
     epicCreated,
+    period,
     tasksCreated,
     itemsTotal: items.length,
     itemsRemaining: Math.max(0, todo.length - batch.length),
@@ -3881,6 +3922,7 @@ async function getRemediationCandidates({ payload, context }) {
   // the "orphaned" governance rule from analysis.js, read straight off the stored findings
   // JSON rather than re-run here, so the candidate list can never disagree with the badge
   // the Field Browser shows for the same field.
+  const NO_ISSUE_CODES = new Set(["orphaned", "configured-no-issues"]);
   if (findingKey === "field-cleanup") {
     const meta = await readSnapshotMeta(installationKey).catch(() => null);
     if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
@@ -3889,12 +3931,15 @@ async function getRemediationCandidates({ payload, context }) {
       // Stored findings are buildGovernanceFindings' object ({ reasons, tags, ... }), not a
       // list. This read `.some()` straight off that object and threw on every real site; the
       // unit test mocked an array, which is the only reason it ever passed.
-      .filter((f) => (f.findings?.reasons || []).some((finding) => finding.code === "orphaned"))
+      // Both codes the Overview's "no populated issues" finding counts, so the epic's task
+      // count matches the number on the Overview.
+      .filter((f) => (f.findings?.reasons || []).some((finding) => NO_ISSUE_CODES.has(finding.code)))
       .map((f) => ({
         id: f.id,
         name: f.name || null,
         type: f.type || null,
         description: f.description || null,
+        reason: (f.findings.reasons.find((r) => NO_ISSUE_CODES.has(r.code)) || {}).code,
       }));
     return { available: true, items };
   }
@@ -4003,8 +4048,79 @@ async function getRemediationCandidates({ payload, context }) {
     return { available: true, items };
   }
 
+  const loader = REMEDIATION_CANDIDATE_LOADERS[findingKey];
+  if (loader) return loader({ installationKey, context });
+
   return { available: false, reason: "not-connected", items: [] };
 }
+
+// Candidate loaders for the playbooks built on definePlaybook. A map rather than more
+// branches above: each entry reads the same inventory its pillar's tab reads, so a finding's
+// count and its epic's task count come from one computation. Items carry the fields the
+// playbook's task template and links use.
+async function accessGovernance(context) {
+  const inv = await getAccessInventory({ context }, { listLimit: Infinity });
+  return inv.neverBuilt ? null : inv;
+}
+const ACCESS_UNAVAILABLE = { available: false, reason: "no-snapshot", items: [] };
+
+const REMEDIATION_CANDIDATE_LOADERS = {
+  "permission-risky": async ({ context }) => {
+    const inv = await accessGovernance(context);
+    if (!inv) return ACCESS_UNAVAILABLE;
+    return { available: true, items: inv.permissions.governance.riskySchemes.map((sc) => ({ ...sc, id: String(sc.id) })) };
+  },
+
+  "access-unused-schemes": async ({ context }) => {
+    const inv = await accessGovernance(context);
+    if (!inv) return ACCESS_UNAVAILABLE;
+    const tag = (type, list) => list.map((sc) => ({ id: `${type}:${sc.id}`, type, schemeId: String(sc.id), name: sc.name }));
+    return {
+      available: true,
+      items: [
+        ...tag("permission", inv.permissions.governance.unusedSchemes),
+        ...tag("security", inv.security.governance.unusedSchemes),
+        ...tag("notification", inv.notifications.governance.unusedSchemes),
+      ],
+    };
+  },
+
+  "security-broken-levels": async ({ context }) => {
+    const inv = await accessGovernance(context);
+    if (!inv) return ACCESS_UNAVAILABLE;
+    const g = inv.security.governance;
+    return {
+      available: true,
+      items: [
+        ...(g.noLevelSchemes || []).map((sc) => ({ id: `scheme:${sc.id}`, kind: "no-levels", schemeId: String(sc.id), schemeName: sc.name })),
+        ...(g.emptyLevels || []).map((l) => ({ id: `level:${l.schemeId}:${l.levelId}`, kind: "empty-level", schemeId: String(l.schemeId), schemeName: l.schemeName, levelId: String(l.levelId), levelName: l.levelName })),
+      ],
+    };
+  },
+
+  "notification-fragile": async ({ context }) => {
+    const inv = await accessGovernance(context);
+    if (!inv) return ACCESS_UNAVAILABLE;
+    return { available: true, items: inv.notifications.governance.fragileSchemes.map((sc) => ({ ...sc, id: String(sc.id) })) };
+  },
+
+  "role-empty-admin": async ({ context }) => {
+    const inv = await accessGovernance(context);
+    if (!inv) return ACCESS_UNAVAILABLE;
+    return {
+      available: true,
+      items: inv.roles.governance.projectsMissingAdminActor.map((p) => ({ id: String(p.projectId ?? p.projectKey), projectKey: p.projectKey, role: p.role })),
+    };
+  },
+
+  // Bounded: grouped by project (bundled past 50), per the playbook's granularity.
+  "role-offroster-actors": async ({ context }) => {
+    const inv = await accessGovernance(context);
+    if (!inv) return ACCESS_UNAVAILABLE;
+    const groups = groupBounded(inv.roles.governance.offRosterMemberships, { keyOf: (m) => m.projectKey, max: 50 });
+    return { available: true, items: groups };
+  },
+};
 
 // Which rules reference one status, by direction.
 //

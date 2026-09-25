@@ -22,6 +22,7 @@ const {
   loadTicketedItemIds,
   updateRemediationSync,
   recordRemediationTickets,
+  currentPeriod,
 } = await import("./remediation.js");
 
 // Capture the bound params of every prepared statement.
@@ -48,14 +49,16 @@ describe("recordRemediationTicket", () => {
       findingKey: "filter-ownership", pillar: "filters", isEpic: true,
       issueKey: "OPS-1", issueId: "10001", epicKey: "OPS-1",
       summary: "Reassign 5 filters", createdBy: "acc-1", createdAt: "2026-09-10T00:00:00Z",
+      period: "2026-Q3",
     });
-    expect(calls[0].text).toMatch(/INSERT INTO remediation_tickets/);
+    expect(calls[0].text).toMatch(/INSERT INTO remediation_tickets_v2/);
     const p = calls[0].params;
     expect(p[0]).toBe("scope");
     expect(p[1]).toBe("filter-ownership");
-    expect(p[3]).toBe("");        // item_id
-    expect(p[4]).toBe("OPS-1");   // issue_key
-    expect(p[6]).toBe(1);         // is_epic
+    expect(p[2]).toBe("2026-Q3"); // period
+    expect(p[4]).toBe("");        // item_id
+    expect(p[5]).toBe("OPS-1");   // issue_key
+    expect(p[7]).toBe(1);         // is_epic
   });
 
   it("upserts a task with its item id and is_epic 0", async () => {
@@ -64,27 +67,29 @@ describe("recordRemediationTicket", () => {
       findingKey: "filter-ownership", itemId: "4001", issueKey: "OPS-2", issueId: "10002", epicKey: "OPS-1",
     });
     const p = calls[0].params;
-    expect(p[3]).toBe("4001");
-    expect(p[6]).toBe(0);
+    expect(p[4]).toBe("4001");
+    expect(p[7]).toBe(0);
+    // No period given: the row is filed under the quarter it is written in.
+    expect(p[2]).toBe(currentPeriod());
   });
 
   it("truncates a long summary to the column width", async () => {
     const calls = stubSql();
     await recordRemediationTicket("scope", { findingKey: "x", itemId: "1", issueKey: "OPS-9", summary: "z".repeat(900) });
-    expect(calls[0].params[8].length).toBe(500);
+    expect(calls[0].params[9].length).toBe(500);
   });
 });
 
 describe("getRemediationEpic", () => {
-  it("queries by finding and item_id '' and maps the row", async () => {
+  it("queries by finding, quarter and item_id '' and maps the row", async () => {
     const calls = stubSql([[{
-      finding_key: "filter-ownership", pillar: "filters", item_id: "", issue_key: "OPS-1", issue_id: "10001",
+      finding_key: "filter-ownership", period: "2026-Q3", pillar: "filters", item_id: "", issue_key: "OPS-1", issue_id: "10001",
       is_epic: 1, epic_key: "OPS-1", summary: "Reassign filters", last_status: null, last_status_category: null,
       assignee_account_id: null, assignee_name: null, created_by: "acc-1", created_at: "t", synced_at: null,
     }]]);
-    const epic = await getRemediationEpic("scope", "filter-ownership");
-    expect(calls[0].params).toEqual(["scope", "filter-ownership", ""]);
-    expect(epic).toMatchObject({ issueKey: "OPS-1", isEpic: true, findingKey: "filter-ownership" });
+    const epic = await getRemediationEpic("scope", "filter-ownership", "2026-Q3");
+    expect(calls[0].params).toEqual(["scope", "filter-ownership", "2026-Q3", ""]);
+    expect(epic).toMatchObject({ issueKey: "OPS-1", isEpic: true, findingKey: "filter-ownership", period: "2026-Q3" });
   });
 
   it("returns null when no epic row exists", async () => {
@@ -96,9 +101,34 @@ describe("getRemediationEpic", () => {
 describe("loadTicketedItemIds", () => {
   it("returns the set of non-epic item ids for a finding", async () => {
     stubSql([[{ item_id: "4001" }, { item_id: "4002" }]]);
-    const set = await loadTicketedItemIds("scope", "filter-ownership");
+    const set = await loadTicketedItemIds("scope", "filter-ownership", "2026-Q3");
     expect(set).toBeInstanceOf(Set);
     expect([...set].sort()).toEqual(["4001", "4002"]);
+  });
+
+  // The quarter rule lives in this WHERE clause: skip anything ticketed this quarter, and
+  // anything still open from an earlier one. A done task from an earlier quarter is NOT
+  // skipped -- the item came back and belongs in this quarter's epic.
+  it("skips this quarter's items and earlier quarters' still-open ones, not earlier done ones", async () => {
+    const calls = stubSql([[]]);
+    await loadTicketedItemIds("scope", "filter-ownership", "2026-Q4");
+    expect(calls[0].params).toEqual(["scope", "filter-ownership", "2026-Q4"]);
+    expect(calls[0].text).toMatch(/period = \? OR last_status_category IS NULL OR last_status_category != 'done'/);
+  });
+});
+
+describe("currentPeriod", () => {
+  it("names the calendar quarter in UTC", () => {
+    expect(currentPeriod(new Date("2026-01-01T00:00:00Z"))).toBe("2026-Q1");
+    expect(currentPeriod(new Date("2026-03-31T23:59:59Z"))).toBe("2026-Q1");
+    expect(currentPeriod(new Date("2026-04-01T00:00:00Z"))).toBe("2026-Q2");
+    expect(currentPeriod(new Date("2026-09-24T12:00:00Z"))).toBe("2026-Q3");
+    expect(currentPeriod(new Date("2026-12-31T23:59:59Z"))).toBe("2026-Q4");
+  });
+
+  it("accepts an ISO string or epoch", () => {
+    expect(currentPeriod("2027-05-02T00:00:00Z")).toBe("2027-Q2");
+    expect(currentPeriod(Date.UTC(2027, 10, 1))).toBe("2027-Q4");
   });
 });
 
@@ -160,7 +190,7 @@ describe("recordRemediationTickets", () => {
       { findingKey: "f", itemId: "2", issueKey: "OPS-3" },
     ]);
     expect(calls).toHaveLength(2);
-    expect(calls[0].params[3]).toBe("1");
-    expect(calls[1].params[3]).toBe("2");
+    expect(calls[0].params[4]).toBe("1");
+    expect(calls[1].params[4]).toBe("2");
   });
 });

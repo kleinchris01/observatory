@@ -21,7 +21,9 @@ function projectCounts(schemeProjects) {
 }
 
 // ── Permission schemes ──────────────────────────────────────────────────────
-export function summarizePermissionInsights({ schemes = [], holders = [], schemeProjects = [], rosterAccountIds = new Set() } = {}) {
+// `listLimit` trims the per-item lists for the Access tab; remediation passes Infinity, since
+// an epic has to ticket every item the count describes, not the first 25 of them.
+export function summarizePermissionInsights({ schemes = [], holders = [], schemeProjects = [], rosterAccountIds = new Set(), listLimit = 25 } = {}) {
   const holdersBy = bySchemeId(holders);
   const projCount = projectCounts(schemeProjects);
 
@@ -45,7 +47,7 @@ export function summarizePermissionInsights({ schemes = [], holders = [], scheme
     directUserGrants += userGrants.length;
     offRosterUserGrants += userGrants.filter((h) => !rosterAccountIds.has(h.holderValue)).length;
 
-    if (reasons.length) risky.push({ id: scheme.id, name: scheme.name, reasons });
+    if (reasons.length) risky.push({ id: scheme.id, name: scheme.name, reasons, projectCount: count });
   }
 
   return {
@@ -55,8 +57,8 @@ export function summarizePermissionInsights({ schemes = [], holders = [], scheme
     riskySchemeCount: risky.length,
     directUserGrantCount: directUserGrants,
     offRosterUserGrantCount: offRosterUserGrants,
-    unusedSchemes: unused.slice(0, 25),
-    riskySchemes: risky.slice(0, 25),
+    unusedSchemes: unused.slice(0, listLimit),
+    riskySchemes: risky.slice(0, listLimit),
   };
 }
 
@@ -71,7 +73,7 @@ export function summarizePermissionHealth(s) {
 }
 
 // ── Issue-security schemes ──────────────────────────────────────────────────
-export function summarizeSecurityInsights({ schemes = [], levels = [], holders = [], schemeProjects = [], rosterAccountIds = new Set() } = {}) {
+export function summarizeSecurityInsights({ schemes = [], levels = [], holders = [], schemeProjects = [], rosterAccountIds = new Set(), listLimit = 25 } = {}) {
   const levelsBy = bySchemeId(levels);
   const projCount = projectCounts(schemeProjects);
   // members keyed by "schemeId|levelId" (holder.context is the level id)
@@ -106,8 +108,9 @@ export function summarizeSecurityInsights({ schemes = [], levels = [], holders =
     noLevelSchemeCount: noLevels.length,
     emptyLevelCount: emptyLevels.length,
     offRosterMemberCount: offRosterMembers,
-    unusedSchemes: unused.slice(0, 25),
-    emptyLevels: emptyLevels.slice(0, 40),
+    unusedSchemes: unused.slice(0, listLimit),
+    emptyLevels: emptyLevels.slice(0, listLimit === 25 ? 40 : listLimit),
+    noLevelSchemes: noLevels.slice(0, listLimit),
   };
 }
 
@@ -123,7 +126,7 @@ export function summarizeSecurityHealth(s) {
 }
 
 // ── Notification schemes ────────────────────────────────────────────────────
-export function summarizeNotificationInsights({ schemes = [], holders = [], schemeProjects = [], rosterAccountIds = new Set() } = {}) {
+export function summarizeNotificationInsights({ schemes = [], holders = [], schemeProjects = [], rosterAccountIds = new Set(), listLimit = 25 } = {}) {
   const holdersBy = bySchemeId(holders);
   const projCount = projectCounts(schemeProjects);
 
@@ -148,8 +151,8 @@ export function summarizeNotificationInsights({ schemes = [], holders = [], sche
     unusedSchemeCount: unused.length,
     fragileSchemeCount: fragile.length,
     offRosterRecipientCount: offRosterRecipients,
-    unusedSchemes: unused.slice(0, 25),
-    fragileSchemes: fragile.slice(0, 25),
+    unusedSchemes: unused.slice(0, listLimit),
+    fragileSchemes: fragile.slice(0, listLimit),
   };
 }
 
@@ -168,7 +171,7 @@ export function summarizeNotificationHealth(s) {
 // contextLabel (projectKey), holderType (user|group|empty), holderValue, holderLabel }.
 const ADMIN_ROLE = /admin/i;
 
-export function summarizeRoleInsights({ roles = [], holders = [], rosterAccountIds = new Set() } = {}) {
+export function summarizeRoleInsights({ roles = [], holders = [], rosterAccountIds = new Set(), listLimit = 25 } = {}) {
   const roleName = new Map(roles.map((r) => [String(r.id), r.name || String(r.id)]));
   const adminRoleIds = new Set(roles.filter((r) => ADMIN_ROLE.test(r.name || "")).map((r) => String(r.id)));
 
@@ -178,6 +181,7 @@ export function summarizeRoleInsights({ roles = [], holders = [], rosterAccountI
   const projectsWithRoles = new Set();
   let offRosterActors = 0;
   let userActorCount = 0;
+  const offRosterMemberships = [];
 
   for (const h of holders) {
     const rp = `${h.schemeId}|${h.context}`;
@@ -187,7 +191,12 @@ export function summarizeRoleInsights({ roles = [], holders = [], rosterAccountI
       filledByRoleProject.add(rp);
       if (h.holderType === "user" && h.holderValue) {
         userActorCount += 1;
-        if (!rosterAccountIds.has(h.holderValue)) offRosterActors += 1;
+        if (!rosterAccountIds.has(h.holderValue)) {
+          offRosterActors += 1;
+          if (offRosterMemberships.length < listLimit) {
+            offRosterMemberships.push({ projectId: h.context, projectKey: h.contextLabel || h.context, roleId: h.schemeId, role: roleName.get(h.schemeId), accountId: h.holderValue });
+          }
+        }
       }
     }
   }
@@ -201,11 +210,14 @@ export function summarizeRoleInsights({ roles = [], holders = [], rosterAccountI
   }
   // Label the worst offenders for the finding detail.
   const missingAdminSamples = [];
+  const sampled = new Set();
   for (const h of holders) {
-    if (missingAdminSamples.length >= 25) break;
+    if (missingAdminSamples.length >= listLimit) break;
     if (adminRoleIds.has(h.schemeId) && h.holderType === "empty"
-      && !filledByRoleProject.has(`${h.schemeId}|${h.context}`)) {
-      missingAdminSamples.push({ projectKey: h.contextLabel, role: roleName.get(h.schemeId) });
+      && !filledByRoleProject.has(`${h.schemeId}|${h.context}`) && !sampled.has(h.context)) {
+      // One entry per project: a project with two admin-named roles both empty is one fix.
+      sampled.add(h.context);
+      missingAdminSamples.push({ projectId: h.context, projectKey: h.contextLabel, role: roleName.get(h.schemeId) });
     }
   }
 
@@ -217,6 +229,7 @@ export function summarizeRoleInsights({ roles = [], holders = [], rosterAccountI
     offRosterActorCount: offRosterActors,
     directUserActorCount: userActorCount,
     projectsMissingAdminActor: missingAdminSamples,
+    offRosterMemberships,
   };
 }
 

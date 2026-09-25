@@ -1,5 +1,7 @@
 // Storage for remediation ticketing: the Jira issues Observatory created for a governance
-// finding. One row per issue -- the epic (item_id = '') and one task per item to fix.
+// finding. One row per issue -- the epic (item_id = '') and one task per item to fix -- per
+// calendar quarter ("2026-Q3"). Each finding gets one epic per quarter; every quarter's rows
+// are kept, so the history of how a finding was worked, and whether it came back, survives.
 // Imports only from core.js: one arrow, no cycle.
 
 import { sql } from "@forge/sql";
@@ -11,6 +13,13 @@ import {
 } from "./core.js";
 
 const EPIC_ITEM_ID = "";
+
+// The calendar quarter a date falls in, as "2026-Q3" (UTC). Remediation's unit of time: one
+// epic per finding per quarter.
+export function currentPeriod(now = new Date()) {
+  const d = now instanceof Date ? now : new Date(now);
+  return `${d.getUTCFullYear()}-Q${Math.floor(d.getUTCMonth() / 3) + 1}`;
+}
 const BATCH = 50;
 
 // Upsert one ticket row. `row` carries whatever changed -- creation writes the identity and
@@ -20,11 +29,11 @@ export async function recordRemediationTicket(scopeKey, row = {}) {
   const itemId = row.isEpic ? EPIC_ITEM_ID : String(row.itemId ?? "");
   await withSqlRetry(() =>
     sql.prepare(`
-      INSERT INTO remediation_tickets
-        (scope_key, finding_key, pillar, item_id, issue_key, issue_id, is_epic, epic_key,
+      INSERT INTO remediation_tickets_v2
+        (scope_key, finding_key, period, pillar, item_id, issue_key, issue_id, is_epic, epic_key,
          summary, last_status, last_status_category, assignee_account_id, assignee_name,
          created_by, created_at, synced_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE
         pillar = VALUES(pillar),
         issue_key = VALUES(issue_key),
@@ -42,6 +51,7 @@ export async function recordRemediationTicket(scopeKey, row = {}) {
     `).bindParams(
       scopeKey,
       String(row.findingKey ?? ""),
+      String(row.period || currentPeriod()),
       row.pillar || null,
       itemId,
       String(row.issueKey ?? ""),
@@ -63,6 +73,7 @@ export async function recordRemediationTicket(scopeKey, row = {}) {
 function mapRow(row) {
   return {
     findingKey: row.finding_key,
+    period: row.period || null,
     pillar: row.pillar || null,
     itemId: row.item_id,
     issueKey: row.issue_key,
@@ -87,22 +98,22 @@ export async function loadRemediationTickets(scopeKey, findingKey = null) {
   const params = findingKey ? [scopeKey, String(findingKey)] : [scopeKey];
   const result = await withSqlRetry(() =>
     sql.prepare(`
-      SELECT * FROM remediation_tickets
+      SELECT * FROM remediation_tickets_v2
       WHERE ${where}
-      ORDER BY is_epic DESC, created_at ASC
+      ORDER BY period DESC, is_epic DESC, created_at ASC
     `).bindParams(...params).execute()
   );
   return (result.rows || []).map(mapRow);
 }
 
-// The epic row for a finding, or null if none has been created.
-export async function getRemediationEpic(scopeKey, findingKey) {
+// The finding's epic for one quarter, or null if that quarter has none yet.
+export async function getRemediationEpic(scopeKey, findingKey, period = currentPeriod()) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
     sql.prepare(`
-      SELECT * FROM remediation_tickets
-      WHERE scope_key = ? AND finding_key = ? AND item_id = ?
-    `).bindParams(scopeKey, String(findingKey), EPIC_ITEM_ID).execute()
+      SELECT * FROM remediation_tickets_v2
+      WHERE scope_key = ? AND finding_key = ? AND period = ? AND item_id = ?
+    `).bindParams(scopeKey, String(findingKey), String(period), EPIC_ITEM_ID).execute()
   );
   const row = result.rows?.[0];
   return row ? mapRow(row) : null;
@@ -116,22 +127,28 @@ export async function loadOpenRemediationTickets(scopeKey) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
     sql.prepare(`
-      SELECT * FROM remediation_tickets
+      SELECT * FROM remediation_tickets_v2
       WHERE scope_key = ? AND (last_status_category IS NULL OR last_status_category != 'done')
     `).bindParams(scopeKey).execute()
   );
   return (result.rows || []).map(mapRow);
 }
 
-// The item ids that already have a task under this finding -- the idempotency set the
-// task-creation job diffs against so it never doubles up.
-export async function loadTicketedItemIds(scopeKey, findingKey) {
+// The item ids a new task must skip for this finding in this quarter -- the idempotency set
+// the task-creation job diffs against so it never doubles up:
+//   - anything already ticketed this quarter, and
+//   - anything with a task from an earlier quarter that is still open -- it is still being
+//     worked under that quarter's epic, and a second task for it would be a duplicate.
+// An item whose earlier task is done but which is flagged again is NOT in the set: it came
+// back, and this quarter's epic is where it belongs.
+export async function loadTicketedItemIds(scopeKey, findingKey, period = currentPeriod()) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
     sql.prepare(`
-      SELECT item_id FROM remediation_tickets
+      SELECT item_id FROM remediation_tickets_v2
       WHERE scope_key = ? AND finding_key = ? AND is_epic = 0
-    `).bindParams(scopeKey, String(findingKey)).execute()
+        AND (period = ? OR last_status_category IS NULL OR last_status_category != 'done')
+    `).bindParams(scopeKey, String(findingKey), String(period)).execute()
   );
   return new Set((result.rows || []).map((r) => String(r.item_id)));
 }
@@ -141,7 +158,7 @@ export async function updateRemediationSync(scopeKey, issueKey, patch = {}) {
   await ensureProjectStoreReady();
   await withSqlRetry(() =>
     sql.prepare(`
-      UPDATE remediation_tickets
+      UPDATE remediation_tickets_v2
       SET last_status = ?, last_status_category = ?, assignee_account_id = ?, assignee_name = ?, synced_at = ?
       WHERE scope_key = ? AND issue_key = ?
     `).bindParams(

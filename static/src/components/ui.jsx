@@ -1,6 +1,6 @@
 import React from "react";
 import { Icon, useLiveDuration } from "./Icons";
-import { buildAutomationRuleUrl, handleJiraLinkClick, ROVO_AGENTS, openRovo } from "../utils";
+import { buildAutomationRuleUrl, buildIssueUrl, handleJiraLinkClick, ROVO_AGENTS, openRovo } from "../utils";
 
 // Shared presentation primitives.
 //
@@ -250,6 +250,46 @@ export function JiraLink({ href, children, title, className = "" }) {
   );
 }
 
+
+// Where a finding's remediation stands, in one line. Shared by the Overview (beside each
+// finding) and the Remediation tab (on each card), so "epic, open of total, which quarter"
+// reads the same wherever a reader meets it.
+//
+//   group      -- the finding's getRemediationTickets group, or null if never ticketed
+//   period     -- the current quarter ("2026-Q3"), from the same response
+//   onOpen     -- takes the reader to this finding on the Remediation tab
+//
+// Three states, each stated rather than implied: this quarter's epic and its progress; an
+// earlier quarter's epic, with this quarter's not started; or no epic at all.
+export function RemediationStatus({ group, period, siteOrigin, onOpen, compact = false }) {
+  const epicKey = group?.epic?.issueKey || null;
+  const open = group?.openCount ?? 0;
+  const total = group?.taskCount ?? 0;
+  const epicLink = epicKey ? <JiraLink href={buildIssueUrl(siteOrigin, epicKey)} title={`Open ${epicKey} in Jira`}>{epicKey}</JiraLink> : null;
+
+  let tone = "neutral";
+  let body;
+  if (group && group.isCurrent) {
+    tone = open === 0 && total > 0 ? "success" : "active";
+    body = <>{epicLink} · {total === 0 ? "no tasks yet" : open === 0 ? `all ${total} tasks closed` : `${open} of ${total} tasks open`}</>;
+  } else if (group) {
+    body = <>{group.period} epic {epicLink}{period ? ` · ${period} not started` : ""}</>;
+  } else {
+    body = <>No remediation epic{period ? ` for ${period}` : ""}</>;
+  }
+
+  return (
+    <span className={`ui-remediation ui-remediation--${tone}${compact ? " ui-remediation--compact" : ""}`}>
+      <Icon name="wrench" size={12} aria-hidden="true" />
+      <span className="ui-remediation__body">{body}</span>
+      {onOpen && (
+        <button type="button" className="ui-remediation__open" onClick={(event) => { event.stopPropagation(); onOpen(); }}>
+          {group?.isCurrent ? "Manage" : "Start remediation"} →
+        </button>
+      )}
+    </span>
+  );
+}
 
 // ── Governance rows ─────────────────────────────────────────────────────────
 //
