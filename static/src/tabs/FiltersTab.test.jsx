@@ -74,7 +74,12 @@ function route(map) {
   });
 }
 
-beforeEach(() => invoke.mockReset());
+beforeEach(() => {
+  invoke.mockReset();
+  // Most of these are about the Filters list. The tab opens on Overview like every pillar;
+  // start on the list the way a returning reader would.
+  window.localStorage.setItem("observatory.section.filters", "filters");
+});
 
 describe("filterRows", () => {
   const rows = [
@@ -130,7 +135,17 @@ describe("FiltersTab", () => {
     route({ getFilterInventory: { available: false, state: "idle", neverBuilt: true } });
     render(<FiltersTab />);
 
-    expect(await screen.findByRole("button", { name: /build filter inventory/i })).toBeInTheDocument();
+    // In the header and in the empty state, the same shared control.
+    expect((await screen.findAllByRole("button", { name: /build filter inventory/i })).length).toBeGreaterThan(0);
+  });
+
+  test("opens on an Overview with the governance score and the findings", async () => {
+    window.localStorage.removeItem("observatory.section.filters");
+    route({ getFilterInventory: inventory() });
+    render(<FiltersTab />);
+
+    expect(await screen.findByText("What needs attention")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Governance" })).toBeInTheDocument();
   });
 
   test("reports a failed build rather than an empty one", async () => {
@@ -145,11 +160,11 @@ describe("FiltersTab", () => {
     render(<FiltersTab />);
 
     await screen.findByRole("heading", { name: "Saved filters" });
-    // Scoped to the estate panel: these labels deliberately appear twice, once as a headline
-    // number and once as the control that narrows to it.
-    const estate = screen.getByRole("heading", { name: "Estate" }).closest(".ui-panel");
-    expect(within(estate).getByText("No live owner")).toBeInTheDocument();
-    expect(within(estate).getByText("Shared with everyone")).toBeInTheDocument();
+    // Scoped to the headline tiles: these labels deliberately appear twice, once as a
+    // headline number and once as the control that narrows to it.
+    const tiles = document.querySelector(".ui-stat-row");
+    expect(within(tiles).getByText("No live owner")).toBeInTheDocument();
+    expect(within(tiles).getByText("Shared with everyone")).toBeInTheDocument();
   });
 
   test("shows what each filter depends on", async () => {
@@ -361,8 +376,8 @@ describe("a build that is no longer running", () => {
 
     render(<FiltersTab />);
 
-    const button = await screen.findByRole("button", { name: /rebuild/i });
-    expect(button).toBeEnabled();
+    const buttons = await screen.findAllByRole("button", { name: /rebuild/i });
+    for (const button of buttons) expect(button).toBeEnabled();
     expect(screen.getByText(/no longer running/i)).toBeInTheDocument();
     expect(screen.queryByText(/Building the filter inventory/i)).not.toBeInTheDocument();
   });
@@ -375,7 +390,7 @@ describe("a build that is no longer running", () => {
     render(<FiltersTab />);
 
     expect(await screen.findByText(/Building the filter inventory/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /building/i })).toBeDisabled();
+    for (const button of screen.getAllByRole("button", { name: /building/i })) expect(button).toBeDisabled();
   });
 
   // The same trap on a site that already has a snapshot: the rebuild wedges, and every later

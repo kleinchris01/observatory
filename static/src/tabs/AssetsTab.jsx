@@ -3,12 +3,11 @@ import { invoke } from "@forge/bridge";
 import { formatNumber, formatRelativeTime, buildAssetSchemaUrl } from "../utils";
 import { Icon } from "../components/Icons";
 import {
-  StatTile, StatRow, Panel, EmptyState, Chip, PageHeader,
-  PanelGrid, GridSpan, PillarHealthPanel, BarList, FindingRow, SortFilterBar, AskRovo, JiraLink,
+  StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PillarHealthPanel, BarList, FindingRow, SortFilterBar, AskRovo, JiraLink, RebuildButton, BuildBanners, AttentionPanel, PillarOverview,
 } from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
-import { useNavIntent, useVisiblePolling, usePersistentState } from "../hooks";
+import { useNavIntent, usePersistentState, useSnapshotBuild, usePillarHealth, useVisiblePolling, BUILD_POLL_MS } from "../hooks";
 
 // The JSM Assets (CMDB) pillar: object schemas, their hierarchical object types and those
 // types' attributes. The same "is this config dead / broken / unused" read as Fields and
@@ -17,14 +16,7 @@ import { useNavIntent, useVisiblePolling, usePersistentState } from "../hooks";
 // Assets needs JSM Premium/Enterprise. On every other site the build returns "not enabled
 // here" and this tab says so plainly rather than showing an empty catalogue.
 
-const BUILD_POLL_MS = 3000;
-const STALE_AFTER_DAYS = 7;
 
-function daysSince(iso) {
-  const at = Date.parse(iso || "");
-  if (!Number.isFinite(at)) return null;
-  return (Date.now() - at) / (24 * 60 * 60 * 1000);
-}
 
 const TYPE_SORTS = [
   { value: "name-asc", label: "Name A–Z" },
@@ -103,7 +95,7 @@ function AttributeRow({ attr, typeName, broken }) {
   );
 }
 
-function AssetFindings({ governance }) {
+function AssetFindings({ governance, action = null }) {
   const g = governance || {};
   const rows = [];
   if (g.deadSchemaCount > 0) {
@@ -143,11 +135,13 @@ function AssetFindings({ governance }) {
   }
 
   return (
-    <Panel title="What needs attention" icon="alertTriangle" description="What the Assets pillar of the site health score is built from.">
-      {rows.length === 0
-        ? <EmptyState inline>Nothing flagged. Every schema is populated, every reference resolves and every concrete type has an attribute of its own.</EmptyState>
-        : rows.map((r) => <FindingRow key={r.key} tone={r.tone} count={r.count} title={r.title} detail={r.detail} />)}
-    </Panel>
+    <AttentionPanel
+      action={action}
+      description="What the Assets pillar of the site health score is built from."
+      empty="Nothing flagged. Every schema is populated, every reference resolves and every concrete type has an attribute of its own."
+    >
+      {rows.map((r) => <FindingRow key={r.key} tone={r.tone} count={r.count} title={r.title} detail={r.detail} />)}
+    </AttentionPanel>
   );
 }
 
@@ -156,8 +150,6 @@ export function AssetsTab({ intent, siteOrigin }) {
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
-  const [notice, setNotice] = React.useState("");
-  const [building, setBuilding] = React.useState(false);
   const [search, setSearch] = React.useState("");
   const [typeSort, setTypeSort] = React.useState("name-asc");
   const [attrSort, setAttrSort] = React.useState("name-asc");
@@ -183,55 +175,31 @@ export function AssetsTab({ intent, siteOrigin }) {
 
   // The Assets pillar of the site health score, on its own so this tab shows the same
   // governance reading the Overview does -- matching ScreensTab and IssueTypesTab.
-  const [pillar, setPillar] = React.useState(null);
-  React.useEffect(() => {
-    let cancelled = false;
-    invoke("getPillarHealth", { pillar: "assets" })
-      .then((result) => { if (!cancelled) setPillar(result?.pillar || null); })
-      .catch(() => { if (!cancelled) setPillar(null); });
-    return () => { cancelled = true; };
-  }, [data?.refreshedAt]);
+  const pillar = usePillarHealth("assets", data?.refreshedAt);
 
-  const isBuilding = ["building", "queued"].includes(data?.state) && !data?.staleBuild;
+  const build = useSnapshotBuild({ resolver: "buildAssetInventory", data, load });
+  const isBuilding = build.isBuilding;
+  // The object-count crawl is Assets' own second job, so it keeps its own start and notice;
+  // the structure build goes through the shared hook like every other pillar.
   const isCountCrawling = data?.typeCountCrawl?.state === "building" && !data?.typeCountCrawl?.staleBuild;
-  useVisiblePolling(isBuilding || isCountCrawling, load, BUILD_POLL_MS);
-
-  async function startBuild() {
-    setBuilding(true);
-    setError("");
-    setNotice("");
-    try {
-      const result = await invoke("buildAssetInventory", {});
-      await load();
-      if (result?.error) {
-        setError(result.error);
-      } else if (result?.queued === false && result?.reason === "already-building") {
-        setNotice("A build is already running. This page refreshes itself while it does.");
-      } else {
-        setNotice("Build queued. This page refreshes itself while it runs.");
-      }
-    } catch (err) {
-      setError(err?.message || "Could not start the build.");
-    } finally {
-      setBuilding(false);
-    }
-  }
+  useVisiblePolling(isCountCrawling, load, BUILD_POLL_MS);
+  const [countNotice, setCountNotice] = React.useState("");
 
   const [countCrawling, setCountCrawling] = React.useState(false);
 
   async function startCountCrawl() {
     setCountCrawling(true);
     setError("");
-    setNotice("");
+    setCountNotice("");
     try {
       const result = await invoke("buildAssetTypeCountCrawl", {});
       await load();
       if (result?.error) {
         setError(result.error);
       } else if (result?.queued === false && result?.reason === "already-building") {
-        setNotice("An object-count crawl is already running. This page refreshes itself while it does.");
+        setCountNotice("An object-count crawl is already running. This page refreshes itself while it does.");
       } else {
-        setNotice("Object-count crawl queued — one AQL call per concrete object type. This page refreshes itself while it runs.");
+        setCountNotice("Object-count crawl queued — one AQL call per concrete object type. This page refreshes itself while it runs.");
       }
     } catch (err) {
       setError(err?.message || "Could not start the object-count crawl.");
@@ -254,24 +222,22 @@ export function AssetsTab({ intent, siteOrigin }) {
           })
         }
       />
-      <button type="button" className="secondary-button" onClick={startBuild} disabled={building || isBuilding}>
-      <Icon name="refreshCw" size={13} />
-      {isBuilding ? "Building…" : data?.neverBuilt || data?.assetsEnabled === false ? "Check again" : "Rebuild"}
-      </button>
-      {!data?.neverBuilt && data?.assetsEnabled !== false && (
-        <button
-          type="button"
-          className="secondary-button"
-          onClick={startCountCrawl}
-          disabled={countCrawling || isCountCrawling}
-          title="One AQL call per concrete object type. A separate, opt-in crawl — the structure build above never counts live objects."
-        >
-          <Icon name="barChart" size={13} />
-          {isCountCrawling ? "Measuring…" : data?.governance?.countsMeasured ? "Remeasure object counts" : "Measure object counts"}
-        </button>
-      )}
+      <RebuildButton onClick={build.startBuild} isBuilding={isBuilding} starting={build.starting} neverBuilt={Boolean(data?.neverBuilt || data?.assetsEnabled === false)} buildLabel="Check again" />
     </>
   );
+
+  const countCrawlAction = !data?.neverBuilt && data?.assetsEnabled !== false ? (
+    <button
+      type="button"
+      className="secondary-button secondary-button--small"
+      onClick={startCountCrawl}
+      disabled={countCrawling || isCountCrawling}
+      title="One AQL call per concrete object type. A separate, opt-in crawl — the structure build never counts live objects."
+    >
+      <Icon name="barChart" size={13} aria-hidden="true" />
+      {isCountCrawling ? "Measuring…" : data?.governance?.countsMeasured ? "Remeasure object counts" : "Measure object counts"}
+    </button>
+  ) : null;
 
   if (loading && !data) {
     return <div className="empty-state">Loading the Assets inventory…</div>;
@@ -287,20 +253,25 @@ export function AssetsTab({ intent, siteOrigin }) {
   );
 
   const banners = (
-    <>
-      {error && <div className="danger-zone__error" role="alert">{error}</div>}
-      {notice && !error && <p className="admin-config-row__hint" role="status">{notice}</p>}
-      {isBuilding && <p className="admin-config-row__hint">Reading the CMDB structure… this page refreshes itself.</p>}
-      {data?.staleBuild && (
-        <p className="admin-config-row__hint">A build was started but is no longer running. Rebuild to recover it.</p>
+    <BuildBanners
+      loadError={error} buildError={build.error} notice={build.notice || countNotice}
+      isBuilding={isBuilding} buildingMessage="Reading the CMDB structure… this page refreshes itself."
+      staleBuild={data?.staleBuild}
+      // Not enabled is a terminal state the page explains itself, not a failed build.
+      lastError={data?.assetsEnabled === false ? null : data?.lastError}
+      builtAt={data?.neverBuilt ? null : data?.refreshedAt}
+    >
+      {isCountCrawling && (
+        <div className="ui-banner ui-banner--active" role="status">
+          Measuring live object counts, one AQL call per concrete type… this page refreshes itself.
+        </div>
       )}
-      {isCountCrawling && <p className="admin-config-row__hint">Measuring live object counts, one AQL call per concrete type… this page refreshes itself.</p>}
       {data?.typeCountCrawl?.unmeasuredTypes > 0 && !isCountCrawling && (
-        <p className="admin-config-row__hint">
+        <div className="ui-banner ui-banner--warning">
           The last object-count crawl could not measure {formatNumber(data.typeCountCrawl.unmeasuredTypes)} of the concrete types — they stay unmeasured rather than counted as empty.
-        </p>
+        </div>
       )}
-    </>
+    </BuildBanners>
   );
 
   // Assets is not licensed on this site. A distinct, terminal state -- not an error and not
@@ -323,9 +294,6 @@ export function AssetsTab({ intent, siteOrigin }) {
       <div className="admin-assets">
         {header}
         {banners}
-        {data?.lastError && !isBuilding && (
-          <div className="danger-zone__error" role="alert">Last build failed: {data.lastError}</div>
-        )}
         {isBuilding ? (
           <Panel title="Building the first inventory" icon="refreshCw">
             <p>
@@ -358,8 +326,6 @@ export function AssetsTab({ intent, siteOrigin }) {
   const bareTypeIds = new Set((g?.bareTypes || []).map((t) => String(t.id)));
   const objectCountByType = new Map((data?.typeCounts || []).map((c) => [String(c.objectTypeId), c.objectCount]));
 
-  const buildAgeDays = daysSince(data?.refreshedAt);
-  const isStale = buildAgeDays != null && buildAgeDays > STALE_AFTER_DAYS;
 
   const items = [
     { key: "overview", label: "Overview", icon: "barChart" },
@@ -408,9 +374,6 @@ export function AssetsTab({ intent, siteOrigin }) {
     <div className="admin-assets">
       {header}
       {banners}
-      {data?.lastError && !isBuilding && (
-        <div className="danger-zone__error" role="alert">Last build failed: {data.lastError}</div>
-      )}
 
       <StatRow>
         <StatTile label="Object schemas" value={formatNumber(g?.totalSchemas ?? schemas.length)} hint="Namespaces in the CMDB" icon="folder" />
@@ -432,35 +395,23 @@ export function AssetsTab({ intent, siteOrigin }) {
         />
       </StatRow>
 
-      {isStale && (
-        <Panel title="This inventory is stale" icon="alertTriangle">
-          <p>It was built {Math.floor(buildAgeDays)} days ago. Every full and quick scan refreshes it — run one, or rebuild here.</p>
-        </Panel>
-      )}
 
       <SubNavLayout items={items} activeKey={view} onSelect={setView}>
         {view === "overview" && (
-          <PanelGrid>
-            <GridSpan>
-              <PillarHealthPanel pillar={pillar} />
-            </GridSpan>
-
-            <GridSpan>
-              <AssetFindings governance={g} />
-            </GridSpan>
-
-            <GridSpan>
-              <Panel title="Schemas by object count" icon="barChart" description="Where the CMDB's objects actually live.">
-                <BarList
-                  items={schemas.slice(0, 10).map((s) => ({ label: s.name, count: s.objectCount }))}
-                  labelKey="label"
-                  valueKey="count"
-                  formatValue={formatNumber}
-                  emptyMessage="No object schemas in this snapshot."
-                />
-              </Panel>
-            </GridSpan>
-          </PanelGrid>
+          <PillarOverview
+            governance={<PillarHealthPanel pillar={pillar} />}
+            attention={<AssetFindings governance={g} action={countCrawlAction} />}
+          >
+            <Panel title="Schemas by object count" icon="barChart" description="Where the CMDB's objects actually live.">
+              <BarList
+                items={schemas.slice(0, 10).map((s) => ({ label: s.name, count: s.objectCount }))}
+                labelKey="label"
+                valueKey="count"
+                formatValue={formatNumber}
+                emptyMessage="No object schemas in this snapshot."
+              />
+            </Panel>
+          </PillarOverview>
         )}
 
         {view === "schemas" && (

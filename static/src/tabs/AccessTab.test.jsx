@@ -103,13 +103,33 @@ describe("AccessTab", () => {
     render(<AccessTab />);
 
     expect(await screen.findByText("Access")).toBeInTheDocument();
-    expect(screen.getByText("Permission schemes")).toBeInTheDocument();
+    // Once as a stat tile, once as its section of the Governance panel.
+    expect(screen.getAllByText("Permission schemes").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Least-privilege flags")).toBeInTheDocument();
     expect(screen.getByText("Empty admin roles")).toBeInTheDocument();
     expect(screen.getByText("Permission schemes that break least privilege")).toBeInTheDocument();
     expect(screen.getByText("Issue security levels nobody can see through")).toBeInTheDocument();
     expect(screen.getByText("Notification schemes routing to a named individual")).toBeInTheDocument();
     expect(screen.getByText("Projects with an empty administrator role")).toBeInTheDocument();
+  });
+
+  // Four pillars score this tab. They used to be four panels all titled "Governance", which
+  // read as the same panel repeated; they are one panel with a section each.
+  test("scores all four access pillars in one Governance panel", async () => {
+    invoke.mockImplementation((fn, payload) => {
+      if (fn === "getAccessInventory") return Promise.resolve(inventory());
+      if (fn === "getPillarHealth") {
+        return Promise.resolve({ pillar: { available: true, score: 40, grade: "D", total: 1, dimensions: [{ key: `${payload.pillar}-d`, label: `${payload.pillar} dimension`, available: true, score: 40, detail: "x" }] } });
+      }
+      return Promise.resolve({});
+    });
+    render(<AccessTab />);
+
+    expect(await screen.findByText("permissions dimension")).toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { name: "Governance" })).toHaveLength(1);
+    for (const section of ["Permission schemes", "Issue security", "Notifications", "Project roles"]) {
+      expect(screen.getByRole("region", { name: section })).toBeInTheDocument();
+    }
   });
 
   test("the Project roles view lists each role and flags the empty admin role", async () => {

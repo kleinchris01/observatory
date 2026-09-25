@@ -504,30 +504,29 @@ select {
 }
 
 
-.primary-button {
-  padding: 8px 12px;
-  border: 0;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #1c658c 0%, #254e70 100%);
-  color: #fff;
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: 0 12px 24px rgba(28, 101, 140, 0.24);
-}
+/* .primary-button is defined once, further down. It had two definitions here that both
+   applied, so every primary button was a blend of two designs. */
 
-.primary-button:disabled {
-  opacity: 0.7;
-  cursor: wait;
-}
-
+/* Same box model as .ask-rovo and .primary-button, which it usually sits beside: inline-flex
+   with a gap, so an icon never butts against its label, and an explicit size, so it does not
+   inherit a larger one from whatever it happens to be placed in. */
 .secondary-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 8px 12px;
   border-radius: 14px;
   border: 1px solid var(--stroke);
   background: var(--wash-6);
   color: var(--text);
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
+  white-space: nowrap;
+}
+
+.secondary-button:hover:not(:disabled) {
+  border-color: var(--accent, var(--stroke));
 }
 
 .secondary-button--small {
@@ -7525,3 +7524,34 @@ a.dash-row__name:hover { text-decoration: underline; }
 }
 .remediation-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
 .remediation-history { margin: 6px 0 0; font-size: 0.78rem; color: var(--muted); }
+
+
+/* ── Pillar page template (ui.jsx: BuildBanners, PillarHealthPanel sections, AttentionPanel)
+   One set of status banners for every pillar tab, in the tone vocabulary the stat tiles use:
+   critical when a person should act, warning to review, active for work in flight. */
+.ui-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--stroke);
+  background: var(--wash-6);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.ui-banner--info { color: var(--muted); }
+.ui-banner--active { border-color: rgba(121, 184, 255, 0.45); }
+.ui-banner--warning { border-color: rgba(201, 134, 10, 0.45); color: var(--tone-warning-text); }
+.ui-banner--critical { border-color: rgba(201, 96, 90, 0.45); color: var(--tone-critical-text); }
+
+.ui-pillar-sections { display: flex; flex-direction: column; gap: 18px; }
+.ui-pillar-section + .ui-pillar-section { padding-top: 16px; border-top: 1px solid var(--stroke); }
+.ui-pillar-section__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.ui-pillar-section__title { margin: 0; font-size: 13px; font-weight: 700; color: var(--text); }
+.ui-pillar-section__score { display: inline-flex; align-items: baseline; gap: 4px; }
+.ui-pillar-section__score .ui-health__score { font-size: 22px; }
+
+.ui-attention-list { display: flex; flex-direction: column; gap: 10px; }

@@ -40,11 +40,30 @@ styling drift, but three separate implementations of the same ideas.
 Never add a second component that does an existing component's job. If the existing one is
 wrong, change it — every call site is in this repo.
 
+### The pillar page template
+
+Every pillar tab is the same page, in the same order. Build a new one from these, not by
+copying a neighbouring tab:
+
+1. `PageHeader`: title, one-sentence description, `meta` freshness ("Built 9h ago"), and
+   exactly two actions, `AskRovo` then `RebuildButton`. A pillar-specific action (Assets'
+   object-count crawl) goes on the panel it affects, never in the header.
+2. `BuildBanners`: every build state (queued, building, wedged, failed, stale) in one
+   frame. Pillar-specific banners go in as children. Build logic is `useSnapshotBuild`.
+3. `StatRow` with at most five tiles.
+4. `SubNavLayout` with **Overview first**, then the entity lists.
+5. The Overview is `PillarOverview`: one `PillarHealthPanel` (`usePillarHealth`), one
+   `AttentionPanel` of `FindingRow`s, then pillar-specific panels full width. A tab scored
+   by several pillars passes `pillars={[…]}` to get one panel with a section each, never
+   one Governance panel per pillar. No stat rows nested inside panels.
+
 ### Tone vocabulary
 
 `tone` carries meaning, not decoration. `neutral`, `success`, `active` (in flight),
 `warning`, `critical`. Use `critical` only when a person should act on the value, or it
-stops meaning anything.
+stops meaning anything. `success` only when the tile's value is a problem count and it is
+zero; an inventory count ("20 security levels", "909 enabled rules") is `neutral` however
+healthy it is. Never colour by category (board type, product) — that is decoration.
 
 ## Rovo agents: one per pillar, one button
 

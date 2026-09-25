@@ -160,6 +160,14 @@ describe("ProjectsTabView", () => {
     expect(screen.getByText("Projects")).toBeInTheDocument();
   });
 
+  // The same header every pillar tab has: freshness in the meta slot, and the pillar's own
+  // Rovo agent, disabled until there is a snapshot to ask about.
+  it("carries the pillar's Ask Rovo in the header, and says when usage was never measured", () => {
+    render(<ProjectsTabView {...defaultProps} />);
+    expect(screen.getByRole("button", { name: "Ask Rovo about the project estate" })).toBeDisabled();
+    expect(screen.getByText("Never measured")).toBeInTheDocument();
+  });
+
   it("shows empty state when no projects and not loading", () => {
     render(<ProjectsTabView {...defaultProps} />);
     expect(screen.getByText(/No projects with cached field usage were found/i)).toBeInTheDocument();

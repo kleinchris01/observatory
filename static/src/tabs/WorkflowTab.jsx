@@ -2,10 +2,13 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatTimestamp, formatRelativeTime, formatNumber } from "../utils";
 import { Icon } from "../components/Icons";
-import { StatTile, StatRow, Panel, EmptyState, PageHeader, SortFilterBar, Chip, RuleLink, AskRovo } from "../components/ui";
+import {
+  StatTile, StatRow, Panel, EmptyState, PageHeader, SortFilterBar, Chip, RuleLink, AskRovo, FindingRow,
+  PillarHealthPanel, RebuildButton, BuildBanners, AttentionPanel, PillarOverview,
+} from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
-import { useNavIntent, usePersistentState } from "../hooks";
+import { useNavIntent, usePersistentState, usePillarHealth } from "../hooks";
 
 // Workflow scheme + status inventory.
 //
@@ -285,28 +288,6 @@ export function WorkflowInsights({ insights, loading, siteOrigin, load = invoke,
 
   return (
     <div className="wf-insights">
-      {/* The label/hint split is the point of moving to StatTile: these used to concatenate
-          "Duplicate groups · 20 statuses removable" into one label, so the count of the thing
-          and the consequence of it were typographically identical. */}
-      <StatRow>
-        <StatTile
-          label="Duplicate groups"
-          value={formatNumber(summary.duplicateGroupCount)}
-          tone={summary.duplicateGroupCount > 0 ? "warning" : "neutral"}
-          hint={summary.reducibleStatusCount > 0 ? `${formatNumber(summary.reducibleStatusCount)} statuses removable` : undefined}
-        />
-        <StatTile
-          label="Unreachable statuses"
-          value={formatNumber(summary.orphanCount)}
-          tone={summary.orphanCount > 0 ? "warning" : "neutral"}
-          hint={hasIssueCounts ? `${formatNumber(summary.safeToRemoveCount)} never used` : undefined}
-        />
-        <StatTile
-          label="Schemes with a flag"
-          value={formatNumber(summary.flaggedSchemeCount)}
-          tone={summary.flaggedSchemeCount > 0 ? "warning" : "neutral"}
-        />
-      </StatRow>
 
       {!hasIssueCounts && (
         <p className="wf-insights__note">
@@ -565,8 +546,77 @@ function DepartedChart({ statuses }) {
   );
 }
 
+// The tab's headline tiles, at page level like every other pillar. They used to sit inside
+// the Insights view, so the tab opened on a scheme list with no numbers above it at all.
+function WorkflowStats({ data, insights }) {
+  const summary = insights?.available ? insights.summary : null;
+  const unknown = "—";
+  return (
+    <StatRow>
+      <StatTile label="Workflow schemes" value={formatNumber(data?.totalCount ?? (data?.schemes || []).length)} hint="On this site" icon="activity" />
+      <StatTile label="Statuses" value={formatNumber((data?.statuses || []).length)} hint="The status catalogue" icon="layers" />
+      <StatTile
+        label="Duplicate groups"
+        value={summary ? formatNumber(summary.duplicateGroupCount) : unknown}
+        hint={summary?.reducibleStatusCount > 0 ? `${formatNumber(summary.reducibleStatusCount)} statuses removable` : "Same status, different spelling"}
+        tone={summary?.duplicateGroupCount > 0 ? "warning" : summary ? "success" : "neutral"}
+        icon="copy"
+      />
+      <StatTile
+        label="Unreachable statuses"
+        value={summary ? formatNumber(summary.orphanCount) : unknown}
+        hint={summary && insights.hasIssueCounts ? `${formatNumber(summary.safeToRemoveCount)} never used` : "No scheme reaches them"}
+        tone={summary?.orphanCount > 0 ? "warning" : summary ? "success" : "neutral"}
+        icon="alertTriangle"
+      />
+      <StatTile
+        label="Schemes with a flag"
+        value={summary ? formatNumber(summary.flaggedSchemeCount) : unknown}
+        hint="No Done, uncategorised or oversized"
+        tone={summary?.flaggedSchemeCount > 0 ? "warning" : summary ? "success" : "neutral"}
+        icon="flag"
+      />
+    </StatRow>
+  );
+}
+
+function WorkflowFindings({ insights, loading }) {
+  if (loading && !insights) return <AttentionPanel empty="Analysing the workflow inventory…" />;
+  if (!insights?.available) {
+    return <AttentionPanel empty="Build the workflow inventory first — these findings are derived from it." />;
+  }
+  const s = insights.summary || {};
+  const rows = [];
+  if (s.unreachableWithIssuesCount > 0) {
+    rows.push({ key: "stuck", tone: "critical", count: s.unreachableWithIssuesCount, title: "Unreachable statuses still holding issues", detail: "No scheme maps them and no rule targets them, so nothing in the workflow admin can move those issues out." });
+  }
+  if (s.duplicateGroupCount > 0) {
+    rows.push({ key: "dupes", tone: "warning", count: s.duplicateGroupCount, title: "Duplicate statuses", detail: `${formatNumber(s.reducibleStatusCount)} statuses would go if each group were merged into one.` });
+  }
+  if (s.unreachableNoRuleCount > 0) {
+    rows.push({ key: "orphans", tone: "warning", count: s.unreachableNoRuleCount, title: "Statuses nothing reaches", detail: insights.hasIssueCounts ? `${formatNumber(s.safeToRemoveCount)} of them have never held an issue.` : "Run a full scan to learn which have ever been used." });
+  }
+  if (s.ruleOnlyStatusCount > 0) {
+    rows.push({ key: "rule-only", tone: "info", count: s.ruleOnlyStatusCount, title: "Statuses only an automation rule reaches", detail: "Live states no workflow documents. Not cleanup — they are in use." });
+  }
+  if (s.flaggedSchemeCount > 0) {
+    rows.push({ key: "schemes", tone: "warning", count: s.flaggedSchemeCount, title: "Workflow schemes with a structural flag", detail: "No Done status, uncategorised statuses, or more statuses than anyone can follow." });
+  }
+  if (!insights.schemeStatusesAvailable) {
+    rows.push({ key: "no-map", tone: "info", title: "Unreachable statuses could not be assessed", detail: "Jira did not return workflow status data on the last build. Rebuilding usually resolves this." });
+  }
+  return (
+    <AttentionPanel
+      description="What the workflows pillar of the site health score is built from. The Insights view has the detail."
+      empty="Nothing flagged. No duplicate statuses, every status is reachable, and every scheme is balanced."
+    >
+      {rows.map((r) => <FindingRow key={r.key} tone={r.tone} count={r.count} title={r.title} detail={r.detail} />)}
+    </AttentionPanel>
+  );
+}
+
 export function WorkflowTab({ intent = null, siteOrigin = "" }) {
-  const [view, setView] = usePersistentState("observatory.section.workflows", "schemes");
+  const [view, setView] = usePersistentState("observatory.section.workflows", "overview");
   // Arrived from an Overview finding: switch to the view that holds it. The filter within
   // that view belongs to the view, so the intent travels on rather than being unpacked here.
   useNavIntent(intent, (nav) => {
@@ -637,8 +687,11 @@ export function WorkflowTab({ intent = null, siteOrigin = "" }) {
   // and re-running it on every scheme page change would be pure waste. Re-fetched when the
   // snapshot's refreshedAt changes, since a rebuild invalidates every finding.
   const refreshedAt = data?.snapshotStatus?.refreshedAt || null;
+  const hasSnapshot = Boolean(data?.snapshotStatus?.version);
   React.useEffect(() => {
-    if (view !== "insights") return undefined;
+    // Every view reads these now -- the header tiles and the Overview are built from them --
+    // so they load once per snapshot rather than on opening one view.
+    if (!hasSnapshot) return undefined;
     let cancelled = false;
     setInsightsLoading(true);
     invoke("getWorkflowInsights", {})
@@ -646,7 +699,9 @@ export function WorkflowTab({ intent = null, siteOrigin = "" }) {
       .catch(() => { if (!cancelled) setInsights({ available: false, reason: "error" }); })
       .finally(() => { if (!cancelled) setInsightsLoading(false); });
     return () => { cancelled = true; };
-  }, [view, refreshedAt]);
+  }, [hasSnapshot, refreshedAt]);
+
+  const pillar = usePillarHealth("workflows", refreshedAt);
 
   const snapshot = data?.snapshotStatus;
   const schemes = data?.schemes || [];
@@ -732,6 +787,7 @@ export function WorkflowTab({ intent = null, siteOrigin = "" }) {
   // of things needing attention rather than a row count -- it is the only view here whose
   // number is a finding rather than an inventory size.
   const navItems = [
+    { key: "overview", label: "Overview", icon: "barChart" },
     { key: "schemes", label: "Schemes", icon: "activity", badge: formatNumber(data?.totalCount ?? schemes.length) },
     { key: "statuses", label: "Statuses", icon: "layers", badge: formatNumber(statuses.length) },
     {
@@ -811,25 +867,23 @@ export function WorkflowTab({ intent = null, siteOrigin = "" }) {
                 })
               }
             />
-            <button
-              className="primary-button"
-              type="button"
+            <RebuildButton
               onClick={() => load({ forceRefresh: true })}
-              disabled={isBuilding || loading}
-            >
-              <Icon name="refreshCw" size={14} />
-              {isBuilding ? "Building…" : snapshot?.version ? "Rebuild" : "Build inventory"}
-            </button>
+              isBuilding={isBuilding}
+              disabled={loading}
+              neverBuilt={!snapshot?.version}
+            />
           </>
         }
       />
 
-      {error && <div className="danger-zone__error" role="alert">{error}</div>}
-      {snapshot?.lastError && (
-        <div className="danger-zone__error">
-          <Icon name="alertTriangle" size={13} /> {snapshot.lastError}
-        </div>
-      )}
+      <BuildBanners
+        loadError={error || ""}
+        isBuilding={isBuilding}
+        buildingMessage="Reading every workflow scheme… this page refreshes itself."
+        lastError={snapshot?.lastError || null}
+        builtAt={snapshot?.version ? snapshot?.refreshedAt : null}
+      />
 
       {neverBuilt ? (
         <EmptyState>No workflow inventory yet. Build one to see every workflow scheme on the site and
@@ -839,8 +893,14 @@ export function WorkflowTab({ intent = null, siteOrigin = "" }) {
           {/* Sidebar sub-nav, matching Screens, Automation, Scans, Reports and Config.
               This tab was the only one running its sub-navigation as horizontal pills, which
               is why moving between it and any other tab felt like changing product. */}
+          <WorkflowStats data={data} insights={insights} />
           <SubNavLayout items={navItems} activeKey={view} onSelect={setView}>
-          {view === "insights" ? (
+          {view === "overview" ? (
+            <PillarOverview
+              governance={<PillarHealthPanel pillar={pillar} />}
+              attention={<WorkflowFindings insights={insights} loading={insightsLoading} />}
+            />
+          ) : view === "insights" ? (
             <WorkflowInsights insights={insights} loading={insightsLoading} siteOrigin={siteOrigin} intent={intent} />
           ) : loading ? (
             <EmptyState>Loading…</EmptyState>

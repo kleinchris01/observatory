@@ -47,6 +47,32 @@ beforeEach(() => {
 });
 
 describe("WorkflowTab", () => {
+  // These are about the scheme and status views. The tab opens on Overview, like every
+  // pillar tab, so start them on Schemes the way a returning reader would be.
+  beforeEach(() => { window.localStorage.setItem("observatory.section.workflows", "schemes"); });
+
+  it("opens on an Overview with the governance score and findings, like every pillar", async () => {
+    window.localStorage.removeItem("observatory.section.workflows");
+    invoke.mockImplementation((fn) => {
+      if (fn === "getWorkflowInventory") return Promise.resolve(inventory());
+      if (fn === "getWorkflowInsights") {
+        return Promise.resolve({
+          available: true, hasIssueCounts: true, schemeStatusesAvailable: true,
+          summary: { duplicateGroupCount: 2, reducibleStatusCount: 3, orphanCount: 4, safeToRemoveCount: 1, unreachableNoRuleCount: 4, unreachableWithIssuesCount: 1, ruleOnlyStatusCount: 0, flaggedSchemeCount: 0 },
+          duplicateGroups: [], orphans: [], balance: [],
+        });
+      }
+      return Promise.resolve({});
+    });
+    render(<WorkflowTab />);
+
+    expect(await screen.findByText("Unreachable statuses still holding issues")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Governance" })).toBeInTheDocument();
+    expect(screen.getByText("What needs attention")).toBeInTheDocument();
+    // Headline tiles at page level, not inside a view.
+    expect(screen.getByText("Duplicate groups")).toBeInTheDocument();
+  });
+
   it("lists workflow schemes with their project counts", async () => {
     render(<WorkflowTab />);
 
@@ -468,6 +494,8 @@ describe("WorkflowTab — automation caveat", () => {
 // the title, and horizontal pill sub-navigation where five other tabs use a sidebar. Moving
 // between it and any other tab read as changing product.
 describe("WorkflowTab — shared shell", () => {
+  beforeEach(() => { window.localStorage.setItem("observatory.section.workflows", "schemes"); });
+
   test("uses the shared page header, with freshness in the header's meta slot", async () => {
     const { container } = render(<WorkflowTab />);
     await screen.findByText("ADVEV Standard");

@@ -3,7 +3,7 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { router, rovo } from "@forge/bridge";
-import { StatTile, StatRow, Panel, CollapsiblePanels, Chip, EmptyState, BarList, FindingRow, LinkButton, PageHeader, RuleLink, JiraLink, SortFilterBar, StageRail, formatDurationMs, AskRovo, RemediationStatus } from "./ui";
+import { StatTile, StatRow, Panel, CollapsiblePanels, Chip, EmptyState, BarList, FindingRow, LinkButton, PageHeader, RuleLink, JiraLink, SortFilterBar, StageRail, formatDurationMs, AskRovo, RemediationStatus, RebuildButton, BuildBanners, AttentionPanel, PillarOverview, PillarHealthPanel } from "./ui";
 
 // These are the shared vocabulary that replaced four separate stat-card idioms. They are
 // small, but they now render on every tab, so a regression here is a regression
@@ -533,5 +533,128 @@ describe("RemediationStatus", () => {
     expect(screen.getByText("No remediation epic for 2026-Q3")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /Start remediation/ }));
     expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+// The pillar page template. Every pillar tab is built from these; a regression here shows up
+// on thirteen tabs at once, which is the point of having one copy.
+describe("RebuildButton", () => {
+  test("says what pressing it will do, in every state", () => {
+    const { rerender } = render(<RebuildButton onClick={() => {}} />);
+    expect(screen.getByRole("button", { name: "Rebuild" })).toBeEnabled();
+    rerender(<RebuildButton onClick={() => {}} neverBuilt buildLabel="Build roster" />);
+    expect(screen.getByRole("button", { name: "Build roster" })).toBeEnabled();
+    rerender(<RebuildButton onClick={() => {}} starting />);
+    expect(screen.getByRole("button", { name: "Starting…" })).toBeDisabled();
+    rerender(<RebuildButton onClick={() => {}} isBuilding />);
+    expect(screen.getByRole("button", { name: "Building…" })).toBeDisabled();
+  });
+
+  test("is styled like the Ask Rovo button it sits beside", () => {
+    render(<RebuildButton onClick={() => {}} />);
+    expect(screen.getByRole("button").className).toMatch(/secondary-button--small/);
+  });
+});
+
+describe("BuildBanners", () => {
+  test("renders nothing for a healthy, fresh build", () => {
+    const { container } = render(<BuildBanners builtAt={new Date().toISOString()} />);
+    expect(container.textContent).toBe("");
+  });
+
+  test("prefers the build's own error over a load error, and alerts on it", () => {
+    render(<BuildBanners loadError="load failed" buildError="build refused" />);
+    expect(screen.getByRole("alert").textContent).toMatch(/build refused/);
+    expect(screen.queryByText(/load failed/)).not.toBeInTheDocument();
+  });
+
+  test("hides a notice while an error is showing", () => {
+    render(<BuildBanners notice="Build queued." loadError="nope" />);
+    expect(screen.queryByText("Build queued.")).not.toBeInTheDocument();
+  });
+
+  test("names a wedged build and a failed one", () => {
+    render(<BuildBanners staleBuild lastError="401 scope does not match" />);
+    expect(screen.getByText(/no longer running/i)).toBeInTheDocument();
+    expect(screen.getByText(/Last build failed: 401 scope does not match/)).toBeInTheDocument();
+  });
+
+  test("does not report a failed build while a new one is running", () => {
+    render(<BuildBanners isBuilding lastError="old failure" buildingMessage="Working…" />);
+    expect(screen.getByText("Working…")).toBeInTheDocument();
+    expect(screen.queryByText(/old failure/)).not.toBeInTheDocument();
+  });
+
+  test("says how old a stale snapshot is, with the pillar's own sentence", () => {
+    const old = new Date(Date.now() - 12 * 86400000).toISOString();
+    render(<BuildBanners builtAt={old} staleDetail="Only a rebuild refreshes it." />);
+    expect(screen.getByText(/This snapshot is 12 days old\. Only a rebuild refreshes it\./)).toBeInTheDocument();
+  });
+
+  test("an unknown build date is never called stale", () => {
+    const { container } = render(<BuildBanners builtAt={null} />);
+    expect(container.textContent).toBe("");
+  });
+
+  test("renders pillar-specific banners in the same frame", () => {
+    render(<BuildBanners><div>Measuring object counts…</div></BuildBanners>);
+    expect(screen.getByText("Measuring object counts…")).toBeInTheDocument();
+  });
+});
+
+describe("AttentionPanel", () => {
+  test("is titled the same on every tab", () => {
+    render(<AttentionPanel><FindingRow title="A finding" /></AttentionPanel>);
+    expect(screen.getByText("What needs attention")).toBeInTheDocument();
+    expect(screen.getByText("A finding")).toBeInTheDocument();
+  });
+
+  test("says so when there is nothing to act on, rather than rendering an empty box", () => {
+    render(<AttentionPanel empty="Nothing flagged.">{[]}</AttentionPanel>);
+    expect(screen.getByText("Nothing flagged.")).toBeInTheDocument();
+  });
+
+  test("carries a pillar-specific action", () => {
+    render(<AttentionPanel action={<button type="button">Measure object counts</button>} />);
+    expect(screen.getByRole("button", { name: "Measure object counts" })).toBeInTheDocument();
+  });
+});
+
+describe("PillarOverview", () => {
+  test("lays out governance, then attention, then the pillar's own panels", () => {
+    const { container } = render(
+      <PillarOverview governance={<p>score</p>} attention={<p>findings</p>}>
+        <p>extra</p>
+        {null}
+      </PillarOverview>
+    );
+    expect([...container.querySelectorAll("p")].map((p) => p.textContent)).toEqual(["score", "findings", "extra"]);
+    expect(container.querySelectorAll(".ui-panelgrid__span")).toHaveLength(1);
+  });
+});
+
+describe("PillarHealthPanel with several pillars", () => {
+  const scored = (score) => ({
+    available: true, score, grade: "C", total: 1,
+    dimensions: [{ key: `d${score}`, label: `Dimension ${score}`, available: true, score, detail: "d" }],
+  });
+
+  test("is one Governance panel with a section and a score per pillar", () => {
+    render(
+      <PillarHealthPanel
+        pillars={[
+          { key: "a", label: "Permission schemes", pillar: scored(13) },
+          { key: "b", label: "Notifications", pillar: { available: false, reason: "No notification schemes yet." } },
+          { key: "c", label: "Project roles", pillar: null },
+        ]}
+      />
+    );
+    expect(screen.getAllByRole("heading", { name: "Governance" })).toHaveLength(1);
+    expect(screen.getByText("1 of 3 areas scored.")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Permission schemes" }).textContent).toMatch(/13/);
+    // Unmeasured is said in the pillar's own words, never shown as a zero.
+    expect(screen.getByText("No notification schemes yet.")).toBeInTheDocument();
+    expect(screen.getByText("Health has not been scored yet.")).toBeInTheDocument();
   });
 });

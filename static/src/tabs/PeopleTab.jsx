@@ -1,11 +1,12 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatNumber, formatRelativeTime } from "../utils";
-import { Icon } from "../components/Icons";
-import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PanelGrid, GridSpan, PillarHealthPanel, BarList, SortFilterBar, AskRovo } from "../components/ui";
+import {
+  StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PillarHealthPanel, BarList, SortFilterBar, AskRovo, FindingRow, RebuildButton, BuildBanners, AttentionPanel, PillarOverview,
+} from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
-import { useVisiblePolling, usePersistentState } from "../hooks";
+import { usePersistentState, useSnapshotBuild, usePillarHealth } from "../hooks";
 
 // The People pillar: the who, not just the what.
 //
@@ -15,14 +16,7 @@ import { useVisiblePolling, usePersistentState } from "../hooks";
 // own, joined from those pillars' snapshots. Project roles and per-issue activity are still
 // to come.
 
-const BUILD_POLL_MS = 3000;
-const STALE_AFTER_DAYS = 7;
 
-function daysSince(iso) {
-  const at = Date.parse(iso || "");
-  if (!Number.isFinite(at)) return null;
-  return (Date.now() - at) / (24 * 60 * 60 * 1000);
-}
 
 function shortProduct(key) {
   return String(key || "")
@@ -226,13 +220,53 @@ function sortRoster(users, sort) {
   return [...users].sort(by[sort] || by["name-asc"]);
 }
 
+// What the People pillar asks an admin to act on. Ownership and automation references come
+// from the roster's own governance; dormancy only exists as a health dimension, so it is
+// read from there rather than recomputed.
+function PeopleFindings({ governance, pillar, automationRefsAvailable }) {
+  const g = governance || {};
+  const rows = [];
+  const orphaned = (g.orphanedFilters ?? 0) + (g.orphanedDashboards ?? 0) + (g.orphanedRules ?? 0);
+  if (orphaned > 0) {
+    rows.push({
+      key: "orphaned", tone: "warning", count: orphaned,
+      title: "Config owned by someone no longer licensed",
+      detail: `${formatNumber(g.orphanedFilters ?? 0)} filters, ${formatNumber(g.orphanedDashboards ?? 0)} dashboards and ${formatNumber(g.orphanedRules ?? 0)} automation rules belong to an account not in the licensed roster.`,
+    });
+  }
+  if (automationRefsAvailable && (g.orphanedAutomationRefUsers ?? 0) > 0) {
+    rows.push({
+      key: "automation-refs", tone: "critical", count: g.orphanedAutomationRefUsers,
+      title: "Automation routes work to people who have left",
+      detail: `${formatNumber(g.orphanedAutomationRefUsers)} of the ${formatNumber(g.automationRefUsers ?? 0)} accounts a rule assigns to or conditions on are not licensed.`,
+    });
+  }
+  const dormant = (pillar?.dimensions || []).find((d) => d.key === "dormant-licences" && d.available && d.score < 100);
+  if (dormant) {
+    rows.push({ key: "dormant", tone: "info", title: "Licences nobody is using", detail: dormant.detail });
+  }
+  if ((g.appUsers ?? 0) > 0) {
+    rows.push({
+      key: "app-accounts", tone: "info", count: g.appUsers,
+      title: "App accounts holding a licence",
+      detail: "Non-human accounts in an application-access group. Most apps need no product seat.",
+    });
+  }
+  return (
+    <AttentionPanel
+      description="What the People pillar of the site health score is built from."
+      empty="Nothing flagged. Every owned filter, dashboard and rule belongs to a licensed user."
+    >
+      {rows.map((r) => <FindingRow key={r.key} tone={r.tone} count={r.count} title={r.title} detail={r.detail} />)}
+    </AttentionPanel>
+  );
+}
+
 export function PeopleTab() {
   const [view, setView] = usePersistentState("observatory.section.people", "overview");
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
-  const [notice, setNotice] = React.useState("");
-  const [building, setBuilding] = React.useState(false);
   const [search, setSearch] = React.useState("");
   const [sort, setSort] = React.useState("name-asc");
   const [rosterFilter, setRosterFilter] = React.useState("all");
@@ -271,38 +305,10 @@ export function PeopleTab() {
 
   // The People pillar of the site health score, fetched on its own so this tab shows the
   // same governance reading the Overview does -- matching ScreensTab and IssueTypesTab.
-  const [pillar, setPillar] = React.useState(null);
-  React.useEffect(() => {
-    let cancelled = false;
-    invoke("getPillarHealth", { pillar: "users" })
-      .then((result) => { if (!cancelled) setPillar(result?.pillar || null); })
-      .catch(() => { if (!cancelled) setPillar(null); });
-    return () => { cancelled = true; };
-  }, [data?.refreshedAt]);
+  const pillar = usePillarHealth("users", data?.refreshedAt);
 
-  const isBuilding = ["building", "queued"].includes(data?.state) && !data?.staleBuild;
-  useVisiblePolling(isBuilding, load, BUILD_POLL_MS);
-
-  async function startBuild() {
-    setBuilding(true);
-    setError("");
-    setNotice("");
-    try {
-      const result = await invoke("buildUserInventory", {});
-      if (result?.error) {
-        setError(result.error);
-      } else if (result?.reason === "already-building") {
-        setNotice("A build is already running. This page refreshes itself while it does.");
-      } else {
-        setNotice("Build queued. This page refreshes itself while it runs.");
-      }
-      await load();
-    } catch (err) {
-      setError(err?.message || "Failed to queue the build.");
-    } finally {
-      setBuilding(false);
-    }
-  }
+  const build = useSnapshotBuild({ resolver: "buildUserInventory", data, load });
+  const isBuilding = build.isBuilding;
 
   const buildAction = (
     <>
@@ -318,16 +324,21 @@ export function PeopleTab() {
           })
         }
       />
-      <button type="button" className="secondary-button" onClick={startBuild} disabled={building || isBuilding}>
-      <Icon name="refreshCw" size={13} />
-      {isBuilding ? "Building…" : data?.neverBuilt ? "Build roster" : "Rebuild"}
-      </button>
+      <RebuildButton onClick={build.startBuild} isBuilding={isBuilding} starting={build.starting} neverBuilt={Boolean(data?.neverBuilt)} buildLabel="Build roster" />
     </>
   );
 
   if (loading && !data) {
     return <div className="empty-state">Loading the people inventory…</div>;
   }
+
+  const banners = (
+    <BuildBanners
+      loadError={error} buildError={build.error} notice={build.notice}
+      isBuilding={isBuilding} buildingMessage="Building the roster… this page refreshes itself."
+      staleBuild={data?.staleBuild} lastError={data?.lastError} builtAt={data?.neverBuilt ? null : data?.refreshedAt} staleDetail="Rebuild here to pick up new or removed licences."
+    />
+  );
 
   if (data?.neverBuilt) {
     return (
@@ -337,14 +348,7 @@ export function PeopleTab() {
           description="Every licensed Jira user on the site, from the members of your application-access groups."
           actions={buildAction}
         />
-        {error && <div className="danger-zone__error" role="alert">{error}</div>}
-        {notice && !error && <p className="admin-config-row__hint" role="status">{notice}</p>}
-        {data?.lastError && !isBuilding && (
-          <div className="danger-zone__error" role="alert">Last build failed: {data.lastError}</div>
-        )}
-        {data?.staleBuild && (
-          <p className="admin-config-row__hint">A build was started but is no longer running. Rebuild to recover it.</p>
-        )}
+        {banners}
         {isBuilding ? (
           <Panel title="Building the first roster" icon="refreshCw">
             <p>
@@ -365,8 +369,6 @@ export function PeopleTab() {
 
   const g = data?.governance || null;
   const summary = data?.applicationSummary || [];
-  const buildAgeDays = daysSince(data?.refreshedAt);
-  const isStale = buildAgeDays != null && buildAgeDays > STALE_AFTER_DAYS;
 
   const seatsUsed = summary.reduce((sum, s) => sum + (Number(s.userCount) || 0), 0);
   const seatsTotal = summary.reduce(
@@ -402,15 +404,7 @@ export function PeopleTab() {
         actions={buildAction}
       />
 
-      {error && <div className="danger-zone__error" role="alert">{error}</div>}
-      {notice && !error && <p className="admin-config-row__hint" role="status">{notice}</p>}
-      {isBuilding && <p className="admin-config-row__hint">Building the roster… this page refreshes itself.</p>}
-      {data?.staleBuild && (
-        <p className="admin-config-row__hint">A build was started but is no longer running. Rebuild to recover it.</p>
-      )}
-      {data?.lastError && !isBuilding && (
-        <div className="danger-zone__error" role="alert">Last build failed: {data.lastError}</div>
-      )}
+      {banners}
 
       <StatRow>
         <StatTile label="Licensed users" value={formatNumber(g?.totalUsers ?? data?.users?.length ?? 0)} hint="Across every access group" icon="user" />
@@ -430,110 +424,56 @@ export function PeopleTab() {
         />
       </StatRow>
 
-      {isStale && (
-        <Panel title="This roster is stale" icon="alertTriangle">
-          <p>
-            It was built {Math.floor(buildAgeDays)} days ago. Rebuild here to pick up new or
-            removed licences.
-          </p>
-        </Panel>
-      )}
 
       <SubNavLayout items={items} activeKey={view} onSelect={setView}>
         {view === "overview" && (
-          <PanelGrid>
-            <GridSpan>
-              <PillarHealthPanel pillar={pillar} />
-            </GridSpan>
-
-            <Panel
-              title="Seats by product"
-              icon="barChart"
-              description="Straight from GET /rest/api/3/applicationrole — the site's own seat numbers."
-            >
-              {summary.length ? (
-                <BarList
-                  items={summary.map((s) => ({
-                    label: s.name || shortProduct(s.key),
-                    count: Number(s.userCount) || 0,
-                    hint: s.hasUnlimitedSeats
-                      ? "unlimited seats"
-                      : s.numberOfSeats != null
-                        ? `${formatNumber(s.userCount || 0)} of ${formatNumber(s.numberOfSeats)}`
-                        : null,
-                  }))}
-                  labelKey="label"
-                  valueKey="count"
-                  formatValue={(v) => formatNumber(v)}
-                  emptyMessage="No application roles were returned."
-                />
-              ) : (
-                <EmptyState inline>No application roles were returned for this site.</EmptyState>
-              )}
-            </Panel>
-
-            <Panel
-              title="Licences held per user"
-              icon="layers"
-              description="How many users hold one product versus several — the seats worth reviewing first."
-            >
+          <PillarOverview
+            governance={<PillarHealthPanel pillar={pillar} />}
+            attention={<PeopleFindings governance={g} pillar={pillar} automationRefsAvailable={data?.automationRefsAvailable !== false} />}
+          >
+          <Panel
+            title="Seats by product"
+            icon="barChart"
+            description="Straight from GET /rest/api/3/applicationrole — the site's own seat numbers."
+          >
+            {summary.length ? (
               <BarList
-                items={[
-                  { label: "One product", count: Math.max(0, (g?.totalUsers ?? 0) - (g?.multiProductUsers ?? 0)) },
-                  { label: "Multiple products", count: g?.multiProductUsers ?? 0 },
-                ]}
+                items={summary.map((s) => ({
+                  label: s.name || shortProduct(s.key),
+                  count: Number(s.userCount) || 0,
+                  hint: s.hasUnlimitedSeats
+                    ? "unlimited seats"
+                    : s.numberOfSeats != null
+                      ? `${formatNumber(s.userCount || 0)} of ${formatNumber(s.numberOfSeats)}`
+                      : null,
+                }))}
                 labelKey="label"
                 valueKey="count"
                 formatValue={(v) => formatNumber(v)}
-                emptyMessage="No roster yet."
+                emptyMessage="No application roles were returned."
               />
-            </Panel>
+            ) : (
+              <EmptyState inline>No application roles were returned for this site.</EmptyState>
+            )}
+          </Panel>
 
-            <Panel
-              title="Orphaned ownership"
-              icon="alertTriangle"
-              description="Filters, dashboards and automation rules owned by an account that is not in the licensed roster — a deleted or unlicensed user still holding site config."
-            >
-              {(g?.orphanedOwners ?? 0) > 0 ? (
-                <BarList
-                  items={[
-                    { label: "Filters", count: g?.orphanedFilters ?? 0 },
-                    { label: "Dashboards", count: g?.orphanedDashboards ?? 0 },
-                    { label: "Automation rules", count: g?.orphanedRules ?? 0 },
-                  ]}
-                  labelKey="label"
-                  valueKey="count"
-                  formatValue={(v) => formatNumber(v)}
-                  tone="warn"
-                  emptyMessage="None."
-                />
-              ) : (
-                <EmptyState inline>Every owned filter, dashboard and rule belongs to a licensed user.</EmptyState>
-              )}
-            </Panel>
-
-            <Panel
-              title="Cross-pillar references"
-              icon="layers"
-              description="How much of the estate points at a specific person — and how much of that points at someone no longer on the roster."
-            >
-              <StatRow>
-                <StatTile
-                  label="Named in automation"
-                  value={formatNumber(g?.automationRefUsers ?? 0)}
-                  hint={data?.automationRefsAvailable === false ? "Import a rule export to measure" : "Accounts a rule assigns to or conditions on"}
-                  icon="refreshCw"
-                />
-                <StatTile
-                  label="Referenced off-roster"
-                  value={formatNumber(g?.orphanedAutomationRefUsers ?? 0)}
-                  hint={(g?.orphanedAutomationRefUsers ?? 0) > 0 ? "A rule routes work to someone who has left" : "Every referenced account is licensed"}
-                  tone={(g?.orphanedAutomationRefUsers ?? 0) > 0 ? "critical" : "success"}
-                  icon="alertTriangle"
-                />
-              </StatRow>
-            </Panel>
-          </PanelGrid>
+          <Panel
+            title="Licences held per user"
+            icon="layers"
+            description="How many users hold one product versus several — the seats worth reviewing first."
+          >
+            <BarList
+              items={[
+                { label: "One product", count: Math.max(0, (g?.totalUsers ?? 0) - (g?.multiProductUsers ?? 0)) },
+                { label: "Multiple products", count: g?.multiProductUsers ?? 0 },
+              ]}
+              labelKey="label"
+              valueKey="count"
+              formatValue={(v) => formatNumber(v)}
+              emptyMessage="No roster yet."
+            />
+          </Panel>
+          </PillarOverview>
         )}
 
         {view === "roster" && (

@@ -1455,7 +1455,21 @@ export function ProjectsTabView({
       <PageHeader
         title="Projects"
         description="Every project with cached field usage, and the workflow, screen, automation, filter and access context that touches it. Click a project to expand it in place."
-        meta={refreshedAt ? `Usage refreshed ${formatTimestamp(refreshedAt)}` : undefined}
+        meta={refreshedAt ? `Usage refreshed ${formatRelativeTime(refreshedAt)}` : "Never measured"}
+        actions={
+          <AskRovo
+            agent="observatory-project-expert"
+            scope="the project estate"
+            context="the usage snapshot age and the project count"
+            disabled={!refreshedAt}
+            buildPrompt={() =>
+              buildRovoPrompt({
+                task: "Give me an overview of this site's projects: which are active, which have fallen off, and which carry the most configuration.",
+                facts: [["Usage refreshed", refreshedAt || "unknown"], ["Projects", totalProjects]],
+              })
+            }
+          />
+        }
       />
 
       <div className="admin-field-browser__toolbar">

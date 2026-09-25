@@ -197,7 +197,7 @@ describe("IssueTypesTab", () => {
     });
     render(<IssueTypesTab />);
 
-    expect(await screen.findByText("This inventory is stale")).toBeInTheDocument();
+    expect(await screen.findByText(/This snapshot is \d+ days old/)).toBeInTheDocument();
   });
 });
 

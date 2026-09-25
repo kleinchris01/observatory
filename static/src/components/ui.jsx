@@ -588,7 +588,11 @@ export function bandFromScore(score) {
 // Built on GovernanceRow rather than its own bar markup, so a metric reads the same here as
 // it does in the Overview's ledger. It had grown a second dialect of the same row -- the
 // exact thing this file exists to stop.
-export function PillarHealthPanel({ pillar, onOpenTrends, trendsByDimension = null }) {
+export function PillarHealthPanel({ pillar, pillars = null, onOpenTrends, trendsByDimension = null }) {
+  // Several pillars on one tab (Access scores permissions, issue security, notifications and
+  // roles separately) are ONE panel with a section each, not a panel each. Four panels all
+  // titled "Governance" read as four copies of the same thing.
+  if (pillars) return <MultiPillarHealthPanel pillars={pillars} onOpenTrends={onOpenTrends} trendsByDimension={trendsByDimension} />;
   if (!pillar) {
     return (
       <Panel title="Governance" icon="activity">
@@ -631,6 +635,132 @@ export function PillarHealthPanel({ pillar, onOpenTrends, trendsByDimension = nu
         </>
       )}
     </Panel>
+  );
+}
+
+function MultiPillarHealthPanel({ pillars, onOpenTrends, trendsByDimension }) {
+  const scoredPillars = pillars.filter((p) => p.pillar?.available);
+  return (
+    <Panel
+      title="Governance"
+      icon="activity"
+      description={`${scoredPillars.length} of ${pillars.length} areas scored.`}
+      action={onOpenTrends ? <LinkButton onClick={onOpenTrends}>Trends</LinkButton> : null}
+    >
+      <div className="ui-pillar-sections">
+        {pillars.map(({ key, label, pillar }) => {
+          const scored = (pillar?.dimensions || []).filter((d) => d.available);
+          return (
+            <section className="ui-pillar-section" key={key} aria-label={label}>
+              <div className="ui-pillar-section__head">
+                <h4 className="ui-pillar-section__title">{label}</h4>
+                {pillar?.available ? (
+                  <span className="ui-pillar-section__score">
+                    <span className={`ui-health__score ui-health__score--${(pillar.grade || "e").toLowerCase()}`}>{pillar.score}</span>
+                    <span className="ui-health__of">/ 100</span>
+                  </span>
+                ) : null}
+              </div>
+              {!pillar ? (
+                <EmptyState inline>Health has not been scored yet.</EmptyState>
+              ) : !pillar.available ? (
+                <EmptyState inline>{pillar.reason || "Not measured yet."}</EmptyState>
+              ) : (
+                <div className="ui-gov-list">
+                  {scored.map((dim) => (
+                    <GovernanceRow
+                      key={dim.key}
+                      label={dim.label}
+                      score={dim.score}
+                      band={bandFromScore(dim.score)}
+                      detail={dim.detail}
+                      trend={trendsByDimension?.[dim.key] ?? null}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          );
+        })}
+      </div>
+    </Panel>
+  );
+}
+
+// The findings half of a pillar's Overview. Every pillar tab had its own copy of this panel
+// with its own title wording; the list inside stays the tab's, the frame is shared.
+// `action` is for a pillar-specific control that belongs with its findings (Assets' object
+// count crawl) -- the page header carries only Ask Rovo and Rebuild, on every tab.
+export function AttentionPanel({ description, empty = "Nothing needs attention in this snapshot.", action = null, children }) {
+  const items = React.Children.toArray(children).filter(Boolean);
+  return (
+    <Panel title="What needs attention" icon="alertTriangle" description={description} action={action}>
+      {items.length ? <div className="ui-attention-list">{items}</div> : <EmptyState inline>{empty}</EmptyState>}
+    </Panel>
+  );
+}
+
+// A pillar tab's Overview, laid out the same everywhere: the score on the left, what to act
+// on beside it, and anything pillar-specific in full-width rows below. The order is the
+// reading order -- how healthy, then what to do, then the detail.
+export function PillarOverview({ governance, attention, children }) {
+  return (
+    <PanelGrid>
+      <GridSpan>{governance}</GridSpan>
+      <GridSpan>{attention}</GridSpan>
+      {React.Children.toArray(children).filter(Boolean).map((child, i) => (
+        <GridSpan wide key={i}>{child}</GridSpan>
+      ))}
+    </PanelGrid>
+  );
+}
+
+// The one build button on every pillar tab. It sits beside AskRovo in the page header and
+// is styled to match it; it had been a secondary button with no icon gap on most tabs and a
+// primary button on Workflows, so the same action looked different on every page.
+export function RebuildButton({ onClick, isBuilding = false, starting = false, neverBuilt = false, buildLabel = "Build inventory", disabled = false }) {
+  return (
+    <button
+      type="button"
+      className="secondary-button secondary-button--small ui-rebuild"
+      onClick={onClick}
+      disabled={disabled || starting || isBuilding}
+    >
+      <Icon name="refreshCw" size={13} aria-hidden="true" />
+      {isBuilding ? "Building…" : starting ? "Starting…" : neverBuilt ? buildLabel : "Rebuild"}
+    </button>
+  );
+}
+
+// Every state a build can be in, in one place and one order, under the page header.
+// `staleDetail` is the pillar's own sentence on what refreshes it -- Screens is not refreshed
+// by every scan, so its wording has to differ -- but the frame and the threshold do not.
+export function BuildBanners({
+  loadError = "", buildError = "", notice = "", isBuilding = false, buildingMessage = "Building… this page refreshes itself.",
+  staleBuild = false, lastError = null, builtAt = null, staleAfterDays = 7,
+  staleDetail = "Every full and quick scan refreshes it — run one, or rebuild here.",
+  children = null,
+}) {
+  const error = buildError || loadError;
+  const ageMs = builtAt ? Date.now() - new Date(builtAt).getTime() : NaN;
+  const ageDays = Number.isFinite(ageMs) ? ageMs / 86400000 : null;
+  const stale = !isBuilding && ageDays != null && ageDays > staleAfterDays;
+  return (
+    <>
+      {error && <div className="ui-banner ui-banner--critical" role="alert"><Icon name="alertTriangle" size={13} aria-hidden="true" />{error}</div>}
+      {notice && !error && <div className="ui-banner ui-banner--info" role="status">{notice}</div>}
+      {isBuilding && <div className="ui-banner ui-banner--active" role="status">{buildingMessage}</div>}
+      {staleBuild && <div className="ui-banner ui-banner--warning">A build was started but is no longer running. Rebuild to recover it.</div>}
+      {lastError && !isBuilding && <div className="ui-banner ui-banner--critical" role="alert"><Icon name="alertTriangle" size={13} aria-hidden="true" />Last build failed: {lastError}</div>}
+      {stale && (
+        <div className="ui-banner ui-banner--warning">
+          <Icon name="clock" size={13} aria-hidden="true" />
+          This snapshot is {Math.floor(ageDays)} days old. {staleDetail}
+        </div>
+      )}
+      {/* Pillar-specific states (Assets' object-count crawl) render in the same frame. */}
+      {children}
+    </>
   );
 }
 

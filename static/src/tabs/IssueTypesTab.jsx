@@ -1,11 +1,12 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatNumber, formatRelativeTime, buildIssueTypeAdminUrl } from "../utils";
-import { Icon } from "../components/Icons";
-import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PanelGrid, GridSpan, BarList, PillarHealthPanel, FindingRow, SortFilterBar, AskRovo, JiraLink } from "../components/ui";
+import {
+  StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, BarList, PillarHealthPanel, FindingRow, SortFilterBar, AskRovo, JiraLink, RebuildButton, BuildBanners, AttentionPanel, PillarOverview,
+} from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
-import { useNavIntent, useVisiblePolling, usePersistentState } from "../hooks";
+import { useNavIntent, usePersistentState, useSnapshotBuild, usePillarHealth } from "../hooks";
 
 // Issue type inventory.
 //
@@ -14,17 +15,10 @@ import { useNavIntent, useVisiblePolling, usePersistentState } from "../hooks";
 // which types a project may use. Read-only, like the rest of Observatory -- it reports what
 // is configured; changing a scheme stays a considered action in Jira's own admin UI.
 
-const BUILD_POLL_MS = 3000;
 
 // Third application of the same threshold the macro warning and the Screens tab use. A
 // reader who has learned what "stale" means elsewhere should not relearn it here.
-const STALE_AFTER_DAYS = 7;
 
-function daysSince(iso) {
-  const at = Date.parse(iso || "");
-  if (!Number.isFinite(at)) return null;
-  return (Date.now() - at) / (24 * 60 * 60 * 1000);
-}
 
 // A type's chips: what makes it notable at a glance. Order matters -- the finding-shaped
 // ones (project-scoped, sub-task) come before the identifier.
@@ -190,11 +184,7 @@ export function SchemeCard({ scheme }) {
 // then near-duplicate names, then schemes nobody uses.
 export function IssueTypeFindings({ findings }) {
   if (!findings || !findings.available) {
-    return (
-      <Panel title="Findings" icon="alertTriangle">
-        <EmptyState inline>No issue type inventory has been built yet.</EmptyState>
-      </Panel>
-    );
+    return <AttentionPanel empty="No issue type inventory has been built yet." />;
   }
 
   const rows = [];
@@ -228,11 +218,12 @@ export function IssueTypeFindings({ findings }) {
   }
 
   return (
-    <Panel title="Findings" icon="alertTriangle" description="What the issue types pillar of the site health score is built from.">
-      {rows.length === 0
-        ? <EmptyState inline>No issue type governance findings. Every type is reachable, every scheme is in use, and no names collide.</EmptyState>
-        : rows.map((r) => <FindingRow key={r.title} tone={r.tone} title={r.title} detail={r.detail} count={r.count} />)}
-    </Panel>
+    <AttentionPanel
+      description="What the issue types pillar of the site health score is built from."
+      empty="No issue type governance findings. Every type is reachable, every scheme is in use, and no names collide."
+    >
+      {rows.map((r) => <FindingRow key={r.title} tone={r.tone} title={r.title} detail={r.detail} count={r.count} />)}
+    </AttentionPanel>
   );
 }
 
@@ -241,8 +232,6 @@ export function IssueTypesTab({ intent, siteOrigin }) {
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
-  const [notice, setNotice] = React.useState("");
-  const [building, setBuilding] = React.useState(false);
   const [search, setSearch] = React.useState("");
 
   useNavIntent(intent, (nav) => {
@@ -267,40 +256,12 @@ export function IssueTypesTab({ intent, siteOrigin }) {
 
   // The issue types pillar of the site health score, fetched on its own so this tab shows
   // the same governance reading the Overview does -- matching ScreensTab.
-  const [pillar, setPillar] = React.useState(null);
-  React.useEffect(() => {
-    let cancelled = false;
-    invoke("getPillarHealth", { pillar: "issueTypes" })
-      .then((result) => { if (!cancelled) setPillar(result?.pillar || null); })
-      .catch(() => { if (!cancelled) setPillar(null); });
-    return () => { cancelled = true; };
-  }, [data?.refreshedAt]);
+  const pillar = usePillarHealth("issueTypes", data?.refreshedAt);
 
   // "queued" counts as in flight, not just "building" -- the row is marked building at queue
   // time, but a consumer that has not picked the job up can leave either value on the meta.
-  const isBuilding = ["building", "queued"].includes(data?.state) && !data?.staleBuild;
-  useVisiblePolling(isBuilding, load, BUILD_POLL_MS);
-
-  async function startBuild() {
-    setBuilding(true);
-    setError("");
-    setNotice("");
-    try {
-      const result = await invoke("buildIssueTypeInventory", {});
-      await load();
-      if (result?.error) {
-        setError(result.error);
-      } else if (result?.queued === false && result?.reason === "already-building") {
-        setNotice("A build is already running. This page refreshes itself while it does.");
-      } else {
-        setNotice("Build queued. This page refreshes itself while it runs.");
-      }
-    } catch (err) {
-      setError(err?.message || "Could not start the build.");
-    } finally {
-      setBuilding(false);
-    }
-  }
+  const build = useSnapshotBuild({ resolver: "buildIssueTypeInventory", data, load });
+  const isBuilding = build.isBuilding;
 
   const buildAction = (
     <>
@@ -323,16 +284,21 @@ export function IssueTypesTab({ intent, siteOrigin }) {
           })
         }
       />
-      <button type="button" className="secondary-button" onClick={startBuild} disabled={building || isBuilding}>
-        <Icon name="refreshCw" size={13} />
-        {isBuilding ? "Building…" : data?.neverBuilt ? "Build inventory" : "Rebuild"}
-      </button>
+      <RebuildButton onClick={build.startBuild} isBuilding={isBuilding} starting={build.starting} neverBuilt={Boolean(data?.neverBuilt)} buildLabel="Build inventory" />
     </>
   );
 
   if (loading && !data) {
     return <div className="empty-state">Loading issue type inventory…</div>;
   }
+
+  const banners = (
+    <BuildBanners
+      loadError={error} buildError={build.error} notice={build.notice}
+      isBuilding={isBuilding} buildingMessage="Building the inventory… this page refreshes itself."
+      staleBuild={data?.staleBuild} lastError={data?.lastError} builtAt={data?.neverBuilt ? null : data?.refreshedAt} staleDetail="Every full and quick scan refreshes it — run one, or rebuild here. A scheme changed since the last build is not reflected until then."
+    />
+  );
 
   if (data?.neverBuilt) {
     return (
@@ -342,14 +308,7 @@ export function IssueTypesTab({ intent, siteOrigin }) {
           description="The issue type catalog by hierarchy level, and the schemes that decide which types each project may use."
           actions={buildAction}
         />
-        {error && <div className="danger-zone__error" role="alert">{error}</div>}
-        {notice && !error && <p className="admin-config-row__hint" role="status">{notice}</p>}
-        {data?.lastError && !isBuilding && (
-          <div className="danger-zone__error" role="alert">Last build failed: {data.lastError}</div>
-        )}
-        {data?.staleBuild && (
-          <p className="admin-config-row__hint">A build was started but is no longer running. Rebuild to recover it.</p>
-        )}
+        {banners}
 
         {isBuilding ? (
           <Panel title="Building the first inventory" icon="refreshCw">
@@ -371,8 +330,6 @@ export function IssueTypesTab({ intent, siteOrigin }) {
   }
 
   const g = data?.governance || null;
-  const buildAgeDays = daysSince(data?.refreshedAt);
-  const isStale = buildAgeDays != null && buildAgeDays > STALE_AFTER_DAYS;
 
   const items = [
     { key: "overview", label: "Overview", icon: "barChart" },
@@ -408,15 +365,7 @@ export function IssueTypesTab({ intent, siteOrigin }) {
         </>}
       />
 
-      {error && <div className="danger-zone__error" role="alert">{error}</div>}
-      {notice && !error && <p className="admin-config-row__hint" role="status">{notice}</p>}
-      {isBuilding && <p className="admin-config-row__hint">Building the inventory… this page refreshes itself.</p>}
-      {data?.staleBuild && (
-        <p className="admin-config-row__hint">A build was started but is no longer running. Rebuild to recover it.</p>
-      )}
-      {data?.lastError && !isBuilding && (
-        <div className="danger-zone__error" role="alert">Last build failed: {data.lastError}</div>
-      )}
+      {banners}
 
       <StatRow>
         <StatTile label="Issue types" value={formatNumber(data?.totalTypes ?? 0)} hint="Defined across the site" icon="layers" />
@@ -437,66 +386,44 @@ export function IssueTypesTab({ intent, siteOrigin }) {
         />
       </StatRow>
 
-      {isStale && (
-        <Panel title="This inventory is stale" icon="alertTriangle">
-          <p>
-            It was built {Math.floor(buildAgeDays)} days ago. Every full and quick scan
-            refreshes it — run one, or rebuild here. A scheme changed since the last build is
-            not reflected above.
-          </p>
-        </Panel>
-      )}
 
       <SubNavLayout items={items} activeKey={view} onSelect={setView}>
         {view === "overview" && (
-          <PanelGrid>
-            <GridSpan>
-              <PillarHealthPanel pillar={pillar} />
-            </GridSpan>
-
-            <GridSpan>
-              <IssueTypeFindings findings={data?.governanceFindings} />
-            </GridSpan>
-
-            <GridSpan>
-              <Panel title="Types by hierarchy level" icon="layers" description="Jira's level: −1 sub-task, 0 base, 1 Epic, 2+ custom hierarchy above Epic.">
-                <BarList
-                  items={(data?.hierarchy || []).map((h) => ({ label: h.label, count: h.types.length }))}
-                  labelKey="label"
-                  valueKey="count"
-                  formatValue={formatNumber}
-                  emptyMessage="No issue types in this snapshot"
+          <PillarOverview
+            governance={<PillarHealthPanel pillar={pillar} />}
+            attention={<IssueTypeFindings findings={data?.governanceFindings} />}
+          >
+            <Panel title="Types by hierarchy level" icon="layers" description="Jira's level: −1 sub-task, 0 base, 1 Epic, 2+ custom hierarchy above Epic.">
+              <BarList
+                items={(data?.hierarchy || []).map((h) => ({ label: h.label, count: h.types.length }))}
+                labelKey="label"
+                valueKey="count"
+                formatValue={formatNumber}
+                emptyMessage="No issue types in this snapshot"
+              />
+            </Panel>
+            <Panel title="Widest-reaching schemes" icon="folder" description="How many projects each issue type scheme governs. A scheme on hundreds of projects is not a local edit.">
+              <BarList
+                items={(data?.schemes || []).slice(0, 10).map((s) => ({ label: s.name, count: s.projectCount }))}
+                labelKey="label"
+                valueKey="count"
+                formatValue={formatNumber}
+                tone="warn"
+                emptyMessage="No schemes in this snapshot"
+              />
+            </Panel>
+            <Panel title="Coverage" icon="info" description="What this snapshot holds.">
+              <StatRow>
+                <StatTile label="Sub-task types" value={formatNumber(g?.subtaskTypes ?? 0)} hint="Live under another issue" />
+                <StatTile
+                  label="Project-scoped types"
+                  value={formatNumber(g?.projectScopedTypes ?? 0)}
+                  hint="Belong to one team-managed project"
                 />
-              </Panel>
-            </GridSpan>
-
-            <GridSpan>
-              <Panel title="Widest-reaching schemes" icon="folder" description="How many projects each issue type scheme governs. A scheme on hundreds of projects is not a local edit.">
-                <BarList
-                  items={(data?.schemes || []).slice(0, 10).map((s) => ({ label: s.name, count: s.projectCount }))}
-                  labelKey="label"
-                  valueKey="count"
-                  formatValue={formatNumber}
-                  tone="warn"
-                  emptyMessage="No schemes in this snapshot"
-                />
-              </Panel>
-            </GridSpan>
-
-            <GridSpan>
-              <Panel title="Coverage" icon="info" description="What this snapshot holds.">
-                <StatRow>
-                  <StatTile label="Sub-task types" value={formatNumber(g?.subtaskTypes ?? 0)} hint="Live under another issue" />
-                  <StatTile
-                    label="Project-scoped types"
-                    value={formatNumber(g?.projectScopedTypes ?? 0)}
-                    hint="Belong to one team-managed project"
-                  />
-                  <StatTile label="Hierarchy levels" value={formatNumber(g?.hierarchyLevels ?? 0)} hint="Distinct levels in use" />
-                </StatRow>
-              </Panel>
-            </GridSpan>
-          </PanelGrid>
+                <StatTile label="Hierarchy levels" value={formatNumber(g?.hierarchyLevels ?? 0)} hint="Distinct levels in use" />
+              </StatRow>
+            </Panel>
+          </PillarOverview>
         )}
 
         {view === "hierarchy" && (

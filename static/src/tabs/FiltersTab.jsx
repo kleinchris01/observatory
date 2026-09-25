@@ -3,11 +3,11 @@ import { invoke } from "@forge/bridge";
 import { formatNumber, formatRelativeTime, handleJiraLinkClick } from "../utils";
 import { Icon } from "../components/Icons";
 import {
-  StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar,
-  PanelGrid, GridSpan, PillarHealthPanel,
+  StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar, PillarHealthPanel, FindingRow,
+  RebuildButton, BuildBanners, AttentionPanel, PillarOverview,
 } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
-import { useNavIntent, useVisiblePolling, usePersistentState } from "../hooks";
+import { useNavIntent, usePersistentState, useSnapshotBuild, usePillarHealth } from "../hooks";
 // The pure filter/search/sort logic now lives in filter-query.js and runs on the SERVER --
 // see getFilterInventory. Re-exported here so this module is still the one place tests and
 // other tabs import FILTER_FINDINGS/filterRows/sortFilters from; there is exactly one
@@ -40,7 +40,6 @@ const SORTS = [
 // evidence for which ones need it.
 
 const PAGE_SIZE = 25;
-const POLL_MS = 4000;
 
 function OwnerChip({ filter }) {
   if (!filter.owner) return <Chip tone="danger" title="The owning account no longer exists">owner deleted</Chip>;
@@ -110,12 +109,36 @@ function FilterRow({ filter, siteOrigin, lastUsedTracked = true }) {
   );
 }
 
+const FINDING_TONE = { danger: "critical", warning: "warning" };
+
+// The Overview's findings, from the same definitions the Filters view filters by, so a count
+// here and the list it opens can never disagree about what the finding is.
+function FilterFindings({ data, findingOptions }) {
+  const counts = data?.findingCounts ?? {};
+  const rows = findingOptions
+    .filter((f) => f.key !== "all" && (counts[f.key] ?? 0) > 0)
+    .map((f) => ({ key: f.key, tone: FINDING_TONE[f.tone] || "info", count: counts[f.key], title: f.label, detail: f.hint }));
+  if ((data?.duplicateGroupCount ?? 0) > 0) {
+    rows.push({ key: "duplicates", tone: "info", count: data.duplicateGroupCount, title: "Duplicate filters", detail: "Groups of filters with the same JQL. Keep one, repoint the rest." });
+  }
+  if ((data?.brokenProjectCount ?? 0) > 0) {
+    rows.push({ key: "broken", tone: "warning", count: data.brokenProjectCount, title: "Filters naming a deleted project", detail: "The JQL errors or silently returns less than it did." });
+  }
+  return (
+    <AttentionPanel
+      description="What the filters pillar of the site health score is built from."
+      empty="Nothing flagged. Every filter has a live owner and none is shared with everyone."
+    >
+      {rows.map((r) => <FindingRow key={r.key} tone={r.tone} count={r.count} title={r.title} detail={r.detail} />)}
+    </AttentionPanel>
+  );
+}
+
 export function FiltersTab({ siteOrigin = "", intent = null }) {
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
-  const [building, setBuilding] = React.useState(false);
-  const [view, setView] = usePersistentState("observatory.section.filters", "filters");
+  const [view, setView] = usePersistentState("observatory.section.filters", "overview");
   const [search, setSearch] = React.useState("");
   // Debounced, the same way FieldBrowserTab debounces its own search box: typing fires a
   // request per keystroke otherwise, and each one is now a server-side scan of every
@@ -124,7 +147,6 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
   const [finding, setFinding] = React.useState("all");
   const [sort, setSort] = React.useState("findings");
   const [page, setPage] = React.useState(1);
-  const [pillar, setPillar] = React.useState(null);
 
   React.useEffect(() => {
     const t = setTimeout(() => { setDeferredSearch(search); setPage(1); }, 350);
@@ -152,27 +174,12 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
 
   React.useEffect(() => { load(); }, [load]);
 
-  // Poll only while a build is in flight and only while somebody is looking.
-  // "building" alone is not enough to believe. A Forge invocation timeout is a hard kill:
-  // the row is marked building before the first API call and the catch that would mark it
-  // failed never runs, so the state outlives the job that set it. Gating the button on the
-  // raw state meant a build that died at the 900s ceiling disabled the only control that
-  // could recover it -- the permanent wedge filter-engine.js warns about, reachable from
-  // the UI. The backend already refuses to suppress a stale rebuild; this is the half that
-  // was missing. Same name and same shape as the screen pillar.
-  const isBuilding = ["building", "queued"].includes(data?.state) && !data?.staleBuild;
-
-  // Stop polling a build that is no longer running, too -- otherwise the tab refreshes
-  // itself forever against a corpse.
-  useVisiblePolling(isBuilding, load, POLL_MS);
-
-  React.useEffect(() => {
-    let cancelled = false;
-    invoke("getPillarHealth", { pillar: "filters" })
-      .then((result) => { if (!cancelled) setPillar(result?.pillar || null); })
-      .catch(() => { if (!cancelled) setPillar(null); });
-    return () => { cancelled = true; };
-  }, [data?.refreshedAt]);
+  // "building" alone is not enough to believe: a Forge invocation timeout is a hard kill,
+  // so a stale build must never disable the only control that could recover it. The shared
+  // hook applies that rule (staleBuild) for every pillar.
+  const build = useSnapshotBuild({ resolver: "buildFilterInventory", data, load });
+  const isBuilding = build.isBuilding;
+  const pillar = usePillarHealth("filters", data?.refreshedAt);
 
   useNavIntent(intent, (nav) => {
     if (nav.view) setView(nav.view);
@@ -184,19 +191,6 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
 
   React.useEffect(() => { setPage(1); }, [finding, sort]);
 
-  async function handleBuild() {
-    setBuilding(true);
-    try {
-      const result = await invoke("buildFilterInventory", {});
-      if (result?.error) setError(result.error);
-      else await load();
-    } catch (err) {
-      setError(err?.message || "Could not start the build.");
-    } finally {
-      setBuilding(false);
-    }
-  }
-
   // The current page, already filtered and sorted server-side. `data.matchedTotal` is how
   // many filters match the current search/finding -- distinct from `data.total`, the size of
   // the whole inventory regardless of what is currently being searched for.
@@ -207,34 +201,42 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
 
   if (loading && !data) return <EmptyState>Loading the saved filter inventory…</EmptyState>;
 
+  const rebuild = (
+    <RebuildButton
+      onClick={build.startBuild} isBuilding={isBuilding} starting={build.starting}
+      neverBuilt={!data?.available && !data?.staleBuild} buildLabel="Build filter inventory"
+    />
+  );
+  const header = (
+    <PageHeader
+      title="Saved filters"
+      description="Which searches exist, who owns them, and what they depend on. A filter is the one piece of Jira configuration that fails silently in both directions."
+      meta={data?.refreshedAt ? `Built ${formatRelativeTime(data.refreshedAt)}` : "Never built"}
+      actions={rebuild}
+    />
+  );
+  const banners = (
+    <BuildBanners
+      loadError={error} buildError={build.error} notice={build.notice}
+      isBuilding={isBuilding} buildingMessage="Building the filter inventory… this page refreshes itself."
+      staleBuild={data?.staleBuild} lastError={data?.lastError} builtAt={data?.available ? data?.refreshedAt : null}
+    />
+  );
+
   if (!data?.available) {
     return (
       <>
-        <PageHeader
-          title="Saved filters"
-          description="Which searches exist, who owns them, and what they depend on. Read-only — Observatory reports what is configured; changes stay in Jira's own admin UI."
-        />
-        <EmptyState
-          action={
-            <button type="button" className="primary-button" onClick={handleBuild} disabled={building || isBuilding}>
-              {isBuilding ? "Building…" : building ? "Starting…" : data?.staleBuild ? "Rebuild" : "Build filter inventory"}
-            </button>
-          }
-        >
-          {isBuilding
-            ? "Building the filter inventory…"
-            : data?.staleBuild
-              ? "A build was started but is no longer running — it most likely hit the invocation time limit. Rebuild to recover it."
-              : data?.lastError
-                ? `The last build failed: ${data.lastError}`
-                : "No filter inventory yet. Build one to see which filters are orphaned, over-shared, or holding a field open."}
+        {header}
+        {banners}
+        <EmptyState action={rebuild}>
+          No filter inventory yet. Build one to see which filters are orphaned, over-shared, or holding a field open.
         </EmptyState>
-        {error && <div className="error-banner">{error}</div>}
       </>
     );
   }
 
   const sections = [
+    { key: "overview", label: "Overview", icon: "barChart" },
     { key: "filters", label: "Filters", icon: "search", badge: formatNumber(data.total) },
     { key: "duplicates", label: "Duplicates", icon: "copy", badge: formatNumber(data.duplicateGroupCount) },
     { key: "broken", label: "Deleted project", icon: "alertTriangle", badge: formatNumber(data.brokenProjectCount) },
@@ -249,50 +251,42 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
 
   return (
     <>
-      <PageHeader
-        title="Saved filters"
-        description="Which searches exist, who owns them, and what they depend on. A filter is the one piece of Jira configuration that fails silently in both directions."
-        meta={data.refreshedAt ? `Built ${formatRelativeTime(data.refreshedAt)}` : undefined}
-        actions={
-          <button type="button" className="secondary-button" onClick={handleBuild} disabled={building || isBuilding}>
-            {isBuilding ? "Building…" : "Rebuild"}
-          </button>
-        }
-      />
+      {header}
+      {banners}
 
-      {error && <div className="error-banner">{error}</div>}
-
-      <PanelGrid>
-        <GridSpan>
-          <PillarHealthPanel pillar={pillar} />
-        </GridSpan>
-        <GridSpan>
-          <Panel title="Estate" icon="search">
-            <StatRow>
-              <StatTile label="Saved filters" value={formatNumber(data.total)} icon="search" />
-              <StatTile
-                label="No live owner"
-                value={formatNumber(data.orphanedCount)}
-                hint="Jira deletes a filter with its owner"
-                tone={data.orphanedCount > 0 ? "critical" : "neutral"}
-              />
-              <StatTile
-                label="Shared with everyone"
-                value={formatNumber(data.sharedWithEveryoneCount)}
-                tone={data.sharedWithEveryoneCount > 0 ? "warning" : "neutral"}
-              />
-              <StatTile
-                label="Email subscriptions"
-                value={formatNumber(data.subscriptionTotal)}
-                hint={data.subscribedButUnusedCount > 0 ? `${formatNumber(data.subscribedButUnusedCount)} on filters nobody opens` : undefined}
-                tone={data.subscribedButUnusedCount > 0 ? "warning" : "neutral"}
-              />
-            </StatRow>
-          </Panel>
-        </GridSpan>
-      </PanelGrid>
+      <StatRow>
+        <StatTile label="Saved filters" value={formatNumber(data.total)} hint="On this site" icon="search" />
+        <StatTile
+          label="No live owner"
+          value={formatNumber(data.orphanedCount)}
+          hint="Jira deletes a filter with its owner"
+          tone={data.orphanedCount > 0 ? "critical" : "success"}
+          icon="user"
+        />
+        <StatTile
+          label="Shared with everyone"
+          value={formatNumber(data.sharedWithEveryoneCount)}
+          hint="Any logged-in user can run these"
+          tone={data.sharedWithEveryoneCount > 0 ? "warning" : "success"}
+          icon="alertTriangle"
+        />
+        <StatTile
+          label="Email subscriptions"
+          value={formatNumber(data.subscriptionTotal)}
+          hint={data.subscribedButUnusedCount > 0 ? `${formatNumber(data.subscribedButUnusedCount)} on filters nobody opens` : "Across every filter"}
+          tone={data.subscribedButUnusedCount > 0 ? "warning" : "neutral"}
+          icon="bell"
+        />
+      </StatRow>
 
       <SubNavLayout items={sections} activeKey={view} onSelect={setView}>
+        {view === "overview" && (
+          <PillarOverview
+            governance={<PillarHealthPanel pillar={pillar} />}
+            attention={<FilterFindings data={data} findingOptions={findingOptions} />}
+          />
+        )}
+
         {view === "filters" && (
           <Panel
             title="Filters"

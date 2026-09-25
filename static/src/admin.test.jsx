@@ -1095,13 +1095,23 @@ describe("Ask Rovo prompts", () => {
     await user.click(screen.getByText("CAE Program"));
   }
 
+  it("opens the Field Browser with the shared page header and a catalogue-scoped Rovo button", async () => {
+    const user = userEvent.setup();
+    withFieldOpen();
+    await renderAdminApp();
+    await openTheField(user);
+
+    expect(screen.getByRole("heading", { name: "Fields" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ask Rovo about the field catalogue" })).toBeInTheDocument();
+  });
+
   it("sends the field's real identity, not undefined", async () => {
     const user = userEvent.setup();
     withFieldOpen();
     await renderAdminApp();
     await openTheField(user);
 
-    const askButtons = await screen.findAllByRole("button", { name: /ask rovo/i });
+    const askButtons = await screen.findAllByRole("button", { name: /ask rovo about this field/i });
     await user.click(askButtons[0]);
 
     await waitFor(() => expect(rovo.open).toHaveBeenCalled());
@@ -1118,7 +1128,7 @@ describe("Ask Rovo prompts", () => {
     await renderAdminApp();
     await openTheField(user);
 
-    const askButtons = await screen.findAllByRole("button", { name: /ask rovo/i });
+    const askButtons = await screen.findAllByRole("button", { name: /ask rovo about this field/i });
     await user.click(askButtons[0]);
 
     await waitFor(() => expect(rovo.open).toHaveBeenCalled());

@@ -1,8 +1,8 @@
 import React from "react";
 import { invoke, view } from "@forge/bridge";
-import { openFieldExpertRovo, buildFieldRovoPrompt, buildProjectRovoPrompt, buildReportRovoPrompt } from "../utils";
+import { openFieldExpertRovo, buildFieldRovoPrompt, buildProjectRovoPrompt, buildReportRovoPrompt, buildRovoPrompt, formatRelativeTime } from "../utils";
 import { Icon } from "../components/Icons";
-import { Chip, EmptyState, SortFilterBar } from "../components/ui";
+import { Chip, EmptyState, SortFilterBar, PageHeader, AskRovo } from "../components/ui";
 import { useNavIntent } from "../hooks";
 import { FieldCard } from "../components/FieldCard";
 
@@ -451,6 +451,26 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
 
   return (
     <div className="admin-field-browser">
+      <PageHeader
+        title="Fields"
+        description="Every custom field: where it is configured, where it holds values, and what depends on it. Read-only — changes stay in Jira's admin UI."
+        meta={data?.refreshedAt ? `Built ${formatRelativeTime(data.refreshedAt)}` : "Never built"}
+        actions={
+          <AskRovo
+            agent="observatory-field-expert"
+            scope="the field catalogue"
+            context="the snapshot age and the catalogue size"
+            disabled={!data?.refreshedAt}
+            buildPrompt={() =>
+              buildRovoPrompt({
+                task: "Give me an overview of this site's custom field catalogue and what to clean up first.",
+                facts: [["Snapshot built", data?.refreshedAt || "unknown"], ["Fields in the current view", data?.total ?? null]],
+              })
+            }
+          />
+        }
+      />
+
       {/* Primary toolbar */}
       <div className="admin-field-browser__toolbar">
         <SortFilterBar

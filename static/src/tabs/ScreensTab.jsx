@@ -2,10 +2,12 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatNumber, formatRelativeTime, buildScreenUrl } from "../utils";
 import { Icon } from "../components/Icons";
-import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar, PanelGrid, GridSpan, PillarHealthPanel, BarList, StickyActions, AskRovo, JiraLink } from "../components/ui";
+import {
+  StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar, PillarHealthPanel, BarList, StickyActions, AskRovo, JiraLink, FindingRow, RebuildButton, BuildBanners, AttentionPanel, PillarOverview,
+} from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
-import { useNavIntent, useVisiblePolling, usePersistentState } from "../hooks";
+import { useNavIntent, usePersistentState, useSnapshotBuild, usePillarHealth } from "../hooks";
 
 // Screen and scheme inventory.
 //
@@ -18,18 +20,11 @@ import { useNavIntent, useVisiblePolling, usePersistentState } from "../hooks";
 // this as the evidence.
 
 const PAGE_SIZE = 25;
-const BUILD_POLL_MS = 3000;
 
 // Matches the macro's snapshot warning and the Quick Scan panel's full-scan age. Third
 // application of the same threshold rather than a new number, because a reader who has
 // learned what "stale" means on one surface should not have to relearn it here.
-const STALE_AFTER_DAYS = 7;
 
-function daysSince(iso) {
-  const at = Date.parse(iso || "");
-  if (!Number.isFinite(at)) return null;
-  return (Date.now() - at) / (24 * 60 * 60 * 1000);
-}
 
 // Operations in the order Jira documents them, which is also the order they matter in:
 // default is the fallback everything else inherits from.
@@ -302,6 +297,42 @@ function CrossSignalView() {
   );
 }
 
+// What the screens pillar asks an admin to act on. Unreached screens need transitions to
+// have been read -- a screen a transition opens is in use -- so that finding is withheld,
+// and says why, until they have.
+function ScreenFindings({ governance, unresolvedScreens }) {
+  const g = governance || {};
+  const rows = [];
+  if (g.transitionsKnown === false) {
+    rows.push({ key: "transitions", tone: "info", title: "Unreached screens cannot be counted yet", detail: "Transitions have not been read, and a screen a transition opens is in use. Rebuild the workflow inventory." });
+  } else if ((g.unreachedScreens ?? 0) > 0) {
+    rows.push({ key: "unreached", tone: "warning", count: g.unreachedScreens, title: "Screens nothing reaches", detail: "No screen scheme routes to them and no workflow transition opens them." });
+  }
+  if ((g.danglingOperations ?? 0) > 0) {
+    rows.push({ key: "dangling", tone: "warning", count: g.danglingOperations, title: "Scheme operations pointing at a deleted screen", detail: "The operation falls back to the scheme default, which is rarely what was meant." });
+  }
+  if ((g.emptyScreens ?? 0) > 0) {
+    rows.push({ key: "empty", tone: "info", count: g.emptyScreens, title: "Screens with no fields", detail: "A form with nothing on it." });
+  }
+  if ((g.unusedSchemes ?? 0) > 0) {
+    rows.push({ key: "unused-schemes", tone: "info", count: g.unusedSchemes, title: "Screen schemes no issue type maps to", detail: "They cannot route anything to a project." });
+  }
+  if ((g.transitionOnlyScreens ?? 0) > 0) {
+    rows.push({ key: "transition-only", tone: "info", count: g.transitionOnlyScreens, title: "Screens only a transition opens", detail: "No scheme names them, so the scheme view alone calls them unused. They are not." });
+  }
+  if (unresolvedScreens > 0) {
+    rows.push({ key: "unresolved", tone: "info", count: unresolvedScreens, title: "Screens whose contents could not be read", detail: "Excluded from every figure on this page rather than counted as empty." });
+  }
+  return (
+    <AttentionPanel
+      description="What the screens pillar of the site health score is built from."
+      empty="Nothing flagged. Every screen is reached, every scheme is used and every screen was read."
+    >
+      {rows.map((r) => <FindingRow key={r.key} tone={r.tone} count={r.count} title={r.title} detail={r.detail} />)}
+    </AttentionPanel>
+  );
+}
+
 export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
   const [view, setView] = usePersistentState("observatory.section.screens", "screens");
   // Screens ticked for a field report. Keyed by id and kept across pages -- the picker spans
@@ -352,8 +383,6 @@ export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
-  const [notice, setNotice] = React.useState("");
-  const [building, setBuilding] = React.useState(false);
   const [page, setPage] = React.useState(1);
   const [search, setSearch] = React.useState("");
   const [sort, setSort] = React.useState(DEFAULT_SCREEN_SORT);
@@ -394,14 +423,7 @@ export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
   // The screens pillar of the site health score. Already computed the moment anything scores
   // the site, and previously only ever rendered on the Overview tab -- the governance number
   // and the inventory it grades belong on the same page.
-  const [pillar, setPillar] = React.useState(null);
-  React.useEffect(() => {
-    let cancelled = false;
-    invoke("getPillarHealth", { pillar: "screens" })
-      .then((result) => { if (!cancelled) setPillar(result?.pillar || null); })
-      .catch(() => { if (!cancelled) setPillar(null); });
-    return () => { cancelled = true; };
-  }, [data?.refreshedAt]);
+  const pillar = usePillarHealth("screens", data?.refreshedAt);
 
   const visibleSchemes = React.useMemo(() => {
     const option = SCHEME_FILTERS.find((f) => f.key === schemeFilter) ?? SCHEME_FILTERS[0];
@@ -423,37 +445,11 @@ export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
   // "queued" counts as in flight, not just "building". The row is marked building at queue
   // time, but a consumer that has not picked the job up yet can leave either value on the
   // meta -- and treating only one of them as running is how a live build reads as idle.
-  const isBuilding = ["building", "queued"].includes(data?.state) && !data?.staleBuild;
-  useVisiblePolling(isBuilding, load, BUILD_POLL_MS);
+  // The field-report action posts its own notice; the build posts through the hook.
+  const [notice, setNotice] = React.useState("");
+  const build = useSnapshotBuild({ resolver: "buildScreenInventory", data, load });
+  const isBuilding = build.isBuilding;
 
-  async function startBuild() {
-    setBuilding(true);
-    setError("");
-    setNotice("");
-    try {
-      const result = await invoke("buildScreenInventory", {});
-      // Reload first, then report a refusal. load() clears the error banner on success, so
-      // setting it before the reload would wipe the very message that explains why nothing
-      // happened -- leaving a button that silently does nothing.
-      await load();
-      if (result?.error) {
-        setError(result.error);
-      } else if (result?.queued === false && result?.reason === "already-building") {
-        // Not an error, but it must not be silence either: pressing a button and getting no
-        // response at all is indistinguishable from a broken button.
-        setNotice("A build is already running. This page refreshes itself while it does.");
-      } else {
-        setNotice("Build queued. This page refreshes itself while it runs.");
-      }
-    } catch (err) {
-      setError(err?.message || "Could not start the build.");
-    } finally {
-      setBuilding(false);
-    }
-  }
-
-  const buildAgeDays = daysSince(data?.refreshedAt);
-  const isStale = buildAgeDays != null && buildAgeDays > STALE_AFTER_DAYS;
 
   const buildAction = (
     <>
@@ -469,10 +465,7 @@ export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
           })
         }
       />
-      <button type="button" className="secondary-button" onClick={startBuild} disabled={building || isBuilding}>
-        <Icon name="refreshCw" size={13} />
-      {isBuilding ? "Building…" : data?.neverBuilt ? "Build inventory" : "Rebuild"}
-    </button>
+      <RebuildButton onClick={build.startBuild} isBuilding={isBuilding} starting={build.starting} neverBuilt={Boolean(data?.neverBuilt)} buildLabel="Build inventory" />
     </>
   );
 
@@ -484,6 +477,15 @@ export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
   // build can run for minutes before it produces a version, and rendering the same "no
   // inventory yet" state throughout makes a working button look broken: you press it,
   // nothing on the page changes, and there is no way to tell the job was accepted.
+  const banners = (
+    <BuildBanners
+      loadError={error} buildError={build.error} notice={build.notice || notice}
+      isBuilding={isBuilding} buildingMessage="Building the inventory… this page refreshes itself."
+      staleBuild={data?.staleBuild} lastError={data?.lastError} builtAt={data?.neverBuilt ? null : data?.refreshedAt}
+      staleDetail="Nothing refreshes it automatically — the Universe Scan does not update screens. Rebuild here."
+    />
+  );
+
   if (data?.neverBuilt) {
     return (
       <div className="admin-screens">
@@ -492,12 +494,7 @@ export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
           description="Which fields each form actually contains, and which schemes route projects to it."
           actions={buildAction}
         />
-        {error && <div className="danger-zone__error" role="alert">{error}</div>}
-        {notice && !error && <p className="admin-config-row__hint" role="status">{notice}</p>}
-
-        {data?.lastError && !isBuilding && (
-          <div className="danger-zone__error" role="alert">Last build failed: {data.lastError}</div>
-        )}
+        {banners}
 
         {data?.staleBuild && (
           <p className="admin-config-row__hint">
@@ -552,22 +549,7 @@ export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
         actions={buildAction}
       />
 
-      {error && <div className="danger-zone__error" role="alert">{error}</div>}
-      {notice && !error && <p className="admin-config-row__hint" role="status">{notice}</p>}
-
-      {isBuilding && (
-        <p className="admin-config-row__hint">Building the inventory… this page refreshes itself.</p>
-      )}
-
-      {data?.staleBuild && (
-        <p className="admin-config-row__hint">
-          A build was started but is no longer running. Rebuild to recover it.
-        </p>
-      )}
-
-      {data?.lastError && !isBuilding && (
-        <div className="danger-zone__error" role="alert">Last build failed: {data.lastError}</div>
-      )}
+      {banners}
 
       <StatRow>
         <StatTile
@@ -603,73 +585,26 @@ export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
         />
       </StatRow>
 
-      {isStale && (
-        <Panel title="This inventory is stale" icon="alertTriangle">
-          <p>
-            It was built {Math.floor(buildAgeDays)} days ago, and nothing refreshes it
-            automatically. <strong>The Universe Scan does not update screens</strong> — that scan
-            walks issues, while screens are configuration read from a different set of
-            endpoints. A screen added or re-arranged since the last build is not reflected
-            above.
-          </p>
-        </Panel>
-      )}
 
       <SubNavLayout items={items} activeKey={view} onSelect={setView}>
         {view === "overview" && (
-          <PanelGrid>
-            <GridSpan>
-              <PillarHealthPanel pillar={pillar} />
-            </GridSpan>
-
-            <GridSpan>
-              <Panel title="Form size" icon="barChart" description="How big the site's forms actually are. A 60-field form is one nobody fills in completely.">
-                <BarList items={data?.distributions?.sizeBuckets} labelKey="bucket" valueKey="screens" formatValue={formatNumber} emptyMessage="No screens measured yet" />
-              </Panel>
-            </GridSpan>
-
-            <GridSpan>
-              <Panel title="Largest screens" icon="copy" description="The longest forms first — the ones people meet most of.">
-                <BarList items={data?.distributions?.largestScreens} labelKey="name" valueKey="fieldCount" formatValue={formatNumber} tone="warn" emptyMessage="No screens measured yet" />
-              </Panel>
-            </GridSpan>
-
-            <GridSpan>
-              <Panel title="Most reused fields" icon="layers" description="Where a field change is felt. A field on 200 forms is not a local edit.">
-                <BarList items={data?.distributions?.mostSharedFields} labelKey="name" valueKey="screens" formatValue={formatNumber} emptyMessage="No field data yet" />
-              </Panel>
-            </GridSpan>
-
-            <GridSpan>
-              <Panel title="Scheme operations" icon="activity" description="Which operations schemes actually map. Most estates set default and inherit the rest.">
-                <BarList items={data?.distributions?.operationMix} labelKey="operation" valueKey="mappings" formatValue={formatNumber} emptyMessage="No schemes yet" />
-              </Panel>
-            </GridSpan>
-
-            <GridSpan>
-              <Panel title="Coverage" icon="info" description="What this snapshot could and could not measure.">
-                <StatRow>
-                  <StatTile
-                    label="Contents unknown"
-                    value={formatNumber(data?.unresolvedScreens ?? 0)}
-                    hint={(data?.unresolvedScreens ?? 0) > 0 ? "Excluded from every figure above" : "Every screen was read"}
-                    tone={(data?.unresolvedScreens ?? 0) > 0 ? "warning" : "success"}
-                  />
-                  <StatTile
-                    label="Transition-only"
-                    value={g?.transitionOnlyScreens == null ? "—" : formatNumber(g.transitionOnlyScreens)}
-                    hint="No scheme, but a transition opens them"
-                  />
-                  <StatTile
-                    label="Orphan schemes"
-                    value={formatNumber(g?.unusedSchemes ?? 0)}
-                    hint="No issue type maps to them"
-                    tone={(g?.unusedSchemes ?? 0) > 0 ? "warning" : "neutral"}
-                  />
-                </StatRow>
-              </Panel>
-            </GridSpan>
-          </PanelGrid>
+          <PillarOverview
+            governance={<PillarHealthPanel pillar={pillar} />}
+            attention={<ScreenFindings governance={g} unresolvedScreens={data?.unresolvedScreens ?? 0} />}
+          >
+            <Panel title="Form size" icon="barChart" description="How big the site's forms actually are. A 60-field form is one nobody fills in completely.">
+              <BarList items={data?.distributions?.sizeBuckets} labelKey="bucket" valueKey="screens" formatValue={formatNumber} emptyMessage="No screens measured yet" />
+            </Panel>
+            <Panel title="Largest screens" icon="copy" description="The longest forms first — the ones people meet most of.">
+              <BarList items={data?.distributions?.largestScreens} labelKey="name" valueKey="fieldCount" formatValue={formatNumber} tone="warn" emptyMessage="No screens measured yet" />
+            </Panel>
+            <Panel title="Most reused fields" icon="layers" description="Where a field change is felt. A field on 200 forms is not a local edit.">
+              <BarList items={data?.distributions?.mostSharedFields} labelKey="name" valueKey="screens" formatValue={formatNumber} emptyMessage="No field data yet" />
+            </Panel>
+            <Panel title="Scheme operations" icon="activity" description="Which operations schemes actually map. Most estates set default and inherit the rest.">
+              <BarList items={data?.distributions?.operationMix} labelKey="operation" valueKey="mappings" formatValue={formatNumber} emptyMessage="No schemes yet" />
+            </Panel>
+          </PillarOverview>
         )}
 
         {view === "screens" && (

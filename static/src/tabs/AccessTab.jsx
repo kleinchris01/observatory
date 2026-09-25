@@ -1,14 +1,13 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatNumber, formatRelativeTime, buildPermissionSchemeUrl, buildNotificationSchemeAdminUrl, buildIssueSecuritySchemeAdminUrl } from "../utils";
-import { Icon } from "../components/Icons";
 import {
-  StatTile, StatRow, Panel, EmptyState, Chip, PageHeader,
-  PanelGrid, GridSpan, PillarHealthPanel, BarList, FindingRow, SortFilterBar, AskRovo, JiraLink,
+  StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PillarHealthPanel, BarList, FindingRow, SortFilterBar,
+  AskRovo, JiraLink, RebuildButton, BuildBanners, AttentionPanel, PillarOverview,
 } from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
-import { useNavIntent, useVisiblePolling, usePersistentState } from "../hooks";
+import { useNavIntent, usePersistentState, useSnapshotBuild, usePillarHealth } from "../hooks";
 
 // The access pillar: permission schemes, issue-security schemes and notification schemes.
 //
@@ -18,14 +17,7 @@ import { useNavIntent, useVisiblePolling, usePersistentState } from "../hooks";
 // routing (notifications). Read-only; changing a grant stays a considered action in Jira's
 // own admin UI.
 
-const BUILD_POLL_MS = 3000;
-const STALE_AFTER_DAYS = 7;
 
-function daysSince(iso) {
-  const at = Date.parse(iso || "");
-  if (!Number.isFinite(at)) return null;
-  return (Date.now() - at) / (24 * 60 * 60 * 1000);
-}
 
 const SCHEME_SORTS = [
   { value: "name-asc", label: "Name A–Z" },
@@ -158,11 +150,12 @@ function AccessFindings({ permissions, security, notifications, roles }) {
   }
 
   return (
-    <Panel title="What needs attention" icon="alertTriangle" description="What the permission, issue-security and notification pillars of the site health score are built from.">
-      {rows.length === 0
-        ? <EmptyState inline>Nothing flagged. No blanket grants, every security level has members, and no notification routes to a single person.</EmptyState>
-        : rows.map((r) => <FindingRow key={r.title} tone={r.tone} title={r.title} detail={r.detail} count={r.count} />)}
-    </Panel>
+    <AttentionPanel
+      description="What the permission, issue-security, notification and project-role pillars of the site health score are built from."
+      empty="Nothing flagged. No blanket grants, every security level has members, and no notification routes to a single person."
+    >
+      {rows.map((r) => <FindingRow key={r.title} tone={r.tone} title={r.title} detail={r.detail} count={r.count} />)}
+    </AttentionPanel>
   );
 }
 
@@ -210,25 +203,28 @@ function AccessTabInner({ data, view, setView, search, setSearch, schemeSort, se
   return (
     <SubNavLayout items={items} activeKey={view} onSelect={setView}>
       {view === "overview" && (
-        <PanelGrid>
-          <GridSpan><PillarHealthPanel pillar={pillars.permissions} /></GridSpan>
-          <GridSpan><PillarHealthPanel pillar={pillars.security} /></GridSpan>
-          <GridSpan><PillarHealthPanel pillar={pillars.notifications} /></GridSpan>
-          <GridSpan><PillarHealthPanel pillar={pillars.roles} /></GridSpan>
-          <GridSpan>
-            <AccessFindings permissions={perm} security={sec} notifications={notif} roles={role} />
-          </GridSpan>
-          <GridSpan>
-            <Panel title="Permission schemes by project reach" icon="shield" description="A scheme on hundreds of projects is not a local edit.">
-              <BarList
-                items={(perm.schemes || []).slice().sort((a, b) => (b.projectCount || 0) - (a.projectCount || 0)).slice(0, 10)
-                  .map((s) => ({ label: s.name, count: s.projectCount || 0 }))}
-                labelKey="label" valueKey="count" formatValue={formatNumber}
-                emptyMessage="No permission schemes in this snapshot."
-              />
-            </Panel>
-          </GridSpan>
-        </PanelGrid>
+        <PillarOverview
+          governance={
+            <PillarHealthPanel
+              pillars={[
+                { key: "permissions", label: "Permission schemes", pillar: pillars.permissions },
+                { key: "security", label: "Issue security", pillar: pillars.security },
+                { key: "notifications", label: "Notifications", pillar: pillars.notifications },
+                { key: "roles", label: "Project roles", pillar: pillars.roles },
+              ]}
+            />
+          }
+          attention={<AccessFindings permissions={perm} security={sec} notifications={notif} roles={role} />}
+        >
+          <Panel title="Permission schemes by project reach" icon="shield" description="A scheme on hundreds of projects is not a local edit.">
+            <BarList
+              items={(perm.schemes || []).slice().sort((a, b) => (b.projectCount || 0) - (a.projectCount || 0)).slice(0, 10)
+                .map((s) => ({ label: s.name, count: s.projectCount || 0 }))}
+              labelKey="label" valueKey="count" formatValue={formatNumber}
+              emptyMessage="No permission schemes in this snapshot."
+            />
+          </Panel>
+        </PillarOverview>
       )}
 
       {view === "permissions" && (
@@ -367,8 +363,6 @@ export function AccessTab({ intent, siteOrigin }) {
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
-  const [notice, setNotice] = React.useState("");
-  const [building, setBuilding] = React.useState(false);
   const [search, setSearch] = React.useState("");
   const [schemeSort, setSchemeSort] = React.useState("name-asc");
 
@@ -393,44 +387,15 @@ export function AccessTab({ intent, siteOrigin }) {
 
   // The three access pillars of the site health score, on their own so this tab shows the
   // same governance reading the Overview does -- matching IssueTypesTab and AssetsTab.
-  const [pillars, setPillars] = React.useState({ permissions: null, security: null, notifications: null, roles: null });
-  React.useEffect(() => {
-    let cancelled = false;
-    Promise.all([
-      invoke("getPillarHealth", { pillar: "permissions" }).catch(() => null),
-      invoke("getPillarHealth", { pillar: "security" }).catch(() => null),
-      invoke("getPillarHealth", { pillar: "notifications" }).catch(() => null),
-      invoke("getPillarHealth", { pillar: "roles" }).catch(() => null),
-    ]).then(([p, s, n, r]) => {
-      if (cancelled) return;
-      setPillars({ permissions: p?.pillar || null, security: s?.pillar || null, notifications: n?.pillar || null, roles: r?.pillar || null });
-    });
-    return () => { cancelled = true; };
-  }, [data?.refreshedAt]);
+  const pillars = {
+    permissions: usePillarHealth("permissions", data?.refreshedAt),
+    security: usePillarHealth("security", data?.refreshedAt),
+    notifications: usePillarHealth("notifications", data?.refreshedAt),
+    roles: usePillarHealth("roles", data?.refreshedAt),
+  };
 
-  const isBuilding = ["building", "queued"].includes(data?.state) && !data?.staleBuild;
-  useVisiblePolling(isBuilding, load, BUILD_POLL_MS);
-
-  async function startBuild() {
-    setBuilding(true);
-    setError("");
-    setNotice("");
-    try {
-      const result = await invoke("buildAccessInventory", {});
-      await load();
-      if (result?.error) {
-        setError(result.error);
-      } else if (result?.queued === false && result?.reason === "already-building") {
-        setNotice("A build is already running. This page refreshes itself while it does.");
-      } else {
-        setNotice("Build queued. This page refreshes itself while it runs.");
-      }
-    } catch (err) {
-      setError(err?.message || "Could not start the build.");
-    } finally {
-      setBuilding(false);
-    }
-  }
+  const build = useSnapshotBuild({ resolver: "buildAccessInventory", data, load });
+  const isBuilding = build.isBuilding;
 
   const buildAction = (
     <>
@@ -452,10 +417,7 @@ export function AccessTab({ intent, siteOrigin }) {
           })
         }
       />
-      <button type="button" className="secondary-button" onClick={startBuild} disabled={building || isBuilding}>
-        <Icon name="refreshCw" size={13} />
-        {isBuilding ? "Building…" : data?.neverBuilt ? "Build inventory" : "Rebuild"}
-      </button>
+      <RebuildButton onClick={build.startBuild} isBuilding={isBuilding} starting={build.starting} neverBuilt={Boolean(data?.neverBuilt)} buildLabel="Build inventory" />
     </>
   );
 
@@ -473,17 +435,11 @@ export function AccessTab({ intent, siteOrigin }) {
   );
 
   const banners = (
-    <>
-      {error && <div className="danger-zone__error" role="alert">{error}</div>}
-      {notice && !error && <p className="admin-config-row__hint" role="status">{notice}</p>}
-      {isBuilding && <p className="admin-config-row__hint">Reading the scheme configuration… this page refreshes itself.</p>}
-      {data?.staleBuild && (
-        <p className="admin-config-row__hint">A build was started but is no longer running. Rebuild to recover it.</p>
-      )}
-      {data?.lastError && !isBuilding && (
-        <div className="danger-zone__error" role="alert">Last build failed: {data.lastError}</div>
-      )}
-    </>
+    <BuildBanners
+      loadError={error} buildError={build.error} notice={build.notice}
+      isBuilding={isBuilding} buildingMessage="Reading the scheme configuration… this page refreshes itself."
+      staleBuild={data?.staleBuild} lastError={data?.lastError} builtAt={data?.neverBuilt ? null : data?.refreshedAt}
+    />
   );
 
   if (data?.neverBuilt) {
@@ -515,8 +471,6 @@ export function AccessTab({ intent, siteOrigin }) {
   const sec = data.security?.governance || {};
   const notif = data.notifications?.governance || {};
   const roleGov = data.roles?.governance || {};
-  const buildAgeDays = daysSince(data?.refreshedAt);
-  const isStale = buildAgeDays != null && buildAgeDays > STALE_AFTER_DAYS;
 
   return (
     <div className="admin-access">
@@ -543,7 +497,7 @@ export function AccessTab({ intent, siteOrigin }) {
           hint={(sec.emptyLevelCount ?? 0) + (sec.noLevelSchemeCount ?? 0) > 0
             ? `${formatNumber((sec.emptyLevelCount ?? 0) + (sec.noLevelSchemeCount ?? 0))} unreachable`
             : "Every level has members"}
-          tone={(sec.emptyLevelCount ?? 0) + (sec.noLevelSchemeCount ?? 0) > 0 ? "critical" : "success"}
+          tone={(sec.emptyLevelCount ?? 0) + (sec.noLevelSchemeCount ?? 0) > 0 ? "critical" : "neutral"}
           icon="lock"
         />
         <StatTile
@@ -562,11 +516,6 @@ export function AccessTab({ intent, siteOrigin }) {
         />
       </StatRow>
 
-      {isStale && (
-        <Panel title="This inventory is stale" icon="alertTriangle">
-          <p>It was built {Math.floor(buildAgeDays)} days ago. Every full and quick scan refreshes it — run one, or rebuild here.</p>
-        </Panel>
-      )}
 
       <AccessTabInner
         data={data}

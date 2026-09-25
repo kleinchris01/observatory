@@ -150,8 +150,9 @@ describe("ScreensTab", () => {
     invoke.mockResolvedValue(inventory({ refreshedAt: old }));
     render(<ScreensTab />);
 
-    expect(await screen.findByText(/this inventory is stale/i)).toBeInTheDocument();
-    expect(screen.getByText(/universe scan does not update screens/i)).toBeInTheDocument();
+    // One banner: the shared age sentence, carrying this pillar's own "what refreshes it".
+    const banner = await screen.findByText(/this snapshot is 30 days old/i);
+    expect(banner.textContent).toMatch(/universe scan does not update screens/i);
   });
 
   test("does not warn about staleness on a fresh build", async () => {
@@ -159,7 +160,7 @@ describe("ScreensTab", () => {
     render(<ScreensTab />);
 
     await screen.findByText("Default Screen");
-    expect(screen.queryByText(/this inventory is stale/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/this snapshot is \d+ days old/i)).not.toBeInTheDocument();
   });
 
   test("switches to the schemes view", async () => {

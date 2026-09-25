@@ -154,9 +154,10 @@ describe("PeopleTab", () => {
   test("surfaces orphaned ownership on the overview", async () => {
     invoke.mockImplementation((fn) => fn === "getUserInventory" ? Promise.resolve(roster()) : Promise.resolve({}));
     render(<PeopleTab />);
-    expect(await screen.findByText("Orphaned ownership")).toBeInTheDocument();
+    // A finding in the shared "What needs attention" panel, not a panel of its own.
+    expect(await screen.findByText("Config owned by someone no longer licensed")).toBeInTheDocument();
     // 4 filters + 1 dashboard owned by an account not in the roster.
-    expect(screen.getByText("Filters")).toBeInTheDocument();
+    expect(screen.getByText(/4 filters, 1 dashboards and 0 automation rules/)).toBeInTheDocument();
   });
 
   test("surfaces the cross-pillar automation reference counts on the overview", async () => {
@@ -164,9 +165,17 @@ describe("PeopleTab", () => {
       ? Promise.resolve(roster({ governance: { ...roster().governance, automationRefUsers: 40, orphanedAutomationRefUsers: 3 }, automationRefsAvailable: true }))
       : Promise.resolve({}));
     render(<PeopleTab />);
-    expect(await screen.findByText("Cross-pillar references")).toBeInTheDocument();
-    expect(screen.getByText("Named in automation")).toBeInTheDocument();
-    expect(screen.getByText("Referenced off-roster")).toBeInTheDocument();
+    expect(await screen.findByText("Automation routes work to people who have left")).toBeInTheDocument();
+    expect(screen.getByText(/3 of the 40 accounts a rule assigns to or conditions on are not licensed/)).toBeInTheDocument();
+  });
+
+  test("says nothing about automation references until a rule export is imported", async () => {
+    invoke.mockImplementation((fn) => fn === "getUserInventory"
+      ? Promise.resolve(roster({ governance: { ...roster().governance, orphanedAutomationRefUsers: 3 }, automationRefsAvailable: false }))
+      : Promise.resolve({}));
+    render(<PeopleTab />);
+    expect(await screen.findByText("What needs attention")).toBeInTheDocument();
+    expect(screen.queryByText("Automation routes work to people who have left")).not.toBeInTheDocument();
   });
 
   test("shows the People pillar of the site health score on the overview", async () => {

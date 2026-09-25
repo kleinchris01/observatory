@@ -1,7 +1,8 @@
 import React from "react";
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import { useVisiblePolling, useRefreshOnVisible, useNavIntent, usePersistentState } from "./hooks";
+import { useVisiblePolling, useRefreshOnVisible, useNavIntent, usePersistentState, useSnapshotBuild, usePillarHealth, daysSince } from "./hooks";
+import { invoke } from "@forge/bridge";
 
 const setVisibility = (state) => {
   Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
@@ -132,5 +133,74 @@ describe("usePersistentState", () => {
     expect(result.current[0]).toBe("rqt");
     unmount();
     expect(window.localStorage.getItem("observatory.section.test")).toBe("rqt");
+  });
+});
+
+
+// The build lifecycle seven pillar tabs used to carry a copy of.
+describe("useSnapshotBuild", () => {
+  test("queues the build, reloads, then says it was queued", async () => {
+    invoke.mockResolvedValueOnce({ queued: true });
+    const load = vi.fn().mockResolvedValue(undefined);
+    const { result } = renderHook(() => useSnapshotBuild({ resolver: "buildX", data: { state: "ready" }, load }));
+
+    await act(async () => { await result.current.startBuild(); });
+
+    expect(invoke).toHaveBeenCalledWith("buildX", {});
+    expect(load).toHaveBeenCalled();
+    expect(result.current.notice).toMatch(/Build queued/);
+    expect(result.current.starting).toBe(false);
+  });
+
+  test("reports a build that is already running as a notice, not an error", async () => {
+    invoke.mockResolvedValueOnce({ queued: false, reason: "already-building" });
+    const { result } = renderHook(() => useSnapshotBuild({ resolver: "buildX", data: null, load: vi.fn() }));
+    await act(async () => { await result.current.startBuild(); });
+    expect(result.current.notice).toMatch(/already running/);
+    expect(result.current.error).toBe("");
+  });
+
+  test("reports a refusal and a thrown call as errors", async () => {
+    invoke.mockResolvedValueOnce({ error: "Read-only mode is on." });
+    const { result } = renderHook(() => useSnapshotBuild({ resolver: "buildX", data: null, load: vi.fn() }));
+    await act(async () => { await result.current.startBuild(); });
+    expect(result.current.error).toBe("Read-only mode is on.");
+
+    invoke.mockRejectedValueOnce(new Error("network"));
+    await act(async () => { await result.current.startBuild(); });
+    expect(result.current.error).toBe("network");
+  });
+
+  test("a wedged build is not building, so the control that recovers it stays enabled", () => {
+    const { result, rerender } = renderHook(
+      ({ data }) => useSnapshotBuild({ resolver: "buildX", data, load: vi.fn() }),
+      { initialProps: { data: { state: "building", staleBuild: true } } }
+    );
+    expect(result.current.isBuilding).toBe(false);
+    rerender({ data: { state: "queued", staleBuild: false } });
+    expect(result.current.isBuilding).toBe(true);
+  });
+});
+
+describe("usePillarHealth", () => {
+  test("reads the pillar, and is null rather than an error when it cannot", async () => {
+    invoke.mockResolvedValueOnce({ pillar: { key: "boards", score: 80 } });
+    const { result } = renderHook(() => usePillarHealth("boards", "t1"));
+    await act(async () => { await Promise.resolve(); });
+    expect(invoke).toHaveBeenCalledWith("getPillarHealth", { pillar: "boards" });
+    expect(result.current).toEqual({ key: "boards", score: 80 });
+
+    invoke.mockRejectedValueOnce(new Error("nope"));
+    const failed = renderHook(() => usePillarHealth("boards", "t2"));
+    await act(async () => { await Promise.resolve(); });
+    expect(failed.result.current).toBeNull();
+  });
+});
+
+describe("daysSince", () => {
+  test("is null, never zero, for a missing or unreadable date", () => {
+    expect(daysSince(null)).toBeNull();
+    expect(daysSince("not a date")).toBeNull();
+    expect(Math.round(daysSince(new Date(Date.now() - 3 * 86400000).toISOString()))).toBe(3);
   });
 });

@@ -1,21 +1,18 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatNumber, formatRelativeTime, buildBoardUrl, buildProjectUrl } from "../utils";
-import { Icon } from "../components/Icons";
 import {
-  StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar, FindingRow, JiraLink,
+  StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar, FindingRow, JiraLink, PillarHealthPanel, BarList, RebuildButton, BuildBanners, AttentionPanel, PillarOverview,
 } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
-import { useNavIntent, useVisiblePolling, usePersistentState } from "../hooks";
+import { useNavIntent, usePersistentState, useSnapshotBuild, usePillarHealth } from "../hooks";
 
 // Agile boards: every board on the site, where it lives, the saved filter behind it and its
 // column-to-status mapping. Structure only for now -- the cross-pillar findings (a board on a
 // deleted filter, statuses mapped to no column, a personal board owned by someone inactive)
 // and the governance score arrive with later passes. Read-only.
 
-const BUILD_POLL_MS = 3000;
 
-const TYPE_TONE = { scrum: "active", kanban: "success", simple: "neutral" };
 
 function BoardRow({ board, siteOrigin }) {
   const loc = board.locationType === "user"
@@ -46,7 +43,7 @@ function BoardRow({ board, siteOrigin }) {
         )}
       </div>
       <div className="issue-type-row__meta">
-        {board.type && <Chip tone={TYPE_TONE[board.type] || "neutral"}>{board.type}</Chip>}
+        {board.type && <Chip tone="neutral">{board.type}</Chip>}
         {!board.configReadable && (
           <Chip tone="warning" title="This board's configuration endpoint returned 404 — team-managed boards often do. Its columns and backing filter are unknown.">config unreadable</Chip>
         )}
@@ -65,13 +62,33 @@ function BoardRow({ board, siteOrigin }) {
   );
 }
 
+// Boards break silently -- a deleted backing filter shows every issue in the site, an
+// unmapped column drops issues off the wall -- so each finding says what the person sees.
+function BoardFindings({ insights }) {
+  const g = insights || {};
+  const rows = [];
+  if (g.missingFilter > 0) rows.push({ tone: "critical", count: g.missingFilter, title: "Backing filter deleted", detail: "The board's saved filter no longer exists, so it falls back to every issue in the site." });
+  if (g.noFilter > 0) rows.push({ tone: "warning", count: g.noFilter, title: "No backing filter", detail: "Config was readable but named no saved filter." });
+  if (g.inactiveFilterOwner > 0) rows.push({ tone: "warning", count: g.inactiveFilterOwner, title: "Backing filter owned by an inactive user", detail: "One departure from breaking — Jira deletes a filter with its owner." });
+  if (g.staleColumnBoards > 0) rows.push({ tone: "warning", count: g.staleColumnBoards, title: "Column maps a status that no longer exists", detail: "Issues in that status vanish from the board with no error anywhere." });
+  if (g.unmappedColumnBoards > 0) rows.push({ tone: "info", count: g.unmappedColumnBoards, title: "Column with no status mapped", detail: "A column issues can never land in." });
+  if (g.joinedFilters === false) rows.push({ tone: "info", title: "Backing-filter checks did not run", detail: "Build the Saved Filters inventory to check for deleted filters and inactive owners." });
+  if (g.joinedStatuses === false) rows.push({ tone: "info", title: "Column-status checks did not run", detail: "Build the Workflow inventory to check for columns mapping deleted statuses." });
+  return (
+    <AttentionPanel
+      description="What the boards pillar of the site health score is built from."
+      empty="Nothing flagged. Every board has a live backing filter and every column maps a status."
+    >
+      {rows.map((r) => <FindingRow key={r.title} tone={r.tone} title={r.title} detail={r.detail} count={r.count} />)}
+    </AttentionPanel>
+  );
+}
+
 export function BoardsTab({ intent, siteOrigin }) {
   const [view, setView] = usePersistentState("observatory.section.boards", "overview");
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
-  const [notice, setNotice] = React.useState("");
-  const [building, setBuilding] = React.useState(false);
   const [search, setSearch] = React.useState("");
   const [typeFilter, setTypeFilter] = React.useState("all");
 
@@ -95,35 +112,12 @@ export function BoardsTab({ intent, siteOrigin }) {
 
   React.useEffect(() => { load(); }, [load]);
 
-  const isBuilding = ["building", "queued"].includes(data?.state) && !data?.staleBuild;
-  useVisiblePolling(isBuilding, load, BUILD_POLL_MS);
-
-  async function startBuild() {
-    setBuilding(true);
-    setError("");
-    setNotice("");
-    try {
-      const result = await invoke("buildBoardInventory", {});
-      await load();
-      if (result?.error) {
-        setError(result.error);
-      } else if (result?.queued === false && result?.reason === "already-building") {
-        setNotice("A build is already running. This page refreshes itself while it does.");
-      } else {
-        setNotice("Build queued. This page refreshes itself while it runs.");
-      }
-    } catch (err) {
-      setError(err?.message || "Could not start the build.");
-    } finally {
-      setBuilding(false);
-    }
-  }
+  const pillar = usePillarHealth("boards", data?.refreshedAt);
+  const build = useSnapshotBuild({ resolver: "buildBoardInventory", data, load });
+  const isBuilding = build.isBuilding;
 
   const buildAction = (
-    <button type="button" className="secondary-button" onClick={startBuild} disabled={building || isBuilding}>
-      <Icon name="refreshCw" size={13} />
-      {isBuilding ? "Building…" : data?.neverBuilt ? "Build inventory" : "Rebuild"}
-    </button>
+    <RebuildButton onClick={build.startBuild} isBuilding={isBuilding} starting={build.starting} neverBuilt={Boolean(data?.neverBuilt)} buildLabel="Build inventory" />
   );
 
   if (loading && !data) {
@@ -140,17 +134,11 @@ export function BoardsTab({ intent, siteOrigin }) {
   );
 
   const banners = (
-    <>
-      {error && <div className="danger-zone__error" role="alert">{error}</div>}
-      {notice && !error && <p className="admin-config-row__hint" role="status">{notice}</p>}
-      {isBuilding && <p className="admin-config-row__hint">Walking every board's configuration… this page refreshes itself.</p>}
-      {data?.staleBuild && (
-        <p className="admin-config-row__hint">A build was started but is no longer running. Rebuild to recover it.</p>
-      )}
-      {data?.lastError && !isBuilding && (
-        <div className="danger-zone__error" role="alert">Last build failed: {data.lastError}</div>
-      )}
-    </>
+    <BuildBanners
+      loadError={error} buildError={build.error} notice={build.notice}
+      isBuilding={isBuilding} buildingMessage="Walking every board's configuration… this page refreshes itself."
+      staleBuild={data?.staleBuild} lastError={data?.lastError} builtAt={data?.neverBuilt ? null : data?.refreshedAt}
+    />
   );
 
   if (data?.neverBuilt) {
@@ -219,37 +207,20 @@ export function BoardsTab({ intent, siteOrigin }) {
 
       <SubNavLayout items={items} activeKey={view} onSelect={setView}>
         {view === "overview" && (
-          <Panel title="What needs attention" icon="alertTriangle" description="Boards break silently — a deleted backing filter shows every issue in the site, an unmapped column drops issues off the wall.">
-            {(() => {
-              const g = data?.insights || {};
-              const rows = [];
-              if (g.missingFilter > 0) rows.push({ tone: "critical", count: g.missingFilter, title: "Backing filter deleted", detail: "The board's saved filter no longer exists, so it falls back to every issue in the site." });
-              if (g.noFilter > 0) rows.push({ tone: "warning", count: g.noFilter, title: "No backing filter", detail: "Config was readable but named no saved filter." });
-              if (g.inactiveFilterOwner > 0) rows.push({ tone: "warning", count: g.inactiveFilterOwner, title: "Backing filter owned by an inactive user", detail: "One departure from breaking — Jira deletes a filter with its owner." });
-              if (g.staleColumnBoards > 0) rows.push({ tone: "warning", count: g.staleColumnBoards, title: "Column maps a status that no longer exists", detail: "Issues in that status vanish from the board with no error anywhere." });
-              if (g.unmappedColumnBoards > 0) rows.push({ tone: "info", count: g.unmappedColumnBoards, title: "Column with no status mapped", detail: "A column issues can never land in." });
-              if (g.joinedFilters === false) rows.push({ tone: "info", title: "Backing-filter checks did not run", detail: "Build the Saved Filters inventory to check for deleted filters and inactive owners." });
-              if (g.joinedStatuses === false) rows.push({ tone: "info", title: "Column-status checks did not run", detail: "Build the Workflow inventory to check for columns mapping deleted statuses." });
-              return rows.length === 0
-                ? <EmptyState inline>Nothing flagged. Every board has a live backing filter and every column maps a status.</EmptyState>
-                : rows.map((r) => <FindingRow key={r.title} tone={r.tone} title={r.title} detail={r.detail} count={r.count} />);
-            })()}
-          </Panel>
-        )}
-
-        {view === "overview" && (
-          <Panel title="By type" icon="barChart" description="Scrum, kanban and team-managed (simple) boards on this site.">
-            {summary.total === 0 ? (
-              <EmptyState inline>No boards in this snapshot.</EmptyState>
-            ) : (
-              <StatRow>
-                {Object.entries(summary.byType).sort().map(([type, count]) => (
-                  <StatTile key={type} label={type} value={formatNumber(count)} tone={TYPE_TONE[type] || "neutral"} />
-                ))}
-                <StatTile label="Columns total" value={formatNumber(summary.totalColumns)} hint="Across every readable board" />
-              </StatRow>
-            )}
-          </Panel>
+          <PillarOverview
+            governance={<PillarHealthPanel pillar={pillar} />}
+            attention={<BoardFindings insights={data?.insights} />}
+          >
+            <Panel title="Boards by type" icon="barChart" description="Scrum, kanban and team-managed (simple) boards on this site.">
+              <BarList
+                items={Object.entries(summary.byType).sort().map(([type, count]) => ({ label: type, count }))}
+                labelKey="label"
+                valueKey="count"
+                formatValue={formatNumber}
+                emptyMessage="No boards in this snapshot."
+              />
+            </Panel>
+          </PillarOverview>
         )}
 
         {view === "boards" && (

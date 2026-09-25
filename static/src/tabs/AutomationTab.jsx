@@ -1,9 +1,12 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
-import { formatRelativeTime, formatNumber, formatTimestamp } from "../utils";
-import { BarList, Chip, EmptyState, FindingRow, Panel, RuleLink, SortFilterBar, StatRow, StatTile } from "../components/ui";
+import { formatRelativeTime, formatNumber, formatTimestamp, buildRovoPrompt } from "../utils";
+import {
+  BarList, Chip, EmptyState, FindingRow, Panel, RuleLink, SortFilterBar, StatRow, StatTile,
+  PageHeader, AskRovo, PillarHealthPanel, BuildBanners, AttentionPanel, PillarOverview,
+} from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
-import { useNavIntent, usePersistentState } from "../hooks";
+import { useNavIntent, usePersistentState, usePillarHealth } from "../hooks";
 import { Icon } from "../components/Icons";
 import { analyzeRules, expandFinding, hydrateRuleDirectory } from "../../../src/lib/automation-analysis";
 
@@ -1032,6 +1035,44 @@ export function Pager({ page, pageCount, total, onChange }) {
 
 // ── Tab ─────────────────────────────────────────────────────────────────────
 
+// Cross-rule risk, as findings. Two rules can fight over the same issue without either one
+// writing a field the other watches -- the same event, the same trigger, or the same field
+// set to different values. Found from the SOLVE: Solution Matrix incident, where one rule's
+// 'Attach forms' action silently woke a second rule that deleted the form it had just
+// attached. These were a second row of stat tiles inside a panel; as findings they read the
+// same as every other pillar's.
+function AutomationRiskFindings({ data, estate }) {
+  const health = estate.health ?? {};
+  const rows = [];
+  if ((health.unconditionalDestructiveCount ?? 0) > 0) {
+    rows.push({ key: "destructive", tone: "warning", count: health.unconditionalDestructiveCount, title: "Unguarded delete or clear", detail: "Rules that can destroy data with no condition telling apart why." });
+  }
+  if ((data.eventCascadesTotal ?? 0) > 0) {
+    rows.push({ key: "cascades", tone: "warning", count: data.eventCascadesTotal, title: "Event cascades", detail: "One rule's action wakes another through a Jira event, not a field write — invisible from either rule." });
+  }
+  if ((health.silentFailureCount ?? 0) > 0) {
+    rows.push({ key: "silent", tone: "warning", count: health.silentFailureCount, title: "Silent on failure", detail: "Calls out over HTTP with notifyOnError off, so a failure is never reported." });
+  }
+  if ((data.competingPairsTotal ?? 0) > 0) {
+    rows.push({ key: "competing", tone: "info", count: data.competingPairsTotal, title: "Competing rules", detail: "Same trigger, overlapping scope — execution order decides which one wins." });
+  }
+  if ((data.fieldContradictionsTotal ?? 0) > 0) {
+    rows.push({ key: "contradictions", tone: "warning", count: data.fieldContradictionsTotal, title: "Field contradictions", detail: "Two rules set the same field to different literal values." });
+  }
+  const concentration = estate.authorConcentration;
+  if (concentration && concentration.topAuthorSharePct >= 50) {
+    rows.push({ key: "author", tone: "info", title: `One author owns ${concentration.topAuthorSharePct}% of enabled rules`, detail: `${formatNumber(concentration.topAuthorRuleCount)} of ${formatNumber(concentration.knownAuthorRuleCount)} attributed enabled rules. One departure away from nobody understanding them.` });
+  }
+  return (
+    <AttentionPanel
+      description="Cross-rule risk: rules that can fight each other or fail without anyone knowing. The Findings view lists every rule-level risk."
+      empty="No cross-rule risk found in this export."
+    >
+      {rows.map((r) => <FindingRow key={r.key} tone={r.tone} count={r.count} title={r.title} detail={r.detail} />)}
+    </AttentionPanel>
+  );
+}
+
 export function AutomationTab({ siteOrigin, intent = null }) {
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
@@ -1128,6 +1169,8 @@ export function AutomationTab({ siteOrigin, intent = null }) {
     }
   }
 
+  const pillar = usePillarHealth("automation", data?.refreshedAt);
+
   const importControl = (
     <div className="automation-import">
       <input
@@ -1140,37 +1183,77 @@ export function AutomationTab({ siteOrigin, intent = null }) {
       />
       <button
         type="button"
-        className="ui-button"
+        className="secondary-button secondary-button--small ui-rebuild"
         onClick={() => fileInputRef.current?.click()}
         disabled={importing}
       >
+        <Icon name="refreshCw" size={13} aria-hidden="true" />
         {importing ? "Analyzing…" : data?.available ? "Re-import export" : "Import rule export"}
       </button>
-      {importError ? <span className="automation-import__error">{importError}</span> : null}
     </div>
+  );
+
+  const header = (
+    <PageHeader
+      title="Automation"
+      description="Every rule in the imported export: what it reads, writes and triggers on, how far it reaches, and which rules can fight each other. Read-only — the export is analysed in your browser."
+      meta={data?.available
+        // Absolute as well as relative: "3 days ago" is the readable one, the timestamp is the
+        // one you can compare against the export file's own name.
+        ? `Analyzed ${data.refreshedAt ? `${formatRelativeTime(data.refreshedAt)} (${formatTimestamp(data.refreshedAt)})` : "at an unknown time"}${data.source ? ` from ${data.source}` : ""}`
+        : "Never imported"}
+      actions={
+        <>
+          <AskRovo
+            agent="observatory-automation-expert"
+            scope="the automation estate"
+            context="the analysis age, the rule counts and the cross-rule risk counts"
+            disabled={!data?.available}
+            buildPrompt={() =>
+              buildRovoPrompt({
+                task: "Give me an overview of this site's automation rules and what to look at first.",
+                facts: [
+                  ["Analysis imported", data?.refreshedAt || "unknown"],
+                  ["Rules", data?.estate?.ruleCount ?? null],
+                  ["Disabled rules", data?.estate?.disabledCount ?? null],
+                  ["Estate-wide rules", data?.blast?.estateWideCount ?? null],
+                  ["Findings", data?.findingsTotal ?? null],
+                ],
+              })
+            }
+          />
+          {importControl}
+        </>
+      }
+    />
   );
 
   if (loading) return <div className="tab-loading">Loading automation insights…</div>;
 
   if (error) {
     return (
-      <EmptyState>
-        <strong>Could not load automation insights.</strong>
-        <div>{error}</div>
-      </EmptyState>
+      <div className="automation-tab">
+        {header}
+        <BuildBanners loadError={`Could not load automation insights. ${error}`} />
+      </div>
     );
   }
 
   if (!data?.available) {
     return (
-      <EmptyState action={importControl}>
-        <strong>No automation analysis yet.</strong>
-        <div>
-          Export your automation rules from Jira (Settings → System → Automation rules → Export)
-          and import the file here. It is read in your browser, so the rules themselves never
-          leave this page — only the summary is stored.
-        </div>
-      </EmptyState>
+      <div className="automation-tab">
+        {header}
+        <BuildBanners buildError={importError} />
+        {/* No action here: the import control owns the one file input, and it is in the header. */}
+        <EmptyState>
+          <strong>No automation analysis yet.</strong>
+          <div>
+            Export your automation rules from Jira (Settings → System → Automation rules → Export)
+            and import the file with Import rule export above. It is read in your browser, so the
+            rules themselves never leave this page — only the summary is stored.
+          </div>
+        </EmptyState>
+      </div>
     );
   }
 
@@ -1190,105 +1273,54 @@ export function AutomationTab({ siteOrigin, intent = null }) {
 
   return (
     <div className="automation-tab">
-      <div className="automation-tab__meta">
-        <span>
-          Analyzed {data.refreshedAt ? formatRelativeTime(data.refreshedAt) : "at an unknown time"}
-          {data.refreshedAt ? ` (${formatTimestamp(data.refreshedAt)})` : ""}
-          {data.source ? ` from ${data.source}` : ""}.
-        </span>
-        {importControl}
-      </div>
+      {header}
 
       {/* This pillar is the only one fed by hand, so it is the only one that can quietly go
           out of date while every other tab refreshes on a schedule. Nothing in the shape of
           the data says so, which is why it has to be said here. */}
-      {data.evidence?.stale && (
-        <FindingRow
-          tone="warning"
-          title={data.evidence.ageDays === null
-            ? "This analysis carries no build date"
-            : `This analysis is ${formatNumber(data.evidence.ageDays)} day${data.evidence.ageDays === 1 ? "" : "s"} old`}
-          detail={`Rules added or changed since the last import are not in it, so this pillar answers "unknown" rather than "no rule touches this" until it is re-imported. The threshold is ${formatNumber(data.evidence.staleAfterDays)} days, on the Governance rules page.`}
+      <BuildBanners buildError={importError}>
+        {data.evidence?.stale && (
+          <div className="ui-banner ui-banner--warning">
+            {data.evidence.ageDays === null
+              ? "This analysis carries no build date."
+              : `This analysis is ${formatNumber(data.evidence.ageDays)} day${data.evidence.ageDays === 1 ? "" : "s"} old.`}
+            {` Rules added or changed since the last import are not in it, so this pillar answers "unknown" rather than "no rule touches this" until it is re-imported. The threshold is ${formatNumber(data.evidence.staleAfterDays)} days, on the Governance rules page.`}
+          </div>
+        )}
+      </BuildBanners>
+
+      <StatRow>
+        <StatTile label="Rules" value={formatNumber(estate.ruleCount ?? 0)} hint="In the imported export" icon="zap" />
+        <StatTile label="Enabled" value={formatNumber(estate.enabledCount ?? 0)} hint="Running on this site" icon="checkCircle" />
+        <StatTile
+          label="Disabled"
+          value={formatNumber(estate.disabledCount ?? 0)}
+          hint={`${disabledShare}% of the estate`}
+          icon="x"
+          tone={disabledShare >= 30 ? "warning" : "neutral"}
         />
-      )}
+        <StatTile
+          label="Estate-wide rules"
+          value={formatNumber(data.blast?.estateWideCount ?? 0)}
+          hint="Blast radius reaches every project"
+          icon="shield"
+          tone={(data.blast?.estateWideCount ?? 0) > 0 ? "critical" : "success"}
+        />
+        <StatTile
+          label="Findings"
+          value={formatNumber(data.findingsTotal ?? 0)}
+          hint="Rules with at least one risk"
+          icon="alertTriangle"
+          tone={(data.findingsTotal ?? 0) > 0 ? "warning" : "success"}
+        />
+      </StatRow>
 
       <SubNavLayout items={items} activeKey={section} onSelect={setSection}>
         {section === "overview" ? (
-          <>
-            <StatRow>
-              <StatTile label="Rules" value={formatNumber(estate.ruleCount ?? 0)} icon="zap" />
-              <StatTile label="Enabled" value={formatNumber(estate.enabledCount ?? 0)} icon="checkCircle" tone="success" />
-              <StatTile
-                label="Disabled"
-                value={formatNumber(estate.disabledCount ?? 0)}
-                hint={`${disabledShare}% of the estate`}
-                icon="x"
-                tone={disabledShare >= 30 ? "warning" : "neutral"}
-              />
-              <StatTile
-                label="Estate-wide rules"
-                value={formatNumber(data.blast?.estateWideCount ?? 0)}
-                hint="Blast radius reaches every project"
-                icon="shield"
-                tone={(data.blast?.estateWideCount ?? 0) > 0 ? "critical" : "neutral"}
-              />
-              <StatTile label="Fields referenced" value={formatNumber(estate.fieldsReferenced ?? 0)} icon="layers" />
-              <StatTile label="Statuses referenced" value={formatNumber(estate.statusesReferenced ?? 0)} icon="activity" />
-              <StatTile label="Issue types referenced" value={formatNumber(estate.issueTypesReferenced ?? 0)} icon="layers" />
-              <StatTile label="Users referenced" value={formatNumber(estate.usersReferenced ?? 0)} icon="user" hint="Assigned, set or conditioned on by name" />
-            </StatRow>
-
-            <Panel
-              title="Cross-rule risk"
-              icon="shield"
-              description="Two rules can fight over the same issue without either one writing a field the other watches -- the same event, the same trigger, or the same field set to different values. Found from the SOLVE: Solution Matrix incident, where one rule's 'Attach forms' action silently woke a second rule that deleted the form it had just attached."
-            >
-              <StatRow>
-                <StatTile
-                  label="Event cascades"
-                  value={formatNumber(data.eventCascadesTotal ?? 0)}
-                  hint="One rule's action wakes another via a Jira event, not a field write"
-                  icon="refreshCw"
-                  tone={(data.eventCascadesTotal ?? 0) > 0 ? "warning" : "neutral"}
-                />
-                <StatTile
-                  label="Unguarded delete/clear"
-                  value={formatNumber(estate.health?.unconditionalDestructiveCount ?? 0)}
-                  hint="Can destroy data with no condition telling apart why"
-                  icon="x"
-                  tone={(estate.health?.unconditionalDestructiveCount ?? 0) > 0 ? "warning" : "neutral"}
-                />
-                <StatTile
-                  label="Silent on failure"
-                  value={formatNumber(estate.health?.silentFailureCount ?? 0)}
-                  hint="Calls out over HTTP with notifyOnError off"
-                  icon="bell"
-                  tone={(estate.health?.silentFailureCount ?? 0) > 0 ? "warning" : "neutral"}
-                />
-                <StatTile
-                  label="Competing rules"
-                  value={formatNumber(data.competingPairsTotal ?? 0)}
-                  hint="Same trigger, overlapping scope -- order decides which one wins"
-                  icon="user"
-                />
-                <StatTile
-                  label="Field contradictions"
-                  value={formatNumber(data.fieldContradictionsTotal ?? 0)}
-                  hint="Two rules set the same field to different literal values"
-                  icon="layers"
-                />
-                {estate.authorConcentration && (
-                  <StatTile
-                    label="Top author's share"
-                    value={`${estate.authorConcentration.topAuthorSharePct}%`}
-                    hint={`${formatNumber(estate.authorConcentration.topAuthorRuleCount)} of ${formatNumber(estate.authorConcentration.knownAuthorRuleCount)} attributed enabled rules`}
-                    icon="user"
-                    tone={estate.authorConcentration.topAuthorSharePct >= 50 ? "warning" : "neutral"}
-                  />
-                )}
-              </StatRow>
-            </Panel>
-
+          <PillarOverview
+            governance={<PillarHealthPanel pillar={pillar} />}
+            attention={<AutomationRiskFindings data={data} estate={estate} />}
+          >
             <Panel
               title="What automation depends on"
               icon="layers"
@@ -1326,7 +1358,7 @@ export function AutomationTab({ siteOrigin, intent = null }) {
                 emptyMessage="No trigger data."
               />
             </Panel>
-          </>
+          </PillarOverview>
         ) : section === "fields" ? (
           <Panel
             title="Fields automation depends on"

@@ -1,4 +1,5 @@
 import React from "react";
+import { invoke } from "@forge/bridge";
 import { readStored, writeStored } from "./utils";
 
 // Poll only while there is something to poll for AND the tab is being looked at.
@@ -102,4 +103,69 @@ export function usePersistentState(storageKey, fallback, override = null) {
   const [value, setValue] = React.useState(() => override || readStored(storageKey, null) || fallback);
   React.useEffect(() => { writeStored(storageKey, value); }, [storageKey, value]);
   return [value, setValue];
+}
+
+// The build lifecycle every pillar inventory shares: start a build, poll while it runs, say
+// what happened. Seven tabs carried an identical copy of this -- same notices, same poll
+// interval, same refusal handling -- differing only in the resolver name, which is how the
+// copies had begun to drift in wording and in whether a refusal was reported before or
+// after the reload.
+//
+// Owns only the build's own state. The tab's load error stays the tab's; BuildBanners shows
+// both. Reload happens before a refusal is reported, because load() clears the banner.
+export const BUILD_POLL_MS = 3000;
+
+export function useSnapshotBuild({ resolver, data, load }) {
+  const [starting, setStarting] = React.useState(false);
+  const [notice, setNotice] = React.useState("");
+  const [error, setError] = React.useState("");
+
+  const isBuilding = ["building", "queued"].includes(data?.state) && !data?.staleBuild;
+  useVisiblePolling(isBuilding, load, BUILD_POLL_MS);
+
+  async function startBuild() {
+    setStarting(true);
+    setError("");
+    setNotice("");
+    try {
+      const result = await invoke(resolver, {});
+      await load();
+      if (result?.error) {
+        setError(result.error);
+      } else if (result?.reason === "already-building") {
+        setNotice("A build is already running. This page refreshes itself while it does.");
+      } else {
+        setNotice("Build queued. This page refreshes itself while it runs.");
+      }
+    } catch (err) {
+      setError(err?.message || "Could not start the build.");
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  return { isBuilding, starting, notice, error, startBuild };
+}
+
+// Whole days since an ISO timestamp, or null when there is none. For "this inventory is N
+// days old" -- a missing date is unknown, never zero days.
+export function daysSince(iso) {
+  if (!iso) return null;
+  const ms = Date.now() - new Date(iso).getTime();
+  return Number.isFinite(ms) ? ms / 86400000 : null;
+}
+
+// One pillar's slice of the site health score, re-read whenever the inventory it scores is
+// rebuilt. Every pillar tab fetched this the same way; a failure is "not scored", never an
+// error banner, because the inventory is still worth reading without its score.
+export function usePillarHealth(pillarKey, refreshKey) {
+  const [pillar, setPillar] = React.useState(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    invoke("getPillarHealth", { pillar: pillarKey })
+      .then((result) => { if (!cancelled) setPillar(result?.pillar || null); })
+      .catch(() => { if (!cancelled) setPillar(null); });
+    return () => { cancelled = true; };
+  }, [pillarKey, refreshKey]);
+  return pillar;
 }

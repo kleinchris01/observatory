@@ -51,7 +51,12 @@ function route(map) {
   });
 }
 
-beforeEach(() => invoke.mockReset());
+beforeEach(() => {
+  invoke.mockReset();
+  // Most of these are about the list. The tab opens on Overview like every pillar; start on
+  // the list the way a returning reader would.
+  window.localStorage.setItem("observatory.section.dashboards", "dashboards");
+});
 
 describe("gadgetTooltip", () => {
   test("says nothing for a gadget with no filter to report", () => {
@@ -128,7 +133,7 @@ describe("DashboardsTab", () => {
     route({ getDashboardInventory: { available: false, state: "idle", neverBuilt: true } });
     render(<DashboardsTab />);
 
-    expect(await screen.findByRole("button", { name: /build dashboard inventory/i })).toBeInTheDocument();
+    expect((await screen.findAllByRole("button", { name: /build dashboard inventory/i })).length).toBeGreaterThan(0);
   });
 
   test("reports a failed build rather than an empty one", async () => {
@@ -138,6 +143,15 @@ describe("DashboardsTab", () => {
     expect(await screen.findByText(/401 scope does not match/)).toBeInTheDocument();
   });
 
+  test("opens on an Overview with the governance score and the findings", async () => {
+    window.localStorage.removeItem("observatory.section.dashboards");
+    invoke.mockImplementation((fn) => (fn === "getDashboardInventory" ? Promise.resolve(inventory()) : Promise.resolve({})));
+    render(<DashboardsTab />);
+
+    expect(await screen.findByText("What needs attention")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Governance" })).toBeInTheDocument();
+  });
+
   test("leads with the estate counts", async () => {
     route({ getDashboardInventory: inventory() });
     render(<DashboardsTab />);
@@ -145,9 +159,9 @@ describe("DashboardsTab", () => {
     await screen.findByRole("heading", { name: "Dashboards", level: 2 });
     // Scoped to the estate panel: these labels deliberately appear twice, once as a headline
     // number and once as the control that narrows to it.
-    const estate = screen.getByRole("heading", { name: "Estate" }).closest(".ui-panel");
-    expect(within(estate).getByText("No live owner")).toBeInTheDocument();
-    expect(within(estate).getByText("Anyone can edit")).toBeInTheDocument();
+    const tiles = document.querySelector(".ui-stat-row");
+    expect(within(tiles).getByText("No live owner")).toBeInTheDocument();
+    expect(within(tiles).getByText("Anyone can edit")).toBeInTheDocument();
   });
 
   // A pass that reached 180 of 200 can say which of those 180 are empty and nothing about
@@ -226,7 +240,7 @@ describe("a build that is no longer running", () => {
 
     render(<DashboardsTab />);
 
-    expect(await screen.findByRole("button", { name: /rebuild/i })).toBeEnabled();
+    for (const button of await screen.findAllByRole("button", { name: /rebuild/i })) expect(button).toBeEnabled();
     expect(screen.getByText(/no longer running/i)).toBeInTheDocument();
   });
 
@@ -238,6 +252,6 @@ describe("a build that is no longer running", () => {
     render(<DashboardsTab />);
 
     expect(await screen.findByText(/Building the dashboard inventory/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /building/i })).toBeDisabled();
+    for (const button of screen.getAllByRole("button", { name: /building/i })) expect(button).toBeDisabled();
   });
 });

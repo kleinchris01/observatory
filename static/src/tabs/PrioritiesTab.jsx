@@ -1,14 +1,13 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatNumber, formatRelativeTime, buildPriorityAdminUrl, buildResolutionAdminUrl } from "../utils";
-import { Icon } from "../components/Icons";
 import {
-  StatTile, StatRow, Panel, EmptyState, Chip, PageHeader,
-  PanelGrid, GridSpan, PillarHealthPanel, FindingRow, SortFilterBar, AskRovo, JiraLink,
+  StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PillarHealthPanel, FindingRow, SortFilterBar,
+  AskRovo, JiraLink, RebuildButton, BuildBanners, AttentionPanel, PillarOverview,
 } from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
-import { useNavIntent, useVisiblePolling, usePersistentState } from "../hooks";
+import { useNavIntent, usePersistentState, useSnapshotBuild, usePillarHealth } from "../hooks";
 
 // The two global value lists in Jira's "Issues" admin section that don't have their own
 // pillar yet: resolutions and priorities. Statuses and issue types are covered elsewhere.
@@ -16,15 +15,6 @@ import { useNavIntent, useVisiblePolling, usePersistentState } from "../hooks";
 // The one finding that matters is the same one the workflow and issue-type pillars run:
 // near-duplicate names. A site with "Done", "Fixed", "Complete" and "Resolved" as separate
 // resolutions cannot produce a correct resolution-based report. Read-only.
-
-const BUILD_POLL_MS = 3000;
-const STALE_AFTER_DAYS = 7;
-
-function daysSince(iso) {
-  const at = Date.parse(iso || "");
-  if (!Number.isFinite(at)) return null;
-  return (Date.now() - at) / (24 * 60 * 60 * 1000);
-}
 
 function ValueRow({ item, duplicate }) {
   return (
@@ -80,11 +70,12 @@ function EstateFindings({ governance }) {
   }
 
   return (
-    <Panel title="What needs attention" icon="alertTriangle" description="What the priorities & resolutions pillar of the site health score is built from.">
-      {rows.length === 0
-        ? <EmptyState inline>Nothing flagged. No name collisions, and both lists have a default.</EmptyState>
-        : rows.map((r) => <FindingRow key={r.title} tone={r.tone} title={r.title} detail={r.detail} count={r.count} />)}
-    </Panel>
+    <AttentionPanel
+      description="What the priorities & resolutions pillar of the site health score is built from."
+      empty="Nothing flagged. No name collisions, and both lists have a default."
+    >
+      {rows.map((r) => <FindingRow key={r.title} tone={r.tone} title={r.title} detail={r.detail} count={r.count} />)}
+    </AttentionPanel>
   );
 }
 
@@ -104,8 +95,6 @@ export function PrioritiesTab({ intent, siteOrigin }) {
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
-  const [notice, setNotice] = React.useState("");
-  const [building, setBuilding] = React.useState(false);
   const [search, setSearch] = React.useState("");
 
   useNavIntent(intent, (nav) => {
@@ -127,38 +116,8 @@ export function PrioritiesTab({ intent, siteOrigin }) {
 
   React.useEffect(() => { load(); }, [load]);
 
-  const [pillar, setPillar] = React.useState(null);
-  React.useEffect(() => {
-    let cancelled = false;
-    invoke("getPillarHealth", { pillar: "estate" })
-      .then((result) => { if (!cancelled) setPillar(result?.pillar || null); })
-      .catch(() => { if (!cancelled) setPillar(null); });
-    return () => { cancelled = true; };
-  }, [data?.refreshedAt]);
-
-  const isBuilding = ["building", "queued"].includes(data?.state) && !data?.staleBuild;
-  useVisiblePolling(isBuilding, load, BUILD_POLL_MS);
-
-  async function startBuild() {
-    setBuilding(true);
-    setError("");
-    setNotice("");
-    try {
-      const result = await invoke("buildEstateInventory", {});
-      await load();
-      if (result?.error) {
-        setError(result.error);
-      } else if (result?.queued === false && result?.reason === "already-building") {
-        setNotice("A build is already running. This page refreshes itself while it does.");
-      } else {
-        setNotice("Build queued. This page refreshes itself while it runs.");
-      }
-    } catch (err) {
-      setError(err?.message || "Could not start the build.");
-    } finally {
-      setBuilding(false);
-    }
-  }
+  const pillar = usePillarHealth("estate", data?.refreshedAt);
+  const build = useSnapshotBuild({ resolver: "buildEstateInventory", data, load });
 
   const buildAction = (
     <>
@@ -174,10 +133,7 @@ export function PrioritiesTab({ intent, siteOrigin }) {
           })
         }
       />
-      <button type="button" className="secondary-button" onClick={startBuild} disabled={building || isBuilding}>
-      <Icon name="refreshCw" size={13} />
-      {isBuilding ? "Building…" : data?.neverBuilt ? "Build inventory" : "Rebuild"}
-      </button>
+      <RebuildButton onClick={build.startBuild} isBuilding={build.isBuilding} starting={build.starting} neverBuilt={Boolean(data?.neverBuilt)} />
     </>
   );
 
@@ -195,17 +151,11 @@ export function PrioritiesTab({ intent, siteOrigin }) {
   );
 
   const banners = (
-    <>
-      {error && <div className="danger-zone__error" role="alert">{error}</div>}
-      {notice && !error && <p className="admin-config-row__hint" role="status">{notice}</p>}
-      {isBuilding && <p className="admin-config-row__hint">Reading the lists… this page refreshes itself.</p>}
-      {data?.staleBuild && (
-        <p className="admin-config-row__hint">A build was started but is no longer running. Rebuild to recover it.</p>
-      )}
-      {data?.lastError && !isBuilding && (
-        <div className="danger-zone__error" role="alert">Last build failed: {data.lastError}</div>
-      )}
-    </>
+    <BuildBanners
+      loadError={error} buildError={build.error} notice={build.notice}
+      isBuilding={build.isBuilding} buildingMessage="Reading the lists… this page refreshes itself."
+      staleBuild={data?.staleBuild} lastError={data?.lastError} builtAt={data?.neverBuilt ? null : data?.refreshedAt}
+    />
   );
 
   if (data?.neverBuilt) {
@@ -226,8 +176,6 @@ export function PrioritiesTab({ intent, siteOrigin }) {
   const priorities = data?.priorities || [];
   const resolutionDupes = duplicateMap(g.resolutionDuplicateGroups);
   const priorityDupes = duplicateMap(g.priorityDuplicateGroups);
-  const buildAgeDays = daysSince(data?.refreshedAt);
-  const isStale = buildAgeDays != null && buildAgeDays > STALE_AFTER_DAYS;
   const term = search.trim().toLowerCase();
 
   const items = [
@@ -262,18 +210,12 @@ export function PrioritiesTab({ intent, siteOrigin }) {
         />
       </StatRow>
 
-      {isStale && (
-        <Panel title="This inventory is stale" icon="alertTriangle">
-          <p>It was built {Math.floor(buildAgeDays)} days ago. Every full and quick scan refreshes it — run one, or rebuild here.</p>
-        </Panel>
-      )}
-
       <SubNavLayout items={items} activeKey={view} onSelect={setView}>
         {view === "overview" && (
-          <PanelGrid>
-            <GridSpan><PillarHealthPanel pillar={pillar} /></GridSpan>
-            <GridSpan><EstateFindings governance={g} /></GridSpan>
-          </PanelGrid>
+          <PillarOverview
+            governance={<PillarHealthPanel pillar={pillar} />}
+            attention={<EstateFindings governance={g} />}
+          />
         )}
 
         {view === "resolutions" && (
