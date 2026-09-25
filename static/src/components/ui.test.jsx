@@ -3,7 +3,7 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { router, rovo } from "@forge/bridge";
-import { StatTile, StatRow, Panel, CollapsiblePanels, Chip, EmptyState, BarList, FindingRow, LinkButton, PageHeader, RuleLink, JiraLink, SortFilterBar, StageRail, formatDurationMs, AskRovo } from "./ui";
+import { StatTile, StatRow, Panel, CollapsiblePanels, Chip, EmptyState, BarList, FindingRow, LinkButton, PageHeader, RuleLink, JiraLink, SortFilterBar, StageRail, formatDurationMs, AskRovo, RemediationStatus } from "./ui";
 
 // These are the shared vocabulary that replaced four separate stat-card idioms. They are
 // small, but they now render on every tab, so a regression here is a regression
@@ -504,5 +504,34 @@ describe("AskRovo", () => {
     await userEvent.click(screen.getByRole("button", { name: /ask rovo/i }));
     // No assertion beyond "did not throw" -- getByRole would fail if the tree had crashed.
     expect(screen.getByRole("button", { name: /ask rovo/i })).toBeInTheDocument();
+  });
+});
+
+describe("RemediationStatus", () => {
+  const origin = "https://acme.atlassian.net";
+
+  test("this quarter's epic: the key, linked, and open of total", () => {
+    render(<RemediationStatus group={{ isCurrent: true, period: "2026-Q3", epic: { issueKey: "ADMIN-7" }, taskCount: 4, openCount: 3 }} period="2026-Q3" siteOrigin={origin} />);
+    expect(screen.getByRole("link", { name: "ADMIN-7" })).toHaveAttribute("href", `${origin}/browse/ADMIN-7`);
+    expect(screen.getByText(/3 of 4 tasks open/)).toBeInTheDocument();
+  });
+
+  test("says when every task is closed", () => {
+    render(<RemediationStatus group={{ isCurrent: true, epic: { issueKey: "ADMIN-7" }, taskCount: 4, openCount: 0 }} period="2026-Q3" siteOrigin={origin} />);
+    expect(screen.getByText(/all 4 tasks closed/)).toBeInTheDocument();
+  });
+
+  test("an earlier quarter's epic names its quarter and that this one has not started", () => {
+    render(<RemediationStatus group={{ isCurrent: false, period: "2026-Q2", epic: { issueKey: "ADMIN-1" } }} period="2026-Q3" siteOrigin={origin} />);
+    expect(screen.getByText(/2026-Q2 epic/)).toBeInTheDocument();
+    expect(screen.getByText(/2026-Q3 not started/)).toBeInTheDocument();
+  });
+
+  test("no epic at all, and the way in", async () => {
+    const onOpen = vi.fn();
+    render(<RemediationStatus group={null} period="2026-Q3" siteOrigin={origin} onOpen={onOpen} />);
+    expect(screen.getByText("No remediation epic for 2026-Q3")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Start remediation/ }));
+    expect(onOpen).toHaveBeenCalledTimes(1);
   });
 });

@@ -7488,3 +7488,40 @@ a.dash-row__name:hover { text-decoration: underline; }
   margin-top: 0.4rem;
 }
 .first-run__step-actions:empty { margin-top: 0; }
+
+/* Remediation status line (ui.jsx RemediationStatus): beside each Overview finding and on
+   each Remediation card. */
+.ui-remediation {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 0.76rem;
+  color: var(--muted);
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: var(--wash-3);
+}
+.ui-remediation--active { color: var(--text); }
+.ui-remediation--success { color: var(--tone-success-text); }
+.ui-remediation__open {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--cool);
+  cursor: pointer;
+}
+.ui-remediation__open:hover { text-decoration: underline; }
+.ui-remediation--compact { background: none; padding: 2px 0 0; }
+.ui-gov__findingwrap { display: flex; flex-direction: column; gap: 2px; }
+.remediation-group__title {
+  margin: 20px 0 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.remediation-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.remediation-history { margin: 6px 0 0; font-size: 0.78rem; color: var(--muted); }

@@ -153,3 +153,15 @@ describe("unmeasured", () => {
     }
   });
 });
+
+describe("listLimit", () => {
+  const schemes = Array.from({ length: 40 }, (_, i) => ({ id: `p${i}`, name: `P${i}` }));
+
+  it("trims the per-item lists to 25 for the tab by default, and not at all for remediation", () => {
+    expect(summarizePermissionInsights({ schemes }).unusedSchemes).toHaveLength(25);
+    const full = summarizePermissionInsights({ schemes, listLimit: Infinity });
+    expect(full.unusedSchemes).toHaveLength(40);
+    // The counts never depended on the limit.
+    expect(full.unusedSchemeCount).toBe(40);
+  });
+});

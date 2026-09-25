@@ -2,7 +2,7 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { Icon } from "./Icons";
 import { formatNumber } from "../utils";
-import { StatTile, StatRow, Panel, EmptyState, LinkButton, GovernanceRow, TrendDelta, bandFromScore } from "./ui";
+import { StatTile, StatRow, Panel, EmptyState, LinkButton, GovernanceRow, TrendDelta, bandFromScore, RemediationStatus } from "./ui";
 import { HEALTH_PILLARS } from "../../../src/lib/health-score";
 
 // The admin landing page.
@@ -1230,8 +1230,32 @@ export function useHealthHistory({ days = 90, load = invoke } = {}) {
   return history;
 }
 
-function GovernanceLedgerPanel({ health, findings, history, workflow, screens, access, estate, automation, filters, dashboards, onNavigate }) {
+function GovernanceLedgerPanel({ health, findings, history, workflow, screens, access, estate, automation, filters, dashboards, onNavigate, siteOrigin = "" }) {
   const ledger = React.useMemo(() => buildGovernanceLedger({ health, findings, history }), [health, findings, history]);
+
+  // Where each finding's remediation stands. Fetched here rather than folded into
+  // getAdminOverview, like the RQT card: the ledger renders completely without it, and a
+  // failure leaves the findings exactly as they were rather than breaking the page.
+  const [remediation, setRemediation] = React.useState(null);
+  React.useEffect(() => {
+    let live = true;
+    invoke("getRemediationTickets", {}).then((r) => { if (live) setRemediation(r); }).catch(() => {});
+    return () => { live = false; };
+  }, []);
+  const remediationFor = React.useCallback((findingKey) => {
+    const playbookKey = remediation?.findingIndex?.[findingKey];
+    if (!playbookKey) return null;
+    const group = (remediation.groups || []).find((g) => g.findingKey === playbookKey) || null;
+    return (
+      <RemediationStatus
+        group={group}
+        period={remediation.period}
+        siteOrigin={siteOrigin}
+        compact
+        onOpen={() => onNavigate?.("remediation", { finding: playbookKey })}
+      />
+    );
+  }, [remediation, siteOrigin, onNavigate]);
 
   // Which pillars have never been built. Named individually, because "nothing flagged" while
   // three of five pillars have never been looked at is not a clean bill of health -- it is a
@@ -1345,22 +1369,30 @@ function GovernanceLedgerPanel({ health, findings, history, workflow, screens, a
                     {row.findings.length > 0 ? (
                       <div className="ui-gov__findings">
                         {row.findings.map((finding) => (
-                          <button
-                            type="button"
-                            key={finding.key}
-                            className={`ui-gov__finding ui-gov__finding--${finding.tone}`}
-                            onClick={finding.onOpen}
-                            title={finding.detail}
-                          >
-                            <span className="ui-gov__findingcount">{formatNumber(finding.count)}</span>
-                            <span className="ui-gov__findingtitle">{finding.title}</span>
-                            {/* The destination, not a bare arrow. A reader has to be able to
-                                tell where a chip goes before clicking it, and the old
-                                findings list said so explicitly. */}
-                            <span className="ui-gov__findingarrow">&#8594; {finding.openLabel}</span>
-                          </button>
+                          // The chip, then where its remediation stands. Siblings, not
+                          // nested: the status line carries its own links and a button
+                          // cannot contain another.
+                          <div className="ui-gov__findingwrap" key={finding.key}>
+                            <button
+                              type="button"
+                              className={`ui-gov__finding ui-gov__finding--${finding.tone}`}
+                              onClick={finding.onOpen}
+                              title={finding.detail}
+                            >
+                              <span className="ui-gov__findingcount">{formatNumber(finding.count)}</span>
+                              <span className="ui-gov__findingtitle">{finding.title}</span>
+                              {/* The destination, not a bare arrow. A reader has to be able to
+                                  tell where a chip goes before clicking it, and the old
+                                  findings list said so explicitly. */}
+                              <span className="ui-gov__findingarrow">&#8594; {finding.openLabel}</span>
+                            </button>
+                            {remediationFor(finding.key)}
+                          </div>
                         ))}
                       </div>
+                    ) : row.unscored ? (
+                      // A finding rendered as its own row: its remediation sits beneath it.
+                      remediationFor(row.key)
                     ) : row.action ? (
                       <span className="ui-gov__advice">{row.action}</span>
                     ) : null}
@@ -1430,7 +1462,7 @@ function RqtPanel({ onOpenRqtIndex }) {
   );
 }
 
-export function OverviewDashboard({ dashboard, findingsSummary, findingsByCode, workflow, screens, issueTypes, users, assets, access, estate, automation, filters, dashboards, health, history, onOpenRqtIndex, onNavigate }) {
+export function OverviewDashboard({ dashboard, findingsSummary, findingsByCode, workflow, screens, issueTypes, users, assets, access, estate, automation, filters, dashboards, health, history, onOpenRqtIndex, onNavigate, siteOrigin = "" }) {
   // onNavigate is optional so this stays renderable in isolation; without it the deep
   // links become inert rather than throwing.
   const navigate = onNavigate || (() => {});
@@ -1453,6 +1485,7 @@ export function OverviewDashboard({ dashboard, findingsSummary, findingsByCode, 
         filters={filters}
         dashboards={dashboards}
         onNavigate={navigate}
+        siteOrigin={siteOrigin}
       />
       {/* The per-pillar stat blocks that used to sit here -- Workflows, Projects, Field
           usage -- were removed: each is a duplicate of its own tab's Overview sub-view, and

@@ -10,7 +10,7 @@ import { FirstRunPanel } from "../components/admin/FirstRunPanel";
 
 const OverviewDashboard = React.lazy(() => import("../components/OverviewDashboard").then((m) => ({ default: m.OverviewDashboard })));
 
-export function OverviewTab({ overview, onMigrateNamespace, migratingNamespace, onOpenRqtIndex, onNavigate }) {
+export function OverviewTab({ overview, onMigrateNamespace, migratingNamespace, onOpenRqtIndex, onNavigate, siteOrigin = "" }) {
   if (!overview) {
     return <EmptyState>Loading overview…</EmptyState>;
   }
@@ -61,6 +61,7 @@ export function OverviewTab({ overview, onMigrateNamespace, migratingNamespace, 
           health={overview.health}
           onOpenRqtIndex={onOpenRqtIndex}
           onNavigate={onNavigate}
+          siteOrigin={siteOrigin}
         />
       </React.Suspense>
 

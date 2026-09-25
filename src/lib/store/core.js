@@ -1734,6 +1734,54 @@ export const CREATE_REMEDIATION_TICKETS_TABLE = `
   )
 `;
 
+// Quarter-aware successor to remediation_tickets. Remediation runs by calendar quarter: each
+// finding gets one epic per quarter ("2026-Q3"), reused for the whole quarter, and the next
+// quarter's epic carries whatever is flagged then. The v1 key had no period in it, so a
+// second epic for the same finding would have overwritten the first one's row, and a
+// re-ticketed item its old task. A primary key cannot be changed in place, hence a new
+// table; v159 copies every existing row across under the quarter its epic was created in.
+export const CREATE_REMEDIATION_TICKETS_V2_TABLE = `
+  CREATE TABLE IF NOT EXISTS remediation_tickets_v2 (
+    scope_key VARCHAR(191) NOT NULL,
+    finding_key VARCHAR(64) NOT NULL,
+    period VARCHAR(8) NOT NULL,
+    pillar VARCHAR(24) NULL,
+    item_id VARCHAR(191) NOT NULL,
+    issue_key VARCHAR(32) NOT NULL,
+    issue_id VARCHAR(32) NULL,
+    is_epic TINYINT NOT NULL DEFAULT 0,
+    epic_key VARCHAR(32) NULL,
+    summary VARCHAR(500) NULL,
+    last_status VARCHAR(64) NULL,
+    last_status_category VARCHAR(24) NULL,
+    assignee_account_id VARCHAR(128) NULL,
+    assignee_name VARCHAR(255) NULL,
+    created_by VARCHAR(128) NULL,
+    created_at VARCHAR(64) NULL,
+    synced_at VARCHAR(64) NULL,
+    PRIMARY KEY (scope_key, finding_key, period, item_id)
+  )
+`;
+
+// Every row takes the quarter of its finding's EPIC, not its own created_at: a task added in
+// October under an epic raised in September belongs to that September (Q3) epic. created_at
+// is an ISO string, so its first ten characters are a date QUARTER() can read. A finding with
+// no epic row cannot occur in practice; "legacy" keeps such a row rather than dropping it.
+const COPY_REMEDIATION_TICKETS_TO_V2 = `
+  INSERT IGNORE INTO remediation_tickets_v2
+    (scope_key, finding_key, period, pillar, item_id, issue_key, issue_id, is_epic, epic_key,
+     summary, last_status, last_status_category, assignee_account_id, assignee_name,
+     created_by, created_at, synced_at)
+  SELECT t.scope_key, t.finding_key,
+     COALESCE(CONCAT(SUBSTRING(e.created_at, 1, 4), '-Q', QUARTER(SUBSTRING(e.created_at, 1, 10))), 'legacy'),
+     t.pillar, t.item_id, t.issue_key, t.issue_id, t.is_epic, t.epic_key,
+     t.summary, t.last_status, t.last_status_category, t.assignee_account_id, t.assignee_name,
+     t.created_by, t.created_at, t.synced_at
+  FROM remediation_tickets t
+  LEFT JOIN remediation_tickets e
+    ON e.scope_key = t.scope_key AND e.finding_key = t.finding_key AND e.item_id = ''
+`;
+
 // Append-only record of privileged actions: who did what, when, and whether it was
 // allowed. Deliberately not versioned by snapshot and deliberately NOT wiped by
 // clearAllSnapshotData -- an audit trail that a privileged action can erase is not an
@@ -2018,7 +2066,10 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v154_create_issue_scan_estate_totals_table", CREATE_ISSUE_SCAN_ESTATE_TOTALS_TABLE)
   .enqueue("v155_create_issue_scan_user_activity_table", CREATE_ISSUE_SCAN_USER_ACTIVITY_TABLE)
   .enqueue("v156_create_snapshot_asset_type_counts_table", CREATE_SNAPSHOT_ASSET_TYPE_COUNTS_TABLE)
-  .enqueue("v157_create_asset_type_count_meta_table", CREATE_ASSET_TYPE_COUNT_META_TABLE);
+  .enqueue("v157_create_asset_type_count_meta_table", CREATE_ASSET_TYPE_COUNT_META_TABLE)
+  .enqueue("v158_create_remediation_tickets_v2_table", CREATE_REMEDIATION_TICKETS_V2_TABLE)
+  // Idempotent (INSERT IGNORE), so a re-run after a partial failure copies only what is missing.
+  .enqueue("v159_copy_remediation_tickets_to_v2", COPY_REMEDIATION_TICKETS_TO_V2);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

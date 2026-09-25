@@ -14,7 +14,11 @@
 // An `item` is whatever the finding's own inventory returns for one thing to fix. Every
 // playbook is defensive about missing fields -- a task with a thin item still reads.
 
+import { jiraLinks as L, md } from "./jira-links.js";
+
 const BASE_LABEL = "observatory-remediation";
+
+const plural = (n, one, many = `${one}s`) => (n === 1 ? one : many);
 
 export const REMEDIATION_PLAYBOOKS = {
   "filter-ownership": {
@@ -189,13 +193,13 @@ The status is deleted and the next Observatory scan no longer flags it.
 
   "field-cleanup": {
     pillar: "fields",
-    epicSummary: (n) => `Review ${n} orphaned custom field${n === 1 ? "" : "s"} for deletion`,
+    epicSummary: (n) => `Review ${n} custom field${n === 1 ? "" : "s"} no issue has ever filled in`,
     epicDescription: ({ count = 0 } = {}) => `
 ## Why this matters
-${count} custom field${count === 1 ? " has" : "s have"} no project context, no configuration, and no recorded issue
-usage anywhere on the site. Each one is still in every field picker, every screen admin
-search, and every "add field" dropdown a project admin sees -- pure clutter with nothing
-behind it.
+${count} custom field${count === 1 ? " has" : "s have"} no populated issue anywhere on the site. Some are orphaned
+outright (no context, no configuration); the rest are configured for projects that have never
+used them. Each one is still in every field picker, every screen admin search, and every "add
+field" dropdown a project admin sees.
 
 ## Strategy
 For each field, confirm the finding is current (a scan can be stale), then delete it from
@@ -215,15 +219,17 @@ Type: ${it.type || "unknown"}
 ${it.description ? `Current description: ${it.description}` : "No description set."}
 
 ## Why it is flagged
-No project contexts, no configured screens, and no populated issues found in the last
-Observatory scan.
+${it.reason === "configured-no-issues"
+    ? "Configured for at least one project, but no issue in any of them has a value in it."
+    : "No project contexts, no configured screens, and no populated issues found in the last Observatory scan."}
 
 ## Steps
 - Re-check the field in Observatory's Field Browser to confirm it is still orphaned (a
   screen or context change since the scan can un-orphan a field).
 - Search for the field id in any saved filters, dashboards or automation rules before
   deleting -- Observatory's own dependency graph is the fastest way to check this.
-- Delete the field in Jira -> Issues -> Custom fields.
+- If it is configured for projects that never use it, remove those contexts; if nothing
+  needs it at all, delete the field in Jira -> Issues -> Custom fields.
 
 ## Done when
 The field no longer exists in Jira and the next Observatory scan no longer flags it.
@@ -530,8 +536,349 @@ no longer flags it.
   },
 };
 
+
+// ── Playbooks built from the shared shape ──────────────────────────────────
+//
+// The hand-written playbooks above predate this. Everything added since goes through
+// definePlaybook so every epic and task reads the same way: why it matters, the strategy,
+// the definition of done; then per task, the facts as a list, the steps, and done-when.
+// Facts with no value are dropped, so a thin item never renders "undefined" or "Owner: ".
+function definePlaybook({ pillar, label, findings, granularity = "item", epic, task, links, epicLinks }) {
+  return {
+    pillar,
+    label,
+    findings,
+    granularity,
+    links,
+    epicLinks,
+    epicSummary: epic.summary,
+    epicDescription: ({ count = 0 } = {}) => `
+## Why this matters
+${epic.why(count)}
+
+## Strategy
+${epic.strategy}
+
+## Definition of done
+${epic.done}
+`,
+    taskSummary: task.summary,
+    taskDescription: (it = {}) => {
+      const facts = task.facts(it).filter(([, v]) => v !== null && v !== undefined && v !== "");
+      return `
+## ${task.heading}
+${facts.map(([k, v]) => `- ${k}: ${v}`).join("\n") || "- (details unavailable)"}
+
+## Steps
+${task.steps(it).map((step) => `- ${step}`).join("\n")}
+
+## Done when
+${task.done}
+`;
+    },
+  };
+}
+
+// Stable bucketing for the "bounded" granularity: many near-identical items, grouped by a
+// natural owner (a project, say) so each task goes to the person who can act on it. When
+// there are more owners than `max`, owners are hashed into `max` buckets -- by name, so an
+// owner lands in the same bucket every time the finding is re-read within a quarter, and a
+// re-run adds only what is new rather than reshuffling every task.
+export function groupBounded(items, { keyOf, max = 50 } = {}) {
+  const byKey = new Map();
+  for (const item of items) {
+    const key = String(keyOf(item) ?? "(none)");
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(item);
+  }
+  const keys = [...byKey.keys()].sort();
+  if (keys.length <= max) {
+    return keys.map((key) => ({ id: key, name: key, owners: [key], members: byKey.get(key), count: byKey.get(key).length }));
+  }
+  const hash = (text) => [...text].reduce((h, c) => ((h * 31) + c.charCodeAt(0)) >>> 0, 7);
+  const buckets = new Map();
+  for (const key of keys) {
+    const b = hash(key) % max;
+    if (!buckets.has(b)) buckets.set(b, []);
+    buckets.get(b).push(key);
+  }
+  return [...buckets.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([b, owners]) => {
+      const members = owners.flatMap((k) => byKey.get(k));
+      return {
+        id: `bucket-${String(b).padStart(2, "0")}`,
+        name: owners.length <= 3 ? owners.join(", ") : `${owners.slice(0, 3).join(", ")} +${owners.length - 3} more`,
+        owners,
+        members,
+        count: members.length,
+      };
+    });
+}
+
+// ── Access: permission, issue-security and notification schemes, project roles ──
+
+const ACCESS_SCHEME_LINK = {
+  permission: L.permissionScheme,
+  security: L.securityScheme,
+  notification: L.notificationScheme,
+};
+const ACCESS_SCHEME_NOUN = {
+  permission: "permission scheme",
+  security: "issue security scheme",
+  notification: "notification scheme",
+};
+
+Object.assign(REMEDIATION_PLAYBOOKS, {
+  "permission-risky": definePlaybook({
+    pillar: "permissions",
+    label: "Least-privilege permission schemes",
+    findings: ["permission-risky"],
+    epic: {
+      summary: (n) => `Tighten ${n} permission ${plural(n, "scheme")} that break least privilege`,
+      why: (n) => `${n} permission ${plural(n, "scheme opens", "schemes open")} browse to anyone, hand project administration to a whole group, or grant a permission to a named individual. Browse-to-anyone is a data-exposure fact on every project the scheme governs; a named-individual grant stops working, or keeps working, silently, when that person moves on.`,
+      strategy: `For each scheme, replace each flagged grant with a project role (and put the right people in the role per project). Remove browse-to-anyone unless the project is genuinely meant to be public.`,
+      done: `Every child task is closed and the next Observatory scan reports no permission scheme breaking least privilege.`,
+    },
+    task: {
+      heading: "The permission scheme",
+      summary: (it) => `Tighten permission scheme "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [
+        ["Scheme", it.name || "(unnamed)"],
+        ["Scheme id", it.id],
+        ["Projects using it", it.projectCount],
+        ["Why flagged", (it.reasons || []).join("; ")],
+      ],
+      steps: () => [
+        "Open the scheme (link below) and find each flagged grant.",
+        "Replace a grant to a named person or a broad group with a project role; add the right people to that role in each project.",
+        "Remove \"Anyone\" from Browse Projects unless the projects on this scheme are meant to be public.",
+        "Changes apply to every project on the scheme at once -- check the project list first.",
+      ],
+      done: "The scheme grants through roles only, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[`Permission scheme: ${it.name || it.id}`, L.permissionScheme(o, it.id)]],
+  }),
+
+  "access-unused-schemes": definePlaybook({
+    pillar: "permissions",
+    label: "Access schemes assigned to no project",
+    findings: ["permission-unused", "security-unused", "notification-unused"],
+    epic: {
+      summary: (n) => `Delete ${n} access ${plural(n, "scheme")} no project uses`,
+      why: (n) => `${n} permission, issue security or notification ${plural(n, "scheme is", "schemes are")} assigned to no project. Each is one more option in every scheme picker and one more thing to audit, and none of them does anything.`,
+      strategy: `Confirm each scheme is genuinely unassigned (the scan can be stale), then delete it. Default schemes are never included.`,
+      done: `Every child task is closed and the next scan reports no unassigned access schemes.`,
+    },
+    task: {
+      heading: "The scheme",
+      summary: (it) => `Delete unused ${ACCESS_SCHEME_NOUN[it.type] || "scheme"} "${it.name || it.schemeId || "(unknown)"}"`,
+      facts: (it) => [
+        ["Type", ACCESS_SCHEME_NOUN[it.type]],
+        ["Scheme", it.name || "(unnamed)"],
+        ["Scheme id", it.schemeId],
+      ],
+      steps: () => [
+        "Open the scheme (link below) and confirm no project is associated with it.",
+        "Delete it from the scheme list in Jira administration.",
+      ],
+      done: "The scheme no longer exists and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[`${ACCESS_SCHEME_NOUN[it.type] || "Scheme"}: ${it.name || it.schemeId}`, ACCESS_SCHEME_LINK[it.type]?.(o, it.schemeId) ?? null]],
+  }),
+
+  "security-broken-levels": definePlaybook({
+    pillar: "security",
+    label: "Issue security levels nobody can see",
+    findings: ["security-broken-levels"],
+    epic: {
+      summary: (n) => `Fix ${n} issue security ${plural(n, "problem")}: empty levels and schemes with no levels`,
+      why: (n) => `${n} issue security ${plural(n, "level has", "levels have")} no members, or ${plural(n, "a scheme defines", "schemes define")} no levels at all. An issue set to an empty level is invisible to everyone except admins -- it has effectively disappeared.`,
+      strategy: `For each empty level, add the role or group that should see those issues, or delete the level if nothing uses it. For a scheme with no levels, add the levels it was meant to have or delete the scheme.`,
+      done: `Every child task is closed and the next scan reports no empty levels or level-less schemes.`,
+    },
+    task: {
+      heading: "The security level",
+      summary: (it) => (it.kind === "no-levels"
+        ? `Issue security scheme "${it.schemeName || it.schemeId || "(unknown)"}" has no levels`
+        : `Security level "${it.levelName || it.levelId || "(unknown)"}" has no members`),
+      facts: (it) => [
+        ["Scheme", it.schemeName],
+        ["Scheme id", it.schemeId],
+        ["Level", it.kind === "no-levels" ? "(none defined)" : it.levelName],
+      ],
+      steps: (it) => (it.kind === "no-levels"
+        ? ["Open the scheme (link below).", "Add the levels it was meant to have, or delete the scheme if no project needs it."]
+        : [
+            "Search for issues at this level before changing it -- anyone who can see them today is an admin.",
+            "Add the project role or group that should see these issues, or delete the level if it is unused.",
+          ]),
+      done: "The level has members (or the scheme has levels), and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[`Issue security scheme: ${it.schemeName || it.schemeId}`, L.securityScheme(o, it.schemeId)]],
+  }),
+
+  "notification-fragile": definePlaybook({
+    pillar: "notifications",
+    label: "Notification schemes naming individuals",
+    findings: ["notification-fragile"],
+    epic: {
+      summary: (n) => `Replace named individuals in ${n} notification ${plural(n, "scheme")}`,
+      why: (n) => `${n} notification ${plural(n, "scheme sends", "schemes send")} mail to a named person rather than a role or group. When that person leaves, the notification goes nowhere -- or keeps going to an address that no longer should receive it.`,
+      strategy: `Replace each named user with the role, group or issue field (assignee, reporter, watchers) the notification was really meant for.`,
+      done: `Every child task is closed and the next scan reports no notification scheme naming an individual.`,
+    },
+    task: {
+      heading: "The notification scheme",
+      summary: (it) => `Replace named recipients in notification scheme "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [
+        ["Scheme", it.name || "(unnamed)"],
+        ["Scheme id", it.id],
+        ["Named individuals", it.namedUserCount],
+      ],
+      steps: () => [
+        "Open the scheme (link below) and find each event that notifies a single user.",
+        "Replace the user with a project role, group or issue field (assignee, reporter, watchers).",
+      ],
+      done: "The scheme notifies no named individual, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[`Notification scheme: ${it.name || it.id}`, L.notificationScheme(o, it.id)]],
+  }),
+
+  "role-empty-admin": definePlaybook({
+    pillar: "roles",
+    label: "Projects with an empty administrator role",
+    findings: ["role-empty-admin"],
+    epic: {
+      summary: (n) => `Give ${n} ${plural(n, "project")} a project administrator`,
+      why: (n) => `${n} ${plural(n, "project has", "projects have")} no user or group in the administrator role, so only a site admin can change the project's settings, components, versions or people. Every small change becomes a request to the Jira admins.`,
+      strategy: `For each project, add the project lead (or a group owned by the team) to the administrator role.`,
+      done: `Every child task is closed and the next scan reports no project with an empty administrator role.`,
+    },
+    task: {
+      heading: "The project",
+      summary: (it) => `Add a project administrator to ${it.projectKey || it.id || "(unknown)"}`,
+      facts: (it) => [
+        ["Project", it.projectName ? `${it.projectName} (${it.projectKey})` : it.projectKey],
+        ["Role", it.role],
+      ],
+      steps: () => [
+        "Open the project's People / roles settings (link below).",
+        "Add the project lead, or a group the team owns, to the administrator role.",
+      ],
+      done: "The administrator role has at least one user or group, and the next Observatory scan no longer flags the project.",
+    },
+    links: (it, o) => [
+      [`${it.projectKey} roles`, L.projectRoles(o, it.projectKey)],
+      [`${it.projectKey} project`, L.project(o, it.projectKey)],
+    ],
+  }),
+
+  // Bounded: one task per project, so each project's admin cleans their own roles. Past 50
+  // projects the projects are bundled (groupBounded) -- a reasonable number of tasks, never
+  // one per actor and never one for everything.
+  "role-offroster-actors": definePlaybook({
+    pillar: "roles",
+    label: "Project-role actors off the licensed roster",
+    findings: ["role-offroster-actors"],
+    granularity: "bounded",
+    epic: {
+      summary: (n) => `Remove off-roster accounts from project roles (${n} ${plural(n, "task")})`,
+      why: () => `Accounts that are no longer on the licensed roster still sit in project roles. They grant nothing today, but they clutter every role, confuse "who can do what here", and come straight back with full access if the account is ever reactivated.`,
+      strategy: `Each task covers one project (or a small bundle of projects). Remove every listed account from the listed roles. Nothing here needs a judgement call per account -- they are all off the roster.`,
+      done: `Every child task is closed and the next scan reports no off-roster project-role actors.`,
+    },
+    task: {
+      heading: "What to remove",
+      summary: (it) => `Remove ${it.count || 0} off-roster ${plural(it.count || 0, "actor")} from project roles in ${it.name || "(unknown)"}`,
+      facts: (it) => [
+        ["Projects", (it.owners || []).join(", ")],
+        ["Role memberships to remove", it.count],
+        ...(it.members || []).slice(0, 60).map((m) => [`${m.projectKey} / ${m.role}`, m.accountId]),
+        ...((it.members || []).length > 60 ? [["More", `${it.members.length - 60} further memberships -- see the Access tab`]] : []),
+      ],
+      steps: () => [
+        "Open each project's People / roles settings (links below).",
+        "Remove each listed account from the listed role.",
+      ],
+      done: "None of these projects has an off-roster account in any role, and the next Observatory scan agrees.",
+    },
+    links: (it, o) => (it.owners || []).slice(0, 25).map((key) => [`${key} roles`, L.projectRoles(o, key)]),
+  }),
+});
+
+// ── Links and finding coverage for the hand-written playbooks ──────────────
+
+const LEGACY_META = {
+  "filter-ownership": { label: "Filter ownership", findings: ["filters-orphaned"], links: (it, o) => [[`Filter: ${it.name || it.id}`, L.filter(o, it.id)]] },
+  "dashboard-ownership": { label: "Dashboard ownership", findings: ["dashboards-orphaned"], links: (it, o) => [[`Dashboard: ${it.name || it.id}`, L.dashboard(o, it.id)]] },
+  "user-licence-hygiene": { label: "Licence hygiene", findings: ["people-deactivated-licence"], links: (it, o) => [[`Profile: ${it.displayName || it.accountId}`, L.person(o, it.accountId || it.id)]] },
+  "user-ownership": {
+    label: "Ownership continuity",
+    findings: ["people-orphaned-ownership"],
+    links: (it, o) => {
+      const [kind, id] = String(it.id || "").split(":");
+      const url = kind === "filter" ? L.filter(o, id) : kind === "dashboard" ? L.dashboard(o, id) : kind === "rule" ? L.automationRule(o, id) : null;
+      return [[`${it.kind || "Artifact"}: ${it.name || id}`, url]];
+    },
+  },
+  "status-reachability": {
+    label: "Status reachability",
+    findings: ["unused-statuses"],
+    links: (it, o) => [
+      ["Statuses admin", L.statusAdmin(o)],
+      [`Issues in "${it.name || it.id}"`, it.id ? L.search(o, `status = ${it.id}`) : null],
+    ],
+  },
+  "board-backing": {
+    label: "Board backing filters",
+    findings: [],
+    links: (it, o) => [[`Board: ${it.name || it.id}`, L.board(o, it.id)], ...(it.filterId ? [[`Filter ${it.filterId}`, L.filter(o, it.filterId)]] : [])],
+  },
+  "field-cleanup": {
+    label: "Fields with no populated issues",
+    findings: ["field-no-populated-issues"],
+    links: (it, o) => [[`Field: ${it.name || it.id}`, L.field(o, it.id)], ["Field contexts", L.fieldContexts(o, it.id)]],
+  },
+  "filter-duplicates": {
+    label: "Duplicate filters",
+    findings: ["filters-duplicates"],
+    granularity: "group",
+    links: (it, o) => (it.filters || []).map((f) => [`Filter: ${f.name || f.id}`, L.filter(o, f.id)]),
+  },
+  "filter-scope": {
+    label: "Filter scope references",
+    findings: ["filters-broken-scope", "filters-unknown-type"],
+    links: (it, o) => [[`Filter: ${it.name || it.id}`, L.filter(o, it.filterId || String(it.id || "").split(":")[0])]],
+  },
+  "screen-unreachable-fields": { label: "Unreachable fields", findings: [], links: (it, o) => [[`Field contexts: ${it.fieldName || it.fieldId}`, L.fieldContexts(o, it.fieldId)]] },
+  "issue-type-reach": { label: "Orphaned issue types", findings: ["issue-type-orphans"], links: (it, o) => [["Issue types admin", L.issueTypeAdmin(o)], [`Issues of type "${it.name || it.id}"`, it.id ? L.search(o, `issuetype = ${it.id}`) : null]] },
+  "issue-type-naming": { label: "Duplicate issue type names", findings: ["issue-type-duplicates"], granularity: "group", links: (it, o) => [["Issue types admin", L.issueTypeAdmin(o)], ...(it.types || []).map((t) => [`Issues of type "${t.name || t.id}"`, L.search(o, `issuetype = ${t.id}`)])] },
+  "asset-schema-hygiene": { label: "Dead Assets schemas", findings: ["asset-dead-schemas"], links: (it, o) => [[`Assets schema: ${it.name || it.id}`, L.assetSchema(o, it.id)]] },
+  "asset-type-usage": { label: "Empty Assets object types", findings: [], links: (it, o) => [[`Object type: ${it.name || it.id}`, L.assetType(o, it.schemaId, it.id)]] },
+};
+for (const [key, meta] of Object.entries(LEGACY_META)) {
+  Object.assign(REMEDIATION_PLAYBOOKS[key], { granularity: "item", ...meta });
+}
+
+// Every description gets an "Open in Jira" section built from the playbook's links, so a
+// ticket takes its reader straight to what it is about. `ctx.origin` is the site's base URL;
+// without one the section is left out rather than rendered as dead text.
+function withLinks(text, pairs) {
+  const valid = (pairs || []).filter(([, url]) => url);
+  if (!valid.length) return text;
+  return `${text}
+## Open in Jira
+${valid.map(([label, url]) => `- ${md(label, url)}`).join("\n")}
+`;
+}
+
 for (const p of Object.values(REMEDIATION_PLAYBOOKS)) {
   p.labels = [BASE_LABEL, p.pillar];
+  const task = p.taskDescription;
+  const epic = p.epicDescription;
+  p.taskDescription = (it = {}, ctx = {}) => withLinks(task(it), p.links ? p.links(it || {}, ctx.origin || null) : []);
+  p.epicDescription = (ctx = {}) => withLinks(epic(ctx), p.epicLinks ? p.epicLinks(ctx.origin || null) : []);
 }
 
 export function getPlaybook(findingKey) {
@@ -540,4 +887,22 @@ export function getPlaybook(findingKey) {
 
 export function listPlaybookKeys() {
   return Object.keys(REMEDIATION_PLAYBOOKS);
+}
+
+// Overview finding key -> the playbook that remediates it. The Overview, the Remediation tab
+// and each pillar tab all resolve a finding through this, so a finding's epic is the same
+// epic wherever it is shown.
+export const REMEDIATION_FINDING_INDEX = Object.fromEntries(
+  Object.entries(REMEDIATION_PLAYBOOKS).flatMap(([key, p]) => (p.findings || []).map((f) => [f, key]))
+);
+
+// What the UI needs to list the playbooks without holding its own copy of them.
+export function listPlaybookCatalog() {
+  return Object.entries(REMEDIATION_PLAYBOOKS).map(([key, p]) => ({
+    key,
+    label: p.label || key,
+    pillar: p.pillar,
+    findings: p.findings || [],
+    granularity: p.granularity || "item",
+  }));
 }

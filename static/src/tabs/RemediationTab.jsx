@@ -2,34 +2,27 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { buildIssueUrl, handleJiraLinkClick, formatRelativeTime } from "../utils";
 import { Icon } from "../components/Icons";
-import { PageHeader, Panel, StatRow, StatTile, EmptyState } from "../components/ui";
+import { PageHeader, Panel, StatRow, StatTile, EmptyState, RemediationStatus } from "../components/ui";
+import { useNavIntent } from "../hooks";
 
-// The catalog of findings a remediation epic can be raised for. Mirrors
-// REMEDIATION_PLAYBOOKS in remediation-playbooks.js -- kept as a small static list here
-// rather than fetched, since it changes only when a playbook is added, the same call
-// AutomationTab's own RISK_LABELS makes for its (also static, also small) code->label map.
-//
-// `connected: true` means getRemediationCandidates actually knows how to fetch this
-// finding's current items. Every playbook is connected as of the fields + users + workflows
-// + boards wiring; a future playbook can still land with `connected: false` while its
-// candidate resolver is built, and this catalog is what makes that a data change here
-// rather than a code change in FindingCard.
-const REMEDIATION_CATALOG = [
-  { key: "filter-ownership", label: "Filter ownership", pillar: "Filters", connected: true },
-  { key: "dashboard-ownership", label: "Dashboard ownership", pillar: "Dashboards", connected: true },
-  { key: "field-cleanup", label: "Orphaned fields", pillar: "Fields", connected: true },
-  { key: "user-licence-hygiene", label: "Licence hygiene", pillar: "People", connected: true },
-  { key: "user-ownership", label: "Ownership continuity", pillar: "People", connected: true },
-  { key: "status-reachability", label: "Status reachability", pillar: "Workflows", connected: true },
-  { key: "board-backing", label: "Board backing filters", pillar: "Boards", connected: true },
-  { key: "filter-duplicates", label: "Duplicate filters", pillar: "Filters", connected: true },
-  { key: "filter-scope", label: "Filter scope references", pillar: "Filters", connected: true },
-  { key: "screen-unreachable-fields", label: "Unreachable fields", pillar: "Screens", connected: true },
-  { key: "issue-type-reach", label: "Orphaned issue types", pillar: "Issue Types", connected: true },
-  { key: "issue-type-naming", label: "Duplicate issue type names", pillar: "Issue Types", connected: true },
-  { key: "asset-schema-hygiene", label: "Dead Assets schemas", pillar: "Assets", connected: true },
-  { key: "asset-type-usage", label: "Empty Assets object types", pillar: "Assets", connected: true },
+// The playbook catalog is served with the tickets (getRemediationTickets -> catalog), so this
+// tab never holds its own copy of which playbooks exist. It used to: a static list here that
+// had to be kept in step with remediation-playbooks.js by hand.
+
+// Display names for the health-pillar keys a playbook is filed under, in the order the admin
+// nav lists the pillars.
+const PILLAR_ORDER = [
+  ["fields", "Fields"], ["projects", "Projects"], ["workflows", "Workflows"], ["issueTypes", "Issue Types"],
+  ["estate", "Priorities"], ["users", "People"], ["assets", "Assets"], ["permissions", "Access"],
+  ["security", "Access"], ["notifications", "Access"], ["roles", "Access"], ["screens", "Screens"],
+  ["filters", "Saved Filters"], ["dashboards", "Dashboards"], ["boards", "Boards"], ["automation", "Automation"],
 ];
+const PILLAR_LABEL = Object.fromEntries(PILLAR_ORDER);
+const PILLAR_RANK = Object.fromEntries(PILLAR_ORDER.map(([key], i) => [key, i]));
+
+// Past this many new tasks in one go, the create button asks first. Jira will take them, but
+// a few hundred tickets landing in a project is something a person should decide to do.
+export const CONFIRM_ABOVE = 200;
 
 const STATUS_TONE = { done: "success", indeterminate: "active", new: "neutral" };
 
@@ -74,8 +67,17 @@ function TaskRow({ task, siteOrigin }) {
 // One finding: the epic (if raised), its tasks, and the create/update action. The epic sits
 // visually above its tasks -- the same "epic on top, one task per item below" shape asked for,
 // because that is also just how Jira itself nests them.
-function FindingCard({ entry, group, siteOrigin, onCreate, creating, progress, error }) {
-  const [expanded, setExpanded] = React.useState(false);
+function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, progress, error, focused = false }) {
+  const [expanded, setExpanded] = React.useState(focused);
+  const [confirming, setConfirming] = React.useState(false);
+  const cardRef = React.useRef(null);
+
+  // Arrived from an Overview finding: open this card and bring it into view.
+  React.useEffect(() => {
+    if (!focused) return;
+    setExpanded(true);
+    try { cardRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }); } catch { /* jsdom */ }
+  }, [focused]);
   const [candidates, setCandidates] = React.useState(null);
   const [loadingCandidates, setLoadingCandidates] = React.useState(false);
 
@@ -84,7 +86,7 @@ function FindingCard({ entry, group, siteOrigin, onCreate, creating, progress, e
   const openCount = group?.openCount ?? 0;
 
   async function loadCandidates() {
-    if (candidates || loadingCandidates || !entry.connected) return;
+    if (candidates || loadingCandidates) return;
     setLoadingCandidates(true);
     try {
       const result = await invoke("getRemediationCandidates", { findingKey: entry.key });
@@ -99,34 +101,47 @@ function FindingCard({ entry, group, siteOrigin, onCreate, creating, progress, e
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expanded]);
 
-  const alreadyTicketed = new Set(tasks.map((t) => t.itemId));
+  // Mirrors loadTicketedItemIds: this quarter's tasks block re-ticketing outright; an earlier
+  // quarter's tasks block it only while still open. (The server re-checks; this is the count
+  // the button shows.)
+  const isCurrent = Boolean(group?.isCurrent);
+  const alreadyTicketed = new Set(tasks.filter((t) => isCurrent || t.lastStatusCategory !== "done").map((t) => t.itemId));
   const untracked = (candidates?.items || []).filter((it) => !alreadyTicketed.has(it.id));
+  const needsConfirm = untracked.length > CONFIRM_ABOVE;
+
+  function create() {
+    if (needsConfirm && !confirming) { setConfirming(true); return; }
+    setConfirming(false);
+    onCreate(entry.key, candidates.items);
+  }
 
   return (
+    <div ref={cardRef}>
     <Panel
       title={entry.label}
-      icon={entry.connected ? "checkCircle" : "alertCircle"}
-      description={<span className="chip chip--neutral">{entry.pillar}</span>}
-      action={
-        epic ? (
-          <IssueLink issueKey={epic.issueKey} siteOrigin={siteOrigin}>
-            <span className="chip chip--active">{epic.issueKey}</span>
-          </IssueLink>
-        ) : null
-      }
+      icon="checkCircle"
+      description={<RemediationStatus group={group} period={period} siteOrigin={siteOrigin} compact />}
       // Every finding is independently collapsible -- the epic chip above stays visible in
       // the collapsed header, so a tracked finding is never mistaken for an untouched one
       // just because it is folded away.
       collapsible
     >
-      {!entry.connected ? (
-        <EmptyState inline>
-          Not connected yet — this finding scores the health dimension, but Observatory does not
-          yet expose its individual items to ticket.
-        </EmptyState>
-      ) : (
+      {(
         <>
-          {epic && (
+          {(group?.previousPeriods || []).length > 0 && (
+            <p className="remediation-history">
+              Earlier quarters:{" "}
+              {group.previousPeriods.map((p, i) => (
+                <span key={p.period}>
+                  {i > 0 ? ", " : ""}
+                  {p.period}{" "}
+                  {p.epicKey ? <IssueLink issueKey={p.epicKey} siteOrigin={siteOrigin}>{p.epicKey}</IssueLink> : "(no epic)"}
+                  {` (${p.taskCount - p.openCount} of ${p.taskCount} closed)`}
+                </span>
+              ))}
+            </p>
+          )}
+          {epic && isCurrent && (
             <StatRow>
               <StatTile label="Tasks" value={tasks.length} icon="layers" />
               <StatTile label="Open" value={openCount} tone={openCount > 0 ? "active" : "success"} icon="clock" />
@@ -171,16 +186,26 @@ function FindingCard({ entry, group, siteOrigin, onCreate, creating, progress, e
                   type="button"
                   className="primary-button"
                   disabled={creating || untracked.length === 0}
-                  onClick={() => onCreate(entry.key, candidates.items)}
+                  onClick={create}
                 >
                   {creating
                     ? (progress ? `Creating… ${progress.done} of ${progress.total}` : "Creating…")
                     : untracked.length === 0
                       ? "Everything is already ticketed"
-                      : epic
+                      : epic && isCurrent
                         ? `Add ${untracked.length} task${untracked.length === 1 ? "" : "s"} to ${epic.issueKey}`
-                        : `Create remediation epic (${untracked.length} task${untracked.length === 1 ? "" : "s"})`}
+                        : `Create ${period ? `${period} ` : ""}remediation epic (${untracked.length} task${untracked.length === 1 ? "" : "s"})`}
                 </button>
+                {confirming && !creating && (
+                  <div className="remediation-confirm" role="alert">
+                    <span>
+                      This creates {untracked.length} tasks in Jira
+                      {entry.granularity === "item" ? ", one per item" : ""}. Continue?
+                    </span>
+                    <button type="button" className="primary-button" onClick={create}>Create {untracked.length} tasks</button>
+                    <button type="button" className="secondary-button" onClick={() => setConfirming(false)}>Cancel</button>
+                  </div>
+                )}
                 {creating && progress && progress.total > 20 && (
                   <p className="remediation-candidates__summary">
                     Creating tasks in Jira, {progress.done} of {progress.total} so far — a large finding can
@@ -195,6 +220,7 @@ function FindingCard({ entry, group, siteOrigin, onCreate, creating, progress, e
         </>
       )}
     </Panel>
+    </div>
   );
 }
 
@@ -208,7 +234,10 @@ function FindingCard({ entry, group, siteOrigin, onCreate, creating, progress, e
 // governance finding should ever produce.
 const MAX_REMEDIATION_BATCHES = 100;
 
-export function RemediationTab({ siteOrigin }) {
+export function RemediationTab({ siteOrigin, intent = null }) {
+  // Which finding the reader arrived for, from an Overview "Start remediation" / "Manage".
+  const [focusKey, setFocusKey] = React.useState(null);
+  useNavIntent(intent, (nav) => setFocusKey(nav.finding ?? null));
   const [tickets, setTickets] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [creatingKey, setCreatingKey] = React.useState(null);
@@ -283,6 +312,18 @@ export function RemediationTab({ siteOrigin }) {
     }
   }
 
+  // The catalog, grouped under the pillar each playbook is filed under, in nav order.
+  const sections = React.useMemo(() => {
+    const byLabel = new Map();
+    const sorted = [...(tickets?.catalog || [])].sort((a, b) => (PILLAR_RANK[a.pillar] ?? 99) - (PILLAR_RANK[b.pillar] ?? 99));
+    for (const entry of sorted) {
+      const label = PILLAR_LABEL[entry.pillar] || entry.pillar;
+      if (!byLabel.has(label)) byLabel.set(label, []);
+      byLabel.get(label).push(entry);
+    }
+    return [...byLabel.entries()];
+  }, [tickets]);
+
   const totalOpen = (tickets?.groups || []).reduce((sum, g) => sum + (g.openCount || 0), 0);
   const totalClosed = (tickets?.groups || []).reduce((sum, g) => sum + ((g.taskCount || 0) - (g.openCount || 0)), 0);
 
@@ -290,7 +331,8 @@ export function RemediationTab({ siteOrigin }) {
     <div className="admin-remediation-tab">
       <PageHeader
         title="Remediation"
-        description="Turn a governance finding into tracked Jira work — one epic per finding, one task per item, synced hourly from Jira so status here is never stale."
+        description="Turn a governance finding into tracked Jira work — one epic per finding per quarter, a task per item (or per owner, where items are many and alike), every ticket linking straight to what it is about, and status synced hourly from Jira."
+        meta={tickets?.period ? `Current quarter: ${tickets.period}` : null}
       />
 
       {loading ? (
@@ -303,17 +345,24 @@ export function RemediationTab({ siteOrigin }) {
             <StatTile label="Closed tasks" value={totalClosed} tone="success" icon="checkCircle" />
           </StatRow>
 
-          {REMEDIATION_CATALOG.map((entry) => (
-            <FindingCard
-              key={entry.key}
-              entry={entry}
-              group={groupsByFinding.get(entry.key)}
-              siteOrigin={siteOrigin}
-              onCreate={handleCreate}
-              creating={creatingKey === entry.key}
-              progress={progress[entry.key] || null}
-              error={errors[entry.key]}
-            />
+          {sections.map(([label, entries]) => (
+            <section key={label}>
+              <h3 className="remediation-group__title">{label}</h3>
+              {entries.map((entry) => (
+                <FindingCard
+                  key={entry.key}
+                  entry={entry}
+                  group={groupsByFinding.get(entry.key)}
+                  period={tickets?.period || null}
+                  siteOrigin={siteOrigin}
+                  onCreate={handleCreate}
+                  creating={creatingKey === entry.key}
+                  progress={progress[entry.key] || null}
+                  error={errors[entry.key]}
+                  focused={focusKey === entry.key}
+                />
+              ))}
+            </section>
           ))}
         </>
       )}

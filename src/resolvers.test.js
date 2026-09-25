@@ -57,6 +57,9 @@ const mocks = vi.hoisted(() => ({
   recordRemediationTicket: vi.fn(async () => undefined),
   loadRemediationTickets: vi.fn(async () => []),
   getRemediationEpic: vi.fn(async () => null),
+  // Pinned so ticket summaries and period grouping are deterministic across the calendar.
+  currentPeriod: vi.fn(() => "2026-Q3"),
+  getSiteBaseUrl: vi.fn(async () => "https://test.atlassian.net"),
   loadTicketedItemIds: vi.fn(async () => new Set()),
   readRecentFullScanRuns: vi.fn(async () => []),
   recoverStalledScan: vi.fn(async () => ({ recovered: false, reason: "healthy" })),
@@ -478,6 +481,7 @@ vi.mock("./lib/project-store.js", () => ({
   loadRemediationTickets: mocks.loadRemediationTickets,
   getRemediationEpic: mocks.getRemediationEpic,
   loadTicketedItemIds: mocks.loadTicketedItemIds,
+  currentPeriod: mocks.currentPeriod,
 }));
 
 vi.mock("./lib/screen-engine.js", () => ({
@@ -547,6 +551,9 @@ vi.mock("./lib/jira-api.js", () => ({
     rovoSearchFields: "rovo-search-fields",
   },
   incrMetric: mocks.incrMetric,
+  // The site URL remediation tickets link against; the normalizer is the real one's logic.
+  getSiteBaseUrl: mocks.getSiteBaseUrl,
+  normalizeSiteOrigin: (v) => { try { const u = new URL(String(v || "")); return u.protocol === "https:" ? u.origin : null; } catch { return null; } },
   makeJobToken: mocks.makeJobToken,
   getInstallationKey: mocks.getInstallationKey,
   callerHasJiraAdmin: mocks.callerHasJiraAdmin,
@@ -6776,6 +6783,36 @@ describe("createRemediationEpic", () => {
     expect(mocks.recordRemediationTicket).not.toHaveBeenCalled();
   });
 
+  test("one epic per quarter: the summary names it, and lookup and dedupe are by it", async () => {
+    await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount() });
+    expect(mocks.getRemediationEpic).toHaveBeenCalledWith("test-install", "filter-ownership", "2026-Q3");
+    expect(mocks.loadTicketedItemIds).toHaveBeenCalledWith("test-install", "filter-ownership", "2026-Q3");
+    expect(mocks.createJiraIssue.mock.calls[0][0].summary).toMatch(/^2026-Q3: Reassign 2 saved filters/);
+    expect(mocks.recordRemediationTicket.mock.calls.every(([, row]) => row.period === "2026-Q3")).toBe(true);
+  });
+
+  // The ADF link nodes a ticket description carries.
+  const linksIn = (doc) => JSON.stringify(doc).match(/"href":"[^"]+"/g) || [];
+
+  test("every ticket links straight to the thing it is about", async () => {
+    await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount() });
+    const [taskFields] = mocks.createJiraIssue.mock.calls[1];
+    expect(linksIn(taskFields.description)).toContain('"href":"https://test.atlassian.net/issues/?filter=4001"');
+  });
+
+  test("the invocation's own site URL wins over serverInfo", async () => {
+    const context = { ...ctxWithAccount(), siteUrl: "https://acme.atlassian.net" };
+    await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context });
+    expect(linksIn(mocks.createJiraIssue.mock.calls[1][0].description)[0]).toMatch(/acme\.atlassian\.net/);
+  });
+
+  test("with no site URL at all, tickets are still created -- just without links", async () => {
+    mocks.getSiteBaseUrl.mockResolvedValueOnce(null);
+    const r = await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount() });
+    expect(r.ok).toBe(true);
+    expect(linksIn(mocks.createJiraIssue.mock.calls[1][0].description)).toEqual([]);
+  });
+
   test("is admin-only and audited", () => {
     expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toContain("createRemediationEpic");
     expect(Object.keys(SHARED_RESOLVER_FUNCTIONS)).not.toContain("createRemediationEpic");
@@ -6796,6 +6833,37 @@ describe("getRemediationTickets", () => {
     expect(r.groups).toHaveLength(1);
     expect(r.groups[0]).toMatchObject({ findingKey: "filter-ownership", pillar: "filters", taskCount: 2, openCount: 1 });
     expect(r.groups[0].epic.issueKey).toBe("ADMIN-1");
+  });
+
+  test("shows the latest quarter's epic and tasks, and summarises earlier quarters", async () => {
+    mocks.loadRemediationTickets.mockResolvedValueOnce([
+      { findingKey: "filter-ownership", period: "2026-Q3", isEpic: true, issueKey: "ADMIN-9" },
+      { findingKey: "filter-ownership", period: "2026-Q3", isEpic: false, issueKey: "ADMIN-10", lastStatusCategory: "new" },
+      { findingKey: "filter-ownership", period: "2026-Q2", isEpic: true, issueKey: "ADMIN-1", lastStatusCategory: "done" },
+      { findingKey: "filter-ownership", period: "2026-Q2", isEpic: false, issueKey: "ADMIN-2", lastStatusCategory: "done" },
+      { findingKey: "filter-ownership", period: "2026-Q2", isEpic: false, issueKey: "ADMIN-3", lastStatusCategory: "indeterminate" },
+      { findingKey: "board-backing", period: "2026-Q2", isEpic: true, issueKey: "ADMIN-20" },
+    ]);
+
+    const r = await getRemediationTickets({ payload: {}, context: ctxWithAccount() });
+
+    expect(r.period).toBe("2026-Q3");
+    const filters = r.groups.find((g) => g.findingKey === "filter-ownership");
+    expect(filters).toMatchObject({ period: "2026-Q3", isCurrent: true, taskCount: 1, openCount: 1 });
+    expect(filters.epic.issueKey).toBe("ADMIN-9");
+    expect(filters.previousPeriods).toEqual([
+      { period: "2026-Q2", epicKey: "ADMIN-1", epicStatusCategory: "done", taskCount: 2, openCount: 1 },
+    ]);
+    // Only an earlier quarter's epic: not current, so the next create opens this quarter's.
+    expect(r.groups.find((g) => g.findingKey === "board-backing")).toMatchObject({ period: "2026-Q2", isCurrent: false });
+  });
+
+  test("serves the playbook catalog and the finding index with the tickets", async () => {
+    mocks.loadRemediationTickets.mockResolvedValueOnce([]);
+    const r = await getRemediationTickets({ payload: {}, context: ctxWithAccount() });
+    expect(r.catalog.find((c) => c.key === "role-offroster-actors")).toMatchObject({ pillar: "roles", granularity: "bounded" });
+    expect(r.findingIndex["role-empty-admin"]).toBe("role-empty-admin");
+    expect(r.findingIndex["filters-orphaned"]).toBe("filter-ownership");
   });
 
   test("passes a finding filter through and reports unavailable when empty", async () => {
@@ -6975,19 +7043,23 @@ describe("getRemediationCandidates", () => {
     expect(r.items).toEqual([{ id: "100", name: "Orphan Board", type: "scrum", issues: ["no-backing-filter"] }]);
   });
 
-  test("field-cleanup: only fields carrying the orphaned finding code", async () => {
+  test("field-cleanup: fields with no populated issues -- orphaned or configured-but-unused", async () => {
     mocks.readSnapshotMeta.mockResolvedValue({ version: "s1" });
     mocks.loadSnapshotFields.mockResolvedValue([
       // The stored shape: buildGovernanceFindings' object, not a bare list.
       { id: "customfield_1", name: "Old Field", type: "text", description: null, findings: { reasons: [{ code: "orphaned" }] } },
       { id: "customfield_2", name: "Used Field", type: "text", description: "In use", findings: { reasons: [{ code: "stale" }] } },
       { id: "customfield_3", name: "Never scored", type: "text", description: null, findings: null },
+      { id: "customfield_4", name: "Configured Only", type: "text", description: null, findings: { reasons: [{ code: "configured-no-issues" }] } },
     ]);
 
     const r = await getRemediationCandidates({ payload: { findingKey: "field-cleanup" }, context: ctxWithAccount() });
 
     expect(r.available).toBe(true);
-    expect(r.items).toEqual([{ id: "customfield_1", name: "Old Field", type: "text", description: null }]);
+    expect(r.items).toEqual([
+      { id: "customfield_1", name: "Old Field", type: "text", description: null, reason: "orphaned" },
+      { id: "customfield_4", name: "Configured Only", type: "text", description: null, reason: "configured-no-issues" },
+    ]);
   });
 
   test("filter-duplicates: groups filters sharing identical JQL", async () => {
@@ -10332,5 +10404,92 @@ describe("first run", () => {
     expect(__RAW_ADMIN_ONLY_FUNCTIONS).toHaveProperty("setFirstRunState");
     expect(SHARED_RESOLVER_FUNCTIONS).not.toHaveProperty("getFirstRunState");
     expect(SHARED_RESOLVER_FUNCTIONS).not.toHaveProperty("setFirstRunState");
+  });
+});
+
+describe("getRemediationCandidates -- access playbooks", () => {
+  const ctx = { payload: {}, context: { installContext: "ari:cloud:jira::site/x", accountId: "admin-1" } };
+  const run = (findingKey) => getRemediationCandidates({ ...ctx, payload: { findingKey } });
+
+  // 30 risky permission schemes, so the "every item, not the tab's first 25" rule is tested.
+  function accessFixture() {
+    mocks.readAccessSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1", refreshedAt: "2026-09-01T00:00:00Z" });
+    mocks.readUserSnapshotMeta.mockResolvedValueOnce({ version: "u1" });
+    mocks.loadUsers.mockResolvedValueOnce([{ accountId: "live" }]);
+    const perm = Array.from({ length: 30 }, (_, i) => ({ id: `p${i}`, name: `Perm ${i}`, isDefault: false }));
+    const schemes = {
+      permission: perm,
+      security: [{ id: "s1", name: "Secret" }, { id: "s2", name: "No levels" }],
+      notification: [{ id: "n1", name: "Named" }],
+      "project-role": [{ id: "10002", name: "Administrators" }, { id: "10003", name: "Developers" }],
+    };
+    const holders = {
+      permission: perm.map((sc) => ({ schemeId: sc.id, context: "BROWSE_PROJECTS", holderType: "anyone", holderValue: "" })),
+      security: [],
+      notification: [{ schemeId: "n1", context: "1", holderType: "user", holderValue: "someone" }],
+      "project-role": [
+        { schemeId: "10002", context: "1", contextLabel: "OPS", holderType: "empty", holderValue: "" },
+        { schemeId: "10003", context: "1", contextLabel: "OPS", holderType: "user", holderValue: "gone-1" },
+        { schemeId: "10003", context: "2", contextLabel: "DEV", holderType: "user", holderValue: "gone-2" },
+        { schemeId: "10003", context: "2", contextLabel: "DEV", holderType: "user", holderValue: "live" },
+      ],
+    };
+    for (let i = 0; i < 4; i += 1) {
+      mocks.loadSchemes.mockImplementationOnce(async (_k, _v, type) => schemes[type] || []);
+      mocks.loadSchemeHolders.mockImplementationOnce(async (_k, _v, type) => holders[type] || []);
+    }
+    // Only p0 is assigned to a project; s1 has one level with no members.
+    mocks.loadSchemeProjects
+      .mockResolvedValueOnce([{ schemeId: "p0", projectId: "1" }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    mocks.loadSchemeLevels.mockResolvedValueOnce([{ schemeId: "s1", id: "L1", name: "Staff" }]);
+  }
+
+  test("permission-risky: every flagged scheme, past the tab's 25", async () => {
+    accessFixture();
+    const r = await run("permission-risky");
+    expect(r.items).toHaveLength(30);
+    expect(r.items[0]).toMatchObject({ id: "p0", reasons: [expect.stringMatching(/anyone/)], projectCount: 1 });
+  });
+
+  test("access-unused-schemes: permission, security and notification together, tagged by type", async () => {
+    accessFixture();
+    const r = await run("access-unused-schemes");
+    const types = new Set(r.items.map((it) => it.type));
+    expect(types).toEqual(new Set(["permission", "security", "notification"]));
+    expect(r.items.find((it) => it.id === "security:s2")).toMatchObject({ schemeId: "s2", name: "No levels" });
+    expect(r.items.some((it) => it.schemeId === "p0")).toBe(false); // assigned
+  });
+
+  test("security-broken-levels: level-less schemes and member-less levels", async () => {
+    accessFixture();
+    const r = await run("security-broken-levels");
+    expect(r.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "scheme:s2", kind: "no-levels" }),
+      expect.objectContaining({ id: "level:s1:L1", kind: "empty-level", levelName: "Staff" }),
+    ]));
+  });
+
+  test("notification-fragile: schemes naming an individual", async () => {
+    accessFixture();
+    expect((await run("notification-fragile")).items).toEqual([expect.objectContaining({ id: "n1", namedUserCount: 1 })]);
+  });
+
+  test("role-empty-admin: one item per project", async () => {
+    accessFixture();
+    expect((await run("role-empty-admin")).items).toEqual([{ id: "1", projectKey: "OPS", role: "Administrators" }]);
+  });
+
+  test("role-offroster-actors: grouped per project, not one per actor and not one for everything", async () => {
+    accessFixture();
+    const r = await run("role-offroster-actors");
+    expect(r.items.map((g) => [g.id, g.count])).toEqual([["DEV", 1], ["OPS", 1]]);
+    expect(r.items[0].members[0]).toMatchObject({ accountId: "gone-2", role: "Developers", projectKey: "DEV" });
+  });
+
+  test("an unbuilt access inventory is unavailable, not empty", async () => {
+    mocks.readAccessSnapshotMeta.mockResolvedValueOnce(null);
+    expect(await run("role-empty-admin")).toMatchObject({ available: false, reason: "no-snapshot" });
   });
 });
