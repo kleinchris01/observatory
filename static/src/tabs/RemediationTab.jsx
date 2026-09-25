@@ -170,7 +170,9 @@ function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, pro
               <EmptyState inline>
                 {candidates.reason === "no-snapshot"
                   ? "No snapshot yet for this pillar — build one before remediating it."
-                  : "No data available for this finding right now."}
+                  : candidates.reason === "transitions-unknown"
+                    ? "The last workflow build could not read transitions, so a screen a transition opens would look unreached. Rebuild the workflow inventory before remediating this."
+                    : "No data available for this finding right now."}
               </EmptyState>
             ) : (candidates?.items?.length ?? 0) === 0 ? (
               <EmptyState inline>Nothing currently flagged for this finding. Clean.</EmptyState>

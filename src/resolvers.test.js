@@ -10746,6 +10746,11 @@ describe("getRemediationCandidates -- fields, workflows, projects, screens, auto
     mocks.readScreenSnapshotMeta.mockResolvedValueOnce({ version: "sv1" });
     mocks.readWorkflowSnapshotMeta.mockResolvedValueOnce(null);
     expect(await run("screen-unreached")).toMatchObject({ available: false, reason: "no-workflow-snapshot" });
+
+    // A snapshot that never read transitions would ticket screens a transition opens.
+    mocks.readScreenSnapshotMeta.mockResolvedValueOnce({ version: "sv1" });
+    mocks.readWorkflowSnapshotMeta.mockResolvedValueOnce({ version: "wv1", transitionScreens: null });
+    expect(await run("screen-unreached")).toMatchObject({ available: false, reason: "transitions-unknown" });
   });
 
   test("screens: dangling operations grouped per scheme; unused schemes", async () => {

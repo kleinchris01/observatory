@@ -4382,8 +4382,11 @@ async function screenItems(installationKey, filter, { needsWorkflow = false } = 
   const meta = await readScreenSnapshotMeta(installationKey).catch(() => null);
   if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
   const workflowMeta = await readWorkflowSnapshotMeta(installationKey).catch(() => null);
-  const workflowVersion = workflowMeta?.version || null;
-  if (needsWorkflow && !workflowVersion) return { available: false, reason: "no-workflow-snapshot", items: [] };
+  // A screen a transition opens is in use, so "unreached" needs a snapshot that read them.
+  const workflowVersion = transitionAwareWorkflowVersion(workflowMeta);
+  if (needsWorkflow && !workflowVersion) {
+    return { available: false, reason: workflowMeta?.version ? "transitions-unknown" : "no-workflow-snapshot", items: [] };
+  }
   const rows = await loadAllScreenPages(installationKey, meta.version, { workflowVersion, filter });
   return { available: true, items: rows.map((r) => ({ id: String(r.screenId), name: r.name, tabCount: r.tabCount, fieldCount: r.fieldCount })) };
 }
