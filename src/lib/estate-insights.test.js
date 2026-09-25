@@ -50,3 +50,11 @@ describe("summarizeEstateInsights", () => {
     });
   });
 });
+
+describe("summarizeEstateInsights listLimit", () => {
+  it("lists every duplicate group for remediation", () => {
+    const priorities = Array.from({ length: 30 }, (_, i) => [{ id: `${i}a`, name: `P${i}` }, { id: `${i}b`, name: `p${i}` }]).flat();
+    expect(summarizeEstateInsights({ priorities }).priorityDuplicateGroups).toHaveLength(25);
+    expect(summarizeEstateInsights({ priorities, listLimit: Infinity }).priorityDuplicateGroups).toHaveLength(30);
+  });
+});

@@ -10493,3 +10493,106 @@ describe("getRemediationCandidates -- access playbooks", () => {
     expect(await run("role-empty-admin")).toMatchObject({ available: false, reason: "no-snapshot" });
   });
 });
+
+describe("getRemediationCandidates -- filters, dashboards, people, issue types, priorities, Assets", () => {
+  const run = (findingKey) => getRemediationCandidates({ payload: { findingKey }, context: { installContext: "ari:cloud:jira::site/x", accountId: "admin-1" } });
+  const owner = (active = true) => ({ accountId: "a", displayName: "Ann", active });
+
+  test("filters: each finding reads every filter carrying its code", async () => {
+    const old = "2024-01-01T00:00:00Z";
+    const filters = [
+      { id: "1", name: "Zombie", owner: owner(), subscriptionCount: 3, lastUsedAt: old, shares: [] },
+      { id: "2", name: "Open", owner: owner(), subscriptionCount: 0, lastUsedAt: "2026-09-01T00:00:00Z", shares: [{ type: "authenticated" }] },
+    ];
+    for (const key of ["filters-zombie-subscriptions", "filters-shared-everyone"]) {
+      mocks.readFilterSnapshotMeta.mockResolvedValueOnce({ version: "f1" });
+      mocks.loadFilters.mockResolvedValueOnce(filters);
+      mocks.readSnapshotMeta.mockResolvedValueOnce(null);
+      mocks.readIssueTypeSnapshotMeta.mockResolvedValueOnce(null);
+    }
+    expect((await run("filters-zombie-subscriptions")).items).toEqual([expect.objectContaining({ id: "1", ownerName: "Ann", subscriptionCount: 3 })]);
+    expect((await run("filters-shared-everyone")).items).toEqual([expect.objectContaining({ id: "2" })]);
+  });
+
+  test("dashboards: open-edit, empty and published-unused each read their own code", async () => {
+    const dashboards = [
+      { id: "1", name: "Wall", owner: owner(), gadgetCount: 0, popularity: 4, shares: [], editShares: [] },
+      { id: "2", name: "Anyone edits", owner: owner(), gadgetCount: 3, popularity: 2, shares: [], editShares: [{ type: "authenticated" }] },
+      { id: "3", name: "Nobody wants", owner: owner(), gadgetCount: 2, popularity: 0, shares: [{ type: "authenticated" }], editShares: [] },
+    ];
+    for (let i = 0; i < 3; i += 1) {
+      mocks.readDashboardSnapshotMeta.mockResolvedValueOnce({ version: "d1" });
+      mocks.loadDashboards.mockResolvedValueOnce(dashboards);
+    }
+    expect((await run("dashboards-empty")).items.map((d) => d.id)).toEqual(["1"]);
+    expect((await run("dashboards-open-edit")).items.map((d) => d.id)).toEqual(["2"]);
+    expect((await run("dashboards-published-unused")).items.map((d) => d.id)).toEqual(["3"]);
+  });
+
+  test("people: one item per off-roster account, with the rules that name it", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValueOnce({ version: "u1" });
+    mocks.loadUsers.mockResolvedValueOnce([{ accountId: "live" }]);
+    mocks.readAutomationPart
+      .mockResolvedValueOnce({ entries: [{ label: "gone", write: [11], read: [12] }, { label: "live", write: [13] }] })
+      .mockResolvedValueOnce({ rules: [[11, "Assign triage", 1, null, 1, null], [12, "Notify", 1, null, 1, null]] });
+
+    const r = await run("people-offroster-automation-refs");
+
+    expect(r.items).toHaveLength(1);
+    expect(r.items[0]).toMatchObject({ id: "gone", ruleCount: 2 });
+    expect(r.items[0].rules).toEqual(expect.arrayContaining([expect.objectContaining({ id: 11, name: "Assign triage", direction: "write" })]));
+  });
+
+  test("people: unavailable, not empty, before the automation index is imported", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValueOnce({ version: "u1" });
+    mocks.loadUsers.mockResolvedValueOnce([]);
+    mocks.readAutomationPart.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+    expect(await run("people-offroster-automation-refs")).toMatchObject({ available: false, reason: "no-automation-index" });
+  });
+
+  test("issue types: every hierarchy-flagged and every unused scheme, past the tab's 25", async () => {
+    const schemes = Array.from({ length: 30 }, (_, i) => ({ schemeId: `s${i}`, name: `Scheme ${i}`, projectCount: 0, defaultIssueTypeId: "99" }));
+    for (let i = 0; i < 2; i += 1) {
+      mocks.readIssueTypeSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1" });
+      mocks.loadIssueTypes.mockResolvedValueOnce([{ id: "1", name: "Story", hierarchyLevel: 0 }]);
+      mocks.loadIssueTypeSchemes.mockResolvedValueOnce(schemes);
+      mocks.loadIssueTypeSchemeItems.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+      mocks.loadIssueTypeSchemeProjects.mockResolvedValueOnce([]);
+      mocks.loadIssueTypeGovernanceSummary.mockResolvedValueOnce({});
+      mocks.readScreenSnapshotMeta.mockResolvedValueOnce(null);
+      mocks.readIssueScanMeta.mockResolvedValueOnce(null);
+    }
+    const hierarchy = await run("issue-type-hierarchy");
+    expect(hierarchy.items).toHaveLength(30); // default type 99 is not in any scheme
+    expect(hierarchy.items[0].flags[0]).toMatch(/default issue type/i);
+    expect((await run("issue-type-unused-schemes")).items).toHaveLength(30);
+  });
+
+  test("priorities: one item per near-duplicate group", async () => {
+    mocks.readEstateSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1" });
+    mocks.loadEstateValues
+      .mockResolvedValueOnce([{ id: "1", name: "Done" }])
+      .mockResolvedValueOnce([{ id: "10", name: "High" }, { id: "11", name: "high" }]);
+    const r = await run("estate-duplicate-priorities");
+    expect(r.items).toEqual([expect.objectContaining({ names: ["High", "high"], count: 2 })]);
+    expect(r.items[0].id).toBeTruthy();
+  });
+
+  test("Assets: broken references carry the schema and type name their link needs", async () => {
+    mocks.readAssetSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1" });
+    mocks.loadAssetSchemas.mockResolvedValueOnce([{ id: "s1", name: "IT", objectTypeCount: 1, objectCount: 1 }]);
+    mocks.loadAssetObjectTypes.mockResolvedValueOnce([{ id: "t1", schemaId: "s1", name: "Laptop" }]);
+    mocks.loadAssetAttributes.mockResolvedValueOnce([{ id: "a1", objectTypeId: "t1", schemaId: "s1", name: "Owner", referenceObjectTypeId: "gone" }]);
+    mocks.loadAssetTypeCounts.mockResolvedValueOnce([]);
+    mocks.readAssetTypeCountMeta.mockResolvedValueOnce(null);
+
+    const r = await run("asset-broken-references");
+
+    expect(r.items).toEqual([expect.objectContaining({ id: "a1", schemaId: "s1", objectTypeName: "Laptop", referenceObjectTypeId: "gone" })]);
+  });
+
+  test("Assets: an unlicensed site says so", async () => {
+    mocks.readAssetSnapshotMeta.mockResolvedValueOnce({ state: "unavailable" });
+    expect(await run("asset-bare-types")).toMatchObject({ available: false, reason: "assets-not-enabled" });
+  });
+});

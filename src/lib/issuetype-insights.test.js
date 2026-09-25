@@ -123,3 +123,14 @@ describe("summarizeIssueTypeHealth", () => {
     expect(h).not.toHaveProperty("orphanTypes");
   });
 });
+
+describe("summarizeIssueTypeInsights listLimit", () => {
+  const schemes = Array.from({ length: 30 }, (_, i) => ({ schemeId: `s${i}`, name: `S${i}`, projectCount: 0 }));
+
+  it("trims for the tab by default and lists everything for remediation", () => {
+    expect(summarizeIssueTypeInsights({ types: [{ id: "1", name: "Bug" }], schemes }).unusedSchemes).toHaveLength(25);
+    const full = summarizeIssueTypeInsights({ types: [{ id: "1", name: "Bug" }], schemes, listLimit: Infinity });
+    expect(full.unusedSchemes).toHaveLength(30);
+    expect(full.unusedSchemeCount).toBe(30);
+  });
+});

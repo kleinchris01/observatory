@@ -4120,7 +4120,138 @@ const REMEDIATION_CANDIDATE_LOADERS = {
     const groups = groupBounded(inv.roles.governance.offRosterMemberships, { keyOf: (m) => m.projectKey, max: 50 });
     return { available: true, items: groups };
   },
+  // ── Filters and dashboards: the same analysis their tabs run, every row ──
+  "filters-zombie-subscriptions": ({ installationKey }) => filterItemsWith(installationKey, "subscribed-but-unused"),
+  "filters-shared-everyone": ({ installationKey }) => filterItemsWith(installationKey, "shared-with-everyone"),
+  "dashboards-open-edit": ({ installationKey }) => dashboardItemsWith(installationKey, "editable-by-everyone"),
+  "dashboards-empty": ({ installationKey }) => dashboardItemsWith(installationKey, "empty"),
+  "dashboards-published-unused": ({ installationKey }) => dashboardItemsWith(installationKey, "published-unused"),
+
+  // One item per off-roster account an automation rule names, with the rules that name it --
+  // the same join getUserInventory counts and getUserDetails lists.
+  "people-offroster-automation-refs": async ({ installationKey }) => {
+    const meta = await readUserSnapshotMeta(installationKey).catch(() => null);
+    if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
+    const [users, userIndex, directory] = await Promise.all([
+      loadUsers(installationKey, meta.version),
+      readAutomationPart(installationKey, "users").catch(() => null),
+      readAutomationPart(installationKey, "directory").catch(() => null),
+    ]);
+    if (!userIndex) return { available: false, reason: "no-automation-index", items: [] };
+    const roster = new Set(users.map((u) => u.accountId));
+    const items = (userIndex.entries || [])
+      .map((e) => String(e.label))
+      .filter((accountId) => !roster.has(accountId))
+      .map((accountId) => {
+        const rules = collectRuleUserReferences(accountId, userIndex, directory);
+        return { id: accountId, accountId, ruleCount: rules.length, rules };
+      })
+      .filter((it) => it.ruleCount > 0);
+    return { available: true, items };
+  },
+
+  "issue-type-hierarchy": async ({ installationKey, context }) => {
+    const insights = await issueTypeInsightsFull(installationKey, context);
+    if (!insights) return { available: false, reason: "no-snapshot", items: [] };
+    return {
+      available: true,
+      items: insights.flaggedSchemes.map((sc) => ({
+        id: sc.schemeId, schemeId: sc.schemeId, name: sc.name, projectCount: sc.projectCount, flags: sc.flags.map((f) => f.message),
+      })),
+    };
+  },
+
+  "issue-type-unused-schemes": async ({ installationKey, context }) => {
+    const insights = await issueTypeInsightsFull(installationKey, context);
+    if (!insights) return { available: false, reason: "no-snapshot", items: [] };
+    return { available: true, items: insights.unusedSchemes.map((sc) => ({ id: sc.schemeId, schemeId: sc.schemeId, name: sc.name })) };
+  },
+
+  "estate-duplicate-priorities": ({ context }) => estateGroups(context, "priorityDuplicateGroups"),
+  "estate-duplicate-resolutions": ({ context }) => estateGroups(context, "resolutionDuplicateGroups"),
+
+  "asset-broken-references": async ({ context }) => {
+    const a = await assetInsightsFull(context);
+    if (!a.available) return a.result;
+    const attrById = new Map(a.inv.attributes.map((x) => [String(x.id), x]));
+    const typeById = new Map(a.inv.objectTypes.map((t) => [String(t.id), t]));
+    return {
+      available: true,
+      items: a.insights.brokenReferences.map((r) => ({
+        ...r,
+        schemaId: attrById.get(String(r.id))?.schemaId ?? typeById.get(String(r.objectTypeId))?.schemaId ?? null,
+        objectTypeName: typeById.get(String(r.objectTypeId))?.name ?? null,
+      })),
+    };
+  },
+  "asset-broken-hierarchy": async ({ context }) => {
+    const a = await assetInsightsFull(context);
+    return a.available ? { available: true, items: a.insights.brokenHierarchy } : a.result;
+  },
+  "asset-bare-types": async ({ context }) => {
+    const a = await assetInsightsFull(context);
+    return a.available ? { available: true, items: a.insights.bareTypes } : a.result;
+  },
 };
+
+async function filterItemsWith(installationKey, code) {
+  const meta = await readFilterSnapshotMeta(installationKey).catch(() => null);
+  if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
+  const { withFindings } = await loadFiltersWithFindings(installationKey, meta.version);
+  const items = withFindings
+    .filter((f) => (f.findings || []).some((x) => x.code === code))
+    .map((f) => ({
+      id: String(f.id),
+      name: f.name || null,
+      ownerName: f.owner?.displayName || f.ownerName || null,
+      subscriptionCount: Number(f.subscriptionCount) || 0,
+      favouritedCount: Number(f.favouritedCount) || 0,
+      lastUsedAt: f.lastUsedAt || null,
+    }));
+  return { available: true, items };
+}
+
+async function dashboardItemsWith(installationKey, code) {
+  const meta = await readDashboardSnapshotMeta(installationKey).catch(() => null);
+  if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
+  const summary = summarizeDashboards(await loadDashboards(installationKey, meta.version));
+  const items = summary.dashboards
+    .filter((d) => (d.findings || []).some((x) => x.code === code))
+    .map((d) => ({
+      id: String(d.id),
+      name: d.name || null,
+      ownerName: d.owner?.displayName || d.ownerName || null,
+      popularity: Number(d.popularity) || 0,
+      gadgetCount: d.gadgetCount ?? null,
+    }));
+  return { available: true, items };
+}
+
+// The issue type findings, uncapped. getIssueTypeInventory does not return the flat scheme
+// membership, so it is read alongside -- the same pairing the issue types pillar report uses.
+async function issueTypeInsightsFull(installationKey, context) {
+  const inv = await getIssueTypeInventory({ context });
+  if (inv.neverBuilt || !inv.version) return null;
+  const schemeItems = await loadIssueTypeSchemeItems(installationKey, inv.version);
+  return summarizeIssueTypeInsights({ types: inv.issueTypes, schemes: inv.schemes, schemeItems, listLimit: Infinity });
+}
+
+async function estateGroups(context, listKey) {
+  const inv = await getEstateInventory({ context });
+  if (inv.neverBuilt) return { available: false, reason: "no-snapshot", items: [] };
+  const insights = summarizeEstateInsights({ resolutions: inv.resolutions, priorities: inv.priorities, listLimit: Infinity });
+  return { available: true, items: insights[listKey].map((g) => ({ id: g.key, ...g })) };
+}
+
+async function assetInsightsFull(context) {
+  const inv = await getAssetInventory({ context });
+  if (inv.assetsEnabled === false) return { available: false, result: { available: false, reason: "assets-not-enabled", items: [] } };
+  if (!inv.governance?.available) return { available: false, result: { available: false, reason: "no-snapshot", items: [] } };
+  const insights = summarizeAssetInsights({
+    schemas: inv.schemas, objectTypes: inv.objectTypes, attributes: inv.attributes, typeCounts: inv.typeCounts || [], assetsEnabled: true, listLimit: Infinity,
+  });
+  return { available: true, inv, insights };
+}
 
 // Which rules reference one status, by direction.
 //

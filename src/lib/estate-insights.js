@@ -8,7 +8,7 @@
 
 import { findDuplicateStatusGroups } from "./workflow-insights.js";
 
-function duplicateSummary(items) {
+function duplicateSummary(items, listLimit = 25) {
   const groups = findDuplicateStatusGroups(items).map((g) => ({
     key: g.key,
     kind: g.kind,
@@ -16,17 +16,18 @@ function duplicateSummary(items) {
     count: g.count,
   }));
   return {
-    groups: groups.slice(0, 25),
+    groups: groups.slice(0, listLimit),
     groupCount: groups.length,
     // What consolidation would remove: collapsing each group to a single value.
     reducibleCount: groups.reduce((sum, g) => sum + (g.count - 1), 0),
   };
 }
 
-export function summarizeEstateInsights({ resolutions = [], priorities = [] } = {}) {
+// `listLimit` trims the duplicate-group lists for the tab; remediation passes Infinity.
+export function summarizeEstateInsights({ resolutions = [], priorities = [], listLimit = 25 } = {}) {
   const available = resolutions.length > 0 || priorities.length > 0;
-  const resolutionDupes = duplicateSummary(resolutions);
-  const priorityDupes = duplicateSummary(priorities);
+  const resolutionDupes = duplicateSummary(resolutions, listLimit);
+  const priorityDupes = duplicateSummary(priorities, listLimit);
 
   return {
     available,

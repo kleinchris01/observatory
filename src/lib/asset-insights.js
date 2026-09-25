@@ -89,7 +89,10 @@ export function summarizeAssetInsights({
   attributes = [],
   typeCounts = [],
   assetsEnabled = true,
+  // Trims the per-item lists for the tab; remediation passes Infinity.
+  listLimit = null,
 } = {}) {
+  const cap = (n) => (listLimit == null ? n : listLimit);
   const deadSchemas = findDeadSchemas(schemas);
   const brokenHierarchy = findBrokenHierarchy(objectTypes);
   const brokenReferences = findBrokenReferences(attributes, objectTypes);
@@ -121,11 +124,11 @@ export function summarizeAssetInsights({
     measuredConcreteTypes,
     emptyObjectTypeCount: emptyObjectTypes.length,
     // The worst few of each, for the tab. Full lists stay where they are built.
-    deadSchemas: deadSchemas.slice(0, 25),
-    brokenHierarchy: brokenHierarchy.slice(0, 25),
-    brokenReferences: brokenReferences.slice(0, 25),
-    bareTypes: bareTypes.slice(0, 50),
-    emptyObjectTypes: emptyObjectTypes.slice(0, 50),
+    deadSchemas: deadSchemas.slice(0, cap(25)),
+    brokenHierarchy: brokenHierarchy.slice(0, cap(25)),
+    brokenReferences: brokenReferences.slice(0, cap(25)),
+    bareTypes: bareTypes.slice(0, cap(50)),
+    emptyObjectTypes: emptyObjectTypes.slice(0, cap(50)),
   };
 }
 
