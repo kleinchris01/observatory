@@ -182,6 +182,7 @@ import {
   currentPeriod,
 } from "./lib/project-store.js";
 import { getPlaybook, groupBounded, listPlaybookCatalog, REMEDIATION_FINDING_INDEX } from "./lib/remediation-playbooks.js";
+import { computeRemediationMetrics } from "./lib/remediation-metrics.js";
 import { renderADF } from "./lib/adf.js";
 import { queueWorkflowSnapshotBuild, isWorkflowBuildStale, queueStatusHistoryBuild } from "./lib/workflow-engine.js";
 import { measureScreenFetchCost, probeScreenEndpoints, DEFAULT_SAMPLE_SIZE } from "./lib/screen-probe.js";
@@ -3664,6 +3665,19 @@ async function getRemediationTickets({ payload, context }) {
     catalog: listPlaybookCatalog(),
     findingIndex: REMEDIATION_FINDING_INDEX,
   };
+}
+
+// Progress metrics for the Remediation tab: burn-down, throughput, time to close, ageing, and
+// where the open work sits. The numbers come from computeRemediationMetrics, a pure function
+// over the stored ticket rows; this only loads them. `scope` is "quarter" (default) or "all".
+async function getRemediationMetrics({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+  const scope = payload?.scope === "all" ? "all" : "quarter";
+  const tickets = await loadRemediationTickets(installationKey);
+  const labels = Object.fromEntries(listPlaybookCatalog().map((entry) => [entry.key, entry.label]));
+  return computeRemediationMetrics({ tickets, now: new Date(), period: currentPeriod(), scope, labels });
 }
 
 async function createRemediationEpic({ payload, context }) {
@@ -10328,6 +10342,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getCascadeGraph,         // Admin read: loops and multi-rule chains across every edge
   getAutomationBlast,      // Admin read: one page of rules ordered by blast radius
   getRemediationTickets,   // Admin read: remediation epics and tasks, grouped by finding
+  getRemediationMetrics,   // Admin read: remediation burn-down, throughput and ageing
   createRemediationEpic,   // Mutating: creates a Jira epic + tasks for a governance finding
   getRemediationCandidates,// Admin read: current items behind one finding, ready to ticket
   getStatusAutomationUsage,// Admin read: which rules reference one status, by direction

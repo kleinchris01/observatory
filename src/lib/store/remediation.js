@@ -88,6 +88,8 @@ function mapRow(row) {
     createdBy: row.created_by || null,
     createdAt: row.created_at || null,
     syncedAt: row.synced_at || null,
+    doneAt: row.done_at || null,
+    statusChangedAt: row.status_changed_at || null,
   };
 }
 
@@ -119,17 +121,24 @@ export async function getRemediationEpic(scopeKey, findingKey, period = currentP
   return row ? mapRow(row) : null;
 }
 
-// Every ticket not already known to be done -- what the hourly sync re-reads from Jira.
-// "Not done" rather than "in progress": a row that has never synced (last_status_category
-// NULL) is exactly as open as one Jira has confirmed is not done, and skipping it would mean
-// a freshly created ticket never gets its first status read until something else touches it.
-export async function loadOpenRemediationTickets(scopeKey) {
+// Every ticket the sync re-reads from Jira:
+//   - anything not known to be done. A row that has never synced (last_status_category NULL) is
+//     exactly as open as one Jira has confirmed is not done; skipping it would leave a freshly
+//     created ticket without a first status until something else touched it.
+//   - anything that reached Done since `reopenWindowStart`. A ticket reopened in Jira must come
+//     back as open; without this, the sync stopped reading a ticket the moment it was Done and
+//     a reopen was never seen.
+//   - anything done with no done_at yet, so rows from before done_at existed get their date.
+// ISO timestamps in UTC ("2026-09-28T16:00:00.000Z") compare correctly as strings.
+export async function loadRemediationTicketsToSync(scopeKey, reopenWindowStart) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
     sql.prepare(`
       SELECT * FROM remediation_tickets_v2
-      WHERE scope_key = ? AND (last_status_category IS NULL OR last_status_category != 'done')
-    `).bindParams(scopeKey).execute()
+      WHERE scope_key = ?
+        AND (last_status_category IS NULL OR last_status_category != 'done'
+             OR done_at IS NULL OR done_at >= ?)
+    `).bindParams(scopeKey, String(reopenWindowStart)).execute()
   );
   return (result.rows || []).map(mapRow);
 }
@@ -159,7 +168,8 @@ export async function updateRemediationSync(scopeKey, issueKey, patch = {}) {
   await withSqlRetry(() =>
     sql.prepare(`
       UPDATE remediation_tickets_v2
-      SET last_status = ?, last_status_category = ?, assignee_account_id = ?, assignee_name = ?, synced_at = ?
+      SET last_status = ?, last_status_category = ?, assignee_account_id = ?, assignee_name = ?, synced_at = ?,
+          done_at = ?, status_changed_at = ?
       WHERE scope_key = ? AND issue_key = ?
     `).bindParams(
       patch.lastStatus || null,
@@ -167,6 +177,8 @@ export async function updateRemediationSync(scopeKey, issueKey, patch = {}) {
       patch.assigneeAccountId || null,
       patch.assigneeName || null,
       patch.syncedAt || new Date().toISOString(),
+      patch.doneAt || null,
+      patch.statusChangedAt || null,
       scopeKey,
       String(issueKey),
     ).execute()

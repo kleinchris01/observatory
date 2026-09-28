@@ -11,7 +11,12 @@ vi.mock("@forge/bridge", () => ({
   router: { open: vi.fn() },
 }));
 
-beforeEach(() => vi.clearAllMocks());
+// Most of these tests are about the Findings view; the tab opens on Progress unless the reader
+// last left it on Findings, so start each test there. The view-switching tests clear it.
+beforeEach(() => {
+  vi.clearAllMocks();
+  window.localStorage.setItem("observatory.section.remediation", "findings");
+});
 
 // The catalog the server serves with the tickets (listPlaybookCatalog). A representative slice
 // is enough: the tab renders whatever it is given.
@@ -360,5 +365,119 @@ describe("RemediationTab — partial lists", () => {
     await checkItems(user);
     expect(await screen.findByRole("note")).toHaveTextContent("Only the 1 highest-severity of 9 flagged rules are listed");
     expect(screen.getByRole("note")).toHaveTextContent("the other 8 cannot be ticketed from here yet");
+  });
+});
+
+describe("RemediationTab — views", () => {
+  test("opens on Progress by default, and Findings is one click away", async () => {
+    window.localStorage.removeItem("observatory.section.remediation");
+    mockInvoke({
+      getRemediationTickets: { available: false, total: 0, groups: [] },
+      getRemediationMetrics: { scope: "quarter", period: "2026-Q3", totals: { tasks: 0 } },
+    });
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    expect(await screen.findByText(/No remediation tasks in 2026-Q3/)).toBeInTheDocument();
+    expect(invoke).toHaveBeenCalledWith("getRemediationMetrics", { scope: "quarter" });
+    expect(screen.queryByText("Filter ownership")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /^Findings/ }));
+    expect(await screen.findByText("Filter ownership")).toBeInTheDocument();
+    expect(window.localStorage.getItem("observatory.section.remediation")).toBe("findings");
+  });
+
+  test("a deep link to a finding lands on Findings even when Progress was last open", async () => {
+    window.localStorage.setItem("observatory.section.remediation", "progress");
+    mockInvoke({
+      getRemediationTickets: { available: false, total: 0, groups: [] },
+      getRemediationCandidates: { available: false, items: [] },
+    });
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" intent={{ finding: "filter-ownership" }} />);
+    expect(await screen.findByText("Filter ownership")).toBeInTheDocument();
+    expect(invoke).not.toHaveBeenCalledWith("getRemediationMetrics", expect.anything());
+  });
+
+  test("says the sync runs three times a business day, not hourly", async () => {
+    mockInvoke({ getRemediationTickets: { available: false, total: 0, groups: [] } });
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    expect(await screen.findByText(/synced from Jira three times a business day/)).toBeInTheDocument();
+    expect(screen.queryByText(/synced hourly/)).not.toBeInTheDocument();
+  });
+});
+
+describe("RemediationTab — search and filters", () => {
+  const TASK = (issueKey, summary, done = false) => ({
+    issueKey, summary, itemId: issueKey, lastStatusCategory: done ? "done" : "new", lastStatus: done ? "Done" : "To Do",
+  });
+  const GROUPS = [
+    { findingKey: "filter-ownership", taskCount: 2, openCount: 1, epic: { issueKey: "OPS-1" },
+      tasks: [TASK("OPS-2", "Reassign 'Team backlog' filter"), TASK("OPS-3", "Reassign 'Old sprint' filter", true)] },
+    { findingKey: "field-cleanup", taskCount: 1, openCount: 0, epic: { issueKey: "OPS-10" },
+      tasks: [TASK("OPS-11", "Delete Legacy Cost field", true)] },
+  ];
+
+  async function renderFindings() {
+    mockInvoke({ getRemediationTickets: { available: true, total: 3, groups: GROUPS } });
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    await screen.findByText("Filter ownership");
+    return user;
+  }
+
+  test("searches finding names", async () => {
+    const user = await renderFindings();
+    await user.type(screen.getByRole("searchbox"), "duplicate");
+    expect(screen.getByText("Duplicate filters")).toBeInTheDocument();
+    expect(screen.getByText("Duplicate issue type names")).toBeInTheDocument();
+    expect(screen.queryByText("Filter ownership")).not.toBeInTheDocument();
+    expect(screen.getByText(/2 of 15/)).toBeInTheDocument();
+  });
+
+  test("searches task summaries and issue keys, listing only the matching tasks", async () => {
+    const user = await renderFindings();
+    await user.type(screen.getByRole("searchbox"), "old sprint");
+    expect(screen.getByText("Filter ownership")).toBeInTheDocument();
+    expect(screen.queryByText("Fields with no populated issues")).not.toBeInTheDocument();
+    expect(screen.getByText("OPS-3")).toBeInTheDocument();
+    expect(screen.queryByText("OPS-2")).not.toBeInTheDocument();
+    expect(screen.getByText("Showing 1 of 2 tasks matching the search.")).toBeInTheDocument();
+
+    await user.clear(screen.getByRole("searchbox"));
+    await user.type(screen.getByRole("searchbox"), "ops-11");
+    expect(screen.getByText("Fields with no populated issues")).toBeInTheDocument();
+    expect(screen.queryByText("Filter ownership")).not.toBeInTheDocument();
+  });
+
+  test("filters by pillar and by state, with counts on each option", async () => {
+    const user = await renderFindings();
+    const state = screen.getByRole("combobox", { name: /State/ });
+    expect(within(state).getByRole("option", { name: "Has open tasks (1)" })).toBeInTheDocument();
+    expect(within(state).getByRole("option", { name: "All tasks closed (1)" })).toBeInTheDocument();
+    expect(within(state).getByRole("option", { name: "Not started (13)" })).toBeInTheDocument();
+
+    await user.selectOptions(state, "open");
+    expect(screen.getByText("Filter ownership")).toBeInTheDocument();
+    expect(screen.queryByText("Fields with no populated issues")).not.toBeInTheDocument();
+
+    await user.selectOptions(state, "all");
+    await user.selectOptions(screen.getByRole("combobox", { name: /Pillar/ }), "Saved Filters");
+    expect(screen.getByText("Duplicate filters")).toBeInTheDocument();
+    expect(screen.queryByText("Dashboard ownership")).not.toBeInTheDocument();
+  });
+
+  test("says so when nothing matches, and clearing brings everything back", async () => {
+    const user = await renderFindings();
+    await user.type(screen.getByRole("searchbox"), "zzz-nothing");
+    expect(screen.getByText(/No findings match/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Clear all" }));
+    expect(screen.getByText("Filter ownership")).toBeInTheDocument();
+  });
+
+  test("sorting by most open tasks drops the pillar headings", async () => {
+    const user = await renderFindings();
+    await user.selectOptions(screen.getByRole("combobox", { name: /Sort/ }), "open");
+    expect(document.querySelectorAll(".remediation-group__title")).toHaveLength(0);
+    const titles = [...document.querySelectorAll(".ui-panel")].map((n) => n.textContent);
+    expect(titles[0]).toMatch(/^Filter ownership/);
   });
 });

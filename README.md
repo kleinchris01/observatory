@@ -169,11 +169,13 @@ timeline. **Configuration** holds every governance threshold and health toleranc
 access groups, read-only mode, and retention settings.
 
 **Remediation** turns a governance finding into a real Jira issue in a project you
-nominate, one epic per finding and one task per item, synced hourly from Jira so status
-here is never stale, and remembers which items already have a task so the same cleanup is
+nominate, one epic per finding and one task per item, synced from Jira three times a business day so status
+here stays current, and remembers which items already have a task so the same cleanup is
 never raised twice. Every governance finding that has an item-level source behind it is
 connected to a playbook — fields, workflows, boards and people included, not only the two
-ownership findings the first version shipped with.
+ownership findings the first version shipped with. Its **Progress** view charts the burn-down against
+quarter end, closures per week, time to close and the age of open work; **Findings** can be
+searched by finding, task summary or issue key and filtered by pillar and state.
 
 ### Confluence macro — 9 sections
 

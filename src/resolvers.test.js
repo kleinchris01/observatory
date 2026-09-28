@@ -686,6 +686,7 @@ const {
   getAutomationBlast,
   createRemediationEpic,
   getRemediationTickets,
+  getRemediationMetrics,
   getRemediationCandidates,
   getStatusAutomationUsage,
   getAutomationFieldUsage,
@@ -6816,6 +6817,32 @@ describe("createRemediationEpic", () => {
   test("is admin-only and audited", () => {
     expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toContain("createRemediationEpic");
     expect(Object.keys(SHARED_RESOLVER_FUNCTIONS)).not.toContain("createRemediationEpic");
+  });
+});
+
+describe("getRemediationMetrics", () => {
+  test("computes progress over this quarter's tasks, labelled from the playbook catalog", async () => {
+    const period = (() => { const d = new Date(); return `${d.getUTCFullYear()}-Q${Math.floor(d.getUTCMonth() / 3) + 1}`; })();
+    mocks.loadRemediationTickets.mockResolvedValueOnce([
+      { findingKey: "filter-ownership", period, isEpic: true, issueKey: "ADMIN-1" },
+      { findingKey: "filter-ownership", period, isEpic: false, issueKey: "ADMIN-2", lastStatusCategory: "done", createdAt: new Date().toISOString(), doneAt: new Date().toISOString() },
+      { findingKey: "filter-ownership", period, isEpic: false, issueKey: "ADMIN-3", lastStatusCategory: "new", createdAt: new Date().toISOString() },
+      { findingKey: "filter-ownership", period: "2020-Q1", isEpic: false, issueKey: "ADMIN-0", lastStatusCategory: "done" },
+    ]);
+
+    const m = await getRemediationMetrics({ payload: {}, context: ctxWithAccount() });
+
+    expect(m.scope).toBe("quarter");
+    expect(m.totals).toMatchObject({ tasks: 2, open: 1, closed: 1, pctClosed: 50 });
+    expect(m.byFinding[0].label).not.toBe("filter-ownership"); // the catalog's label, not the key
+  });
+
+  test("covers every quarter when asked, and treats anything else as this quarter", async () => {
+    mocks.loadRemediationTickets.mockResolvedValue([
+      { findingKey: "filter-ownership", period: "2020-Q1", isEpic: false, issueKey: "ADMIN-0", lastStatusCategory: "done" },
+    ]);
+    expect((await getRemediationMetrics({ payload: { scope: "all" }, context: ctxWithAccount() })).totals.tasks).toBe(1);
+    expect((await getRemediationMetrics({ payload: { scope: "bogus" }, context: ctxWithAccount() })).scope).toBe("quarter");
   });
 });
 
