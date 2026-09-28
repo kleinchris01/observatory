@@ -113,7 +113,7 @@
      read as frosted glass over it, the same "content floats above the ambient scene" contract
      dark mode has over the starfield -- just a bright sky instead of a night one.
      --bg-accent is a plain gradient fallback for a browser with no 2D canvas context; DaySky
-     renders the real (and weather-varied) sky on top of it when it can. */
+     renders the real sky (a clear gradient and the sun) on top of it when it can. */
   --bg: #eaf4ff;
   --bg-accent: linear-gradient(180deg, #4fa8f0 0%, #bfe3ff 100%);
   --panel: rgba(255, 255, 255, 0.82);
