@@ -134,6 +134,24 @@ describe("theme cycling", () => {
     expect(container.querySelector("canvas.observatory-starfield")).toBeNull();
     expect(container.querySelector("canvas.observatory-daysky")).toBeInTheDocument();
   });
+
+  // Inside .admin-shell, a fixed z-index: 0 sky shares the shell's stacking context and paints
+  // over every non-positioned element. The opaque day sky blanked every tab; only elements
+  // with their own stacking context (anything with opacity < 1) showed through.
+  it("renders both skies outside the app shell, so the app stacks above them", async () => {
+    const user = userEvent.setup();
+    const { container } = await renderAdminApp();
+
+    const starfield = container.querySelector("canvas.observatory-starfield");
+    expect(starfield.closest(".admin-shell")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: /Switch to/i })); // -> light
+    await user.click(screen.getByRole("button", { name: /Switch to/i })); // -> day
+
+    const daySky = container.querySelector("canvas.observatory-daysky");
+    expect(daySky.closest(".admin-shell")).toBeNull();
+    expect(container.querySelector(".admin-shell")).toBeInTheDocument();
+  });
 });
 
 // ---------------------------------------------------------------------------

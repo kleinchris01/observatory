@@ -3331,6 +3331,16 @@ a.macro-pillar__name:hover { color: var(--cool); text-decoration: underline; }
   opacity: 0.9;
 }
 
+/* Day mode: the shared surfaces are frosted glass over the sky. Every other theme gives them a
+   faint wash (--wash-2 / --wash-3), which reads as a card over the dark starfield or the parchment
+   ground but disappears over a bright, cloudy sky and leaves dark text sitting on blue. */
+:root[data-theme="day"] .ui-panel,
+:root[data-theme="day"] .ui-stat {
+  background: var(--panel-strong);
+  border-color: var(--stroke);
+  box-shadow: 0 1px 2px rgba(20, 40, 70, 0.06);
+}
+
 .observatory-daysky {
   position: fixed;
   inset: 0;
