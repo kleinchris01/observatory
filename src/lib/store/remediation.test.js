@@ -17,7 +17,7 @@ vi.mock("./core.js", () => ({
 const {
   recordRemediationTicket,
   loadRemediationTickets,
-  loadOpenRemediationTickets,
+  loadRemediationTicketsToSync,
   getRemediationEpic,
   loadTicketedItemIds,
   updateRemediationSync,
@@ -152,13 +152,14 @@ describe("loadRemediationTickets", () => {
   });
 });
 
-describe("loadOpenRemediationTickets", () => {
-  it("queries every ticket not already known to be done", async () => {
-    const calls = stubSql([[{ finding_key: "f", item_id: "1", issue_key: "OPS-2", is_epic: 0 }]]);
-    const rows = await loadOpenRemediationTickets("scope");
-    expect(calls[0].params).toEqual(["scope"]);
+describe("loadRemediationTicketsToSync", () => {
+  it("queries tickets not done, done without a date, or done inside the reopen window", async () => {
+    const calls = stubSql([[{ finding_key: "f", item_id: "1", issue_key: "OPS-2", is_epic: 0, done_at: "2026-09-20T00:00:00.000Z" }]]);
+    const rows = await loadRemediationTicketsToSync("scope", "2026-08-29T16:00:00.000Z");
+    expect(calls[0].params).toEqual(["scope", "2026-08-29T16:00:00.000Z"]);
     expect(calls[0].text).toMatch(/last_status_category IS NULL OR last_status_category != 'done'/);
-    expect(rows).toHaveLength(1);
+    expect(calls[0].text).toMatch(/OR done_at IS NULL OR done_at >= \?/);
+    expect(rows[0].doneAt).toBe("2026-09-20T00:00:00.000Z");
   });
 });
 
@@ -172,7 +173,7 @@ describe("updateRemediationSync", () => {
     expect(calls[0].text).toMatch(/UPDATE remediation_tickets/);
     expect(calls[0].text).not.toMatch(/issue_key =\s*VALUES|finding_key/);
     const p = calls[0].params;
-    expect(p).toEqual(["In Progress", "indeterminate", "acc-9", "Sam", "2026-09-10T01:00:00Z", "scope", "OPS-2"]);
+    expect(p).toEqual(["In Progress", "indeterminate", "acc-9", "Sam", "2026-09-10T01:00:00Z", null, null, "scope", "OPS-2"]);
   });
 
   it("defaults synced_at to now when omitted", async () => {

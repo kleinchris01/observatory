@@ -1454,6 +1454,13 @@ export function normalizeSiteOrigin(value) {
 
 // Current status and assignee for a set of issue keys, in one search. Used by the hourly
 // remediation sync so the inventory shows live progress without one read per ticket.
+// A Jira timestamp as a UTC ISO string, or null when absent or unparseable -- never a guess.
+function toUtcIso(value) {
+  if (!value) return null;
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+}
+
 export async function getIssuesStatus(issueKeys = []) {
   const keys = Array.from(new Set((issueKeys || []).map(String).filter(Boolean)));
   if (!keys.length) return [];
@@ -1463,7 +1470,7 @@ export async function getIssuesStatus(issueKeys = []) {
     incrMetric(METRIC_NAMES.jiraRequest);
     const jql = `key in (${slice.join(",")})`;
     const data = await jiraRequest(
-      route`/rest/api/3/search/jql?jql=${jql}&fields=status,assignee&maxResults=100`
+      route`/rest/api/3/search/jql?jql=${jql}&fields=status,assignee,resolutiondate,statuscategorychangedate&maxResults=100`
     );
     for (const issue of data?.issues || []) {
       out.push({
@@ -1472,6 +1479,10 @@ export async function getIssuesStatus(issueKeys = []) {
         statusCategory: issue.fields?.status?.statusCategory?.key || null,
         assigneeAccountId: issue.fields?.assignee?.accountId || null,
         assigneeName: issue.fields?.assignee?.displayName || null,
+        // Jira returns these with a local offset ("...-0700"). Normalised to UTC ISO so they
+        // compare as strings in SQL and sort correctly next to Observatory's own timestamps.
+        resolvedAt: toUtcIso(issue.fields?.resolutiondate),
+        statusCategoryChangedAt: toUtcIso(issue.fields?.statuscategorychangedate),
       });
     }
   }

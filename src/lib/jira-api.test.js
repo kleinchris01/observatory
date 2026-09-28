@@ -1584,9 +1584,35 @@ describe("getIssuesStatus (remediation sync)", () => {
 
     const out = await getIssuesStatus(["OPS-1", "OPS-2", "OPS-1"]);
     expect(out).toEqual([
-      { key: "OPS-1", status: "Done", statusCategory: "done", assigneeAccountId: "a1", assigneeName: "Sam" },
-      { key: "OPS-2", status: "To Do", statusCategory: "new", assigneeAccountId: null, assigneeName: null },
+      { key: "OPS-1", status: "Done", statusCategory: "done", assigneeAccountId: "a1", assigneeName: "Sam", resolvedAt: null, statusCategoryChangedAt: null },
+      { key: "OPS-2", status: "To Do", statusCategory: "new", assigneeAccountId: null, assigneeName: null, resolvedAt: null, statusCategoryChangedAt: null },
     ]);
+  });
+
+  test("asks for the resolution and status-category dates, and normalises them to UTC ISO", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({
+      body: {
+        issues: [{
+          key: "OPS-1",
+          fields: {
+            status: { name: "Done", statusCategory: { key: "done" } },
+            assignee: null,
+            resolutiondate: "2026-09-27T10:00:00.000+0200",
+            statuscategorychangedate: "2026-09-27T10:00:05.000+0200",
+          },
+        }, {
+          key: "OPS-2",
+          fields: { status: { name: "To Do", statusCategory: { key: "new" } }, resolutiondate: "not a date" },
+        }],
+      },
+    }));
+
+    const out = await getIssuesStatus(["OPS-1", "OPS-2"]);
+    expect(out[0]).toMatchObject({ resolvedAt: "2026-09-27T08:00:00.000Z", statusCategoryChangedAt: "2026-09-27T08:00:05.000Z" });
+    expect(out[1]).toMatchObject({ resolvedAt: null });
+    const [url] = mockRequestJira.mock.calls[0];
+    expect(String(url)).toMatch(/resolutiondate/);
+    expect(String(url)).toMatch(/statuscategorychangedate/);
   });
 
   test("chunks a large key list into batches of 90", async () => {

@@ -2,8 +2,10 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { buildIssueUrl, handleJiraLinkClick, formatRelativeTime } from "../utils";
 import { Icon } from "../components/Icons";
-import { PageHeader, Panel, StatRow, StatTile, EmptyState, RemediationStatus } from "../components/ui";
-import { useNavIntent } from "../hooks";
+import { PageHeader, Panel, StatRow, StatTile, EmptyState, RemediationStatus, SortFilterBar } from "../components/ui";
+import { SubNavLayout } from "../components/admin/primitives";
+import { useNavIntent, usePersistentState } from "../hooks";
+import { RemediationProgress } from "./RemediationProgress";
 
 // The playbook catalog is served with the tickets (getRemediationTickets -> catalog), so this
 // tab never holds its own copy of which playbooks exist. It used to: a static list here that
@@ -47,8 +49,8 @@ function IssueLink({ issueKey, siteOrigin, children }) {
 }
 
 // One task row: its own status, assignee and last sync time. `syncedAt` is the tell for
-// whether the hourly sync has ever actually reached this ticket -- a task created seconds ago
-// and not yet synced is a different fact from one the sync checked an hour ago and found
+// whether the sync (three times a business day) has ever actually reached this ticket -- a task created seconds ago
+// and not yet synced is a different fact from one the sync checked this morning and found
 // untouched, and collapsing them into the same "To Do" would hide that difference.
 function TaskRow({ task, siteOrigin }) {
   return (
@@ -67,7 +69,7 @@ function TaskRow({ task, siteOrigin }) {
 // One finding: the epic (if raised), its tasks, and the create/update action. The epic sits
 // visually above its tasks -- the same "epic on top, one task per item below" shape asked for,
 // because that is also just how Jira itself nests them.
-function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, progress, error, focused = false }) {
+function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, progress, error, focused = false, taskQuery = "" }) {
   const [expanded, setExpanded] = React.useState(focused);
   const [confirming, setConfirming] = React.useState(false);
   const cardRef = React.useRef(null);
@@ -83,6 +85,9 @@ function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, pro
 
   const epic = group?.epic || null;
   const tasks = group?.tasks || [];
+  // A search that matched this finding by one of its tasks, not by its name, lists only the
+  // matching tasks -- the counts above them still describe the whole finding.
+  const shownTasks = taskQuery ? tasks.filter((t) => taskMatches(t, taskQuery)) : tasks;
   const openCount = group?.openCount ?? 0;
 
   async function loadCandidates() {
@@ -149,9 +154,12 @@ function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, pro
             </StatRow>
           )}
 
-          {tasks.length > 0 && (
+          {taskQuery && shownTasks.length < tasks.length && (
+            <p className="remediation-history">Showing {shownTasks.length} of {tasks.length} tasks matching the search.</p>
+          )}
+          {shownTasks.length > 0 && (
             <div className="remediation-tasks">
-              {tasks.map((task) => <TaskRow key={task.issueKey} task={task} siteOrigin={siteOrigin} />)}
+              {shownTasks.map((task) => <TaskRow key={task.issueKey} task={task} siteOrigin={siteOrigin} />)}
             </div>
           )}
 
@@ -244,10 +252,44 @@ function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, pro
 // governance finding should ever produce.
 const MAX_REMEDIATION_BATCHES = 100;
 
+function taskMatches(task, q) {
+  return String(task.summary || "").toLowerCase().includes(q) || String(task.issueKey || "").toLowerCase().includes(q);
+}
+
+// Where a finding stands this quarter, for the State filter.
+export function findingState(group) {
+  if (!group || !(group.taskCount ?? group.tasks?.length)) return "untracked";
+  return (group.openCount || 0) > 0 ? "open" : "closed";
+}
+
+const STATE_OPTIONS = [
+  ["all", "All"], ["open", "Has open tasks"], ["closed", "All tasks closed"], ["untracked", "Not started"],
+];
+
+const SORT_OPTIONS = [
+  { value: "pillar", label: "Pillar" },
+  { value: "open", label: "Most open tasks" },
+  { value: "name", label: "Name (A–Z)" },
+];
+
+const VIEWS = [
+  { key: "progress", label: "Progress", icon: "activity" },
+  { key: "findings", label: "Findings", icon: "checkCircle" },
+];
+
 export function RemediationTab({ siteOrigin, intent = null }) {
   // Which finding the reader arrived for, from an Overview "Start remediation" / "Manage".
   const [focusKey, setFocusKey] = React.useState(null);
-  useNavIntent(intent, (nav) => setFocusKey(nav.finding ?? null));
+  // Progress first; a deep link to a finding lands on Findings instead.
+  const [view, setView] = usePersistentState("observatory.section.remediation", "progress", intent?.finding ? "findings" : null);
+  useNavIntent(intent, (nav) => {
+    setFocusKey(nav.finding ?? null);
+    if (nav.finding) setView("findings");
+  });
+  const [search, setSearch] = React.useState("");
+  const [pillarFilter, setPillarFilter] = React.useState("all");
+  const [stateFilter, setStateFilter] = React.useState("all");
+  const [sort, setSort] = React.useState("pillar");
   const [tickets, setTickets] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [creatingKey, setCreatingKey] = React.useState(null);
@@ -322,17 +364,74 @@ export function RemediationTab({ siteOrigin, intent = null }) {
     }
   }
 
-  // The catalog, grouped under the pillar each playbook is filed under, in nav order.
+  const catalog = React.useMemo(() => tickets?.catalog || [], [tickets]);
+  const query = search.trim().toLowerCase();
+
+  // What each finding matched the search on: its own name (show every task) or only some of
+  // its tasks (show just those). Null when it did not match at all.
+  const matchOf = React.useCallback((entry) => {
+    if (!query || entry.label.toLowerCase().includes(query)) return { taskQuery: "" };
+    const tasks = groupsByFinding.get(entry.key)?.tasks || [];
+    return tasks.some((t) => taskMatches(t, query)) ? { taskQuery: query } : null;
+  }, [query, groupsByFinding]);
+
+  // Each filter's option counts are what that choice would show given the other filters, so
+  // "(0)" is never a surprise after picking it.
+  const passes = React.useCallback((entry, { skipPillar = false, skipState = false } = {}) => {
+    if (!skipPillar && pillarFilter !== "all" && (PILLAR_LABEL[entry.pillar] || entry.pillar) !== pillarFilter) return false;
+    if (!skipState && stateFilter !== "all" && findingState(groupsByFinding.get(entry.key)) !== stateFilter) return false;
+    return Boolean(matchOf(entry));
+  }, [pillarFilter, stateFilter, groupsByFinding, matchOf]);
+
+  const visible = React.useMemo(() => catalog.filter((entry) => passes(entry)), [catalog, passes]);
+
+  const pillarOptions = React.useMemo(() => {
+    const labels = [...new Set(
+      [...catalog].sort((a, b) => (PILLAR_RANK[a.pillar] ?? 99) - (PILLAR_RANK[b.pillar] ?? 99))
+        .map((e) => PILLAR_LABEL[e.pillar] || e.pillar)
+    )];
+    const pool = catalog.filter((e) => passes(e, { skipPillar: true }));
+    return [
+      { value: "all", label: "All pillars" },
+      ...labels.map((label) => ({ value: label, label, count: pool.filter((e) => (PILLAR_LABEL[e.pillar] || e.pillar) === label).length })),
+    ];
+  }, [catalog, passes]);
+
+  const stateOptions = React.useMemo(() => {
+    const pool = catalog.filter((e) => passes(e, { skipState: true }));
+    return STATE_OPTIONS.map(([value, label]) => ({
+      value,
+      label,
+      count: value === "all" ? undefined : pool.filter((e) => findingState(groupsByFinding.get(e.key)) === value).length,
+    }));
+  }, [catalog, passes, groupsByFinding]);
+
+  // The visible findings, grouped under the pillar each playbook is filed under, in nav order.
+  // Any other sort drops the grouping: a "most open" list split by pillar would not be
+  // most-open-first.
   const sections = React.useMemo(() => {
+    if (sort !== "pillar") {
+      const openOf = (e) => groupsByFinding.get(e.key)?.openCount || 0;
+      const sorted = [...visible].sort(sort === "open"
+        ? (a, b) => openOf(b) - openOf(a) || a.label.localeCompare(b.label)
+        : (a, b) => a.label.localeCompare(b.label));
+      return sorted.length ? [[null, sorted]] : [];
+    }
     const byLabel = new Map();
-    const sorted = [...(tickets?.catalog || [])].sort((a, b) => (PILLAR_RANK[a.pillar] ?? 99) - (PILLAR_RANK[b.pillar] ?? 99));
+    const sorted = [...visible].sort((a, b) => (PILLAR_RANK[a.pillar] ?? 99) - (PILLAR_RANK[b.pillar] ?? 99));
     for (const entry of sorted) {
       const label = PILLAR_LABEL[entry.pillar] || entry.pillar;
       if (!byLabel.has(label)) byLabel.set(label, []);
       byLabel.get(label).push(entry);
     }
     return [...byLabel.entries()];
-  }, [tickets]);
+  }, [visible, sort, groupsByFinding]);
+
+  function clearFilters() {
+    setSearch("");
+    setPillarFilter("all");
+    setStateFilter("all");
+  }
 
   const totalOpen = (tickets?.groups || []).reduce((sum, g) => sum + (g.openCount || 0), 0);
   const totalClosed = (tickets?.groups || []).reduce((sum, g) => sum + ((g.taskCount || 0) - (g.openCount || 0)), 0);
@@ -341,41 +440,67 @@ export function RemediationTab({ siteOrigin, intent = null }) {
     <div className="admin-remediation-tab">
       <PageHeader
         title="Remediation"
-        description="Turn a governance finding into tracked Jira work — one epic per finding per quarter, a task per item (or per owner, where items are many and alike), every ticket linking straight to what it is about, and status synced hourly from Jira."
+        description="Turn a governance finding into tracked Jira work — one epic per finding per quarter, a task per item (or per owner, where items are many and alike), every ticket linking straight to what it is about, and status synced from Jira three times a business day."
         meta={tickets?.period ? `Current quarter: ${tickets.period}` : null}
       />
 
-      {loading ? (
-        <EmptyState inline>Loading…</EmptyState>
-      ) : (
-        <>
-          <StatRow>
-            <StatTile label="Findings tracked" value={(tickets?.groups || []).length} icon="layers" />
-            <StatTile label="Open tasks" value={totalOpen} tone={totalOpen > 0 ? "active" : "success"} icon="clock" />
-            <StatTile label="Closed tasks" value={totalClosed} tone="success" icon="checkCircle" />
-          </StatRow>
+      <SubNavLayout items={VIEWS} activeKey={view} onSelect={setView}>
+        {view === "progress" ? (
+          <RemediationProgress />
+        ) : loading ? (
+          <EmptyState inline>Loading…</EmptyState>
+        ) : (
+          <>
+            <StatRow>
+              <StatTile label="Findings tracked" value={(tickets?.groups || []).length} icon="layers" />
+              <StatTile label="Open tasks" value={totalOpen} tone={totalOpen > 0 ? "active" : "success"} icon="clock" />
+              <StatTile label="Closed tasks" value={totalClosed} tone="success" icon="checkCircle" />
+            </StatRow>
 
-          {sections.map(([label, entries]) => (
-            <section key={label}>
-              <h3 className="remediation-group__title">{label}</h3>
-              {entries.map((entry) => (
-                <FindingCard
-                  key={entry.key}
-                  entry={entry}
-                  group={groupsByFinding.get(entry.key)}
-                  period={tickets?.period || null}
-                  siteOrigin={siteOrigin}
-                  onCreate={handleCreate}
-                  creating={creatingKey === entry.key}
-                  progress={progress[entry.key] || null}
-                  error={errors[entry.key]}
-                  focused={focusKey === entry.key}
-                />
-              ))}
-            </section>
-          ))}
-        </>
-      )}
+            <SortFilterBar
+              search={search}
+              onSearchChange={setSearch}
+              searchPlaceholder="Search findings, task summaries or issue keys"
+              searchLabel="Search remediation"
+              sort={sort}
+              onSortChange={setSort}
+              sortOptions={SORT_OPTIONS}
+              filters={[
+                { key: "pillar", label: "Pillar", value: pillarFilter, onChange: setPillarFilter, options: pillarOptions },
+                { key: "state", label: "State", value: stateFilter, onChange: setStateFilter, options: stateOptions },
+              ]}
+              resultCount={visible.length}
+              totalCount={catalog.length}
+              onClear={clearFilters}
+            />
+
+            {sections.length === 0 && (
+              <EmptyState inline>No findings match. Clear the search or filters to see them all.</EmptyState>
+            )}
+
+            {sections.map(([label, entries]) => (
+              <section key={label || "all"}>
+                {label && <h3 className="remediation-group__title">{label}</h3>}
+                {entries.map((entry) => (
+                  <FindingCard
+                    key={entry.key}
+                    entry={entry}
+                    group={groupsByFinding.get(entry.key)}
+                    period={tickets?.period || null}
+                    siteOrigin={siteOrigin}
+                    onCreate={handleCreate}
+                    creating={creatingKey === entry.key}
+                    progress={progress[entry.key] || null}
+                    error={errors[entry.key]}
+                    focused={focusKey === entry.key}
+                    taskQuery={matchOf(entry)?.taskQuery || ""}
+                  />
+                ))}
+              </section>
+            ))}
+          </>
+        )}
+      </SubNavLayout>
     </div>
   );
 }

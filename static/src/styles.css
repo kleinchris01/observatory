@@ -11,6 +11,11 @@
   --muted: #6f665c;
   --warm: #8b5e2e;
   --cool: #1c658c;
+  /* Charts: one accent for the measure, one recessive grey for reference lines. Validated
+     (dataviz validate_palette.js) against this theme's panel: distinct from the accent,
+     under 3:1 contrast, so reference lines always carry a direct label and a table view. */
+  --chart-accent: var(--cool);
+  --chart-reference: #a39a8f;
   --success: #2c7a57;
   /* Was already referenced by .admin-config-danger before it existed as a token, so that
      rule silently inherited its colour. Defined here for the danger zone and that rule. */
@@ -70,6 +75,11 @@
   --muted: #8b96b4;
   --warm: #f0b357;
   --cool: #6db9ff;
+  /* Charts: one accent for the measure, one recessive grey for reference lines. Validated
+     (dataviz validate_palette.js) against this theme's panel: distinct from the accent,
+     under 3:1 contrast, so reference lines always carry a direct label and a table view. */
+  --chart-accent: var(--cool);
+  --chart-reference: #56617d;
   --success: #5fce9b;
   --danger: #ef7a6a;
   --danger-bg: rgba(239, 122, 106, 0.09);
@@ -123,6 +133,11 @@
   --muted: #4d6478;
   --warm: #b5651d;
   --cool: #1c6ea4;
+  /* Charts: one accent for the measure, one recessive grey for reference lines. Validated
+     (dataviz validate_palette.js) against this theme's panel: distinct from the accent,
+     under 3:1 contrast, so reference lines always carry a direct label and a table view. */
+  --chart-accent: var(--cool);
+  --chart-reference: #a39a8f;
   --success: #1f8a55;
   --danger: #c23a2c;
   --danger-bg: rgba(194, 58, 44, 0.08);
@@ -7525,3 +7540,24 @@ a.dash-row__name:hover { text-decoration: underline; }
 }
 .remediation-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
 .remediation-history { margin: 6px 0 0; font-size: 0.78rem; color: var(--muted); }
+
+
+/* ── Remediation: Progress view ── */
+.remediation-progress { display: flex; flex-direction: column; gap: 1rem; }
+.remediation-progress__scope { display: flex; gap: 8px; flex-wrap: wrap; }
+.remediation-progress__scope .is-active { border-color: var(--chart-accent); color: var(--text); background: var(--wash-10, var(--wash-6)); }
+.remediation-progress__sync, .remediation-progress__note { margin: 0; font-size: 0.82rem; color: var(--muted); }
+.remediation-progress__note { color: var(--tone-warning-text); }
+.remediation-progress__chart { width: 100%; min-width: 0; }
+.remediation-progress__endlabel { font-size: 12px; fill: var(--muted); }
+.remediation-progress__table { font-size: 0.82rem; }
+.remediation-progress__table summary { cursor: pointer; color: var(--muted); }
+.remediation-progress__table table,
+.remediation-progress__findings { width: 100%; border-collapse: collapse; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.remediation-progress__table th, .remediation-progress__table td,
+.remediation-progress__findings th, .remediation-progress__findings td {
+  text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--stroke);
+}
+.remediation-progress__findings th, .remediation-progress__table th { color: var(--muted); font-weight: 600; }
+.remediation-progress__findings .num { text-align: right; }
+.table-scroll { overflow-x: auto; max-width: 100%; }

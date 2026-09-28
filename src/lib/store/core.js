@@ -1759,6 +1759,8 @@ export const CREATE_REMEDIATION_TICKETS_V2_TABLE = `
     created_by VARCHAR(128) NULL,
     created_at VARCHAR(64) NULL,
     synced_at VARCHAR(64) NULL,
+    done_at VARCHAR(64) NULL,
+    status_changed_at VARCHAR(64) NULL,
     PRIMARY KEY (scope_key, finding_key, period, item_id)
   )
 `;
@@ -2069,7 +2071,18 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v157_create_asset_type_count_meta_table", CREATE_ASSET_TYPE_COUNT_META_TABLE)
   .enqueue("v158_create_remediation_tickets_v2_table", CREATE_REMEDIATION_TICKETS_V2_TABLE)
   // Idempotent (INSERT IGNORE), so a re-run after a partial failure copies only what is missing.
-  .enqueue("v159_copy_remediation_tickets_to_v2", COPY_REMEDIATION_TICKETS_TO_V2);
+  .enqueue("v159_copy_remediation_tickets_to_v2", COPY_REMEDIATION_TICKETS_TO_V2)
+  // When Jira says a remediation ticket reached Done (resolution date, else the status-category
+  // change date). The Remediation tab's burn-down and time-to-close need it; last_status alone
+  // says a ticket is done, never when. Existing rows fill in on their next sync.
+  .enqueue(
+    "v160_alter_remediation_tickets_v2_add_done_at",
+    "ALTER TABLE remediation_tickets_v2 ADD COLUMN IF NOT EXISTS done_at VARCHAR(64) NULL"
+  )
+  .enqueue(
+    "v161_alter_remediation_tickets_v2_add_status_changed_at",
+    "ALTER TABLE remediation_tickets_v2 ADD COLUMN IF NOT EXISTS status_changed_at VARCHAR(64) NULL"
+  );
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history
