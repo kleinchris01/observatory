@@ -196,7 +196,9 @@ import { queueDriftSnapshotBuild, isDriftBuildStale, DRIFT_PILLARS } from "./lib
 import { queueEstateSnapshotBuild, isEstateBuildStale } from "./lib/estate-engine.js";
 import { queueBoardSnapshotBuild, isBoardBuildStale } from "./lib/board-engine.js";
 import { summarizeBoardInsights, boardIssues, indexFiltersById } from "./lib/board-insights.js";
-import { buildPillarReport, unavailableReport, isPillarReportKey, REPORT_ROW_LIMIT } from "./lib/pillar-reports.js";
+import { buildPillarReport, unavailableReport, isPillarReportKey, countScreenProjects, REPORT_ROW_LIMIT } from "./lib/pillar-reports.js";
+import { parseOql, evaluate as evaluateOql, sortEntities as sortOqlEntities, pinnedPillars } from "./lib/oql.js";
+import { buildOqlCatalog, buildEntityIndex, OQL_PILLARS } from "./lib/oql-index.js";
 import { summarizeEstateInsights } from "./lib/estate-insights.js";
 import { summarizeIssueTypeInsights } from "./lib/issuetype-insights.js";
 import { summarizeAssetInsights } from "./lib/asset-insights.js";
@@ -9205,6 +9207,65 @@ async function getPillarReport({ payload, context }) {
 
 const notBuilt = (what) => `No ${what} inventory has been built yet. Run a scan from the Scans tab.`;
 
+// OQL: one query across every pillar's report rows (see src/lib/oql.js, oql-index.js).
+//
+// Parses before it loads anything, so a typo costs nothing. A query that pins its pillars
+// (`pillar = screens AND ...`) loads only those; anything else loads every pillar, a few at a
+// time. A pillar that is unbuilt or fails to load is returned as such in `pillars`, never
+// silently left out -- "no matches" and "not searched" are different answers.
+export const OQL_RESULT_LIMIT = 1000;
+const OQL_LOAD_CONCURRENCY = 3;
+
+async function runOqlQuery({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+  const text = String(payload?.query ?? "").slice(0, 2000);
+  const now = new Date();
+
+  const parsed = parseOql(text, buildOqlCatalog(), { now });
+  if (!parsed.ok) return { ok: false, error: parsed.error };
+
+  const pinned = pinnedPillars(parsed.query.where);
+  const keys = OQL_PILLARS.map((p) => p.key).filter((key) => !pinned || pinned.has(key));
+  const reports = new Array(keys.length);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < keys.length) {
+      const i = cursor++;
+      const key = keys[i];
+      try {
+        // eslint-disable-next-line no-await-in-loop -- bounded by OQL_LOAD_CONCURRENCY workers
+        const input = await loadPillarReportInput(key, { installationKey, context });
+        reports[i] = input.unavailable
+          ? unavailableReport(key, input.unavailable)
+          : buildPillarReport(key, input, { limit: Infinity });
+      } catch (error) {
+        logger.warn("oql.pillar_load_failed", { installationKey, pillar: key, error: String(error?.message || error) });
+        reports[i] = unavailableReport(key, "This pillar could not be read just now. Try again, or rebuild it from the Scans tab.");
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(OQL_LOAD_CONCURRENCY, keys.length) }, worker));
+
+  const index = buildEntityIndex(reports);
+  const matched = index.entities.filter((entity) => evaluateOql(parsed.query.where, entity));
+  const ordered = sortOqlEntities(matched, parsed.query.orderBy);
+  const findingCodes = [...new Set(index.entities.flatMap((e) => e.findings))].sort();
+
+  return {
+    ok: true,
+    query: text,
+    ranAt: now.toISOString(),
+    total: ordered.length,
+    truncated: ordered.length > OQL_RESULT_LIMIT,
+    results: ordered.slice(0, OQL_RESULT_LIMIT),
+    pillars: index.pillars,
+    thresholds: index.thresholds,
+    findingCodes,
+  };
+}
+
 async function loadPillarReportInput(key, { installationKey, context }) {
   switch (key) {
     case "fields": {
@@ -9271,7 +9332,13 @@ async function loadPillarReportInput(key, { installationKey, context }) {
       const unreachedIds = workflowVersion
         ? new Set((await loadAllScreenPages(installationKey, meta.version, { workflowVersion, filter: "unreached" })).map((r) => String(r.screenId)))
         : null;
-      return { refreshedAt: meta.refreshedAt, screens, unreachedIds };
+      const [operations, mappings, itssProjects] = await Promise.all([
+        loadScreenSchemeOperations(installationKey, meta.version),
+        loadItssMappings(installationKey, meta.version),
+        loadItssProjects(installationKey, meta.version),
+      ]).catch(fallbackOn("pillar-report.screen_scheme_chain_failed", () => [null, null, null], { installationKey }));
+      const projectsByScreen = operations ? countScreenProjects({ operations, mappings, itssProjects }) : null;
+      return { refreshedAt: meta.refreshedAt, screens, unreachedIds, projectsByScreen };
     }
     case "filters": {
       const meta = await readFilterSnapshotMeta(installationKey);
@@ -10357,6 +10424,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getHealthHistory,        // Admin read: the site health series and per-dimension deltas
   getPillarHealth,         // Admin read: one pillar of the score, for the tab it is about
   getPillarReport,         // Admin read: one pillar's inventory as a normalized, exportable report
+  runOqlQuery,             // Admin read: an OQL query across every pillar's inventory
   getProjectOverview,      // Admin read: every pillar that touches one project
   getDeletionSafety,            // Admin read: every pillar's evidence about deleting a field
   getScreenFieldCrossSignal,    // Admin read: screen reachability crossed with field usage

@@ -438,12 +438,45 @@ function buildAccessReport({ refreshedAt, inventory = {} }) {
   };
 }
 
-function buildScreensReport({ refreshedAt, screens = [], unreachedIds = null }) {
+// How many projects each screen reaches through the scheme chain: screen -> screen scheme
+// (operation) -> issue type screen scheme (mapping) -> projects. Transition screens are not
+// in this chain, so a screen only a workflow opens reaches zero projects here -- which is why
+// the column is "through screen schemes", and why "unreached" is a separate, workflow-aware
+// finding.
+export function countScreenProjects({ operations = [], mappings = [], itssProjects = [] } = {}) {
+  const projectsByItss = new Map();
+  for (const p of itssProjects) {
+    const key = String(p.itssId);
+    if (!projectsByItss.has(key)) projectsByItss.set(key, new Set());
+    projectsByItss.get(key).add(String(p.projectId));
+  }
+  const itssBySchemeId = new Map();
+  for (const m of mappings) {
+    if (m.screenSchemeId == null) continue;
+    const key = String(m.screenSchemeId);
+    if (!itssBySchemeId.has(key)) itssBySchemeId.set(key, new Set());
+    itssBySchemeId.get(key).add(String(m.itssId));
+  }
+  const projectsByScreen = new Map();
+  for (const op of operations) {
+    if (op.screenId == null || op.dangling) continue;
+    const screen = String(op.screenId);
+    if (!projectsByScreen.has(screen)) projectsByScreen.set(screen, new Set());
+    for (const itss of itssBySchemeId.get(String(op.schemeId)) || []) {
+      for (const project of projectsByItss.get(itss) || []) projectsByScreen.get(screen).add(project);
+    }
+  }
+  return new Map([...projectsByScreen].map(([screen, set]) => [screen, set.size]));
+}
+
+function buildScreensReport({ refreshedAt, screens = [], unreachedIds = null, projectsByScreen = null }) {
   const rows = screens.map((s) => ({
     id: s.screenId,
     name: s.name,
     tabs: Number(s.tabCount) || 0,
     fields: Number(s.fieldCount) || 0,
+    // Null when the scheme chain was not loaded: unknown, not zero.
+    projects: projectsByScreen ? projectsByScreen.get(String(s.screenId)) || 0 : null,
     findings: [
       s.tabsResolved !== "resolved" ? "unreadable" : null,
       s.tabsResolved === "resolved" && (Number(s.fieldCount) || 0) === 0 ? "empty" : null,
@@ -457,6 +490,7 @@ function buildScreensReport({ refreshedAt, screens = [], unreachedIds = null }) 
       { key: "name", label: "Name", kind: "text" },
       { key: "tabs", label: "Tabs", kind: "number" },
       { key: "fields", label: "Fields", kind: "number" },
+      { key: "projects", label: "Projects (through screen schemes)", kind: "number" },
     ],
     rows,
     notes: unreachedIds ? [] : ["Reachability was not checked: no workflow inventory has been built."],

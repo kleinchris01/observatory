@@ -154,11 +154,11 @@ manufacture "invisible data" findings out of a permissions gap.
 
 ## The two surfaces
 
-### Jira admin page — 19 sections
+### Jira admin page — 20 sections
 
 `Overview` · `Field Browser` · `Project Usage` · `Workflows` · `Issue Types` ·
 `Priorities` · `People` · `Assets` · `Access` · `Screens` · `Saved Filters` ·
-`Dashboards` · `Boards` · `Automation` · `Remediation` · `Reports` · `Changes` · `Scans` ·
+`Dashboards` · `Boards` · `Automation` · `Search` · `Remediation` · `Reports` · `Changes` · `Scans` ·
 `Configuration`
 
 **Overview** carries the getting-started panel, the site health score with its per-pillar
@@ -176,6 +176,26 @@ connected to a playbook — fields, workflows, boards and people included, not o
 ownership findings the first version shipped with. Its **Progress** view charts the burn-down against
 quarter end, closures per week, time to close and the age of open work; **Findings** can be
 searched by finding, task summary or issue key and filtered by pillar and state.
+
+**Search** runs OQL, the Observatory Query Language, across every pillar at once:
+
+```
+pillar = screens AND usage = low AND impact = high
+pillar IN (filters, dashboards) AND ownerActive = false
+pillar = filters AND lastUsed < -180d AND subscriptions > 0
+findings IS NOT EMPTY ORDER BY impactValue DESC
+```
+
+It is JQL-shaped: AND / OR / NOT, parentheses, `= != > >= < <= ~ IN (…) IS [NOT] EMPTY`,
+relative dates (`-90d`) and `ORDER BY`. Every column of every pillar report is a field.
+`usage` and `impact` are ranked within each pillar: the bottom quarter is `low`, the top
+quarter `high`, the middle half `medium`, and a pillar with no data for a measure is
+`unmeasured` — never `low`. What each measures per pillar (screens: projects reached through
+screen schemes, and fields on the screen) is listed on the page, with the cut-offs from the
+last run. The parser and autocomplete (`src/lib/oql.js`) are shared by the tab and the
+`runOqlQuery` resolver, so the two can never disagree; the entity index is
+`src/lib/oql-index.js`. A pillar that is not built is named as not searched, not counted as
+no matches.
 
 ### Confluence macro — 9 sections
 

@@ -698,6 +698,7 @@ const {
   getProjectOverview,
   getPillarHealth,
   getPillarReport,
+  runOqlQuery,
   buildScreenInventory,
   getIssueTypeInventory,
   buildIssueTypeInventory,
@@ -6332,6 +6333,76 @@ describe("getBoardInventory", () => {
 
     const result = await getBoardInventory(ctx);
     expect(result.insights).toMatchObject({ joinedFilters: false, joinedStatuses: false, missingFilter: 0 });
+  });
+});
+
+describe("runOqlQuery", () => {
+  const ctx = (query) => ({ payload: { query }, context: { installContext: "ari:cloud:jira::site/x" } });
+  const screen = (i, fieldCount, over = {}) => ({ screenId: String(i), name: `S${i}`, tabCount: 1, fieldCount, tabsResolved: "resolved", ...over });
+
+  function mockScreens() {
+    mocks.readScreenSnapshotMeta.mockResolvedValueOnce({ version: "sv1", refreshedAt: "2026-09-01T00:00:00Z" });
+    mocks.readWorkflowSnapshotMeta.mockResolvedValueOnce(null);
+    mocks.loadScreensPage.mockResolvedValueOnce({
+      rows: [screen(1, 40), screen(2, 30), screen(3, 2), screen(4, 5), screen(5, 12), screen(6, 25), screen(7, 8), screen(8, 1)],
+    });
+    // Screen 1 reaches one project -- the bottom quarter -- and carries the most fields.
+    mocks.loadScreenSchemeOperations.mockResolvedValueOnce([
+      { schemeId: "ss1", screenId: "1" }, { schemeId: "ss2", screenId: "2" }, { schemeId: "ss2", screenId: "6" },
+      { schemeId: "ss3", screenId: "5" }, { schemeId: "ss4", screenId: "7" },
+      { schemeId: "ss2", screenId: "3" }, { schemeId: "ss2", screenId: "4" }, { schemeId: "ss2", screenId: "8" },
+    ]);
+    mocks.loadItssMappings.mockResolvedValueOnce([
+      { itssId: "i1", screenSchemeId: "ss1" }, { itssId: "i2", screenSchemeId: "ss2" }, { itssId: "i3", screenSchemeId: "ss3" }, { itssId: "i4", screenSchemeId: "ss4" },
+    ]);
+    mocks.loadItssProjects.mockResolvedValueOnce([
+      { itssId: "i1", projectId: "P1" },
+      ...["P1", "P2", "P3", "P4", "P5"].map((projectId) => ({ itssId: "i2", projectId })),
+      { itssId: "i3", projectId: "P1" }, { itssId: "i3", projectId: "P2" },
+      { itssId: "i4", projectId: "P3" }, { itssId: "i4", projectId: "P4" }, { itssId: "i4", projectId: "P5" },
+    ]);
+  }
+
+  test("returns a parse error without loading anything", async () => {
+    const result = await runOqlQuery(ctx("pilar = screens"));
+    expect(result).toEqual({ ok: false, error: { message: 'Unknown field "pilar". Did you mean "pillar"?', start: 0, end: 5 } });
+    expect(mocks.readScreenSnapshotMeta).not.toHaveBeenCalled();
+  });
+
+  test("answers the headline query, loading only the pinned pillar", async () => {
+    mockScreens();
+    const result = await runOqlQuery(ctx("pillar = screens AND usage = low AND impact = high"));
+    expect(result.ok).toBe(true);
+    expect(result.results.map((r) => r.id)).toEqual(["1"]);
+    expect(result.results[0]).toMatchObject({ pillar: "screens", usage: "low", impact: "high", usageValue: 1, impactValue: 40 });
+    expect(result.pillars.map((p) => p.key)).toEqual(["screens"]);
+    expect(result.thresholds.screens.usage.label).toMatch(/screen schemes/);
+    expect(mocks.readFilterSnapshotMeta).not.toHaveBeenCalled();
+  });
+
+  test("an unpinned query searches every pillar and names the ones it could not", async () => {
+    const result = await runOqlQuery(ctx("usage = low"));
+    expect(result.ok).toBe(true);
+    expect(result.pillars.map((p) => p.key)).toEqual([
+      "fields", "projects", "workflows", "issueTypes", "priorities", "people", "assets", "access",
+      "screens", "filters", "dashboards", "boards", "automation",
+    ]);
+    expect(result.pillars.filter((p) => p.status === "unavailable" && !p.reason)).toEqual([]);
+    expect(result.pillars.some((p) => p.status === "unavailable")).toBe(true);
+  });
+
+  test("a pillar that throws is reported unavailable, not dropped", async () => {
+    mocks.readScreenSnapshotMeta.mockRejectedValueOnce(new Error("sql down"));
+    const result = await runOqlQuery(ctx("pillar = screens"));
+    expect(result.pillars).toEqual([expect.objectContaining({ key: "screens", status: "unavailable", reason: expect.stringMatching(/could not be read/) })]);
+  });
+
+  test("orders results and lists the finding codes present", async () => {
+    mockScreens();
+    const result = await runOqlQuery(ctx("pillar = screens ORDER BY fields DESC"));
+    expect(result.results.map((r) => r.id).slice(0, 3)).toEqual(["1", "2", "6"]);
+    expect(result).toMatchObject({ total: 8, truncated: false });
+    expect(Array.isArray(result.findingCodes)).toBe(true);
   });
 });
 

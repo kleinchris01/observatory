@@ -7561,3 +7561,55 @@ a.dash-row__name:hover { text-decoration: underline; }
 .remediation-progress__findings th, .remediation-progress__table th { color: var(--muted); font-weight: 600; }
 .remediation-progress__findings .num { text-align: right; }
 .table-scroll { overflow-x: auto; max-width: 100%; }
+
+/* ── Search (OQL) ─────────────────────────────────────────────────────────── */
+.oql-bar { display: flex; gap: 8px; align-items: flex-start; }
+.oql-input { position: relative; flex: 1; min-width: 0; }
+.oql-input input {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 8px 10px;
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--text);
+}
+.oql-input input[aria-invalid="true"] { border-color: var(--tone-critical-text); }
+.oql-suggestions {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 280px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--bg-elevated);
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+}
+.oql-suggestion { display: flex; gap: 12px; justify-content: space-between; padding: 6px 8px; border-radius: 4px; cursor: pointer; }
+.oql-suggestion.is-active,
+.oql-suggestion:hover { background: var(--wash-8); }
+.oql-suggestion__label { font-family: var(--font-mono); font-size: 13px; color: var(--text); }
+.oql-suggestion__detail { font-size: 12px; color: var(--muted); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oql-error { margin: 8px 0 0; color: var(--tone-critical-text); font-size: 13px; }
+.oql-error__at { color: var(--muted); }
+.oql-help { margin: 10px 0 8px; font-size: 12px; color: var(--muted); }
+.oql-examples { display: flex; flex-wrap: wrap; gap: 6px; }
+.oql-level { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.oql-level__value { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; }
+.oql-measure__range { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.oql-save { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+.oql-save input { padding: 6px 8px; border: 1px solid var(--stroke); border-radius: 6px; background: var(--bg-elevated); color: var(--text); }
+.oql-saved { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.oql-saved li { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.oql-saved__query { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+  .oql-bar { flex-direction: column; align-items: stretch; }
+}
