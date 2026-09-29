@@ -3,7 +3,9 @@ import { invoke } from "@forge/bridge";
 import { PageHeader, Panel, StatRow, StatTile, EmptyState, Chip, LinkButton } from "../components/ui";
 import { formatNumber, formatRelativeTime, formatReportCell, neutralizeFormula, downloadCsv, readStored, writeStored } from "../utils";
 import { parseOql, suggestOql } from "../../../src/lib/oql.js";
-import { buildOqlCatalog, OQL_EXAMPLES, OQL_PILLARS, PILLAR_MEASURES } from "../../../src/lib/oql-index.js";
+import {
+  buildOqlCatalog, OQL_EXAMPLES, OQL_PILLARS, PILLAR_MEASURES, SCORE_WEIGHTS, CHURN_WINDOW_DAYS, MIN_DIMENSIONS_FOR_SCORE,
+} from "../../../src/lib/oql-index.js";
 
 // Search: OQL across every pillar.
 //
@@ -17,6 +19,8 @@ const STORAGE_SAVED = "observatory.search.saved";
 const PREVIEW_ROWS = 200;
 
 const LEVEL_TONE = { low: "neutral", medium: "neutral", high: "warning", unmeasured: "neutral" };
+const DIMENSION_COUNT = Object.keys(SCORE_WEIGHTS).length;
+const pct = (w) => `${Math.round(w * 100)}%`;
 const PILLAR_LABEL = Object.fromEntries(OQL_PILLARS.map((p) => [p.key, p.label]));
 
 function readSaved() {
@@ -125,6 +129,18 @@ function QueryInput({ value, onChange, onRun, catalog, error }) {
   );
 }
 
+function ScoreCell({ row }) {
+  if (row.score == null) {
+    return <span title={`Scored only when at least ${MIN_DIMENSIONS_FOR_SCORE} of the ${DIMENSION_COUNT} dimensions are measured`}>—</span>;
+  }
+  return (
+    <span className="oql-score" title={`Scored on ${row.scoreDimensions} of ${DIMENSION_COUNT} dimensions`}>
+      <span className="oql-score__value">{row.score}</span>
+      <span className="oql-score__track" aria-hidden="true"><span className="oql-score__fill" style={{ width: `${row.score}%` }} /></span>
+    </span>
+  );
+}
+
 function MeasuresTable({ thresholds }) {
   const range = (t) => (t?.p25 == null ? "Too few rows to rank" : `low ≤ ${formatNumber(t.p25)}, high ≥ ${formatNumber(t.p75)}`);
   return (
@@ -156,6 +172,21 @@ function MeasuresTable({ thresholds }) {
           })}
         </tbody>
       </table>
+      <ul className="pillar-report__notes">
+        <li><strong>Usage and impact</strong> are ranked within each pillar: bottom quarter low, top quarter high.</li>
+        <li><strong>Risk</strong> counts an item&apos;s discoveries: none is low, one is medium, two or more is high.</li>
+        <li>
+          <strong>Churn</strong> counts configuration changes to the item in the last {CHURN_WINDOW_DAYS} days, from the change log:
+          none is low, one or two is medium, three or more is high. Only fields, workflows, issue types, access, priorities, saved
+          filters and dashboards have a change history; churn is unmeasured everywhere else.
+        </li>
+        <li>
+          <strong>Attention score</strong> (0–100) combines them: risk {pct(SCORE_WEIGHTS.risk)}, impact {pct(SCORE_WEIGHTS.impact)},
+          usage {pct(SCORE_WEIGHTS.usage)} (heavy use means a problem reaches more people), churn {pct(SCORE_WEIGHTS.churn)}. Low counts
+          0, medium half, high full. Unmeasured dimensions are left out rather than counted as zero, and an item with fewer than{" "}
+          {MIN_DIMENSIONS_FOR_SCORE} measured dimensions has no score.
+        </li>
+      </ul>
     </div>
   );
 }
@@ -167,8 +198,11 @@ function resultColumns(results, catalog) {
     { key: "pillar", label: "Pillar", kind: "text" },
     { key: "name", label: "Name", kind: "text" },
     { key: "id", label: "ID", kind: "text" },
+    { key: "score", label: "Attention", kind: "score" },
     { key: "usage", label: "Usage", kind: "level" },
     { key: "impact", label: "Impact", kind: "level" },
+    { key: "risk", label: "Risk", kind: "level" },
+    { key: "churn", label: "Churn", kind: "level" },
   ];
   const pillars = new Set(results.map((r) => r.pillar));
   const only = pillars.size === 1 ? [...pillars][0] : null;
@@ -176,7 +210,7 @@ function resultColumns(results, catalog) {
   return [
     ...base,
     ...own.map((f) => ({ key: f.key, label: f.labels?.[only] || f.label, kind: f.kind })),
-    { key: "findings", label: "Findings", kind: "list" },
+    { key: "discoveries", label: "Discoveries", kind: "list" },
   ];
 }
 
@@ -188,7 +222,7 @@ function csvRows(result, columns) {
   for (const row of result.results) {
     lines.push(columns.map((c) => {
       if (c.key === "pillar") return PILLAR_LABEL[row.pillar] || row.pillar;
-      const text = formatReportCell(row[c.key], c.kind === "level" ? "text" : c.kind);
+      const text = formatReportCell(row[c.key], c.kind === "level" ? "text" : c.kind === "score" ? "number" : c.kind);
       return c.kind === "number" ? text : neutralizeFormula(text);
     }));
   }
@@ -205,7 +239,7 @@ export function SearchTab({ onNavigate }) {
   const [naming, setNaming] = React.useState(false);
   const [saveName, setSaveName] = React.useState("");
 
-  const catalog = React.useMemo(() => buildOqlCatalog({ findingCodes: result?.findingCodes || [] }), [result]);
+  const catalog = React.useMemo(() => buildOqlCatalog({ findingCodes: result?.discoveryCodes || [] }), [result]);
   const parsed = React.useMemo(() => (text.trim() ? parseOql(text, catalog) : null), [text, catalog]);
   const clientError = parsed && !parsed.ok ? parsed.error : null;
   const serverError = result && result.ok === false ? result.error : null;
@@ -243,13 +277,15 @@ export function SearchTab({ onNavigate }) {
   const rows = ok ? (showAll ? ok.results : ok.results.slice(0, PREVIEW_ROWS)) : [];
   const searched = ok ? ok.pillars.filter((p) => p.status === "ok") : [];
   const skipped = ok ? ok.pillars.filter((p) => p.status !== "ok") : [];
-  const flagged = ok ? ok.results.filter((r) => r.findings.length > 0).length : 0;
+  const flagged = ok ? ok.results.filter((r) => r.discoveries.length > 0).length : 0;
+  const scored = ok ? ok.results.filter((r) => r.score != null) : [];
+  const averageScore = scored.length ? Math.round(scored.reduce((t, r) => t + r.score, 0) / scored.length) : null;
 
   return (
     <div className="admin-search-tab">
       <PageHeader
         title="Search"
-        description="Query every pillar at once with OQL. Usage and impact are ranked within each pillar: the bottom quarter is low, the top quarter is high, and a pillar with no data for a measure is unmeasured, never low."
+        description="Query every pillar at once with OQL. Every item carries four dimensions (usage, impact, risk and churn) and an attention score that combines them. A dimension with no data is unmeasured, never low."
       />
 
       <Panel title="Query" icon="search">
@@ -325,7 +361,13 @@ export function SearchTab({ onNavigate }) {
         <>
           <StatRow>
             <StatTile label="Matches" value={formatNumber(ok.total)} icon="search" hint={ok.truncated ? `First ${formatNumber(ok.results.length)} returned` : null} />
-            <StatTile label="With findings" value={formatNumber(flagged)} icon="alertTriangle" tone={flagged > 0 ? "warning" : "neutral"} />
+            <StatTile label="With discoveries" value={formatNumber(flagged)} icon="alertTriangle" tone={flagged > 0 ? "warning" : "neutral"} />
+            <StatTile
+              label="Average attention"
+              value={averageScore == null ? "—" : averageScore}
+              icon="activity"
+              hint={averageScore == null ? "Nothing here has enough measured dimensions" : `Across ${formatNumber(scored.length)} scored item${scored.length === 1 ? "" : "s"}`}
+            />
             <StatTile label="Pillars searched" value={`${searched.length} of ${ok.pillars.length}`} icon="layers" />
             <StatTile label="Not searched" value={formatNumber(skipped.length)} icon="alertCircle" tone={skipped.length > 0 ? "warning" : "success"} hint={skipped.length ? "Not built or unreadable; see below" : null} />
           </StatRow>
@@ -370,11 +412,11 @@ export function SearchTab({ onNavigate }) {
                           {columns.map((c) => (
                             <td key={c.key} className={c.kind === "number" ? "pillar-report__num" : undefined}>
                               {c.key === "pillar" ? (PILLAR_LABEL[row.pillar] || row.pillar)
-                                : c.key === "usage" ? <LevelCell level={row.usage} value={row.usageValue} />
-                                  : c.key === "impact" ? <LevelCell level={row.impact} value={row.impactValue} />
-                                    : c.key === "findings" ? (
+                                : c.key === "score" ? <ScoreCell row={row} />
+                                  : c.kind === "level" ? <LevelCell level={row[c.key]} value={row[`${c.key}Value`]} />
+                                    : c.key === "discoveries" ? (
                                       <span className="pillar-report__findings">
-                                        {row.findings.map((code) => <Chip key={code} tone="warning">{code}</Chip>)}
+                                        {row.discoveries.map((code) => <Chip key={code} tone="warning">{code}</Chip>)}
                                       </span>
                                     ) : (
                                       <span title={formatReportCell(row[c.key], c.kind)}>{formatReportCell(row[c.key], c.kind) || "—"}</span>
@@ -397,7 +439,7 @@ export function SearchTab({ onNavigate }) {
         </>
       )}
 
-      <Panel title="How usage and impact are measured" icon="info" collapsible defaultCollapsed>
+      <Panel title="How the dimensions and the score are measured" icon="info" collapsible defaultCollapsed>
         <MeasuresTable thresholds={ok?.thresholds || null} />
       </Panel>
     </div>

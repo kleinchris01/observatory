@@ -198,7 +198,7 @@ import { queueBoardSnapshotBuild, isBoardBuildStale } from "./lib/board-engine.j
 import { summarizeBoardInsights, boardIssues, indexFiltersById } from "./lib/board-insights.js";
 import { buildPillarReport, unavailableReport, isPillarReportKey, countScreenProjects, REPORT_ROW_LIMIT } from "./lib/pillar-reports.js";
 import { parseOql, evaluate as evaluateOql, sortEntities as sortOqlEntities, pinnedPillars } from "./lib/oql.js";
-import { buildOqlCatalog, buildEntityIndex, OQL_PILLARS } from "./lib/oql-index.js";
+import { buildOqlCatalog, buildEntityIndex, OQL_PILLARS, CHURN_WINDOW_DAYS } from "./lib/oql-index.js";
 import { summarizeEstateInsights } from "./lib/estate-insights.js";
 import { summarizeIssueTypeInsights } from "./lib/issuetype-insights.js";
 import { summarizeAssetInsights } from "./lib/asset-insights.js";
@@ -9248,10 +9248,11 @@ async function runOqlQuery({ payload, context }) {
   }
   await Promise.all(Array.from({ length: Math.min(OQL_LOAD_CONCURRENCY, keys.length) }, worker));
 
-  const index = buildEntityIndex(reports);
+  const changes = await loadOqlChurnWindow(installationKey, now);
+  const index = buildEntityIndex(reports, { changes, now });
   const matched = index.entities.filter((entity) => evaluateOql(parsed.query.where, entity));
   const ordered = sortOqlEntities(matched, parsed.query.orderBy);
-  const findingCodes = [...new Set(index.entities.flatMap((e) => e.findings))].sort();
+  const discoveryCodes = [...new Set(index.entities.flatMap((e) => e.discoveries))].sort();
 
   return {
     ok: true,
@@ -9262,8 +9263,34 @@ async function runOqlQuery({ payload, context }) {
     results: ordered.slice(0, OQL_RESULT_LIMIT),
     pillars: index.pillars,
     thresholds: index.thresholds,
-    findingCodes,
+    churnMeasured: Boolean(changes),
+    discoveryCodes,
   };
+}
+
+// The change log's trailing churn window, or null when no drift pass has ever run -- churn is
+// then unmeasured, not zero. Keyset pages of 500, capped: past the cap the counts are floors,
+// which still rank the busiest items high.
+const OQL_CHURN_CHANGE_CAP = 20000;
+async function loadOqlChurnWindow(installationKey, now) {
+  try {
+    const meta = await readDriftSnapshotMeta(installationKey);
+    if (!meta?.version) return null;
+    const since = new Date(now.getTime() - CHURN_WINDOW_DAYS * 86400000).toISOString();
+    const changes = [];
+    let before = null;
+    while (changes.length < OQL_CHURN_CHANGE_CAP) {
+      // eslint-disable-next-line no-await-in-loop -- keyset paging: each page needs the last
+      const page = await loadConfigChanges(installationKey, { since, before, limit: 500 });
+      changes.push(...page);
+      if (page.length < 500) break;
+      before = page[page.length - 1].detectedAt;
+    }
+    return changes;
+  } catch (error) {
+    logger.warn("oql.churn_load_failed", { installationKey, error: String(error?.message || error) });
+    return null;
+  }
 }
 
 async function loadPillarReportInput(key, { installationKey, context }) {

@@ -5,14 +5,14 @@ import { buildOqlCatalog } from "./oql-index.js";
 const catalog = buildOqlCatalog({ findingCodes: ["empty", "unreached", "no-owner"] });
 const NOW = new Date("2026-09-28T12:00:00.000Z");
 
-const E = (over) => ({ pillar: "screens", id: "1", name: "Screen", usage: "medium", impact: "medium", findings: [], ...over });
+const E = (over) => ({ pillar: "screens", id: "1", name: "Screen", usage: "medium", impact: "medium", discoveries: [], ...over });
 const ENTITIES = [
   E({ id: "1", name: "Bug Create", usage: "low", impact: "high", fields: 40, projects: 1 }),
-  E({ id: "2", name: "Default Screen", usage: "high", impact: "high", fields: 30, projects: 80, findings: ["unreached"] }),
-  E({ id: "3", name: "Resolve Issue", usage: "low", impact: "low", fields: 2, projects: 0, findings: ["empty"] }),
-  { pillar: "filters", id: "10", name: "My open bugs", usage: "low", impact: "high", findings: [], owner: "Sam", ownerActive: false, subscriptions: 3, lastUsed: "2026-01-01T00:00:00.000Z" },
-  { pillar: "filters", id: "11", name: "Team board", usage: "high", impact: "low", findings: [], owner: null, ownerActive: null, subscriptions: 0, lastUsed: "2026-09-20T00:00:00.000Z" },
-  { pillar: "priorities", id: "20", name: "Blocker", usage: "unmeasured", impact: "unmeasured", findings: [], kind: "Priority" },
+  E({ id: "2", name: "Default Screen", usage: "high", impact: "high", fields: 30, projects: 80, discoveries: ["unreached"] }),
+  E({ id: "3", name: "Resolve Issue", usage: "low", impact: "low", fields: 2, projects: 0, discoveries: ["empty"] }),
+  { pillar: "filters", id: "10", name: "My open bugs", usage: "low", impact: "high", discoveries: [], owner: "Sam", ownerActive: false, subscriptions: 3, lastUsed: "2026-01-01T00:00:00.000Z" },
+  { pillar: "filters", id: "11", name: "Team board", usage: "high", impact: "low", discoveries: [], owner: null, ownerActive: null, subscriptions: 0, lastUsed: "2026-09-20T00:00:00.000Z" },
+  { pillar: "priorities", id: "20", name: "Blocker", usage: "unmeasured", impact: "unmeasured", discoveries: [], kind: "Priority" },
 ];
 
 const ids = (text) => {
@@ -54,7 +54,7 @@ describe("parseOql / runOql", () => {
   it("binds AND tighter than OR, and honours parentheses and NOT", () => {
     expect(ids("usage = high OR usage = low AND impact = low")).toEqual(["2", "3", "11"]);
     expect(ids("(usage = high OR usage = low) AND impact = low")).toEqual(["3", "11"]);
-    expect(ids("pillar = screens AND NOT findings IS NOT EMPTY")).toEqual(["1"]);
+    expect(ids("pillar = screens AND NOT discoveries IS NOT EMPTY")).toEqual(["1"]);
   });
 
   it("supports IN and NOT IN", () => {
@@ -70,8 +70,10 @@ describe("parseOql / runOql", () => {
   });
 
   it("matches list fields by element, and ~ by substring", () => {
+    expect(ids("discoveries = unreached")).toEqual(["2"]);
+    expect(ids("discoveries IS NOT EMPTY")).toEqual(["2", "3"]);
+    // "findings" still works: it is what the field was called first.
     expect(ids("findings = unreached")).toEqual(["2"]);
-    expect(ids("findings IS NOT EMPTY")).toEqual(["2", "3"]);
     expect(ids("name ~ screen")).toEqual(["2"]);
     expect(ids("name !~ e AND pillar = filters")).toEqual([]);
   });
@@ -185,7 +187,7 @@ describe("suggestOql", () => {
     expect(labels("usage =")).toEqual(["low", "medium", "high", "unmeasured"]);
     expect(labels("pillar = scr")).toEqual(["screens"]);
     expect(labels("pillar IN (fields, ")).toContain("screens");
-    expect(labels("findings = ")).toEqual(["empty", "no-owner", "unreached"]);
+    expect(labels("discoveries = ")).toEqual(["empty", "no-owner", "unreached"]);
   });
   it("offers connectors after a complete clause, and ) inside parentheses", () => {
     expect(labels("usage = low ")).toEqual(["AND", "OR", "ORDER BY"]);

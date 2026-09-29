@@ -25,11 +25,12 @@ const SCREENS_RESULT = {
   truncated: false,
   results: [{
     uid: "screens:1", pillar: "screens", pillarLabel: "Screens", id: "1", name: "Bug Create",
-    usage: "low", impact: "high", usageValue: 1, impactValue: 40, tabs: 2, fields: 40, projects: 1, findings: ["unreached"],
+    usage: "low", impact: "high", risk: "medium", churn: "unmeasured", usageValue: 1, impactValue: 40, riskValue: 1, churnValue: null,
+    score: 60, scoreDimensions: 3, tabs: 2, fields: 40, projects: 1, discoveries: ["unreached"],
   }],
   pillars: [{ key: "screens", label: "Screens", status: "ok", reason: null, refreshedAt: "2026-09-28T00:00:00Z", total: 8 }],
   thresholds: { screens: { usage: { p25: 2, p75: 5, measured: 8, total: 8, label: "x" }, impact: { p25: 5, p75: 25, measured: 8, total: 8, label: "y" } } },
-  findingCodes: ["unreached"],
+  discoveryCodes: ["unreached"],
 };
 
 function queryBox() {
@@ -42,7 +43,8 @@ describe("SearchTab", () => {
     const user = userEvent.setup();
     render(<SearchTab onNavigate={vi.fn()} />);
 
-    await user.type(queryBox(), "pillar = screens AND usage = low AND impact = high");
+    await user.click(queryBox());
+    await user.paste("pillar = screens AND usage = low AND impact = high");
     await user.keyboard("{Escape}{Enter}");
 
     expect(invoke).toHaveBeenCalledWith("runOqlQuery", { query: "pillar = screens AND usage = low AND impact = high" });
@@ -50,7 +52,9 @@ describe("SearchTab", () => {
     const table = screen.getAllByRole("table")[0];
     // Screens' own columns join the shared ones when every result is a screen.
     const headers = within(table).getAllByRole("columnheader").map((h) => h.textContent);
-    expect(headers).toEqual(expect.arrayContaining(["Pillar", "Name", "Usage", "Impact", "Tabs", "Fields", "Projects (through screen schemes)", "Findings"]));
+    expect(headers).toEqual(expect.arrayContaining(["Pillar", "Name", "Usage", "Impact", "Risk", "Churn", "Attention", "Tabs", "Fields", "Projects (through screen schemes)", "Discoveries"]));
+    expect(within(table).getByTitle("Scored on 3 of 4 dimensions")).toHaveTextContent("60");
+    expect(screen.getByText("Average attention").closest(".ui-stat")).toHaveTextContent("60");
     expect(within(table).getByText("unreached")).toBeInTheDocument();
     expect(within(table).getByText("low")).toBeInTheDocument();
     expect(within(table).getByText("high")).toBeInTheDocument();
@@ -159,8 +163,20 @@ describe("SearchTab", () => {
     expect(await screen.findByText("timed out")).toBeInTheDocument();
   });
 
-  test("explains what usage and impact mean in every pillar", () => {
+  test("explains the dimensions and the score", () => {
     render(<SearchTab />);
-    expect(screen.getByText("How usage and impact are measured")).toBeInTheDocument();
+    expect(screen.getByText("How the dimensions and the score are measured")).toBeInTheDocument();
+  });
+
+  test("an item without enough measured dimensions shows no score rather than zero", async () => {
+    invoke.mockResolvedValueOnce({
+      ...SCREENS_RESULT,
+      results: [{ ...SCREENS_RESULT.results[0], score: null, scoreDimensions: 1 }],
+    });
+    const user = userEvent.setup();
+    render(<SearchTab />);
+    await user.click(screen.getByRole("button", { name: "Heavy screens few projects reach" }));
+    expect(await screen.findByTitle(/at least 2 of the 4 dimensions/)).toHaveTextContent("—");
+    expect(screen.getByText("Nothing here has enough measured dimensions")).toBeInTheDocument();
   });
 });

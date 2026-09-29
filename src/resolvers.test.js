@@ -6402,7 +6402,21 @@ describe("runOqlQuery", () => {
     const result = await runOqlQuery(ctx("pillar = screens ORDER BY fields DESC"));
     expect(result.results.map((r) => r.id).slice(0, 3)).toEqual(["1", "2", "6"]);
     expect(result).toMatchObject({ total: 8, truncated: false });
-    expect(Array.isArray(result.findingCodes)).toBe(true);
+    expect(Array.isArray(result.discoveryCodes)).toBe(true);
+  });
+
+  test("churn is unmeasured when no drift pass has run, and counted from the change log when one has", async () => {
+    mockScreens();
+    mocks.readDriftSnapshotMeta.mockResolvedValueOnce(null);
+    const without = await runOqlQuery(ctx("pillar = screens"));
+    expect(without.churnMeasured).toBe(false);
+
+    mocks.readSnapshotMeta.mockResolvedValueOnce(null);
+    mocks.readDriftSnapshotMeta.mockResolvedValueOnce({ version: "d1" });
+    mocks.loadConfigChanges.mockResolvedValueOnce([{ entityType: "field", entityId: "x", detectedAt: new Date().toISOString() }]);
+    const withDrift = await runOqlQuery(ctx("pillar = fields"));
+    expect(withDrift.churnMeasured).toBe(true);
+    expect(mocks.loadConfigChanges).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ limit: 500, since: expect.any(String) }));
   });
 });
 

@@ -7613,3 +7613,7 @@ a.dash-row__name:hover { text-decoration: underline; }
 @media (max-width: 640px) {
   .oql-bar { flex-direction: column; align-items: stretch; }
 }
+.oql-score { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.oql-score__value { font-variant-numeric: tabular-nums; min-width: 2ch; text-align: right; }
+.oql-score__track { display: inline-block; width: 48px; height: 6px; border-radius: 3px; background: var(--wash-10); overflow: hidden; }
+.oql-score__fill { display: block; height: 100%; background: var(--chart-accent); border-radius: 3px; }

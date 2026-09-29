@@ -2,7 +2,7 @@
 //
 //   pillar = screens AND usage = low AND impact = high
 //   pillar IN (filters, dashboards) AND owner IS EMPTY
-//   findings IS NOT EMPTY ORDER BY impact DESC
+//   discoveries IS NOT EMPTY ORDER BY score DESC
 //   lastUsed < -90d AND subscriptions > 0
 //
 // JQL-shaped on purpose: the people writing it already write JQL, so AND / OR / NOT,

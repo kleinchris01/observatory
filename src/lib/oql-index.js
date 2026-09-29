@@ -111,6 +111,90 @@ export function quartileLevels(values) {
   return { p25, p75, measured: measured.length, total, levelOf };
 }
 
+// ── Risk, churn and the attention score ─────────────────────────────────────
+//
+// Usage and impact are relative: they rank an item against the rest of its pillar. Risk and
+// churn are absolute, because what they count is already a judgement -- a discovery is a thing
+// someone should look at, a config change is a thing that happened -- and "the top quarter of
+// a column that is mostly zero" would call one discovery "high" on a clean pillar and three
+// "medium" on a messy one.
+
+// Risk: how many discoveries the item carries.
+export const RISK_LEVELS = { lowMax: 0, mediumMax: 1 }; // 0 low, 1 medium, 2+ high
+export function riskLevel(count) {
+  if (count == null) return "unmeasured";
+  return count <= RISK_LEVELS.lowMax ? "low" : count <= RISK_LEVELS.mediumMax ? "medium" : "high";
+}
+
+// Churn: configuration changes to the item in the trailing window, from the drift change log.
+export const CHURN_WINDOW_DAYS = 30;
+export const CHURN_LEVELS = { lowMax: 0, mediumMax: 2 }; // 0 low, 1-2 medium, 3+ high
+export function churnLevel(count) {
+  if (count == null) return "unmeasured";
+  return count <= CHURN_LEVELS.lowMax ? "low" : count <= CHURN_LEVELS.mediumMax ? "medium" : "high";
+}
+
+// The pillars the drift engine digests. The rest have no change history, so their churn is
+// unmeasured -- not zero.
+export const CHURN_TRACKED_PILLARS = ["fields", "workflows", "issueTypes", "access", "priorities", "filters", "dashboards"];
+
+const ACCESS_TYPE_BY_LABEL = {
+  "Permission scheme": "permission",
+  "Issue security scheme": "security",
+  "Notification scheme": "notification",
+  "Project role": "project-role",
+};
+
+// A change log row -> the key of the entity it changed, or null for entities OQL does not
+// list (statuses, issue type schemes). A grant or security level counts against its scheme:
+// adding a grant is a change to the permission scheme.
+export function changeEntityKey(change) {
+  const type = String(change?.entityType || "");
+  const id = String(change?.entityId ?? "");
+  const simple = { field: "fields", "workflow-scheme": "workflows", "issue-type": "issueTypes", filter: "filters", dashboard: "dashboards" };
+  if (simple[type]) return `${simple[type]}|${id}`;
+  if (type === "priority" || type === "resolution") return `priorities|${type}|${id}`;
+  if (type === "security-level") return `access|security|${id.split(":")[0]}`;
+  const access = /^(permission|security|notification|project-role)-(scheme|grant)$/.exec(type);
+  if (access) return `access|${access[1]}|${access[2] === "grant" ? id.split(":")[0] : id}`;
+  return null;
+}
+
+function entityChangeKey(pillar, row, id) {
+  if (pillar === "priorities") return `priorities|${String(row.kind || "").toLowerCase()}|${id}`;
+  if (pillar === "access") return `access|${ACCESS_TYPE_BY_LABEL[row.type] || ""}|${id}`;
+  return `${pillar}|${id}`;
+}
+
+// The attention score: one number per item, 0-100, from every dimension that is measured.
+//
+// Weights say what an admin should look at first. Risk leads: a discovery is the reason to
+// look at all. Impact next: a problem in something wide spreads. Usage counts as exposure --
+// a problem in something heavily used reaches more people -- and churn last: recent change is
+// a leading signal, not a problem in itself.
+//
+// Unmeasured dimensions drop out of both the sum and the weight total, so a pillar with no
+// usage data is scored on what it has rather than dragged toward zero. With fewer than two
+// dimensions measured there is no score: one signal dressed up as a composite is misleading.
+export const SCORE_WEIGHTS = { risk: 0.4, impact: 0.25, usage: 0.2, churn: 0.15 };
+export const MIN_DIMENSIONS_FOR_SCORE = 2;
+const LEVEL_POINTS = { low: 0, medium: 0.5, high: 1 };
+
+export function attentionScore(levels) {
+  let points = 0;
+  let weight = 0;
+  let measured = 0;
+  for (const [dim, w] of Object.entries(SCORE_WEIGHTS)) {
+    const p = LEVEL_POINTS[levels[dim]];
+    if (p == null) continue;
+    points += p * w;
+    weight += w;
+    measured += 1;
+  }
+  if (measured < MIN_DIMENSIONS_FOR_SCORE) return { score: null, measured };
+  return { score: Math.round((points / weight) * 100), measured };
+}
+
 function entityId(pillar, row) {
   if (pillar === "people") return row.accountId;
   if (pillar === "projects") return row.key;
@@ -119,9 +203,23 @@ function entityId(pillar, row) {
 
 /**
  * @param reports finalized pillar reports (buildPillarReport output), any status
+ * @param changes config change log rows in the churn window, or null when no drift pass has
+ *                run (churn is then unmeasured everywhere)
  * @returns { entities, thresholds, pillars }
  */
-export function buildEntityIndex(reports = []) {
+export function buildEntityIndex(reports = [], { changes = null, now = new Date() } = {}) {
+  const churnCounts = new Map();
+  if (changes) {
+    const since = now.getTime() - CHURN_WINDOW_DAYS * 86400000;
+    for (const c of changes) {
+      const at = Date.parse(c.detectedAt);
+      if (Number.isFinite(at) && at < since) continue;
+      const key = changeEntityKey(c);
+      if (key) churnCounts.set(key, (churnCounts.get(key) || 0) + 1);
+    }
+  }
+  const churnMeasured = (pillar) => Boolean(changes) && CHURN_TRACKED_PILLARS.includes(pillar);
+
   const entities = [];
   const thresholds = {};
   const pillars = [];
@@ -153,18 +251,31 @@ export function buildEntityIndex(reports = []) {
 
     report.rows.forEach((row, i) => {
       const id = entityId(key, row);
+      const discoveries = Array.isArray(row.findings) ? row.findings : [];
+      const churnValue = churnMeasured(key) ? churnCounts.get(entityChangeKey(key, row, id)) || 0 : null;
+      const levels = {
+        usage: usage.levelOf(usageValues[i]),
+        impact: impact.levelOf(impactValues[i]),
+        risk: riskLevel(discoveries.length),
+        churn: churnLevel(churnValue),
+      };
+      const { score, measured } = attentionScore(levels);
+      const { findings: _findings, ...rest } = row;
       entities.push({
-        ...row,
+        ...rest,
         pillar: key,
         pillarLabel: labelOf.get(key) || report.label,
         uid: `${key}:${row.kind ? `${row.kind}:` : ""}${row.type && key === "access" ? `${row.type}:` : ""}${id}`,
         id: id == null ? null : String(id),
         name: row.name ?? String(id ?? ""),
-        usage: usage.levelOf(usageValues[i]),
-        impact: impact.levelOf(impactValues[i]),
+        ...levels,
         usageValue: usageValues[i],
         impactValue: impactValues[i],
-        findings: Array.isArray(row.findings) ? row.findings : [],
+        riskValue: discoveries.length,
+        churnValue,
+        score,
+        scoreDimensions: measured,
+        discoveries,
       });
     });
   }
@@ -190,16 +301,27 @@ const CORE_FIELDS = [
   { key: "id", label: "ID", kind: "text", detail: "ID or key" },
   { key: "usage", label: "Usage", kind: "level", detail: "low / medium / high within its pillar, or unmeasured" },
   { key: "impact", label: "Impact", kind: "level", detail: "low / medium / high within its pillar, or unmeasured" },
-  { key: "findings", label: "Findings", kind: "list", aliases: ["finding"], detail: "Finding codes on the item" },
+  { key: "risk", label: "Risk", kind: "level", detail: "From its discoveries: none low, one medium, two or more high" },
+  { key: "churn", label: "Churn", kind: "level", detail: `Config changes in ${CHURN_WINDOW_DAYS} days: none low, 1-2 medium, 3+ high` },
+  { key: "score", label: "Attention score", kind: "number", aliases: ["attention"], detail: "0-100 from usage, impact, risk and churn" },
+  { key: "discoveries", label: "Discoveries", kind: "list", aliases: ["discovery", "findings", "finding"], detail: "Discovery codes on the item" },
   { key: "usageValue", label: "Usage value", kind: "number", detail: "The number behind usage" },
   { key: "impactValue", label: "Impact value", kind: "number", detail: "The number behind impact" },
+  { key: "riskValue", label: "Risk value", kind: "number", detail: "How many discoveries" },
+  { key: "churnValue", label: "Churn value", kind: "number", detail: `Config changes in the last ${CHURN_WINDOW_DAYS} days` },
 ];
 
-const LEVEL_DETAILS = {
+const QUARTILE_DETAILS = {
   low: "Bottom quarter of its pillar",
   medium: "Middle half of its pillar",
   high: "Top quarter of its pillar",
   unmeasured: "No data for this measure",
+};
+const LEVEL_DETAILS_BY_FIELD = {
+  usage: QUARTILE_DETAILS,
+  impact: QUARTILE_DETAILS,
+  risk: { low: "No discoveries", medium: "One discovery", high: "Two or more discoveries", unmeasured: "No data" },
+  churn: { low: `No changes in ${CHURN_WINDOW_DAYS} days`, medium: "1-2 changes", high: "3 or more changes", unmeasured: "Pillar has no change history" },
 };
 
 /**
@@ -224,12 +346,13 @@ export function buildOqlCatalog({ findingCodes = [] } = {}) {
         pillars: null,
       };
     }
-    if (f.kind === "level") return { ...f, valueDetails: LEVEL_DETAILS, pillars: null };
-    if (f.key === "findings") return { ...f, values: [...new Set(findingCodes)].sort(), pillars: null };
+    if (f.kind === "level") return { ...f, valueDetails: LEVEL_DETAILS_BY_FIELD[f.key], pillars: null };
+    if (f.key === "discoveries") return { ...f, values: [...new Set(findingCodes)].sort(), pillars: null };
     return { ...f, pillars: null };
   });
 
-  const coreKeys = new Set(CORE_FIELDS.map((f) => f.key));
+  // Report rows call discoveries "findings"; the core field covers them under both names.
+  const coreKeys = new Set([...CORE_FIELDS.map((f) => f.key), "findings"]);
   const byKey = new Map();
   for (const p of OQL_PILLARS) {
     const { columns = [] } = PILLAR_REPORT_BUILDERS[p.key]({});
@@ -252,7 +375,9 @@ export function buildOqlCatalog({ findingCodes = [] } = {}) {
 
 export const OQL_EXAMPLES = [
   { query: "pillar = screens AND usage = low AND impact = high", why: "Heavy screens few projects reach" },
-  { query: "findings IS NOT EMPTY AND impact = high ORDER BY impactValue DESC", why: "Flagged items with the widest blast radius" },
+  { query: "ORDER BY score DESC", why: "What needs attention first, everywhere" },
+  { query: "risk = high AND usage = high", why: "Troubled and heavily used" },
+  { query: "churn = high AND impact = high", why: "Wide config that keeps changing" },
   { query: "pillar IN (filters, dashboards) AND ownerActive = false", why: "Owned by someone who has left" },
   { query: "pillar = fields AND usage = low AND system = false", why: "Custom fields almost nobody fills in" },
   { query: "pillar = filters AND lastUsed < -180d AND subscriptions > 0", why: "Stale filters still emailing people" },
