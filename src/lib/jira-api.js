@@ -1452,8 +1452,6 @@ export function normalizeSiteOrigin(value) {
   }
 }
 
-// Current status and assignee for a set of issue keys, in one search. Used by the hourly
-// remediation sync so the inventory shows live progress without one read per ticket.
 // A Jira timestamp as a UTC ISO string, or null when absent or unparseable -- never a guess.
 function toUtcIso(value) {
   if (!value) return null;
@@ -1461,17 +1459,29 @@ function toUtcIso(value) {
   return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
 }
 
+// Current status and assignee for a set of issue keys, for the remediation sync, so the
+// inventory shows live progress without one read per ticket.
+//
+// Bulk fetch rather than a `key in (...)` search: JQL rejects the whole query when any one key
+// no longer exists, so a single deleted ticket would fail every ticket batched with it. Bulk
+// fetch returns the issues it found and lists the rest under issueErrors; a missing key is
+// simply absent from the result, which the sync already treats as "leave the row alone".
+export const ISSUE_STATUS_BATCH = 100;
+
 export async function getIssuesStatus(issueKeys = []) {
   const keys = Array.from(new Set((issueKeys || []).map(String).filter(Boolean)));
   if (!keys.length) return [];
   const out = [];
-  for (let i = 0; i < keys.length; i += 90) {
-    const slice = keys.slice(i, i + 90);
+  for (let i = 0; i < keys.length; i += ISSUE_STATUS_BATCH) {
+    const slice = keys.slice(i, i + ISSUE_STATUS_BATCH);
     incrMetric(METRIC_NAMES.jiraRequest);
-    const jql = `key in (${slice.join(",")})`;
-    const data = await jiraRequest(
-      route`/rest/api/3/search/jql?jql=${jql}&fields=status,assignee,resolutiondate,statuscategorychangedate&maxResults=100`
-    );
+    const data = await jiraRequest(route`/rest/api/3/issue/bulkfetch`, {
+      method: "POST",
+      body: JSON.stringify({
+        issueIdsOrKeys: slice,
+        fields: ["status", "assignee", "resolutiondate", "statuscategorychangedate"],
+      }),
+    });
     for (const issue of data?.issues || []) {
       out.push({
         key: issue.key,

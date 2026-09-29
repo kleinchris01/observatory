@@ -3862,7 +3862,7 @@ a.macro-pillar__name:hover { color: var(--cool); text-decoration: underline; }
   max-width: 68ch;
 }
 
-.ui-pagehead__actions { display: flex; gap: 8px; flex: none; }
+.ui-pagehead__actions { display: flex; align-items: center; gap: 8px; flex: none; }
 
 /* Freshness sits beside the primary action, right-aligned and quiet. Quiet is the point:
    it is context for the numbers below, not a thing to act on, and the tab that gave it a

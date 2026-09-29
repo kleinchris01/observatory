@@ -685,6 +685,7 @@ const {
   getCascadeGraph,
   getAutomationBlast,
   createRemediationEpic,
+  syncRemediationNow,
   getRemediationTickets,
   getRemediationMetrics,
   getRemediationCandidates,
@@ -6931,7 +6932,36 @@ describe("getRemediationMetrics", () => {
   });
 });
 
+describe("syncRemediationNow", () => {
+  // Queued, not run inline: a resolver has seconds and a few thousand tickets need minutes --
+  // the same ceiling that silently killed the scheduled sync.
+  test("queues a sync-remediation job for the calling installation", async () => {
+    const r = await syncRemediationNow({ payload: {}, context: ctxWithAccount() });
+    expect(r).toEqual({ queued: true });
+    expect(mocks.queuePush).toHaveBeenCalledWith({ body: { jobType: "sync-remediation", installationKey: "test-install" } });
+  });
+
+  test("is admin-only", () => {
+    expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toContain("syncRemediationNow");
+    expect(Object.keys(SHARED_RESOLVER_FUNCTIONS)).not.toContain("syncRemediationNow");
+  });
+});
+
 describe("getRemediationTickets", () => {
+  test("reports when the sync last reached any ticket, and null when it never has", async () => {
+    mocks.loadRemediationTickets.mockResolvedValueOnce([
+      { findingKey: "filter-ownership", isEpic: false, issueKey: "ADMIN-2", syncedAt: "2026-09-28T16:00:00.000Z" },
+      { findingKey: "filter-ownership", isEpic: false, issueKey: "ADMIN-3", syncedAt: "2026-09-29T00:00:00.000Z" },
+      { findingKey: "filter-ownership", isEpic: false, issueKey: "ADMIN-4", syncedAt: null },
+    ]);
+    expect((await getRemediationTickets({ payload: {}, context: ctxWithAccount() })).lastSyncedAt).toBe("2026-09-29T00:00:00.000Z");
+
+    mocks.loadRemediationTickets.mockResolvedValueOnce([
+      { findingKey: "filter-ownership", isEpic: false, issueKey: "ADMIN-2", syncedAt: null },
+    ]);
+    expect((await getRemediationTickets({ payload: {}, context: ctxWithAccount() })).lastSyncedAt).toBeNull();
+  });
+
   test("groups tickets by finding, epic separated from tasks, with open counts", async () => {
     mocks.loadRemediationTickets.mockResolvedValue([
       { findingKey: "filter-ownership", pillar: "filters", isEpic: true, issueKey: "ADMIN-1" },

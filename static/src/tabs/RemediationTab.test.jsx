@@ -1,9 +1,9 @@
 import React from "react";
-import { describe, test, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, waitFor, within, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@forge/bridge";
-import { RemediationTab } from "./RemediationTab";
+import { RemediationTab, SYNC_POLL_MS } from "./RemediationTab";
 
 vi.mock("@forge/bridge", () => ({
   invoke: vi.fn(),
@@ -479,5 +479,73 @@ describe("RemediationTab — search and filters", () => {
     expect(document.querySelectorAll(".remediation-group__title")).toHaveLength(0);
     const titles = [...document.querySelectorAll(".ui-panel")].map((n) => n.textContent);
     expect(titles[0]).toMatch(/^Filter ownership/);
+  });
+});
+
+describe("RemediationTab — Sync now", () => {
+  const TRACKED = {
+    available: true,
+    total: 2,
+    groups: [{
+      findingKey: "filter-ownership", pillar: "filters", taskCount: 1, openCount: 1,
+      epic: { issueKey: "ADMIN-1", isEpic: true },
+      tasks: [{ issueKey: "ADMIN-2", summary: "Reassign filter", itemId: "f1", lastStatusCategory: null, syncedAt: null }],
+    }],
+  };
+
+  afterEach(() => { vi.useRealTimers(); });
+
+  test("says plainly when the tickets have never been synced", async () => {
+    mockInvoke({ getRemediationTickets: { ...TRACKED, lastSyncedAt: null } });
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    expect(await screen.findByRole("status")).toHaveTextContent("Never synced");
+    expect(screen.getByRole("button", { name: "Sync now" })).toBeEnabled();
+  });
+
+  test("offers no sync before anything has been ticketed", async () => {
+    mockInvoke({ getRemediationTickets: { available: false, total: 0, groups: [] } });
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    await screen.findByText("Filter ownership");
+    expect(screen.queryByRole("button", { name: "Sync now" })).not.toBeInTheDocument();
+  });
+
+  test("queues a sync, shows it running, and stops once the tickets have been re-synced", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let lastSyncedAt = null;
+    mockInvoke({
+      getRemediationTickets: () => ({ ...TRACKED, lastSyncedAt }),
+      syncRemediationNow: { queued: true },
+    });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+
+    await user.click(await screen.findByRole("button", { name: "Sync now" }));
+    expect(invoke).toHaveBeenCalledWith("syncRemediationNow", {});
+    expect(await screen.findByRole("button", { name: "Syncing…" })).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent("Syncing with Jira");
+
+    // Still running on the first poll: nothing has moved yet.
+    await act(async () => { await vi.advanceTimersByTimeAsync(SYNC_POLL_MS); });
+    expect(screen.getByRole("button", { name: "Syncing…" })).toBeDisabled();
+
+    // The sync lands: the next poll sees lastSyncedAt move and the button comes back.
+    lastSyncedAt = new Date().toISOString();
+    await act(async () => { await vi.advanceTimersByTimeAsync(SYNC_POLL_MS); });
+    expect(await screen.findByRole("button", { name: "Sync now" })).toBeEnabled();
+    expect(screen.getByRole("status")).toHaveTextContent(/Last synced/);
+  });
+
+  test("shows an error, and keeps the button usable, when the sync cannot be queued", async () => {
+    invoke.mockImplementation((fn) => {
+      if (fn === "syncRemediationNow") return Promise.reject(new Error("queue backpressure"));
+      return Promise.resolve(fn === "getRemediationTickets" ? withDefaults({ ...TRACKED, lastSyncedAt: null }) : {});
+    });
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+
+    await user.click(await screen.findByRole("button", { name: "Sync now" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("queue backpressure");
+    expect(screen.getByRole("button", { name: "Sync now" })).toBeEnabled();
   });
 });
