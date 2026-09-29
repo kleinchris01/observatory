@@ -5,6 +5,7 @@ import { formatNumber, formatRelativeTime, formatReportCell, neutralizeFormula, 
 import { parseOql, suggestOql } from "../../../src/lib/oql.js";
 import {
   buildOqlCatalog, OQL_EXAMPLES, OQL_PILLARS, PILLAR_MEASURES, SCORE_WEIGHTS, CHURN_WINDOW_DAYS, MIN_DIMENSIONS_FOR_SCORE,
+  CHURN_TRACKED_PILLARS, scoreBreakdown,
 } from "../../../src/lib/oql-index.js";
 
 // Search: OQL across every pillar.
@@ -141,52 +142,218 @@ function ScoreCell({ row }) {
   );
 }
 
-function MeasuresTable({ thresholds }) {
-  const range = (t) => (t?.p25 == null ? "Too few rows to rank" : `low ≤ ${formatNumber(t.p25)}, high ≥ ${formatNumber(t.p75)}`);
+// ── How scoring works ──────────────────────────────────────────────────────
+//
+// Three pictures, in the order a reader needs them: what each dimension is and how it is cut
+// into low / medium / high; which pillars can measure which dimension; and one real result's
+// score taken apart. The breakdown is scoreBreakdown -- the same function that produced the
+// score -- so the explanation cannot drift from the number.
+
+const DIMENSIONS = [
+  {
+    key: "risk",
+    label: "Risk",
+    what: "How many discoveries the item carries.",
+    kind: "Fixed cut-offs",
+    scale: [["low", "0"], ["medium", "1"], ["high", "2+"]],
+    unit: "discoveries",
+  },
+  {
+    key: "impact",
+    label: "Impact",
+    what: "How much a change to it would touch. Means something different in each pillar; see the grid below.",
+    kind: "Ranked within its pillar",
+    scale: [["low", "Bottom 25%"], ["medium", "Middle 50%"], ["high", "Top 25%"]],
+    quartile: true,
+  },
+  {
+    key: "usage",
+    label: "Usage",
+    what: "How much people actually use it. Heavy use raises the score: a problem there reaches more people.",
+    kind: "Ranked within its pillar",
+    scale: [["low", "Bottom 25%"], ["medium", "Middle 50%"], ["high", "Top 25%"]],
+    quartile: true,
+  },
+  {
+    key: "churn",
+    label: "Churn",
+    what: `How often its configuration changed in the last ${CHURN_WINDOW_DAYS} days, from the change log.`,
+    kind: "Fixed cut-offs",
+    scale: [["low", "0"], ["medium", "1–2"], ["high", "3+"]],
+    unit: "changes",
+  },
+];
+const DIM_LABEL = Object.fromEntries(DIMENSIONS.map((d) => [d.key, d.label]));
+
+function LevelScale({ scale, quartile, unit }) {
+  return (
+    <div className="oql-scale" role="img" aria-label={scale.map(([level, range]) => `${level}: ${range}${unit ? ` ${unit}` : ""}`).join(", ")}>
+      {scale.map(([level, range]) => (
+        <div key={level} className={`oql-scale__seg oql-scale__seg--${level}`} style={{ flexGrow: quartile ? (level === "medium" ? 2 : 1) : 1 }}>
+          <span className="oql-scale__bar" />
+          <span className="oql-scale__level">{level}</span>
+          <span className="oql-scale__range">{range}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DimensionCards() {
+  return (
+    <div className="oql-dims">
+      {DIMENSIONS.map((d) => (
+        <div key={d.key} className="oql-dim">
+          <div className="oql-dim__head">
+            <strong>{d.label}</strong>
+            <span className="oql-dim__weight" title="Share of the attention score">{pct(SCORE_WEIGHTS[d.key])} of score</span>
+          </div>
+          <p className="oql-dim__what">{d.what}</p>
+          <span className="oql-dim__kind">{d.kind}</span>
+          <LevelScale scale={d.scale} quartile={d.quartile} unit={d.unit} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Weights as one bar: how the 100 points are split before anything is measured.
+function WeightBar() {
+  const order = ["risk", "impact", "usage", "churn"];
+  return (
+    <div className="oql-formula">
+      <div className="oql-weights" role="img" aria-label={order.map((k) => `${DIM_LABEL[k]} ${pct(SCORE_WEIGHTS[k])}`).join(", ")}>
+        {order.map((k, i) => (
+          <span key={k} className={`oql-weights__seg oql-weights__seg--${i}`} style={{ flexGrow: SCORE_WEIGHTS[k] }}>
+            {DIM_LABEL[k]} {pct(SCORE_WEIGHTS[k])}
+          </span>
+        ))}
+      </div>
+      <p className="oql-formula__rule">
+        Each dimension earns its share in full when <strong>high</strong>, half when <strong>medium</strong>, nothing when{" "}
+        <strong>low</strong>. An <strong>unmeasured</strong> dimension is left out and the others scale up to fill 100, so a missing
+        signal never drags a score down. Fewer than {MIN_DIMENSIONS_FOR_SCORE} measured dimensions: no score.
+      </p>
+    </div>
+  );
+}
+
+// Which pillar can measure which dimension, and with what.
+function CoverageGrid({ thresholds }) {
+  const range = (t) => (t?.p25 == null ? null : `low ≤ ${formatNumber(t.p25)} · high ≥ ${formatNumber(t.p75)}`);
+  const cell = (measured, text, cutoffs) => (
+    <td className={measured ? "oql-cover--yes" : "oql-cover--no"}>
+      <span className="oql-cover__mark" aria-hidden="true">{measured ? "●" : "○"}</span>{" "}
+      {measured ? text : "Not measured"}
+      {measured && cutoffs && <div className="oql-measure__range">{cutoffs}</div>}
+    </td>
+  );
   return (
     <div className="pillar-report__table-wrap">
-      <table className="audit-table pillar-report__table">
+      <table className="audit-table pillar-report__table oql-cover">
+        <caption className="ui-controls__srlabel">What each pillar measures for each dimension</caption>
         <thead>
           <tr>
             <th scope="col">Pillar</th>
-            <th scope="col">Usage means</th>
-            <th scope="col">Impact means</th>
+            <th scope="col">Usage</th>
+            <th scope="col">Impact</th>
+            <th scope="col">Risk</th>
+            <th scope="col">Churn</th>
           </tr>
         </thead>
         <tbody>
           {OQL_PILLARS.map((p) => {
+            const m = PILLAR_MEASURES[p.key];
             const t = thresholds?.[p.key];
             return (
               <tr key={p.key}>
-                <td>{p.label}</td>
-                <td>
-                  {PILLAR_MEASURES[p.key].usage.label}
-                  {t && PILLAR_MEASURES[p.key].usage.value && <div className="oql-measure__range">{range(t.usage)}</div>}
-                </td>
-                <td>
-                  {PILLAR_MEASURES[p.key].impact.label}
-                  {t && PILLAR_MEASURES[p.key].impact.value && <div className="oql-measure__range">{range(t.impact)}</div>}
-                </td>
+                <th scope="row">{p.label}</th>
+                {cell(Boolean(m.usage.value), m.usage.label, range(t?.usage))}
+                {cell(Boolean(m.impact.value), m.impact.label, range(t?.impact))}
+                {cell(true, "Its discoveries")}
+                {cell(CHURN_TRACKED_PILLARS.includes(p.key), "Change log")}
               </tr>
             );
           })}
         </tbody>
       </table>
-      <ul className="pillar-report__notes">
-        <li><strong>Usage and impact</strong> are ranked within each pillar: bottom quarter low, top quarter high.</li>
-        <li><strong>Risk</strong> counts an item&apos;s discoveries: none is low, one is medium, two or more is high.</li>
-        <li>
-          <strong>Churn</strong> counts configuration changes to the item in the last {CHURN_WINDOW_DAYS} days, from the change log:
-          none is low, one or two is medium, three or more is high. Only fields, workflows, issue types, access, priorities, saved
-          filters and dashboards have a change history; churn is unmeasured everywhere else.
-        </li>
-        <li>
-          <strong>Attention score</strong> (0–100) combines them: risk {pct(SCORE_WEIGHTS.risk)}, impact {pct(SCORE_WEIGHTS.impact)},
-          usage {pct(SCORE_WEIGHTS.usage)} (heavy use means a problem reaches more people), churn {pct(SCORE_WEIGHTS.churn)}. Low counts
-          0, medium half, high full. Unmeasured dimensions are left out rather than counted as zero, and an item with fewer than{" "}
-          {MIN_DIMENSIONS_FOR_SCORE} measured dimensions has no score.
-        </li>
-      </ul>
+    </div>
+  );
+}
+
+// One real item's score, taken apart. Uses the first scored result of the current search, or
+// a made-up screen when nothing has run yet -- and says which.
+const SAMPLE_ITEM = { name: "an example screen", pillar: "screens", usage: "low", impact: "high", risk: "medium", churn: "unmeasured" };
+
+function WorkedExample({ item }) {
+  const example = item || SAMPLE_ITEM;
+  const { parts, score, measured } = scoreBreakdown(example);
+  const order = ["risk", "impact", "usage", "churn"];
+  const sorted = order.map((k) => parts.find((p) => p.dim === k));
+  return (
+    <div className="oql-example">
+      <p className="oql-example__title">
+        {item ? <>Taking apart <strong>{example.name}</strong> ({PILLAR_LABEL[example.pillar] || example.pillar}), from your results:</>
+          : <>For {example.name} (run a search to see one of your own):</>}
+      </p>
+      <div className="oql-contrib" role="img" aria-label={`Score ${score ?? "none"}: ${sorted.filter((p) => p.contribution).map((p) => `${DIM_LABEL[p.dim]} ${Math.round(p.contribution)}`).join(", ")}`}>
+        {sorted.filter((p) => p.contribution > 0).map((p) => (
+          <span key={p.dim} className={`oql-contrib__seg oql-weights__seg--${order.indexOf(p.dim)}`} style={{ width: `${p.contribution}%` }}>
+            {DIM_LABEL[p.dim]} {Math.round(p.contribution)}
+          </span>
+        ))}
+        <span className="oql-contrib__rest" />
+      </div>
+      <table className="audit-table pillar-report__table oql-example__table">
+        <thead>
+          <tr>
+            <th scope="col">Dimension</th>
+            <th scope="col">Level</th>
+            <th scope="col">Earns</th>
+            <th scope="col">Share of 100</th>
+            <th scope="col" className="pillar-report__num">Points</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((p) => (
+            <tr key={p.dim} className={p.points == null ? "oql-example__row--out" : undefined}>
+              <th scope="row">{DIM_LABEL[p.dim]}</th>
+              <td>{p.level}</td>
+              <td>{p.points == null ? "Left out" : p.points === 1 ? "All" : p.points === 0.5 ? "Half" : "Nothing"}</td>
+              <td>
+                {p.share == null ? "—" : pct(p.share)}
+                {p.share != null && pct(p.share) !== pct(p.weight) && <span className="oql-measure__range"> scaled up from {pct(p.weight)}</span>}
+              </td>
+              <td className="pillar-report__num">{p.contribution == null ? "—" : Math.round(p.contribution)}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th scope="row" colSpan={4}>Attention score{measured < DIMENSION_COUNT && score != null ? ` (on ${measured} of ${DIMENSION_COUNT} dimensions)` : ""}</th>
+            <td className="pillar-report__num"><strong>{score ?? "No score"}</strong></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+}
+
+function ScoringExplainer({ thresholds, sample }) {
+  return (
+    <div className="oql-explainer">
+      <h4 className="oql-explainer__step"><span>1</span> Every item gets four dimensions</h4>
+      <DimensionCards />
+      <h4 className="oql-explainer__step"><span>2</span> They combine into one attention score</h4>
+      <WeightBar />
+      <h4 className="oql-explainer__step"><span>3</span> One score, taken apart</h4>
+      <WorkedExample item={sample} />
+      <h4 className="oql-explainer__step"><span>4</span> What each pillar can measure</h4>
+      <p className="oql-formula__rule">
+        Usage and impact mean something different in every pillar. ● measured, ○ not measured.
+        {thresholds ? " Cut-offs are from your last search." : " Run a search to see the cut-offs on your data."}
+      </p>
+      <CoverageGrid thresholds={thresholds} />
     </div>
   );
 }
@@ -439,8 +606,8 @@ export function SearchTab({ onNavigate }) {
         </>
       )}
 
-      <Panel title="How the dimensions and the score are measured" icon="info" collapsible defaultCollapsed>
-        <MeasuresTable thresholds={ok?.thresholds || null} />
+      <Panel title="How scoring works" icon="info" collapsible>
+        <ScoringExplainer thresholds={ok?.thresholds || null} sample={scored[0] || null} />
       </Panel>
     </div>
   );

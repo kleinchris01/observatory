@@ -48,7 +48,7 @@ describe("SearchTab", () => {
     await user.keyboard("{Escape}{Enter}");
 
     expect(invoke).toHaveBeenCalledWith("runOqlQuery", { query: "pillar = screens AND usage = low AND impact = high" });
-    expect(await screen.findByText("Bug Create")).toBeInTheDocument();
+    expect((await screen.findAllByText("Bug Create")).length).toBeGreaterThan(0);
     const table = screen.getAllByRole("table")[0];
     // Screens' own columns join the shared ones when every result is a screen.
     const headers = within(table).getAllByRole("columnheader").map((h) => h.textContent);
@@ -163,9 +163,42 @@ describe("SearchTab", () => {
     expect(await screen.findByText("timed out")).toBeInTheDocument();
   });
 
-  test("explains the dimensions and the score", () => {
+  test("explains the four dimensions, their weights and their cut-offs", () => {
     render(<SearchTab />);
-    expect(screen.getByText("How the dimensions and the score are measured")).toBeInTheDocument();
+    expect(screen.getByText("How scoring works")).toBeInTheDocument();
+    expect(screen.getByText("40% of score")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "low: 0 discoveries, medium: 1 discoveries, high: 2+ discoveries" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Risk 40%, Impact 25%, Usage 20%, Churn 15%" })).toBeInTheDocument();
+  });
+
+  test("before a search, takes apart a sample score, scaled up for the unmeasured dimension", () => {
+    render(<SearchTab />);
+    expect(screen.getByText(/run a search to see one of your own/)).toBeInTheDocument();
+    // Sample: risk medium, impact high, usage low, churn unmeasured -> (0.2 + 0.25) / 0.85 = 53.
+    const tfoot = screen.getByText(/^Attention score/).closest("tr");
+    expect(tfoot).toHaveTextContent("on 3 of 4 dimensions");
+    expect(tfoot).toHaveTextContent("53");
+    expect(screen.getByText("Left out")).toBeInTheDocument();
+    expect(screen.getAllByText(/scaled up from/).length).toBeGreaterThan(0);
+  });
+
+  test("after a search, takes apart the first scored result", async () => {
+    invoke.mockResolvedValueOnce(SCREENS_RESULT);
+    const user = userEvent.setup();
+    render(<SearchTab />);
+    await user.click(screen.getByRole("button", { name: "Heavy screens few projects reach" }));
+    expect(await screen.findByText(/from your results/)).toHaveTextContent("Taking apart Bug Create (Screens)");
+  });
+
+  test("shows which pillars measure which dimension", () => {
+    render(<SearchTab />);
+    const grid = screen.getByRole("table", { name: "What each pillar measures for each dimension" });
+    const screensRow = within(grid).getByRole("rowheader", { name: "Screens" }).closest("tr");
+    expect(screensRow).toHaveTextContent(/through screen schemes/);
+    // Screens have no change history.
+    expect(within(screensRow).getAllByText("Not measured")).toHaveLength(1);
+    const prioritiesRow = within(grid).getByRole("rowheader", { name: "Priorities & resolutions" }).closest("tr");
+    expect(within(prioritiesRow).getAllByText("Not measured")).toHaveLength(2);
   });
 
   test("an item without enough measured dimensions shows no score rather than zero", async () => {

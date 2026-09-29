@@ -180,19 +180,32 @@ export const SCORE_WEIGHTS = { risk: 0.4, impact: 0.25, usage: 0.2, churn: 0.15 
 export const MIN_DIMENSIONS_FOR_SCORE = 2;
 const LEVEL_POINTS = { low: 0, medium: 0.5, high: 1 };
 
+export const LEVEL_POINT_VALUES = LEVEL_POINTS;
+
+// The score, dimension by dimension: what each contributed and why. The Search tab's worked
+// example draws this; attentionScore is its total, so the explanation and the number can never
+// disagree.
+export function scoreBreakdown(levels) {
+  const measuredWeight = Object.entries(SCORE_WEIGHTS)
+    .filter(([dim]) => LEVEL_POINTS[levels[dim]] != null)
+    .reduce((t, [, w]) => t + w, 0);
+  const parts = Object.entries(SCORE_WEIGHTS).map(([dim, weight]) => {
+    const level = levels[dim] || "unmeasured";
+    const points = LEVEL_POINTS[level];
+    if (points == null) return { dim, level, weight, share: null, points: null, contribution: null };
+    const share = weight / measuredWeight;
+    return { dim, level, weight, share, points, contribution: points * share * 100 };
+  });
+  const measured = parts.filter((p) => p.points != null).length;
+  const score = measured < MIN_DIMENSIONS_FOR_SCORE
+    ? null
+    : Math.round(parts.reduce((t, p) => t + (p.contribution || 0), 0));
+  return { parts, measured, score };
+}
+
 export function attentionScore(levels) {
-  let points = 0;
-  let weight = 0;
-  let measured = 0;
-  for (const [dim, w] of Object.entries(SCORE_WEIGHTS)) {
-    const p = LEVEL_POINTS[levels[dim]];
-    if (p == null) continue;
-    points += p * w;
-    weight += w;
-    measured += 1;
-  }
-  if (measured < MIN_DIMENSIONS_FOR_SCORE) return { score: null, measured };
-  return { score: Math.round((points / weight) * 100), measured };
+  const { score, measured } = scoreBreakdown(levels);
+  return { score, measured };
 }
 
 function entityId(pillar, row) {

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   quartileLevels, buildEntityIndex, buildOqlCatalog, OQL_PILLARS, PILLAR_MEASURES, OQL_EXAMPLES, MIN_ROWS_FOR_LEVELS,
-  riskLevel, churnLevel, attentionScore, changeEntityKey, SCORE_WEIGHTS, CHURN_TRACKED_PILLARS,
+  riskLevel, churnLevel, attentionScore, scoreBreakdown, changeEntityKey, SCORE_WEIGHTS, CHURN_TRACKED_PILLARS,
 } from "./oql-index.js";
 import { buildPillarReport, unavailableReport } from "./pillar-reports.js";
 import { parseOql } from "./oql.js";
@@ -132,6 +132,17 @@ describe("risk, churn and the attention score", () => {
   it("leaves unmeasured dimensions out rather than counting them as zero", () => {
     // Only risk (high) and impact (low) measured: 0.4 / 0.65.
     expect(attentionScore({ usage: "unmeasured", impact: "low", risk: "high", churn: "unmeasured" })).toEqual({ score: 62, measured: 2 });
+  });
+
+  it("breaks a score into contributions that add up to it, sharing out an unmeasured weight", () => {
+    const b = scoreBreakdown({ usage: "low", impact: "high", risk: "medium", churn: "unmeasured" });
+    const by = Object.fromEntries(b.parts.map((p) => [p.dim, p]));
+    expect(by.churn).toMatchObject({ level: "unmeasured", share: null, contribution: null });
+    expect(by.risk.share).toBeCloseTo(0.4 / 0.85);
+    expect(by.risk.contribution).toBeCloseTo((0.5 * 0.4 / 0.85) * 100);
+    expect(by.usage.contribution).toBe(0);
+    expect(b).toMatchObject({ measured: 3, score: 53 });
+    expect(b.score).toBe(attentionScore({ usage: "low", impact: "high", risk: "medium", churn: "unmeasured" }).score);
   });
 
   it("gives no score on a single dimension", () => {
