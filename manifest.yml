@@ -645,10 +645,6 @@ modules:
       handler: index.quickScanScheduleCheck
     - key: remediation-sync
       handler: index.remediationSyncCheck
-      # Without this the platform default (~25s) applies, and a few thousand tickets need
-      # ~30 status reads plus one write each: every run was killed mid-read, silently,
-      # before a single status was written back.
-      timeoutSeconds: 900
     - key: retention-cleanup
       handler: index.runRetentionCleanup
     - key: sql-migrate

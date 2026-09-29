@@ -15,7 +15,10 @@ vi.mock("./store/remediation.js", () => ({
   updateRemediationSync: (...args) => updateRemediationSync(...args),
 }));
 
-const { syncRemediationTickets, resolveDoneAt, REOPEN_WINDOW_DAYS } = await import("./remediation-sync.js");
+const queuePush = vi.fn().mockResolvedValue(undefined);
+vi.mock("./queues.js", () => ({ inventorySnapshotQueue: { push: (...args) => queuePush(...args) } }));
+
+const { syncRemediationTickets, queueRemediationSync, resolveDoneAt, REOPEN_WINDOW_DAYS } = await import("./remediation-sync.js");
 
 beforeEach(() => {
   getIssuesStatus.mockReset();
@@ -125,6 +128,13 @@ describe("syncRemediationTickets", () => {
     expect(updateRemediationSync).toHaveBeenCalledWith("scope", "OPS-1", expect.objectContaining({
       lastStatusCategory: "indeterminate", doneAt: null,
     }));
+  });
+});
+
+describe("queueRemediationSync", () => {
+  it("queues a sync-remediation job for the consumer, which has the time the sync needs", async () => {
+    await expect(queueRemediationSync("scope")).resolves.toEqual({ queued: true });
+    expect(queuePush).toHaveBeenCalledWith({ body: { jobType: "sync-remediation", installationKey: "scope" } });
   });
 });
 

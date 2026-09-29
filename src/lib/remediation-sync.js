@@ -14,6 +14,16 @@
 import { logger, ignoreWith } from "./logger.js";
 import { getIssuesStatus, ISSUE_STATUS_BATCH } from "./jira-api.js";
 import { loadRemediationTicketsToSync, updateRemediationSync } from "./store/remediation.js";
+import { inventorySnapshotQueue } from "./queues.js";
+
+// The sync always runs on the queue consumer, whether the scheduled trigger or "Sync now"
+// started it. A few thousand tickets need minutes; a trigger function has a fixed, short
+// ceiling (Forge allows a custom timeout only on consumers and scheduledTrigger modules), and
+// running the sync inline there meant every run was killed mid-read with nothing logged.
+export async function queueRemediationSync(installationKey) {
+  await inventorySnapshotQueue.push({ body: { jobType: "sync-remediation", installationKey } });
+  return { queued: true };
+}
 
 // How long a Done ticket keeps being re-read, so a reopen in Jira is seen. Long enough to
 // cover a reopen after review; short enough that the sync does not re-read every ticket ever

@@ -183,6 +183,7 @@ import {
 } from "./lib/project-store.js";
 import { getPlaybook, groupBounded, listPlaybookCatalog, REMEDIATION_FINDING_INDEX } from "./lib/remediation-playbooks.js";
 import { computeRemediationMetrics } from "./lib/remediation-metrics.js";
+import { queueRemediationSync } from "./lib/remediation-sync.js";
 import { renderADF } from "./lib/adf.js";
 import { queueWorkflowSnapshotBuild, isWorkflowBuildStale, queueStatusHistoryBuild } from "./lib/workflow-engine.js";
 import { measureScreenFetchCost, probeScreenEndpoints, DEFAULT_SAMPLE_SIZE } from "./lib/screen-probe.js";
@@ -3685,15 +3686,13 @@ async function getRemediationMetrics({ payload, context }) {
   return computeRemediationMetrics({ tickets, now: new Date(), period: currentPeriod(), scope, labels });
 }
 
-// "Sync now": queues the same sync the scheduled trigger runs, on the queue consumer, which has
-// the time a few thousand tickets need and a resolver does not. It reads Jira and writes only
+// "Sync now": queues the same job the scheduled trigger queues, run by the queue consumer,
+// which has the time a few thousand tickets need and a resolver does not. It reads Jira and writes only
 // Observatory's own rows, so it is not behind the read-only-mode gate -- the scheduled sync
 // is not either.
 async function syncRemediationNow({ context }) {
   incrMetric(METRIC_NAMES.resolver);
-  const installationKey = getInstallationKey(context);
-  await inventorySnapshotQueue.push({ body: { jobType: "sync-remediation", installationKey } });
-  return { queued: true };
+  return queueRemediationSync(getInstallationKey(context));
 }
 
 async function createRemediationEpic({ payload, context }) {
