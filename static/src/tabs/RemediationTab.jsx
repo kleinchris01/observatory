@@ -252,6 +252,11 @@ function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, pro
 // governance finding should ever produce.
 const MAX_REMEDIATION_BATCHES = 100;
 
+// How often, and for how long, the tab re-reads the tickets after "Sync now": every 10s for
+// up to 10 minutes, well past what a few thousand tickets take.
+export const SYNC_POLL_MS = 10000;
+const SYNC_MAX_POLLS = 60;
+
 function taskMatches(task, q) {
   return String(task.summary || "").toLowerCase().includes(q) || String(task.issueKey || "").toLowerCase().includes(q);
 }
@@ -296,16 +301,46 @@ export function RemediationTab({ siteOrigin, intent = null }) {
   const [progress, setProgress] = React.useState({});
   const [errors, setErrors] = React.useState({});
 
+  // "Sync now": the sync runs queued (minutes, not seconds), so the tab watches for
+  // lastSyncedAt to move past where it was when the button was pressed, then stops.
+  const [syncingSince, setSyncingSince] = React.useState(null); // { baseline } while a sync is out
+  const [syncError, setSyncError] = React.useState(null);
+
   const fetchTickets = React.useCallback(async () => {
     try {
       const result = await invoke("getRemediationTickets", {});
       setTickets(result);
+      return result;
     } finally {
       setLoading(false);
     }
   }, []);
 
   React.useEffect(() => { fetchTickets(); }, [fetchTickets]);
+
+  async function syncNow() {
+    setSyncError(null);
+    try {
+      await invoke("syncRemediationNow", {});
+      setSyncingSince({ baseline: tickets?.lastSyncedAt || null, polls: 0 });
+    } catch (err) {
+      setSyncError(err?.message || "Could not start the sync.");
+    }
+  }
+
+  React.useEffect(() => {
+    if (!syncingSince) return undefined;
+    const timer = setTimeout(async () => {
+      const result = await fetchTickets().catch(() => null);
+      const moved = result?.lastSyncedAt && result.lastSyncedAt !== syncingSince.baseline;
+      if (moved) setSyncingSince(null);
+      else if (syncingSince.polls + 1 >= SYNC_MAX_POLLS) {
+        setSyncingSince(null);
+        setSyncError("The sync is taking longer than expected. It keeps running; check back in a few minutes.");
+      } else setSyncingSince((s) => (s ? { ...s, polls: s.polls + 1 } : s));
+    }, SYNC_POLL_MS);
+    return () => clearTimeout(timer);
+  }, [syncingSince, fetchTickets]);
 
   const groupsByFinding = React.useMemo(() => {
     const map = new Map();
@@ -442,7 +477,25 @@ export function RemediationTab({ siteOrigin, intent = null }) {
         title="Remediation"
         description="Turn a governance finding into tracked Jira work — one epic per finding per quarter, a task per item (or per owner, where items are many and alike), every ticket linking straight to what it is about, and status synced from Jira three times a business day."
         meta={tickets?.period ? `Current quarter: ${tickets.period}` : null}
+        actions={tickets?.total > 0 && (
+          <>
+            <span className="ui-pagehead__meta remediation-sync__status" role="status">
+              {syncingSince
+                ? "Syncing with Jira…"
+                : tickets.lastSyncedAt ? `Last synced ${formatRelativeTime(tickets.lastSyncedAt)}` : "Never synced"}
+            </span>
+            <button
+              type="button"
+              className="secondary-button secondary-button--small"
+              onClick={syncNow}
+              disabled={Boolean(syncingSince)}
+            >
+              {syncingSince ? "Syncing…" : "Sync now"}
+            </button>
+          </>
+        )}
       />
+      {syncError && <div className="danger-zone__error" role="alert">{syncError}</div>}
 
       <SubNavLayout items={VIEWS} activeKey={view} onSelect={setView}>
         {view === "progress" ? (

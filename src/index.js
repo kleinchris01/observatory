@@ -28,7 +28,7 @@ import { buildUserSnapshot } from "./lib/user-engine.js";
 import { buildAssetSnapshot, buildAssetTypeCounts } from "./lib/asset-engine.js";
 import { buildAccessSnapshot } from "./lib/access-engine.js";
 import { buildEstateSnapshot } from "./lib/estate-engine.js";
-import { syncRemediationTickets } from "./lib/remediation-sync.js";
+import { syncRemediationTickets, queueRemediationSync } from "./lib/remediation-sync.js";
 import { buildBoardSnapshot } from "./lib/board-engine.js";
 import { buildDriftSnapshot } from "./lib/drift-engine.js";
 import { runFullScanStep, runQuickScanStep, startQuickScan, recoverStalledScan } from "./lib/full-scan-runner.js";
@@ -256,9 +256,10 @@ export async function remediationSyncCheck(_event, context) {
     return { skipped: true, reason: "outside business hours" };
   }
   const installationKey = getInstallationKey(context);
-  return syncRemediationTickets(installationKey).catch((error) => {
+  // Queued, not run here: see queueRemediationSync.
+  return queueRemediationSync(installationKey).catch((error) => {
     logger.error("remediation.sync_watchdog_failed", { installationKey, error: error?.message || String(error) });
-    return { checked: 0, updated: 0, error: error?.message || String(error) };
+    return { queued: false, error: error?.message || String(error) };
   });
 }
 
@@ -522,6 +523,14 @@ export async function consumeSnapshot(event) {
       console.log(
         `build-estate-snapshot: ${result?.resolutions ?? 0} resolutions, ${result?.priorities ?? 0} priorities`
       );
+      return;
+    }
+
+    // "Sync now" from the Remediation tab. Queued rather than run in the resolver: a resolver
+    // has seconds, and a few thousand tickets need minutes.
+    if (jobType === "sync-remediation") {
+      const result = await syncRemediationTickets(installationKey);
+      console.log(`sync-remediation: ${result?.updated ?? 0} of ${result?.checked ?? 0} tickets updated`);
       return;
     }
 

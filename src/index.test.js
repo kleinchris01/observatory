@@ -88,6 +88,7 @@ vi.mock("./lib/scan-engine.js", () => ({
 
 vi.mock("./lib/remediation-sync.js", () => ({
   syncRemediationTickets: vi.fn().mockResolvedValue({ checked: 0, updated: 0 }),
+  queueRemediationSync: vi.fn().mockResolvedValue({ queued: true }),
 }));
 
 vi.mock("./lib/snapshot-engine.js", () => ({
@@ -179,7 +180,7 @@ import {
   handler,
   adminHandler,
 } from "./index.js";
-import { syncRemediationTickets } from "./lib/remediation-sync.js";
+import { syncRemediationTickets, queueRemediationSync } from "./lib/remediation-sync.js";
 import {
   readSnapshotMeta,
   writeSnapshotMeta,
@@ -514,14 +515,16 @@ describe("remediationSyncCheck", () => {
     vi.setSystemTime(new Date(Date.UTC(2026, 8, 23, hourUtc, 0, 0)));
   }
 
-  test("syncs the calling installation's open remediation tickets", async () => {
+  // Queued, never run inline: a trigger function has a fixed, short ceiling, and running the
+  // sync here meant every run was killed mid-read with nothing logged.
+  test("queues the sync for the calling installation rather than running it inline", async () => {
     atBusinessHour();
-    syncRemediationTickets.mockResolvedValueOnce({ checked: 3, updated: 2 });
 
     const result = await remediationSyncCheck({}, CONTEXT);
 
-    expect(syncRemediationTickets).toHaveBeenCalledWith("scope-1");
-    expect(result).toEqual({ checked: 3, updated: 2 });
+    expect(queueRemediationSync).toHaveBeenCalledWith("scope-1");
+    expect(syncRemediationTickets).not.toHaveBeenCalled();
+    expect(result).toEqual({ queued: true });
   });
 
   // The trigger itself still fires hourly -- Forge offers nothing finer -- so most firings
@@ -529,8 +532,7 @@ describe("remediationSyncCheck", () => {
   test("runs only at 8am, 12pm and 4pm Pacific (16:00, 20:00, 00:00 UTC)", async () => {
     for (const hourUtc of [16, 20, 0]) {
       atBusinessHour(hourUtc);
-      syncRemediationTickets.mockResolvedValueOnce({ checked: 1, updated: 1 });
-      await expect(remediationSyncCheck({}, CONTEXT)).resolves.toEqual({ checked: 1, updated: 1 });
+      await expect(remediationSyncCheck({}, CONTEXT)).resolves.toEqual({ queued: true });
     }
   });
 
@@ -540,29 +542,29 @@ describe("remediationSyncCheck", () => {
       const result = await remediationSyncCheck({}, CONTEXT);
       expect(result).toEqual({ skipped: true, reason: "outside business hours" });
     }
-    expect(syncRemediationTickets).not.toHaveBeenCalled();
+    expect(queueRemediationSync).not.toHaveBeenCalled();
   });
 
   // A watchdog that can itself throw and take down the trigger defeats the purpose of a
   // watchdog -- the next firing should still get a clean attempt.
   test("swallows a failure and reports it rather than throwing", async () => {
     atBusinessHour();
-    syncRemediationTickets.mockRejectedValueOnce(new Error("sql down"));
+    queueRemediationSync.mockRejectedValueOnce(new Error("queue backpressure"));
 
     const result = await remediationSyncCheck({}, CONTEXT);
 
-    expect(result).toMatchObject({ checked: 0, updated: 0, error: "sql down" });
+    expect(result).toMatchObject({ queued: false, error: "queue backpressure" });
   });
 
   // Not every rejection is an Error with a .message -- a plain string throw exercises the
   // String(error) fallback the .message branch above does not.
   test("stringifies a rejection that carries no .message", async () => {
     atBusinessHour();
-    syncRemediationTickets.mockRejectedValueOnce("boom");
+    queueRemediationSync.mockRejectedValueOnce("boom");
 
     const result = await remediationSyncCheck({}, CONTEXT);
 
-    expect(result).toMatchObject({ checked: 0, updated: 0, error: "boom" });
+    expect(result).toMatchObject({ queued: false, error: "boom" });
   });
 });
 
@@ -747,6 +749,12 @@ describe("consumeSnapshot job routing", () => {
   test("routes build-estate-snapshot to the estate engine", async () => {
     await consumeSnapshot(event({ jobType: "build-estate-snapshot" }));
     expect(buildEstateSnapshot).toHaveBeenCalledWith("scope-1");
+  });
+
+  test("routes sync-remediation (Sync now) to the remediation sync", async () => {
+    syncRemediationTickets.mockResolvedValueOnce({ checked: 4, updated: 3, failedBatches: 0 });
+    await consumeSnapshot(event({ jobType: "sync-remediation" }));
+    expect(syncRemediationTickets).toHaveBeenCalledWith("scope-1");
   });
 
   test("routes build-board-snapshot to the board engine", async () => {

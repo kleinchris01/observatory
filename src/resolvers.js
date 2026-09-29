@@ -183,6 +183,7 @@ import {
 } from "./lib/project-store.js";
 import { getPlaybook, groupBounded, listPlaybookCatalog, REMEDIATION_FINDING_INDEX } from "./lib/remediation-playbooks.js";
 import { computeRemediationMetrics } from "./lib/remediation-metrics.js";
+import { queueRemediationSync } from "./lib/remediation-sync.js";
 import { renderADF } from "./lib/adf.js";
 import { queueWorkflowSnapshotBuild, isWorkflowBuildStale, queueStatusHistoryBuild } from "./lib/workflow-engine.js";
 import { measureScreenFetchCost, probeScreenEndpoints, DEFAULT_SAMPLE_SIZE } from "./lib/screen-probe.js";
@@ -3655,11 +3656,16 @@ async function getRemediationTickets({ payload, context }) {
     };
   });
 
+  // The latest time the sync reached any ticket. Null means it never has, which the tab says in
+  // those words rather than implying the tickets were checked and found untouched.
+  const lastSyncedAt = tickets.reduce((latest, t) => (t.syncedAt && (!latest || t.syncedAt > latest) ? t.syncedAt : latest), null);
+
   // The catalog and the finding index travel with the tickets, so neither the Remediation tab
   // nor the Overview keeps its own copy of which playbooks exist or which finding each covers.
   return {
     available: tickets.length > 0,
     total: tickets.length,
+    lastSyncedAt,
     period,
     groups,
     catalog: listPlaybookCatalog(),
@@ -3678,6 +3684,15 @@ async function getRemediationMetrics({ payload, context }) {
   const tickets = await loadRemediationTickets(installationKey);
   const labels = Object.fromEntries(listPlaybookCatalog().map((entry) => [entry.key, entry.label]));
   return computeRemediationMetrics({ tickets, now: new Date(), period: currentPeriod(), scope, labels });
+}
+
+// "Sync now": queues the same job the scheduled trigger queues, run by the queue consumer,
+// which has the time a few thousand tickets need and a resolver does not. It reads Jira and writes only
+// Observatory's own rows, so it is not behind the read-only-mode gate -- the scheduled sync
+// is not either.
+async function syncRemediationNow({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  return queueRemediationSync(getInstallationKey(context));
 }
 
 async function createRemediationEpic({ payload, context }) {
@@ -10209,6 +10224,7 @@ const AUDITED_ADMIN_ACTIONS = new Set([
   "buildEstateInventory",
   "buildBoardInventory",
   "createRemediationEpic",
+  "syncRemediationNow",
 ]);
 
 function withAuditTrail(functions) {
@@ -10344,6 +10360,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getRemediationTickets,   // Admin read: remediation epics and tasks, grouped by finding
   getRemediationMetrics,   // Admin read: remediation burn-down, throughput and ageing
   createRemediationEpic,   // Mutating: creates a Jira epic + tasks for a governance finding
+  syncRemediationNow,      // Mutating: queues a remediation status sync from Jira
   getRemediationCandidates,// Admin read: current items behind one finding, ready to ticket
   getStatusAutomationUsage,// Admin read: which rules reference one status, by direction
   getDashboardInventory,   // Admin read: dashboards, their gadgets and their findings
