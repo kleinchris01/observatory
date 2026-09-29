@@ -35,6 +35,7 @@ const OverviewTab = React.lazy(() => import("./tabs/OverviewTab").then((m) => ({
 const ProjectUsageTab = React.lazy(() => import("./tabs/ProjectUsageTab").then((m) => ({ default: m.ProjectUsageTab })));
 const ReportsTab = React.lazy(() => import("./tabs/ReportsTab").then((m) => ({ default: m.ReportsTab })));
 const ScansTab = React.lazy(() => import("./tabs/ScansTab").then((m) => ({ default: m.ScansTab })));
+const SearchTab = React.lazy(() => import("./tabs/SearchTab").then((m) => ({ default: m.SearchTab })));
 const RemediationTab = React.lazy(() => import("./tabs/RemediationTab").then((m) => ({ default: m.RemediationTab })));
 const DashboardsTab = React.lazy(() => import("./tabs/DashboardsTab").then((m) => ({ default: m.DashboardsTab })));
 const FiltersTab = React.lazy(() => import("./tabs/FiltersTab").then((m) => ({ default: m.FiltersTab })));
@@ -135,6 +136,7 @@ export const ADMIN_NAV_TABS = [
   { key: "dashboards", label: "Dashboards", icon: "grid", group: "Pillars" },
   { key: "boards", label: "Boards", icon: "kanban", group: "Pillars" },
   { key: "automation", label: "Automation", icon: "refreshCw", group: "Pillars" },
+  { key: "search", label: "Search", icon: "sliders", group: "Act" },
   { key: "remediation", label: "Remediation", icon: "wrench", group: "Act" },
   { key: "reports", label: "Reports", icon: "clipboardText", group: "Act" },
   { key: "changes", label: "Changes", icon: "clock", group: "Operate" },
@@ -435,6 +437,8 @@ export function AdminApp() {
             <DashboardsTab siteOrigin={siteOrigin} intent={navIntent} />
           ) : activeTab === "automation" ? (
             <AutomationTab siteOrigin={siteOrigin} intent={navIntent} />
+          ) : activeTab === "search" ? (
+            <SearchTab onNavigate={navigate} />
           ) : activeTab === "remediation" ? (
             <RemediationTab siteOrigin={siteOrigin} intent={navIntent} />
           ) : activeTab === "reports" ? (

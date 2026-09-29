@@ -6,8 +6,7 @@ import {
   buildPillarReport,
   finalizeReport,
   isPillarReportKey,
-  unavailableReport,
-} from "./pillar-reports.js";
+  unavailableReport, countScreenProjects } from "./pillar-reports.js";
 
 describe("registry", () => {
   test("every registered pillar has a builder, and every builder is registered", () => {
@@ -267,6 +266,41 @@ describe("builders", () => {
     expect(report.notes).toEqual([]);
 
     expect(buildPillarReport("screens", { screens, unreachedIds: null }).notes[0]).toMatch(/not checked/);
+  });
+
+  test("screens: projects reached through screen schemes, blank when the chain was not loaded", () => {
+    const screens = [
+      { screenId: "1", name: "A", tabCount: 1, fieldCount: 3, tabsResolved: "resolved" },
+      { screenId: "2", name: "B", tabCount: 1, fieldCount: 3, tabsResolved: "resolved" },
+    ];
+    const withReach = buildPillarReport("screens", { screens, unreachedIds: new Set(), projectsByScreen: new Map([["1", 4]]) });
+    expect(withReach.columns.map((c) => c.key)).toContain("projects");
+    expect(withReach.rows.map((r) => [r.id, r.projects])).toEqual([["1", 4], ["2", 0]]);
+    expect(buildPillarReport("screens", { screens, unreachedIds: new Set() }).rows[0].projects).toBeNull();
+  });
+
+  test("countScreenProjects: screen -> screen scheme -> issue type screen scheme -> distinct projects", () => {
+    const reach = countScreenProjects({
+      operations: [
+        { schemeId: "ss1", operation: "default", screenId: "10" },
+        { schemeId: "ss1", operation: "create", screenId: "11" },
+        { schemeId: "ss2", operation: "default", screenId: "10" },
+        { schemeId: "ss3", operation: "default", screenId: "12" }, // scheme no ITSS maps
+        { schemeId: "ss1", operation: "edit", screenId: "13", dangling: true },
+        { schemeId: "ss1", operation: "view", screenId: null },
+      ],
+      mappings: [
+        { itssId: "i1", screenSchemeId: "ss1" },
+        { itssId: "i2", screenSchemeId: "ss2" },
+        { itssId: "i2", screenSchemeId: null },
+      ],
+      itssProjects: [
+        { itssId: "i1", projectId: "P1" }, { itssId: "i1", projectId: "P2" },
+        { itssId: "i2", projectId: "P2" }, { itssId: "i2", projectId: "P3" },
+      ],
+    });
+    expect(Object.fromEntries(reach)).toEqual({ 10: 3, 11: 2, 12: 0 });
+    expect(countScreenProjects().size).toBe(0);
   });
 
   test("filters: findings are the analysis codes", () => {

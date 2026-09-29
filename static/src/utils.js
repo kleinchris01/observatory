@@ -366,7 +366,7 @@ export function formatReportCell(value, kind) {
 
 // A cell a spreadsheet would execute. Report cells are names people typed in Jira -- a
 // filter called "=HYPERLINK(...)" must arrive as text, not as a formula.
-function neutralizeFormula(text) {
+export function neutralizeFormula(text) {
   return /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
 }
 
