@@ -525,6 +525,14 @@ export async function consumeSnapshot(event) {
       return;
     }
 
+    // "Sync now" from the Remediation tab. Queued rather than run in the resolver: a resolver
+    // has seconds, and a few thousand tickets need minutes.
+    if (jobType === "sync-remediation") {
+      const result = await syncRemediationTickets(installationKey);
+      console.log(`sync-remediation: ${result?.updated ?? 0} of ${result?.checked ?? 0} tickets updated`);
+      return;
+    }
+
     if (jobType === "build-board-snapshot") {
       const result = await buildBoardSnapshot(installationKey);
       console.log(

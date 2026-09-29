@@ -749,6 +749,12 @@ describe("consumeSnapshot job routing", () => {
     expect(buildEstateSnapshot).toHaveBeenCalledWith("scope-1");
   });
 
+  test("routes sync-remediation (Sync now) to the remediation sync", async () => {
+    syncRemediationTickets.mockResolvedValueOnce({ checked: 4, updated: 3, failedBatches: 0 });
+    await consumeSnapshot(event({ jobType: "sync-remediation" }));
+    expect(syncRemediationTickets).toHaveBeenCalledWith("scope-1");
+  });
+
   test("routes build-board-snapshot to the board engine", async () => {
     await consumeSnapshot(event({ jobType: "build-board-snapshot" }));
     expect(buildBoardSnapshot).toHaveBeenCalledWith("scope-1");
@@ -1157,6 +1163,16 @@ describe("manifest wiring", () => {
   test("remediationSyncCheck is bound to a function and a scheduled trigger", () => {
     expect(manifest).toContain("handler: index.remediationSyncCheck");
     expect(manifest).toMatch(/key: remediation-sync-trigger[\s\S]*?function: remediation-sync/);
+  });
+
+  // Without it the platform default (~25s) killed every sync mid-read, silently: thousands of
+  // tickets need minutes. Nothing in a unit test would ever notice it missing.
+  test("remediation-sync has the long timeout its ticket volume needs", () => {
+    // The function entry up to the next list item -- so a timeout on some other function
+    // further down cannot satisfy this.
+    const block = manifest.match(/- key: remediation-sync\r?\n[\s\S]*?(?=\r?\n\s+- key:)/)[0];
+    expect(block).toContain("handler: index.remediationSyncCheck");
+    expect(block).toContain("timeoutSeconds: 900");
   });
 
   test("retention runs on a different schedule than auto-snapshot", () => {

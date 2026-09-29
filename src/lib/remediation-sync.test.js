@@ -6,7 +6,7 @@ vi.mock("./logger.js", () => ({
 }));
 
 const getIssuesStatus = vi.fn();
-vi.mock("./jira-api.js", () => ({ getIssuesStatus: (...args) => getIssuesStatus(...args) }));
+vi.mock("./jira-api.js", () => ({ getIssuesStatus: (...args) => getIssuesStatus(...args), ISSUE_STATUS_BATCH: 100 }));
 
 const loadRemediationTicketsToSync = vi.fn();
 const updateRemediationSync = vi.fn().mockResolvedValue(undefined);
@@ -46,7 +46,7 @@ describe("syncRemediationTickets", () => {
     expect(updateRemediationSync).toHaveBeenCalledWith("scope", "OPS-1", expect.objectContaining({
       lastStatus: "In Progress", lastStatusCategory: "indeterminate", assigneeAccountId: "acc-1", assigneeName: "Sam",
     }));
-    expect(result).toEqual({ checked: 2, updated: 2 });
+    expect(result).toEqual({ checked: 2, updated: 2, failedBatches: 0 });
   });
 
   it("leaves a ticket's stored status alone when Jira no longer returns it, rather than blanking it", async () => {
@@ -59,7 +59,7 @@ describe("syncRemediationTickets", () => {
 
     expect(updateRemediationSync).toHaveBeenCalledTimes(1);
     expect(updateRemediationSync).toHaveBeenCalledWith("scope", "OPS-1", expect.anything());
-    expect(result).toEqual({ checked: 2, updated: 1 });
+    expect(result).toEqual({ checked: 2, updated: 1, failedBatches: 0 });
   });
 
   it("does not let one failed write stop the rest of the batch", async () => {
@@ -75,7 +75,25 @@ describe("syncRemediationTickets", () => {
     expect(updateRemediationSync).toHaveBeenCalledTimes(2);
     // Both counted as "checked against Jira and written" -- the write failure is swallowed
     // and logged, same posture as every other per-item loop in this store family.
-    expect(result).toEqual({ checked: 2, updated: 2 });
+    expect(result).toEqual({ checked: 2, updated: 2, failedBatches: 0 });
+  });
+
+  // The failure that made every run a no-op: one refused read threw away the whole sync.
+  it("keeps syncing the other batches when one batch's read fails", async () => {
+    const tickets = Array.from({ length: 250 }, (_, i) => ({ issueKey: `OPS-${i}` }));
+    loadRemediationTicketsToSync.mockResolvedValue(tickets);
+    getIssuesStatus
+      .mockResolvedValueOnce(tickets.slice(0, 100).map((t) => ({ key: t.issueKey, status: "Done", statusCategory: "done" })))
+      .mockRejectedValueOnce(new Error("Jira request failed (500)"))
+      .mockResolvedValueOnce(tickets.slice(200).map((t) => ({ key: t.issueKey, status: "To Do", statusCategory: "new" })));
+
+    const result = await syncRemediationTickets("scope");
+
+    expect(getIssuesStatus).toHaveBeenCalledTimes(3);
+    expect(getIssuesStatus.mock.calls.map(([keys]) => keys.length)).toEqual([100, 100, 50]);
+    expect(result).toEqual({ checked: 250, updated: 150, failedBatches: 1 });
+    // The failed batch's tickets are left exactly as they were -- never blanked.
+    expect(updateRemediationSync).not.toHaveBeenCalledWith("scope", "OPS-150", expect.anything());
   });
 
   it("asks the store for everything not done, plus anything done in the reopen window", async () => {

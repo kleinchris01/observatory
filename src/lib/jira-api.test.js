@@ -1610,15 +1610,34 @@ describe("getIssuesStatus (remediation sync)", () => {
     const out = await getIssuesStatus(["OPS-1", "OPS-2"]);
     expect(out[0]).toMatchObject({ resolvedAt: "2026-09-27T08:00:00.000Z", statusCategoryChangedAt: "2026-09-27T08:00:05.000Z" });
     expect(out[1]).toMatchObject({ resolvedAt: null });
-    const [url] = mockRequestJira.mock.calls[0];
-    expect(String(url)).toMatch(/resolutiondate/);
-    expect(String(url)).toMatch(/statuscategorychangedate/);
+    const [, options] = mockRequestJira.mock.calls[0];
+    expect(JSON.parse(options.body).fields).toEqual(["status", "assignee", "resolutiondate", "statuscategorychangedate"]);
   });
 
-  test("chunks a large key list into batches of 90", async () => {
+  // A `key in (...)` search fails outright when any one key is gone, so one deleted ticket
+  // used to fail every ticket batched with it. Bulk fetch lists it under issueErrors instead.
+  test("reads by bulk fetch, so a deleted key is left out rather than failing the batch", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({
+      body: {
+        issues: [{ key: "OPS-1", fields: { status: { name: "Done", statusCategory: { key: "done" } } } }],
+        issueErrors: [{ issueIdsOrKeys: ["OPS-GONE"], errorMessages: ["Issue does not exist"] }],
+      },
+    }));
+
+    const out = await getIssuesStatus(["OPS-1", "OPS-GONE"]);
+
+    expect(out.map((s) => s.key)).toEqual(["OPS-1"]);
+    const [url, options] = mockRequestJira.mock.calls[0];
+    expect(String(url)).toMatch(/\/rest\/api\/3\/issue\/bulkfetch$/);
+    expect(options.method).toBe("POST");
+    expect(JSON.parse(options.body).issueIdsOrKeys).toEqual(["OPS-1", "OPS-GONE"]);
+  });
+
+  test("chunks a large key list into batches of 100", async () => {
     mockRequestJira.mockResolvedValue(jiraResponse({ body: { issues: [] } }));
-    await getIssuesStatus(Array.from({ length: 200 }, (_, i) => `OPS-${i}`));
+    await getIssuesStatus(Array.from({ length: 250 }, (_, i) => `OPS-${i}`));
     expect(mockRequestJira).toHaveBeenCalledTimes(3);
+    expect(JSON.parse(mockRequestJira.mock.calls[0][1].body).issueIdsOrKeys).toHaveLength(100);
   });
 });
 

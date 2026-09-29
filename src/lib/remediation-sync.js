@@ -12,7 +12,7 @@
 // in index.js; this is what actually happens once triggered.
 
 import { logger, ignoreWith } from "./logger.js";
-import { getIssuesStatus } from "./jira-api.js";
+import { getIssuesStatus, ISSUE_STATUS_BATCH } from "./jira-api.js";
 import { loadRemediationTicketsToSync, updateRemediationSync } from "./store/remediation.js";
 
 // How long a Done ticket keeps being re-read, so a reopen in Jira is seen. Long enough to
@@ -33,8 +33,24 @@ export async function syncRemediationTickets(installationKey, now = new Date()) 
   const tickets = await loadRemediationTicketsToSync(installationKey, reopenWindowStart);
   if (!tickets.length) return { checked: 0, updated: 0 };
 
-  const statuses = await getIssuesStatus(tickets.map((t) => t.issueKey));
-  const byKey = new Map(statuses.map((s) => [s.key, s]));
+  // One read per batch, each on its own: a batch Jira refuses leaves those tickets as they
+  // were and the rest still sync. Before this, one failed read threw away the whole run.
+  const keys = [...new Set(tickets.map((t) => t.issueKey))];
+  const byKey = new Map();
+  let failedBatches = 0;
+  for (let i = 0; i < keys.length; i += ISSUE_STATUS_BATCH) {
+    const batch = keys.slice(i, i + ISSUE_STATUS_BATCH);
+    try {
+      // eslint-disable-next-line no-await-in-loop -- the Jira client rate-limits; parallel
+      // batches would only queue behind each other.
+      for (const s of await getIssuesStatus(batch)) byKey.set(s.key, s);
+    } catch (error) {
+      failedBatches += 1;
+      logger.warn("remediation.sync_batch_failed", {
+        installationKey, firstKey: batch[0], size: batch.length, error: error?.message || String(error),
+      });
+    }
+  }
   const syncedAt = now.toISOString();
 
   let updated = 0;
@@ -59,6 +75,6 @@ export async function syncRemediationTickets(installationKey, now = new Date()) 
     updated += 1;
   }
 
-  logger.info("remediation.synced", { installationKey, checked: tickets.length, updated });
-  return { checked: tickets.length, updated };
+  logger.info("remediation.synced", { installationKey, checked: tickets.length, updated, failedBatches });
+  return { checked: tickets.length, updated, failedBatches };
 }
