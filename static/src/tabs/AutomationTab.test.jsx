@@ -7,6 +7,8 @@ import {
   AutomationTab,
   DIRECTIONS,
   analyzeExportFile,
+  crossRuleHint,
+  crossRuleValue,
   filterFindings,
   findingDetailLine,
   persistAnalysis,
@@ -102,6 +104,22 @@ function routeInvoke(map) {
 
 beforeEach(() => {
   invoke.mockReset();
+});
+
+// An analysis imported before the cross-rule checks were stored was never measured for
+// them; a zero would claim it was checked and found clean.
+describe("crossRuleValue / crossRuleHint", () => {
+  it("shows the count when the check was measured, including a real zero", () => {
+    expect(crossRuleValue(12)).toBe("12");
+    expect(crossRuleValue(0)).toBe("0");
+    expect(crossRuleHint(0, "the hint")).toBe("the hint");
+  });
+
+  it("says not measured, and how to measure it, when the total is absent", () => {
+    expect(crossRuleValue(null)).toBe("Not measured");
+    expect(crossRuleValue(undefined)).toBe("Not measured");
+    expect(crossRuleHint(null, "the hint")).toMatch(/re-import/i);
+  });
 });
 
 describe("triggerLabel", () => {

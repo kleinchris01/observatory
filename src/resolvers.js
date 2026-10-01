@@ -276,6 +276,7 @@ import {
   AUTOMATION_PARTS,
   MAX_PREVIEW_FINDINGS,
   MAX_STORED_CASCADES,
+  MAX_STORED_CROSS_RULE,
 } from "./lib/store/automation.js";
 import {
   STRUCTURAL_SYSTEM_FIELDS,
@@ -2736,6 +2737,9 @@ async function getAutomationInsights({ context }) {
       cascades: analysis.cascades ?? [],
       cascadesTotal: analysis.cascadesTotal ?? (analysis.cascades?.length ?? 0),
       selfTriggeringTotal: analysis.selfTriggeringTotal ?? 0,
+      // The three cross-rule checks. Null, not zero, on an analysis saved before they were
+      // stored: those imports were never measured for them, and the tab says so.
+      ...crossRuleSection(analysis),
       // The blast-radius tier histogram for the overview. Null on an analysis imported
       // before blast scoring existed — the tab shows a "re-import" prompt for that section.
       blast: analysis.blast ?? null,
@@ -2745,6 +2749,34 @@ async function getAutomationInsights({ context }) {
     console.error("getAutomationInsights failed:", error);
     throw error;
   }
+}
+
+// The cross-rule lists, keyed so the getter and the saver agree on the names.
+const CROSS_RULE_KEYS = ["eventCascades", "competingPairs", "fieldContradictions"];
+
+// Saving: totals come from the payload (they describe the estate, not the capped list);
+// a payload without a list leaves the check unmeasured rather than recording zero.
+function storedCrossRule(document) {
+  const out = {};
+  for (const key of CROSS_RULE_KEYS) {
+    const list = document[key];
+    if (!Array.isArray(list)) continue;
+    const total = Number(document[`${key}Total`]);
+    out[key] = list.slice(0, MAX_STORED_CROSS_RULE);
+    out[`${key}Total`] = Number.isFinite(total) && total >= list.length ? total : list.length;
+  }
+  return out;
+}
+
+// Reading: null when the stored analysis predates the check.
+function crossRuleSection(analysis) {
+  const out = {};
+  for (const key of CROSS_RULE_KEYS) {
+    const measured = Array.isArray(analysis[key]);
+    out[key] = measured ? analysis[key] : [];
+    out[`${key}Total`] = measured ? (Number(analysis[`${key}Total`]) || analysis[key].length) : null;
+  }
+  return out;
 }
 
 // The blast rollup is admin-supplied like the rest of the analysis payload. An admin can
@@ -2825,6 +2857,9 @@ async function saveAutomationAnalysis({ payload, context }) {
       cascades: cascades.slice(0, MAX_STORED_CASCADES),
       cascadesTotal: Number(document.cascadesTotal) || cascades.length,
       selfTriggeringTotal: Number(document.selfTriggeringTotal) || 0,
+      // The three cross-rule checks. These were computed by the analysis and then dropped
+      // here, so the tab's tiles read 0 on every site whatever the rules did.
+      ...storedCrossRule(document),
       // The blast-radius rollup: a tier histogram and the two health inputs. Small, and read
       // on first paint, so it rides here rather than costing a SQL round trip. The per-rule
       // scores are shredded into automation_rule_blast by the "blast" index part.

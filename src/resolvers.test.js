@@ -328,6 +328,7 @@ vi.mock("./lib/store/automation.js", () => ({
   AUTOMATION_PARTS: { analysis: "a:", fields: "f:", statuses: "s:", issueTypes: "it:", users: "u:", directory: "d:", findings: "fi:", cascades: "c:" },
   MAX_PREVIEW_FINDINGS: 20,
   MAX_STORED_CASCADES: 150,
+  MAX_STORED_CROSS_RULE: 100,
 }));
 
 vi.mock("./lib/project-store.js", () => ({
@@ -3710,6 +3711,38 @@ describe("getAutomationInsights", () => {
     expect(result.cascadesTotal).toBe(1);
   });
 
+  test("returns the cross-rule totals and lists the analysis stored", async () => {
+    mocks.readAutomationAnalysis.mockResolvedValueOnce({
+      ...doc,
+      eventCascades: [{ sourceId: 1, targetId: 2 }],
+      eventCascadesTotal: 3,
+      competingPairs: [],
+      competingPairsTotal: 0,
+      fieldContradictions: [{ field: "Priority" }],
+      fieldContradictionsTotal: 1,
+    });
+
+    const result = await getAutomationInsights({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.eventCascadesTotal).toBe(3);
+    expect(result.eventCascades).toHaveLength(1);
+    expect(result.competingPairsTotal).toBe(0);
+    expect(result.fieldContradictionsTotal).toBe(1);
+  });
+
+  // An analysis saved before these checks were stored was never measured for them. Zero
+  // would claim the rules were checked and found clean.
+  test("reports the cross-rule totals as null on an analysis that predates them", async () => {
+    mocks.readAutomationAnalysis.mockResolvedValueOnce(doc);
+
+    const result = await getAutomationInsights({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.eventCascadesTotal).toBeNull();
+    expect(result.competingPairsTotal).toBeNull();
+    expect(result.fieldContradictionsTotal).toBeNull();
+    expect(result.eventCascades).toEqual([]);
+  });
+
   // A document written by an older build can be missing any of these. Each field falls back
   // to an empty value rather than reaching the client as undefined, where the tab would
   // render "undefined rules" or throw on a map of nothing.
@@ -3827,6 +3860,42 @@ describe("saveAutomationAnalysis", () => {
     expect(result.saved).toBe(true);
     const [, stored] = mocks.writeAutomationAnalysis.mock.calls[0];
     expect(stored).toMatchObject({ schemaVersion: 1, estate: valid.estate, findingsTotal: 675, cascadesTotal: 1457 });
+  });
+
+  // The three cross-rule checks were computed by the analysis and then dropped on save, so
+  // their tiles read 0 on every site. Totals describe the estate; lists are capped.
+  test("keeps the cross-rule totals and capped lists", async () => {
+    const pairs = Array.from({ length: 140 }, (_, i) => ({ a: i, b: i + 1 }));
+    await saveAutomationAnalysis({
+      payload: {
+        analysis: {
+          ...valid,
+          eventCascades: [{ sourceId: 1, targetId: 2 }],
+          eventCascadesTotal: 4,
+          competingPairs: pairs,
+          competingPairsTotal: 140,
+          fieldContradictions: [],
+          fieldContradictionsTotal: 0,
+        },
+      },
+      context: ctxWithAccount(),
+    });
+
+    const [, stored] = mocks.writeAutomationAnalysis.mock.calls[0];
+    expect(stored.eventCascadesTotal).toBe(4);
+    expect(stored.eventCascades).toHaveLength(1);
+    expect(stored.competingPairsTotal).toBe(140);
+    expect(stored.competingPairs).toHaveLength(100);
+    expect(stored.fieldContradictionsTotal).toBe(0);
+    expect(stored.fieldContradictions).toEqual([]);
+  });
+
+  test("leaves a cross-rule check unmeasured when the payload carries no list", async () => {
+    await saveAutomationAnalysis({ payload: { analysis: valid }, context: ctxWithAccount() });
+
+    const [, stored] = mocks.writeAutomationAnalysis.mock.calls[0];
+    expect(stored).not.toHaveProperty("eventCascadesTotal");
+    expect(stored).not.toHaveProperty("competingPairsTotal");
   });
 
   // A skewed workstation clock would otherwise stamp the analysis hours out, and that
@@ -6926,7 +6995,9 @@ describe("createRemediationEpic", () => {
 
 describe("getRemediationMetrics", () => {
   test("computes progress over this quarter's tasks, labelled from the playbook catalog", async () => {
-    const period = (() => { const d = new Date(); return `${d.getUTCFullYear()}-Q${Math.floor(d.getUTCMonth() / 3) + 1}`; })();
+    // The store mock pins the period; the test must use the same one, not today's date,
+    // or it fails every time a real quarter turns over.
+    const period = mocks.currentPeriod();
     mocks.loadRemediationTickets.mockResolvedValueOnce([
       { findingKey: "filter-ownership", period, isEpic: true, issueKey: "ADMIN-1" },
       { findingKey: "filter-ownership", period, isEpic: false, issueKey: "ADMIN-2", lastStatusCategory: "done", createdAt: new Date().toISOString(), doneAt: new Date().toISOString() },
