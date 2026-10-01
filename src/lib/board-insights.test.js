@@ -68,6 +68,19 @@ describe("summarizeBoardInsights", () => {
   });
 });
 
+describe("unreadable boards", () => {
+  // Team-managed boards often refuse their configuration. They were never checked, so they
+  // must not count toward the denominator that makes a board estate look clean.
+  test("counts readable and unreadable boards separately", () => {
+    const r = summarizeBoardInsights({
+      boards: [board(), board({ boardId: "2", configReadable: false, columns: [] }), board({ boardId: "3", configReadable: false, columns: [] })],
+      filters: [{ id: "100", ownerActive: true }],
+    });
+    expect(r).toMatchObject({ total: 3, readable: 1, unreadable: 2 });
+    expect(summarizeBoardHealth(r)).toMatchObject({ total: 3, readable: 1, unreadable: 2 });
+  });
+});
+
 describe("summarizeBoardHealth", () => {
   test("unavailable when the pillar has nothing", () => {
     expect(summarizeBoardHealth({ available: false })).toEqual({ available: false });
