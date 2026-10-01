@@ -456,6 +456,7 @@ vi.mock("./lib/project-store.js", () => ({
   loadProjectRoleActors: mocks.loadProjectRoleActors,
   readDriftSnapshotMeta: mocks.readDriftSnapshotMeta,
   loadConfigChanges: mocks.loadConfigChanges,
+  changeCursorOf: (row) => (row?.changeId ? `${row.detectedAt}|${row.changeId}` : row?.detectedAt ?? null),
   loadConfigChangeSummary: mocks.loadConfigChangeSummary,
   readEstateSnapshotMeta: mocks.readEstateSnapshotMeta,
   loadEstateValues: mocks.loadEstateValues,
@@ -6317,7 +6318,8 @@ describe("getChangeHistory", () => {
     );
     const result = await getChangeHistory({ payload: { limit: 2 }, ...ctx });
     expect(result.changes).toHaveLength(2);
-    expect(result.nextCursor).toBe("2026-09-02T00:00:00Z");
+    // Carries the change id: rows of one drift pass share a timestamp.
+    expect(result.nextCursor).toBe("2026-09-02T00:00:00Z|v1-1");
   });
 });
 
@@ -6654,7 +6656,7 @@ describe("getPillarReport", () => {
     const report = await getPillarReport(ctx("changes"));
 
     expect(report.total).toBe(501);
-    expect(mocks.loadConfigChanges.mock.calls[1][1]).toMatchObject({ before: page[499].detectedAt, limit: 500 });
+    expect(mocks.loadConfigChanges.mock.calls[1][1]).toMatchObject({ before: `${page[499].detectedAt}|${page[499].changeId}`, limit: 500 });
     expect(mocks.loadConfigChanges.mock.calls[0][1].since).toEqual(expect.any(String));
     expect(report.columns.some((c) => c.key === "findings")).toBe(false);
   });

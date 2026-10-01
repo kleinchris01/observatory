@@ -30,7 +30,7 @@ const history = (over = {}) => ({
   changes: [
     { changeId: "v2-0", detectedAt: "2026-09-03T09:00:00Z", pillar: "access", entityType: "permission-scheme", entityId: "1", label: "Prod", changeKind: "modified", summary: 'Permission scheme "Prod" changed: name' },
     { changeId: "v2-1", detectedAt: "2026-09-03T09:00:00Z", pillar: "workflow", entityType: "status", entityId: "9", label: "In Review", changeKind: "added", summary: 'Status "In Review" added' },
-    { changeId: "v1-4", detectedAt: "2026-09-01T12:00:00Z", pillar: "fields", entityType: "field", entityId: "customfield_5", label: "Story Points", changeKind: "removed", summary: 'Field "Story Points" removed' },
+    { changeId: "v1-4", detectedAt: "2026-09-01T12:00:00Z|v9-00100", pillar: "fields", entityType: "field", entityId: "customfield_5", label: "Story Points", changeKind: "removed", summary: 'Field "Story Points" removed' },
   ],
   nextCursor: null,
   summary: { total: 8, byPillar: { access: 3, workflow: 4, fields: 1 }, byKind: { added: 4, removed: 1, modified: 3 } },
@@ -78,13 +78,13 @@ describe("ChangesTab", () => {
   test("loads an older page through the keyset cursor", async () => {
     invoke.mockImplementation((fn, args) => {
       if (fn !== "getChangeHistory") return Promise.resolve({});
-      if (args?.before === "2026-09-01T12:00:00Z") {
+      if (args?.before === "2026-09-01T12:00:00Z|v9-00100") {
         return Promise.resolve(history({
           changes: [{ changeId: "v0-1", detectedAt: "2026-08-20T00:00:00Z", pillar: "access", entityType: "permission-grant", entityId: "x", label: "y", changeKind: "added", summary: "Permission grant added" }],
           nextCursor: null,
         }));
       }
-      return Promise.resolve(history({ nextCursor: "2026-09-01T12:00:00Z" }));
+      return Promise.resolve(history({ nextCursor: "2026-09-01T12:00:00Z|v9-00100" }));
     });
     render(<ChangesTab />);
     await screen.findByText("Changes");
@@ -92,7 +92,7 @@ describe("ChangesTab", () => {
     await userEvent.click(screen.getByRole("button", { name: /Load older changes/i }));
 
     expect(await screen.findByText("Permission grant added")).toBeInTheDocument();
-    expect(invoke).toHaveBeenCalledWith("getChangeHistory", { pillar: "all", kind: "all", before: "2026-09-01T12:00:00Z" });
+    expect(invoke).toHaveBeenCalledWith("getChangeHistory", { pillar: "all", kind: "all", before: "2026-09-01T12:00:00Z|v9-00100" });
   });
 
   test("queues a drift pass and reports it", async () => {

@@ -24,6 +24,7 @@ import {
   replaceEntityDigests,
   appendConfigChanges,
   loadConfigChanges,
+  changeCursorOf,
   loadConfigChangeSummary,
   countTrackedEntities,
   pruneOldConfigChanges,
@@ -120,10 +121,32 @@ describe("loadConfigChanges", () => {
     expect(q.params).toEqual(["inst", "access", "modified", "2026-09-01T00:00:00Z"]);
   });
 
+  // Every row from one drift pass shares a detected_at. A cursor of detected_at alone
+  // skipped the rest of that pass on the next page.
+  test("pages within a single pass on the compound cursor", async () => {
+    mockRows([]);
+    await loadConfigChanges("inst", { before: "2026-09-01T00:00:00Z|v9-00042", limit: 25 });
+    const q = find("FROM config_change_log");
+    expect(q.statement).toContain("(detected_at < ? OR (detected_at = ? AND change_id < ?))");
+    expect(q.statement).toContain("ORDER BY detected_at DESC, change_id DESC");
+    expect(q.params).toEqual(["inst", "2026-09-01T00:00:00Z", "2026-09-01T00:00:00Z", "v9-00042"]);
+  });
+
   test("with no filters, only scope_key is bound", async () => {
     mockRows([]);
     await loadConfigChanges("inst", {});
     expect(find("FROM config_change_log").params).toEqual(["inst"]);
+  });
+});
+
+describe("changeCursorOf", () => {
+  test("carries the change id so the next page resumes inside the same pass", () => {
+    expect(changeCursorOf({ detectedAt: "2026-09-01T00:00:00Z", changeId: "v9-00042" })).toBe("2026-09-01T00:00:00Z|v9-00042");
+  });
+
+  test("falls back to the timestamp alone, and to null for no row", () => {
+    expect(changeCursorOf({ detectedAt: "2026-09-01T00:00:00Z" })).toBe("2026-09-01T00:00:00Z");
+    expect(changeCursorOf(null)).toBeNull();
   });
 });
 

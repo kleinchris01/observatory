@@ -102,8 +102,25 @@ export async function appendConfigChanges(scopeKey, rows = []) {
   }
 }
 
+// The keyset cursor for the row a page ended on. Every row written by one drift pass shares
+// a single detected_at, so a cursor of detected_at alone skipped the rest of that pass on
+// the next page: "Load older" jumped past it and the report and OQL churn undercounted.
+// The cursor carries change_id too, matching the ORDER BY.
+export function changeCursorOf(row) {
+  if (!row?.detectedAt) return null;
+  return row.changeId ? `${row.detectedAt}|${row.changeId}` : String(row.detectedAt);
+}
+
+function parseChangeCursor(before) {
+  const text = String(before);
+  const bar = text.indexOf("|");
+  if (bar < 0) return { detectedAt: text, changeId: null };
+  return { detectedAt: text.slice(0, bar), changeId: text.slice(bar + 1) || null };
+}
+
 // One page of the timeline, newest first. `pillar` / `kind` / `since` are optional filters;
-// `before` is the keyset cursor (a detected_at value from the previous page's last row).
+// `before` is the keyset cursor from changeCursorOf. A bare detected_at (an older client's
+// cursor) is still accepted and behaves as it always did.
 export async function loadConfigChanges(scopeKey, {
   pillar = null, kind = null, since = null, before = null, limit = 100,
 } = {}) {
@@ -113,7 +130,16 @@ export async function loadConfigChanges(scopeKey, {
   if (pillar) { clauses.push("pillar = ?"); params.push(String(pillar)); }
   if (kind) { clauses.push("change_kind = ?"); params.push(String(kind)); }
   if (since) { clauses.push("detected_at >= ?"); params.push(String(since)); }
-  if (before) { clauses.push("detected_at < ?"); params.push(String(before)); }
+  if (before) {
+    const cursor = parseChangeCursor(before);
+    if (cursor.changeId) {
+      clauses.push("(detected_at < ? OR (detected_at = ? AND change_id < ?))");
+      params.push(cursor.detectedAt, cursor.detectedAt, cursor.changeId);
+    } else {
+      clauses.push("detected_at < ?");
+      params.push(cursor.detectedAt);
+    }
+  }
   const capped = Math.max(1, Math.min(500, Number(limit) || 100));
 
   const result = await withSqlRetry(() =>

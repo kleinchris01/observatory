@@ -166,6 +166,7 @@ import {
   loadProjectRoleActors,
   readDriftSnapshotMeta,
   loadConfigChanges,
+  changeCursorOf,
   loadConfigChangeSummary,
   readEstateSnapshotMeta,
   loadEstateValues,
@@ -2564,7 +2565,7 @@ async function getChangeHistory({ payload, context }) {
     trackedPillars: DRIFT_PILLARS.map((p) => ({ key: p.pillar, label: p.label })),
     windowDays: CHANGE_WINDOW_DAYS,
     changes: hasMore ? changes.slice(0, limit) : changes,
-    nextCursor: hasMore ? changes[limit - 1].detectedAt : null,
+    nextCursor: hasMore ? changeCursorOf(changes[limit - 1]) : null,
     summary,
     lastError: meta.lastError || null,
   };
@@ -9406,7 +9407,7 @@ async function loadOqlChurnWindow(installationKey, now) {
       const page = await loadConfigChanges(installationKey, { since, before, limit: 500 });
       changes.push(...page);
       if (page.length < 500) break;
-      before = page[page.length - 1].detectedAt;
+      before = changeCursorOf(page[page.length - 1]);
     }
     return changes;
   } catch (error) {
@@ -9529,7 +9530,7 @@ async function loadPillarReportInput(key, { installationKey, context }) {
         const page = await loadConfigChanges(installationKey, { since, before, limit: 500 });
         changes.push(...page);
         if (page.length < 500) break;
-        before = page[page.length - 1].detectedAt;
+        before = changeCursorOf(page[page.length - 1]);
       }
       return { refreshedAt: meta.refreshedAt, changes, windowDays: CHANGE_WINDOW_DAYS };
     }
