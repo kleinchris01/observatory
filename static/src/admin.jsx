@@ -300,9 +300,14 @@ export function AdminApp() {
 
 
   return (
-    <div className="admin-shell">
+    <>
+      {/* The skies are siblings of .admin-shell, never children. The shell's z-index: 1 only
+          lifts the app above them when they sit outside its stacking context; inside it, the
+          fixed z-index: 0 canvas painted over every non-positioned element -- invisible at
+          night (the starfield is mostly transparent), but the opaque day sky blanked the page. */}
       <Starfield active={theme === "dark"} bearing={activeTab} />
       <DaySky active={theme === "day"} />
+    <div className="admin-shell">
       <div className={`admin-layout${sidebarCollapsed ? " admin-layout--collapsed" : ""}`}>
         <aside className="admin-sidebar">
           <div className="admin-sidebar__brand">
@@ -454,6 +459,7 @@ export function AdminApp() {
         </div>
       </div>
     </div>
+    </>
   );
 }
 
