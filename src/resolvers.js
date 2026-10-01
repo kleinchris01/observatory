@@ -2417,12 +2417,7 @@ async function getAccessInventory({ context }, { listLimit = 25 } = {}) {
     };
   }
 
-  let rosterAccountIds = new Set();
-  const userMeta = await readUserSnapshotMeta(installationKey).catch(() => null);
-  if (userMeta?.version) {
-    const users = await loadUsers(installationKey, userMeta.version).catch(() => []);
-    rosterAccountIds = activeRosterIds(users);
-  }
+  const rosterAccountIds = (await loadActiveRoster(installationKey)) || new Set();
 
   const [
     permSchemes, permHolders, permProjects,
@@ -7750,6 +7745,32 @@ export async function rovoAccessSearch(payload, context) {
   }
 }
 
+// The active roster's accountIds, or null when no people snapshot exists (so an off-roster
+// flag is unknown, not false).
+async function loadActiveRoster(installationKey) {
+  const userMeta = await readUserSnapshotMeta(installationKey).catch(() => null);
+  if (!userMeta?.version) return null;
+  const users = await loadUsers(installationKey, userMeta.version).catch(() => []);
+  return activeRosterIds(users);
+}
+
+// One stored holder row, as the access agent reports it. The row carries the grant in
+// context/contextLabel (permission key, notification event, security level or project) and
+// the holder in holderValue/holderLabel. The agent used to read holderName, permission and
+// offRoster, none of which exist on the row, so every grant came back null, nobody was ever
+// off-roster, and a search by group name compared against the group id.
+function describeAccessHolder(h, rosterIds) {
+  return {
+    type: h.holderType,
+    value: h.holderLabel || h.holderValue || null,
+    id: h.holderValue || null,
+    grants: h.contextLabel || h.context || null,
+    offRoster: h.holderType === "user" && h.holderValue
+      ? (rosterIds ? !rosterIds.has(h.holderValue) : null)
+      : false,
+  };
+}
+
 export async function rovoAccessInspect(payload, context) {
   incrMetric(METRIC_NAMES.resolver);
   try {
@@ -7764,13 +7785,14 @@ export async function rovoAccessInspect(payload, context) {
       const scheme = schemes.find((s) => String(s.id) === identifier || String(s.name || "").toLowerCase() === idLower);
       if (!scheme) continue;
       const holders = (inv[family]?.holders || []).filter((h) => String(h.schemeId) === String(scheme.id));
+      const rosterIds = await loadActiveRoster(getInstallationKey(context));
       return agentOk(inv.refreshedAt || null, {
         family,
         scheme: { id: scheme.id, name: scheme.name, description: scheme.description || null, projectCount: scheme.projectCount ?? null },
-        holders: holders.slice(0, 100).map((h) => ({
-          type: h.holderType, value: h.holderName || h.holderValue || h.parameter || null,
-          permission: h.permission || h.eventName || h.level || null, offRoster: Boolean(h.offRoster),
-        })),
+        holders: holders.slice(0, 100).map((h) => {
+          const d = describeAccessHolder(h, rosterIds);
+          return { type: d.type, value: d.value, id: d.id, permission: d.grants, offRoster: d.offRoster };
+        }),
         holderCount: holders.length,
         findings: inv[family]?.governance?.findings || inv[family]?.governance || null,
       });
@@ -7791,20 +7813,25 @@ export async function rovoAccessImpact(payload, context) {
     const inv = await getAccessInventory({ context });
     if (inv.neverBuilt || !inv.version) return pillarUnavailable("access", { state: inv.state, refreshedAt: null });
     const needle = name.toLowerCase();
+    const rosterIds = await loadActiveRoster(getInstallationKey(context));
 
     const naming = [];
     for (const family of ACCESS_FAMILIES) {
       const schemes = new Map((inv[family]?.schemes || []).map((s) => [String(s.id), s.name]));
       for (const h of inv[family]?.holders || []) {
-        const value = String(h.holderName || h.holderValue || h.parameter || "").toLowerCase();
-        const account = String(h.accountId || "").toLowerCase();
-        if (value === needle || account === needle || (value && value.includes(needle))) {
+        // Matched on the label (group or display name) and the stored id (group id or
+        // accountId), so a group name, a group id or an accountId all find the holder.
+        const label = String(h.holderLabel || "").toLowerCase();
+        const id = String(h.holderValue || "").toLowerCase();
+        if (id === needle || label === needle || (label && label.includes(needle))) {
+          const d = describeAccessHolder(h, rosterIds);
           naming.push({
             family,
             scheme: schemes.get(String(h.schemeId)) || String(h.schemeId),
-            as: h.holderType,
-            grants: h.permission || h.eventName || h.level || null,
-            offRoster: Boolean(h.offRoster),
+            as: d.type,
+            holder: d.value,
+            grants: d.grants,
+            offRoster: d.offRoster,
           });
         }
       }
@@ -8470,15 +8497,20 @@ export async function rovoProjectInspect(payload, context) {
     const ov = await getProjectOverview({ payload: { projectId, projectKey }, context });
     if (!ov.available) return { status: "not-authorised", message: ov.reason || "You do not have Browse Projects on this project." };
 
+    // Read off the keys getProjectOverview actually returns. This used to read projectType,
+    // lead, workflowScheme, roleActors and fieldsInUse, none of which the overview has, so the
+    // agent answered every project with no workflow scheme, no roles and no lead.
     return agentOk(ov.refreshedAt || null, {
-      project: { projectId, projectKey: ov.projectKey || projectKey, projectName: ov.projectName || null, type: ov.projectType || null, lead: ov.lead || null },
-      workflowScheme: ov.workflowScheme ? { name: ov.workflowScheme.name, sharedWithCount: ov.workflowScheme.sharedWithCount ?? null } : null,
+      project: { projectId, projectKey: ov.projectKey || projectKey, projectName: ov.projectName || null },
+      workflowScheme: ov.workflow?.available
+        ? (ov.workflow.scheme ? { id: ov.workflow.scheme.schemeId ?? null, name: ov.workflow.scheme.name } : null)
+        : { available: false, reason: ov.workflow?.reason || null },
       schemes: ov.schemes || null,
-      roleActors: ov.roleActors || null,
-      adoption: ov.adoption || ov.selectedAdoption || null,
-      fieldsInUse: Array.isArray(ov.fields) ? ov.fields.length : (ov.fieldsInUse ?? null),
+      roles: ov.roles || null,
+      boards: ov.boards || null,
+      adoption: ov.adoption || null,
       dataCaveats:
-        "Project activity and archetype-divergence measurement are not built yet -- this is scheme identity, adoption where measured, and field usage.",
+        "Project type, lead and category are not collected yet, so they are unknown rather than empty. Project activity and archetype-divergence measurement are not built yet.",
     });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
@@ -9784,6 +9816,9 @@ async function getProjectOverview({ payload, context }) {
     available: true,
     projectId,
     projectKey: projectKey || null,
+    projectName: thisProject?.projectName || null,
+    // When the field snapshot this view is anchored on was built. Null with no snapshot.
+    refreshedAt: fieldMeta?.refreshedAt || null,
     // Tri-state per pillar, never an empty list standing in for an unbuilt one. "No rule
     // touches this project" and "no automation analysis exists" are opposite claims, and
     // only one of them means the project is simple.

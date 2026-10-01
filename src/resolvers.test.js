@@ -9161,9 +9161,13 @@ describe("rovo access agent", () => {
       return [];
     });
     mocks.loadSchemeHolders.mockImplementation(async (_k, _v, family) => {
+      // The real stored shape (store/access.js loadSchemeHolders). These fixtures used to
+      // carry holderName, permission and offRoster, matching what the agent wrongly read,
+      // which is how a resolver returning null grants passed its tests.
       if (family === "permission") return [
-        { schemeId: "p1", holderType: "group", holderName: "jira-administrators", permission: "ADMINISTER_PROJECTS", offRoster: false },
-        { schemeId: "p1", holderType: "group", holderName: "anyone", permission: "BROWSE_PROJECTS", offRoster: false },
+        { schemeId: "p1", context: "ADMINISTER_PROJECTS", contextLabel: "Administer Projects", holderType: "group", holderValue: "grp-1", holderLabel: "jira-administrators" },
+        { schemeId: "p1", context: "BROWSE_PROJECTS", contextLabel: "Browse Projects", holderType: "anyone", holderValue: "", holderLabel: null },
+        { schemeId: "p1", context: "BROWSE_PROJECTS", contextLabel: "Browse Projects", holderType: "user", holderValue: "acc-gone", holderLabel: "Sam Gone" },
       ];
       return [];
     });
@@ -9195,8 +9199,24 @@ describe("rovo access agent", () => {
     seed();
     const r = await rovoAccessInspect({ identifier: "Default Permission Scheme" }, ctx());
     expect(r.family).toBe("permissions");
-    expect(r.holderCount).toBe(2);
+    expect(r.holderCount).toBe(3);
     expect(r.holders.map((h) => h.value)).toContain("jira-administrators");
+    expect(r.holders.find((h) => h.value === "jira-administrators")).toMatchObject({ id: "grp-1", permission: "Administer Projects", offRoster: false });
+  });
+
+  test("inspect: a user holder is off-roster when the people snapshot does not list them", async () => {
+    seed();
+    mocks.readUserSnapshotMeta.mockResolvedValue({ version: "u1" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "acc-1", active: true }]);
+    const r = await rovoAccessInspect({ identifier: "Default Permission Scheme" }, ctx());
+    expect(r.holders.find((h) => h.id === "acc-gone").offRoster).toBe(true);
+  });
+
+  // No people snapshot: whether a user is on the roster is unknown, not "no".
+  test("inspect: off-roster is unknown when there is no people snapshot", async () => {
+    seed();
+    const r = await rovoAccessInspect({ identifier: "Default Permission Scheme" }, ctx());
+    expect(r.holders.find((h) => h.id === "acc-gone").offRoster).toBeNull();
   });
 
   test("inspect: unknown scheme is not-found", async () => {
@@ -9209,8 +9229,14 @@ describe("rovo access agent", () => {
     seed();
     const r = await rovoAccessImpact({ name: "jira-administrators" }, ctx());
     expect(r.verdict).toBe("named-in-schemes");
-    expect(r.namedIn[0]).toMatchObject({ family: "permissions", as: "group", grants: "ADMINISTER_PROJECTS" });
+    expect(r.namedIn[0]).toMatchObject({ family: "permissions", as: "group", holder: "jira-administrators", grants: "Administer Projects" });
     expect(r.verdictCaveat).toMatch(/global permissions/);
+  });
+
+  test("impact: finds a group by its id as well as its name", async () => {
+    seed();
+    const r = await rovoAccessImpact({ name: "grp-1" }, ctx());
+    expect(r.namedInCount).toBe(1);
   });
 
   test("impact: an unnamed account is not-named-in-any-scheme", async () => {
@@ -9614,6 +9640,26 @@ describe("rovo project agent", () => {
     expect(r.projects.map((p) => p.projectKey)).not.toContain("ABC");
   });
 
+  // The action used to read keys the overview never returns, so every project came back
+  // with no workflow scheme, no roles and no name.
+  test("inspect: reports the workflow scheme, roles and name the overview holds", async () => {
+    seedProjects();
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "w1" });
+    mocks.loadWorkflowSchemeForProject.mockResolvedValueOnce({ schemeId: "ws1", name: "Software Simplified", description: "" });
+    mocks.readAccessSnapshotMeta.mockResolvedValue({ version: "a1" });
+    mocks.loadProjectSchemes.mockResolvedValueOnce([]);
+    mocks.loadProjectRoleActors.mockResolvedValueOnce([
+      { roleId: "r1", roleName: "Administrators", holderType: "user", holderValue: "acc-1", holderLabel: "Dana" },
+    ]);
+    const r = await rovoProjectInspect({ projectId: "10", projectKey: "ABC" }, ctx());
+    expect(r.status).toBe("ok");
+    expect(r.project).toMatchObject({ projectKey: "ABC", projectName: "Alpha Beta" });
+    expect(r.project).not.toHaveProperty("lead");
+    expect(r.workflowScheme).toMatchObject({ id: "ws1", name: "Software Simplified" });
+    expect(r.roles.byRole[0]).toMatchObject({ roleName: "Administrators" });
+    expect(r.dataCaveats).toMatch(/lead/);
+  });
+
   test("inspect: an agent action (no account) reads a project the browse check would have hidden", async () => {
     seedProjects();
     mocks.getBrowsableProjectIds.mockResolvedValue(new Set());
@@ -9858,10 +9904,13 @@ describe("rovo agents: more edge branches", () => {
 
   test("access impact: matches on accountId, not just display name", async () => {
     mocks.readAccessSnapshotMeta.mockResolvedValue({ version: "v", state: "ready", refreshedAt: "t" });
-    mocks.readUserSnapshotMeta.mockResolvedValue(null);
+    // A people snapshot that does not list acc-99, so the holder is off the roster.
+    mocks.readUserSnapshotMeta.mockResolvedValue({ version: "u1" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "acc-1", active: true }]);
     mocks.loadSchemes.mockImplementation(async (_k, _v, f) => f === "permission" ? [{ id: "p1", name: "PS" }] : []);
+    // The stored row shape: the account is holderValue, the grant is context/contextLabel.
     mocks.loadSchemeHolders.mockImplementation(async (_k, _v, f) => f === "permission"
-      ? [{ schemeId: "p1", holderType: "user", accountId: "acc-99", holderName: "Someone", permission: "ADMINISTER_PROJECTS", offRoster: true }]
+      ? [{ schemeId: "p1", context: "ADMINISTER_PROJECTS", contextLabel: "Administer Projects", holderType: "user", holderValue: "acc-99", holderLabel: "Someone" }]
       : []);
     mocks.loadSchemeProjects.mockResolvedValue([]);
     mocks.loadSchemeLevels.mockResolvedValue([]);
