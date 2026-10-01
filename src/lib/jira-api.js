@@ -1176,12 +1176,14 @@ export async function getApplicationRoles() {
 }
 
 // Members of one group, by groupId (name is also accepted by the API but ids are stable
-// across renames). Inactive users are excluded -- a licence held by a deactivated account
-// is a finding for the pillar, not part of the active roster, and is surfaced separately.
+// across renames). Deactivated accounts are included and carry active: false. Excluding
+// them here, as this once did, left the People "Deactivated" filter permanently empty and
+// let licence hygiene score clean on every site, because nothing else ever fetched them.
+// Off-roster checks count active accounts only (activeRosterIds in user-ownership.js).
 export async function getGroupMembers(groupId) {
   if (!groupId) return [];
   return paginate(
-    (startAt) => route`/rest/api/3/group/member?groupId=${groupId}&includeInactiveUsers=false&startAt=${startAt}&maxResults=50`
+    (startAt) => route`/rest/api/3/group/member?groupId=${groupId}&includeInactiveUsers=true&startAt=${startAt}&maxResults=50`
   );
 }
 

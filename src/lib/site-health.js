@@ -80,7 +80,7 @@ import {
   summarizeNotificationInsights, summarizeNotificationHealth,
   summarizeRoleInsights, summarizeRoleHealth,
 } from "./access-insights.js";
-import { buildOwnershipIndex, summarizeOrphanedOwnership } from "./user-ownership.js";
+import { activeRosterIds, buildOwnershipIndex, summarizeOrphanedOwnership } from "./user-ownership.js";
 
 // Top finding-type/field-type breakdowns are capped -- Overview is a glance-level
 // summary, not the full Field Browser, and shipping ~1500 hydrated fields' worth of
@@ -565,7 +565,7 @@ export async function buildUserOverview(installationKey) {
       Promise.resolve().then(() => readAutomationPart(installationKey, "users")).catch(() => null),
     ]);
 
-    const rosterIds = new Set(users.map((u) => u.accountId));
+    const rosterIds = activeRosterIds(users);
 
     // Last activity per licensed account, from the crawl. The finding with money attached:
     // an account holding a seat with no activity for a year is a renewal line nobody is
@@ -716,7 +716,7 @@ export async function buildAccessOverview(installationKey) {
     const userMeta = await readUserSnapshotMeta(installationKey).catch(() => null);
     if (userMeta?.version) {
       const users = await loadUsers(installationKey, userMeta.version).catch(() => []);
-      rosterAccountIds = new Set(users.map((u) => u.accountId));
+      rosterAccountIds = activeRosterIds(users);
     }
 
     const [

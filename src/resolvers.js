@@ -247,7 +247,7 @@ import {
 import { summarizeScreenFieldCross } from "./lib/screen-insights.js";
 import { assessFieldDeletion, assessStatusDeletion, summarizeDeletionSafety } from "./lib/deletion-safety.js";
 import { analyzeCascadeGraph, MAX_CHAIN_DEPTH } from "./lib/cascade-graph.js";
-import { buildOwnershipIndex, summarizeOrphanedOwnership } from "./lib/user-ownership.js";
+import { activeRosterIds, buildOwnershipIndex, summarizeOrphanedOwnership } from "./lib/user-ownership.js";
 import {
   hydrateRuleDirectory,
   assessAutomationEvidence,
@@ -2025,7 +2025,7 @@ async function getUserInventory({ context }) {
     ruleRefCountByAccount.set(String(entry.label), ids.size);
   }
 
-  const rosterIds = new Set(users.map((u) => u.accountId));
+  const rosterIds = activeRosterIds(users);
   const withOwnership = users.map((u) => {
     const owned = ownership.byAccount.get(u.accountId);
     return {
@@ -2360,7 +2360,7 @@ async function getAccessInventory({ context }, { listLimit = 25 } = {}) {
   const userMeta = await readUserSnapshotMeta(installationKey).catch(() => null);
   if (userMeta?.version) {
     const users = await loadUsers(installationKey, userMeta.version).catch(() => []);
-    rosterAccountIds = new Set(users.map((u) => u.accountId));
+    rosterAccountIds = activeRosterIds(users);
   }
 
   const [
@@ -3916,7 +3916,7 @@ async function getRemediationCandidates({ payload, context }) {
     const meta = await readUserSnapshotMeta(installationKey).catch(() => null);
     if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
     const users = await loadUsers(installationKey, meta.version);
-    const rosterIds = new Set(users.map((u) => u.accountId));
+    const rosterIds = activeRosterIds(users);
     const ownership = await buildOwnershipIndex(installationKey);
     const items = [];
     for (const [accountId, owned] of ownership.byAccount) {
@@ -4223,7 +4223,7 @@ const REMEDIATION_CANDIDATE_LOADERS = {
       readAutomationPart(installationKey, "directory").catch(() => null),
     ]);
     if (!userIndex) return { available: false, reason: "no-automation-index", items: [] };
-    const roster = new Set(users.map((u) => u.accountId));
+    const roster = activeRosterIds(users);
     const items = (userIndex.entries || [])
       .map((e) => String(e.label))
       .filter((accountId) => !roster.has(accountId))

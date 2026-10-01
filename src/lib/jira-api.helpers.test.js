@@ -1091,7 +1091,9 @@ describe("getApplicationRoles", () => {
 });
 
 describe("getGroupMembers", () => {
-  test("paginates by groupId and excludes inactive users", async () => {
+  // Deactivated accounts must come back: nothing else fetches them, and without them the
+  // People "Deactivated" view and licence hygiene can never see a departed user.
+  test("paginates by groupId and includes deactivated users", async () => {
     mockRequestJira
       .mockResolvedValueOnce(jiraResponse({ body: { values: [{ accountId: "a1" }, { accountId: "a2" }], total: 3, isLast: false } }))
       .mockResolvedValueOnce(jiraResponse({ body: { values: [{ accountId: "a3" }], total: 3, isLast: true } }));
@@ -1100,7 +1102,7 @@ describe("getGroupMembers", () => {
 
     expect(members.map((m) => m.accountId)).toEqual(["a1", "a2", "a3"]);
     expect(mockRequestJira.mock.calls[0][0]).toContain("groupId=grp-123");
-    expect(mockRequestJira.mock.calls[0][0]).toContain("includeInactiveUsers=false");
+    expect(mockRequestJira.mock.calls[0][0]).toContain("includeInactiveUsers=true");
   });
 
   test("returns [] for a missing groupId without a request", async () => {

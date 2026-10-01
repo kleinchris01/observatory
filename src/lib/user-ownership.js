@@ -61,6 +61,14 @@ export async function buildOwnershipIndex(installationKey) {
   };
 }
 
+// The accountIds that count as "on the roster" for every off-roster and orphaned check.
+// The roster now carries deactivated accounts (so the People tab and licence hygiene can see
+// them), but a deactivated account still owning a filter or named in a rule is exactly what
+// those checks exist to find, so only active accounts count as present.
+export function activeRosterIds(users = []) {
+  return new Set(users.filter((u) => u && u.active !== false).map((u) => u.accountId));
+}
+
 // Given the ownership index and the set of accountIds that ARE in the licensed roster,
 // tally the artifacts whose owner is not -- a deleted or unlicensed account still holding
 // site config. Also returns the total owned-artifact count, which is the rate denominator.
