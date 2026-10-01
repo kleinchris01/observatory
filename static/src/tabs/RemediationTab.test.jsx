@@ -31,6 +31,7 @@ const CATALOG = [
   ["filter-duplicates", "Duplicate filters", "filters"],
   ["filter-scope", "Filter scope references", "filters"],
   ["screen-unreachable-fields", "Unreachable fields", "screens"],
+  ["screen-unreached", "Screens nothing reaches", "screens"],
   ["issue-type-reach", "Orphaned issue types", "issueTypes"],
   ["issue-type-naming", "Duplicate issue type names", "issueTypes"],
   ["asset-schema-hygiene", "Dead Assets schemas", "assets"],
@@ -365,6 +366,19 @@ describe("RemediationTab — partial lists", () => {
     await checkItems(user);
     expect(await screen.findByRole("note")).toHaveTextContent("Only the 1 highest-severity of 9 flagged rules are listed");
     expect(screen.getByRole("note")).toHaveTextContent("the other 8 cannot be ticketed from here yet");
+  });
+
+  // Without transitions, "unreached" would include every screen a transition opens -- the
+  // playbook would ticket in-use screens for retirement. It says why it is withholding.
+  test("says transitions must be read before unreached screens can be remediated", async () => {
+    const user = userEvent.setup();
+    mockInvoke({
+      getRemediationTickets: { available: true, total: 0, groups: [] },
+      getRemediationCandidates: { available: false, reason: "transitions-unknown", items: [] },
+    });
+    render(<RemediationTab />);
+    await checkItems(user, "Screens nothing reaches");
+    expect(await screen.findByText(/could not read transitions/i)).toBeInTheDocument();
   });
 });
 

@@ -103,19 +103,40 @@ export function findInvisibleData({ usage = [], reachability, resolved, fields =
 // Scoped per project rather than site-wide on purpose: a field that works well in one
 // project and is dead weight in five others should be removed from five screens, not
 // deleted. Reporting it once, site-wide, would recommend the wrong remedy.
+//
+// "Never filled" is read from a MISSING usage pair, so every pair has to be one the crawl
+// could have produced. Three things make a missing pair mean unknown rather than zero, and
+// each once produced a page of false findings (Summary "never filled" on 135 screens):
+//
+//   - the field is one the crawl never tallies (Summary, Issue Type -- `unmeasuredFieldIds`)
+//   - the field is not in the catalog the crawl asked Jira for (`fields`, when given)
+//   - the project has no populated pair at all, so the crawl has not measured it
+//
+// `populatedPairs`, when given, is the complete set of populated "project|field" keys. The
+// capped `usage` rows are only a fallback, and a truncated fallback cannot support the
+// finding at all -- so isClutterMeasurable says no, and the caller withholds it.
+export function isClutterMeasurable({ populatedPairs = null, pairsComplete = true, usageTruncated = false } = {}) {
+  return populatedPairs ? pairsComplete : !usageTruncated;
+}
+
 export function findFormClutter({
   reachability, usage = [], resolved, fields = null, maxIssues = 0,
+  populatedPairs = null, unmeasuredFieldIds = new Set(),
 } = {}) {
-  const populated = new Set(
+  const populated = populatedPairs || new Set(
     usage.filter((u) => (Number(u.issueCount) || 0) > Number(maxIssues))
       .map((u) => `${u.projectId}|${u.fieldId}`)
   );
+  const measuredProjects = new Set();
+  for (const key of populated) measuredProjects.add(key.split("|")[0]);
+  for (const u of usage) measuredProjects.add(String(u.projectId));
 
   const out = new Map();
   for (const [key, ops] of reachability) {
     if (!ops.onCreate) continue;
     const [projectId, fieldId] = key.split("|");
     if (!resolved.has(projectId)) continue;
+    if (!isClutterCandidate({ projectId, fieldId, fields, unmeasuredFieldIds, measuredProjects })) continue;
     if (populated.has(key)) continue;
 
     if (!out.has(fieldId)) {
@@ -129,6 +150,12 @@ export function findFormClutter({
   // Ranked by how many filing experiences carry the cost, which is the number of projects
   // asking for it -- not by the field's own properties.
   return [...out.values()].sort((a, b) => b.projectCount - a.projectCount || a.fieldName.localeCompare(b.fieldName));
+}
+
+function isClutterCandidate({ projectId, fieldId, fields, unmeasuredFieldIds, measuredProjects }) {
+  if (unmeasuredFieldIds.has(fieldId)) return false;
+  if (fields && !fields.has(fieldId)) return false;
+  return measuredProjects.has(projectId);
 }
 
 // Fields that no project's screens reach at all, anywhere on the site.
@@ -161,6 +188,9 @@ export function summarizeScreenFieldCross({
   fields = null,
   usageTruncated = false,
   clutterMaxIssues = 0,
+  populatedPairs = null,
+  pairsComplete = true,
+  unmeasuredFieldIds = new Set(),
 } = {}) {
   const reachability = indexReachability(reachabilityRows);
   const resolved = resolvedProjectIds(coverage);
@@ -187,7 +217,10 @@ export function summarizeScreenFieldCross({
   }
 
   const invisibleData = findInvisibleData({ usage, reachability, resolved, fields });
-  const formClutter = findFormClutter({ reachability, usage, resolved, fields, maxIssues: clutterMaxIssues });
+  const clutterMeasurable = isClutterMeasurable({ populatedPairs, pairsComplete, usageTruncated });
+  const formClutter = clutterMeasurable
+    ? findFormClutter({ reachability, usage, resolved, fields, maxIssues: clutterMaxIssues, populatedPairs, unmeasuredFieldIds })
+    : [];
   const unreachableFields = findUnreachableFields({ reachability, fieldIds, fields });
 
   // Denominators for the health score, counted here so the score and the tab divide by the
@@ -195,9 +228,17 @@ export function summarizeScreenFieldCross({
   // has 40 chances to hold invisible data, and dividing by the catalogue would report every
   // estate as spotless.
   const populatedFieldCount = new Set(usage.map((u) => String(u.fieldId))).size;
+  // Only placements the clutter rule could judge, so the rate divides like with like.
   let createPlacements = 0;
-  for (const [key, ops] of reachability) {
-    if (ops.onCreate && resolved.has(key.split("|")[0])) createPlacements += 1;
+  if (clutterMeasurable) {
+    const populated = populatedPairs || new Set(usage.map((u) => `${u.projectId}|${u.fieldId}`));
+    const measuredProjects = new Set([...populated].map((k) => k.split("|")[0]));
+    for (const u of usage) measuredProjects.add(String(u.projectId));
+    for (const [key, ops] of reachability) {
+      const [projectId, fieldId] = key.split("|");
+      if (!ops.onCreate || !resolved.has(projectId)) continue;
+      if (isClutterCandidate({ projectId, fieldId, fields, unmeasuredFieldIds, measuredProjects })) createPlacements += 1;
+    }
   }
 
   return {
@@ -211,6 +252,9 @@ export function summarizeScreenFieldCross({
     // The left side of the cross was capped. Both findings can only understate in that case,
     // which is the direction that gets acted on, so it travels with the result.
     usageTruncated,
+    // False when the populated pairs could not be read in full. Clutter is then withheld,
+    // not computed: a missing pair would read as "never filled".
+    clutterAvailable: clutterMeasurable,
     populatedFieldCount,
     createPlacements,
     invisibleData,

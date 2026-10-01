@@ -21,6 +21,7 @@ const use = (fieldId, projectId, issueCount, projectKey = `P${projectId}`) => ({
   fieldId, projectId, projectKey, projectName: `Project ${projectId}`, issueCount,
 });
 const fields = new Map([
+  ["customfield_9", { name: "Priority Note" }],
   ["customfield_1", { name: "Story Points" }],
   ["customfield_2", { name: "Vendor Ref" }],
   ["customfield_3", { name: "Legacy Code" }],
@@ -95,10 +96,13 @@ describe("findInvisibleData", () => {
 
 describe("findFormClutter", () => {
   const resolved = resolvedProjectIds([cover("1"), cover("2")]);
+  // Some other field populated in each project: the crawl has measured both, so a missing
+  // pair there means "never filled" rather than "never looked".
+  const measured = [use("customfield_9", "1", 10), use("customfield_9", "2", 10)];
 
   test("flags a field on the create screen that nobody there fills in", () => {
     const reachability = indexReachability([reach("1", "customfield_3", { onCreate: true, onView: true })]);
-    const result = findFormClutter({ reachability, usage: [], resolved, fields });
+    const result = findFormClutter({ reachability, usage: measured, resolved, fields });
 
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({ fieldId: "customfield_3", fieldName: "Legacy Code", projectCount: 1 });
@@ -123,7 +127,7 @@ describe("findFormClutter", () => {
       reach("2", "customfield_1", { onCreate: true }),
     ]);
     const result = findFormClutter({
-      reachability, usage: [use("customfield_1", "1", 5000)], resolved, fields,
+      reachability, usage: [...measured, use("customfield_1", "1", 5000)], resolved, fields,
     });
 
     expect(result[0].projectCount).toBe(1);
@@ -144,8 +148,34 @@ describe("findFormClutter", () => {
       reach("1", "customfield_2", { onCreate: true }),
       reach("2", "customfield_2", { onCreate: true }),
     ]);
-    const result = findFormClutter({ reachability, usage: [], resolved, fields });
+    const result = findFormClutter({ reachability, usage: measured, resolved, fields });
     expect(result.map((f) => f.fieldId)).toEqual(["customfield_2", "customfield_1"]);
+  });
+
+  // The regression: Summary "on 135 create screens, never filled". The crawl never tallies
+  // it, so it has no usage row anywhere, and a missing row is not a zero.
+  test("never flags a field the crawl does not measure", () => {
+    const reachability = indexReachability([reach("1", "summary", { onCreate: true })]);
+    const unmeasuredFieldIds = new Set(["summary"]);
+    expect(findFormClutter({ reachability, usage: measured, resolved, unmeasuredFieldIds })).toEqual([]);
+  });
+
+  test("never flags a field outside the catalog the crawl asked for", () => {
+    const reachability = indexReachability([reach("1", "components", { onCreate: true })]);
+    expect(findFormClutter({ reachability, usage: measured, resolved, fields })).toEqual([]);
+  });
+
+  test("never flags anything in a project the crawl has not measured", () => {
+    const reachability = indexReachability([reach("1", "customfield_3", { onCreate: true })]);
+    expect(findFormClutter({ reachability, usage: [], resolved, fields })).toEqual([]);
+  });
+
+  // The other regression: Requirement Source, Sprint and friends fell off the end of a
+  // capped, volume-sorted usage read and every one of their pairs looked unfilled.
+  test("reads filled pairs from the complete pair set, not the capped usage rows", () => {
+    const reachability = indexReachability([reach("1", "customfield_1", { onCreate: true })]);
+    const populatedPairs = new Set(["1|customfield_9", "1|customfield_1"]);
+    expect(findFormClutter({ reachability, usage: [], populatedPairs, resolved, fields })).toEqual([]);
   });
 
   test("will not report a project whose screen chain was only partly read", () => {
@@ -193,6 +223,38 @@ describe("summarizeScreenFieldCross", () => {
       clutterPlacements: 1,
       unreachableFields: 1,    // customfield_2: on no screen anywhere
     });
+  });
+
+  test("withholds form clutter when the usage read was capped and no complete pairs exist", () => {
+    const result = summarizeScreenFieldCross({ ...base, usageTruncated: true });
+    expect(result.clutterAvailable).toBe(false);
+    expect(result.formClutter).toEqual([]);
+    expect(result.createPlacements).toBe(0);
+    // Invisible data can only understate on a capped read, so it still stands.
+    expect(result.counts.invisibleFields).toBe(1);
+  });
+
+  test("withholds form clutter when the complete pair read did not complete", () => {
+    const result = summarizeScreenFieldCross({ ...base, populatedPairs: new Set(), pairsComplete: false });
+    expect(result.clutterAvailable).toBe(false);
+    expect(result.formClutter).toEqual([]);
+  });
+
+  test("uses complete pairs over a capped usage read", () => {
+    const populatedPairs = new Set(["1|customfield_1", "2|customfield_2"]);
+    const result = summarizeScreenFieldCross({ ...base, usageTruncated: true, populatedPairs, pairsComplete: true });
+    expect(result.clutterAvailable).toBe(true);
+    expect(result.counts).toMatchObject({ clutterFields: 1, clutterPlacements: 1 });
+    expect(result.createPlacements).toBe(2);
+  });
+
+  test("counts only judgeable create placements in the denominator", () => {
+    const result = summarizeScreenFieldCross({
+      ...base,
+      reachabilityRows: [...base.reachabilityRows, reach("1", "summary", { onCreate: true })],
+      unmeasuredFieldIds: new Set(["summary"]),
+    });
+    expect(result.createPlacements).toBe(2);
   });
 
   test("states how much of the estate the findings were drawn from", () => {

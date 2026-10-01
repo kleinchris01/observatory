@@ -1429,6 +1429,19 @@ describe("the screen cross-signal dimensions", () => {
     expect(dim(invisible, "invisible-data").score).toBeLessThan(dim(clutter, "form-clutter").score);
   });
 
+  // Withheld clutter is unmeasured, not clean. Scoring it 100 would reward the very read
+  // failure that once flagged Summary as never filled on 135 screens.
+  test("form clutter is unavailable when no placement could be judged", () => {
+    const withheld = run({ clutterAvailable: false, createPlacements: 0 });
+    expect(dim(withheld, "form-clutter").available).toBe(false);
+    expect(dim(withheld, "form-clutter").score).toBeNull();
+    // Invisible data stands on its own read.
+    expect(dim(withheld, "invisible-data").available).toBe(true);
+
+    // A stored summary carries no flag; zero judged placements is the signal there.
+    expect(dim(run({ createPlacements: 0 }), "form-clutter").available).toBe(false);
+  });
+
   test("both are unavailable, not zero, when the cross has not been computed", () => {
     // Unavailable is excluded from the mean. Zero would mark a site down for a join nobody
     // has run yet, which is the exact failure the whole model is built to avoid.

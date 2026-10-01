@@ -716,10 +716,22 @@ describe("extractTransitionScreens", () => {
     })).toEqual([{ id: "11", name: "Start Progress", toStatus: null, screenId: "220" }]);
   });
 
-  test("reads the current shape, where it sits on transitionScreen", () => {
+  // Shape per Jira's published schema: transitionScreen is a WorkflowRuleConfiguration. Its
+  // `id` is the RULE's id; the screen is parameters.screenId. The old test fed it
+  // `{ id: "300" }`, which is why reading the rule id as a screen id was never caught.
+  test("reads the current shape, where the screen is the transitionScreen rule's parameter", () => {
     expect(extractTransitionScreens({
-      transitions: [{ id: "21", name: "Resolve", transitionScreen: { id: "300" }, to: { statusReference: "uuid-a" } }],
-    })).toEqual([{ id: "21", name: "Resolve", toStatus: "uuid-a", screenId: "300" }]);
+      transitions: [{
+        id: "21", name: "Resolve", toStatusReference: "uuid-a",
+        transitionScreen: { id: "rule-9f2", ruleKey: "system:transition-screen", parameters: { screenId: "300" } },
+      }],
+    }, new Map([["uuid-a", "5"]]))).toEqual([{ id: "21", name: "Resolve", toStatus: "5", screenId: "300" }]);
+  });
+
+  test("never takes the rule id for a screen id", () => {
+    expect(extractTransitionScreens({
+      transitions: [{ id: "21", name: "Resolve", transitionScreen: { id: "rule-9f2", parameters: {} } }],
+    })).toEqual([]);
   });
 
   // Most transitions just move the issue. Recording those with a null screen would make
@@ -752,7 +764,7 @@ describe("normalizeWorkflowSearchResponse - transitions", () => {
       workflows: [{
         name: "Bug WF",
         statuses: [{ statusReference: "uuid-a" }],
-        transitions: [{ id: "11", name: "Start", transitionScreen: { id: "220" } }],
+        transitions: [{ id: "11", name: "Start", transitionScreen: { id: "r1", parameters: { screenId: "220" } } }],
       }],
       statuses: [{ statusReference: "uuid-a", id: "3" }],
     });
@@ -770,18 +782,45 @@ describe("normalizeWorkflowSearchResponse - transitions", () => {
 // to status mapping silently came back empty on staging, making all 435 statuses look
 // unreachable. These pin the order and the failure handling.
 describe("getAllWorkflowsWithStatuses", () => {
-  test("uses the current bulk endpoint and resolves status references", async () => {
+  // GET with expand=values.transitions, per Jira's published spec. It was a POST with
+  // expand=statuses,transitions, pinned by this very test, and failed on every real site.
+  test("GETs the current search endpoint with the transitions expand", async () => {
     mockRequestJira.mockResolvedValueOnce(jiraResponse({
       body: {
-        workflows: [{ name: "Bug WF", statuses: [{ statusReference: "uuid-a" }] }],
+        values: [{ name: "Bug WF", statuses: [{ statusReference: "uuid-a" }] }],
         statuses: [{ statusReference: "uuid-a", id: "3" }],
+        isLast: true,
       },
     }));
 
     await expect(getAllWorkflowsWithStatuses()).resolves.toEqual([{ name: "Bug WF", statusIds: ["3"], transitions: [] }]);
     expect(mockRequestJira).toHaveBeenCalledTimes(1);
-    expect(mockRequestJira.mock.calls[0][0]).toContain("/workflows/search");
-    expect(mockRequestJira.mock.calls[0][1].method).toBe("POST");
+    const [path, init] = mockRequestJira.mock.calls[0];
+    expect(String(path)).toContain("/workflows/search");
+    expect(String(path)).toContain("expand=values.transitions");
+    expect(init?.method ?? "GET").toBe("GET");
+  });
+
+  test("pages the current endpoint, resolving each page against its own statuses", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({
+        body: {
+          values: [{ name: "A", statuses: [{ statusReference: "ref-1" }] }],
+          statuses: [{ statusReference: "ref-1", id: "1" }],
+          isLast: false, total: 2,
+        },
+      }))
+      .mockResolvedValueOnce(jiraResponse({
+        body: {
+          values: [{ name: "B", statuses: [{ statusReference: "ref-2" }] }],
+          statuses: [{ statusReference: "ref-2", id: "2" }],
+          isLast: true, total: 2,
+        },
+      }));
+
+    const result = await getAllWorkflowsWithStatuses();
+    expect(result.map((w) => [w.name, w.statusIds])).toEqual([["A", ["1"]], ["B", ["2"]]]);
+    expect(String(mockRequestJira.mock.calls[1][0])).toContain("startAt=1");
   });
 
   test("falls back to the legacy endpoint when the bulk one is rejected", async () => {

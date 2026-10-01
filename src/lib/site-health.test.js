@@ -39,6 +39,7 @@ vi.mock("./project-store.js", () => ({
   loadWorkflowSchemes: vi.fn(async () => []),
   readScreenSnapshotMeta: vi.fn(async () => null),
   readWorkflowSnapshotMeta: vi.fn(async () => null),
+  transitionAwareWorkflowVersion: (meta) => (meta?.version && meta.transitionScreens != null ? meta.version : null),
   readFilterSnapshotMeta: vi.fn(async () => null),
   readDashboardSnapshotMeta: vi.fn(async () => null),
   loadFilters: vi.fn(async () => []),

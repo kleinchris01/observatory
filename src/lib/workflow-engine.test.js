@@ -321,6 +321,31 @@ describe("transition screens", () => {
     expect(written.transitionScreens).toEqual([]);
   });
 
+  // A site always has workflows. An empty list is a failed read -- the endpoint call was
+  // malformed for a long time -- and storing zero told a site with transition screens that
+  // it had none. Recorded as unknown (null) instead.
+  it("records transition screens as unknown, not zero, when no workflow could be read", async () => {
+    getAllJiraProjects.mockResolvedValue(projects);
+    getWorkflowSchemesForProjects.mockResolvedValue(oneScheme);
+    getAllWorkflowsWithStatuses.mockResolvedValue([]);
+
+    await buildWorkflowSnapshot("install-1");
+
+    const readyWrite = writeWorkflowSnapshotMeta.mock.calls.map(([, patch]) => patch).find((p) => p.state === "ready");
+    expect(readyWrite.transitionScreens).toBeNull();
+  });
+
+  it("records a real zero when workflows were read and none opens a screen", async () => {
+    getAllJiraProjects.mockResolvedValue(projects);
+    getWorkflowSchemesForProjects.mockResolvedValue(oneScheme);
+    getAllWorkflowsWithStatuses.mockResolvedValue([{ name: "WF", statusIds: ["7"], transitions: [] }]);
+
+    await buildWorkflowSnapshot("install-1");
+
+    const readyWrite = writeWorkflowSnapshotMeta.mock.calls.map(([, patch]) => patch).find((p) => p.state === "ready");
+    expect(readyWrite.transitionScreens).toBe(0);
+  });
+
   // The row is keyed on the transition id, so one without an id would be unwritable.
   it("falls back to the transition name when it carries no id", async () => {
     getAllJiraProjects.mockResolvedValue(projects);

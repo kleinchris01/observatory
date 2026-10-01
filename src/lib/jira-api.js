@@ -1529,7 +1529,7 @@ export function normalizeWorkflowSearchResponse(data) {
       const resolved = direct != null ? String(direct) : (reference ? idByReference.get(String(reference)) : null);
       if (resolved) statusIds.push(resolved);
     }
-    return { name, statusIds, transitions: extractTransitionScreens(workflow) };
+    return { name, statusIds, transitions: extractTransitionScreens(workflow, idByReference) };
   }).filter((workflow) => workflow.name);
 }
 
@@ -1543,24 +1543,35 @@ export function normalizeWorkflowSearchResponse(data) {
 // Shape-agnostic for the same reason the status extraction is: the two endpoint generations
 // disagree about where the screen lives on a transition.
 //
-//   Deprecated GET /rest/api/3/workflow/search   ->  transitions[].screen.id
-//   Current    POST /rest/api/3/workflows/search ->  transitions[].transitionScreen.id,
-//                                                    sometimes .screen.id
+//   Deprecated GET /rest/api/3/workflow/search  ->  transitions[].screen.id
+//   Current    GET /rest/api/3/workflows/search ->  transitions[].transitionScreen, a RULE
+//                                                   configuration: the screen is
+//                                                   parameters.screenId, and .id is the
+//                                                   rule's own id -- never the screen's
 //
 // A transition with no screen is normal and common -- most transitions just move the issue --
 // so those are dropped rather than recorded with a null screen.
-export function extractTransitionScreens(workflow) {
+export function extractTransitionScreens(workflow, idByReference = new Map()) {
   const out = [];
   for (const transition of workflow?.transitions || []) {
-    const screen = transition?.transitionScreen ?? transition?.screen ?? null;
-    const screenId = screen?.id ?? screen?.screenId ?? (typeof screen === "string" || typeof screen === "number" ? screen : null);
+    let screenId = null;
+    if (transition?.transitionScreen) {
+      // Current shape: only the rule's parameters name the screen.
+      screenId = transition.transitionScreen.parameters?.screenId ?? null;
+    } else {
+      const screen = transition?.screen ?? null;
+      screenId = screen?.id ?? screen?.screenId ?? (typeof screen === "string" || typeof screen === "number" ? screen : null);
+    }
     if (screenId == null || screenId === "") continue;
+    const toReference = transition?.toStatusReference ?? null;
     out.push({
       id: transition?.id != null ? String(transition.id) : null,
       name: transition?.name || null,
       // "from -> to" is what makes a transition recognisable in Jira's own UI; the name
       // alone is frequently just "Done" on a dozen different transitions.
-      toStatus: transition?.to?.statusReference ?? transition?.to?.id ?? transition?.to ?? null,
+      toStatus: toReference != null
+        ? (idByReference.get(String(toReference)) ?? String(toReference))
+        : (transition?.to?.statusReference ?? transition?.to?.id ?? transition?.to ?? null),
       screenId: String(screenId),
     });
   }
@@ -1575,18 +1586,27 @@ export function extractTransitionScreens(workflow) {
 // failed on staging -- silently, leaving every status looking orphaned.
 export async function getAllWorkflowsWithStatuses() {
   try {
-    // expand=transitions alongside statuses. Asked for in the same call rather than a second
-    // pass: the workflow list is the expensive part, and a site with 83 schemes has more
-    // workflows than it has anything else worth paging twice.
-    const data = await jiraRequest(route`/rest/api/3/workflows/search?expand=statuses,transitions`, {
-      method: "POST",
-      body: JSON.stringify({}),
-    });
-    const workflows = normalizeWorkflowSearchResponse(data);
+    // GET, paged, expand=values.transitions. This was a POST with expand=statuses,transitions
+    // for a long time -- neither is what the endpoint takes -- and it failed on every site,
+    // which is why transitions and their screens were never read at all. Statuses come back
+    // on every page without an expand; each page carries the status definitions its own
+    // workflows reference, so each page is normalised on its own.
+    const workflows = [];
+    let startAt = 0;
+    for (;;) {
+      const data = await jiraRequest(
+        route`/rest/api/3/workflows/search?expand=values.transitions&startAt=${startAt}&maxResults=${DEFAULT_PAGE_SIZE}`
+      );
+      const values = data?.values || [];
+      workflows.push(...normalizeWorkflowSearchResponse(data));
+      const nextStart = startAt + values.length;
+      if (!values.length || data?.isLast === true || (data?.total != null && nextStart >= data.total)) break;
+      startAt = nextStart;
+    }
     if (workflows.length > 0) return workflows;
     // A successful call returning nothing is worth saying out loud: it means the shape
     // changed again, not that the site has no workflows.
-    console.warn("getAllWorkflowsWithStatuses: bulk endpoint returned no usable workflows; response keys:", Object.keys(data || {}));
+    console.warn("getAllWorkflowsWithStatuses: search endpoint returned no usable workflows");
   } catch (error) {
     console.warn("getAllWorkflowsWithStatuses: bulk endpoint failed, trying legacy:", error?.message || error);
   }

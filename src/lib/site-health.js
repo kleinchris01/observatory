@@ -36,6 +36,7 @@ import {
   loadWorkflowSchemes,
   readScreenSnapshotMeta,
   readWorkflowSnapshotMeta,
+  transitionAwareWorkflowVersion,
   readIssueTypeSnapshotMeta,
   loadIssueTypes,
   readAssetSnapshotMeta,
@@ -496,7 +497,7 @@ export async function buildScreenOverview(installationKey) {
       refreshedAt: meta.refreshedAt || null,
       lastError: meta.lastError || null,
       ...(await loadScreenGovernanceSummary(installationKey, meta.version, {
-        workflowVersion: workflowMeta?.version || null,
+        workflowVersion: transitionAwareWorkflowVersion(workflowMeta),
       })),
     };
   } catch (error) {

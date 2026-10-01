@@ -107,6 +107,7 @@ import {
   loadRqtFieldIssueIndex,
   loadIssueRqtValues,
   readWorkflowSnapshotMeta,
+  transitionAwareWorkflowVersion,
   readRecentFullScanRuns,
   loadWorkflowSchemes,
   loadWorkflowSchemeProjects,
@@ -129,6 +130,7 @@ import {
   loadFieldReachabilityByProject,
   loadProjectScreenCoverage,
   loadPopulatedProjectUsage,
+  loadPopulatedFieldProjectPairs,
   writeScreenCrossSummary,
   readScreenCrossSummary,
   loadScreenCountsForFields,
@@ -1650,13 +1652,13 @@ async function getScreenInventory({ payload, context }) {
       // store, and dropped there when it needs a workflow snapshot that does not exist --
       // the result says which of those happened rather than silently showing everything.
       filter: optionalString(payload?.filter, "filter") || null,
-      workflowVersion: workflowMeta?.version || null,
+      workflowVersion: transitionAwareWorkflowVersion(workflowMeta),
     }),
     loadScreenSchemes(installationKey, meta.version),
     loadScreenSchemeOperations(installationKey, meta.version),
     loadIssueTypeScreenSchemes(installationKey, meta.version),
     loadScreenDistributions(installationKey, meta.version),
-    loadScreenGovernanceSummary(installationKey, meta.version, { workflowVersion: workflowMeta?.version || null }),
+    loadScreenGovernanceSummary(installationKey, meta.version, { workflowVersion: transitionAwareWorkflowVersion(workflowMeta) }),
     workflowMeta?.version
       ? loadTransitionScreens(installationKey, workflowMeta.version)
       : Promise.resolve([]),
@@ -1698,7 +1700,7 @@ async function getScreenInventory({ payload, context }) {
     // the build never established. transitionScreens is null on those, a number on the rest.
     transitionsAvailable: workflowMeta?.transitionScreens != null,
     transitionsReason: workflowMeta?.version && workflowMeta.transitionScreens == null
-      ? "This workflow inventory was built before transition capture existed. Rebuild it from the Workflows tab to see which screens transitions open."
+      ? "The last workflow build could not read this site's workflows, so which screens transitions open is unknown. Screens are not called unreached until it can. Rebuild from the Workflows tab; if this persists, check the build's log for the workflow read error."
       : null,
     neverBuilt: false,
   };
@@ -4411,8 +4413,11 @@ async function screenItems(installationKey, filter, { needsWorkflow = false } = 
   const meta = await readScreenSnapshotMeta(installationKey).catch(() => null);
   if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
   const workflowMeta = await readWorkflowSnapshotMeta(installationKey).catch(() => null);
-  const workflowVersion = workflowMeta?.version || null;
-  if (needsWorkflow && !workflowVersion) return { available: false, reason: "no-workflow-snapshot", items: [] };
+  // A screen a transition opens is in use, so "unreached" needs a snapshot that read them.
+  const workflowVersion = transitionAwareWorkflowVersion(workflowMeta);
+  if (needsWorkflow && !workflowVersion) {
+    return { available: false, reason: workflowMeta?.version ? "transitions-unknown" : "no-workflow-snapshot", items: [] };
+  }
   const rows = await loadAllScreenPages(installationKey, meta.version, { workflowVersion, filter });
   return { available: true, items: rows.map((r) => ({ id: String(r.screenId), name: r.name, tabCount: r.tabCount, fieldCount: r.fieldCount })) };
 }
@@ -6113,11 +6118,15 @@ export async function getScreenFieldCrossSignal({ payload, context }) {
 // fields, against every populated field x project pair. Fine once on a queue consumer;
 // deliberately never on the Overview read, which takes the stored summary instead.
 async function runScreenFieldCross(installationKey, screenMeta, fieldMeta, { clutterMaxIssues = 0 } = {}) {
-  const [reachabilityRows, coverage, usageRead, catalog] = await Promise.all([
+  const [reachabilityRows, coverage, usageRead, catalog, pairRead] = await Promise.all([
     loadFieldReachabilityByProject(installationKey, screenMeta.version),
     loadProjectScreenCoverage(installationKey, screenMeta.version),
     loadPopulatedProjectUsage(installationKey, fieldMeta.version),
     loadSnapshotFields(installationKey, fieldMeta.version).catch(() => []),
+    // Form clutter reads a missing pair as "never filled", so it needs every pair, not the
+    // capped top of the list invisible data can live with. A failed read withholds it.
+    loadPopulatedFieldProjectPairs(installationKey, fieldMeta.version, { minIssues: clutterMaxIssues })
+      .catch(fallbackOn("screen_cross.pairs_load_failed", { pairs: null, complete: false }, { installationKey })),
   ]);
 
   const fields = new Map((catalog || []).map((f) => [String(f.id), { name: f.name }]));
@@ -6130,6 +6139,10 @@ async function runScreenFieldCross(installationKey, screenMeta, fieldMeta, { clu
     fieldIds: [...fields.keys()],
     fields,
     clutterMaxIssues,
+    populatedPairs: pairRead.pairs || new Set(),
+    pairsComplete: Boolean(pairRead.pairs) && pairRead.complete,
+    // Never tallied by the issue crawl, so never absent for a reason that means anything.
+    unmeasuredFieldIds: STRUCTURAL_SYSTEM_FIELDS,
   });
 }
 
@@ -9369,7 +9382,7 @@ async function loadPillarReportInput(key, { installationKey, context }) {
       const meta = await readScreenSnapshotMeta(installationKey);
       if (!meta?.version) return { unavailable: notBuilt("screen") };
       const workflowMeta = await readWorkflowSnapshotMeta(installationKey).catch(() => null);
-      const workflowVersion = workflowMeta?.version || null;
+      const workflowVersion = transitionAwareWorkflowVersion(workflowMeta);
       const screens = await loadAllScreenPages(installationKey, meta.version, { workflowVersion });
       const unreachedIds = workflowVersion
         ? new Set((await loadAllScreenPages(installationKey, meta.version, { workflowVersion, filter: "unreached" })).map((r) => String(r.screenId)))
