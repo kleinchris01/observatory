@@ -293,6 +293,8 @@ function buildPrioritiesReport({ refreshedAt, resolutions = [], priorities = [] 
     name: v.name,
     isDefault: Boolean(v.isDefault),
     description: v.description || "",
+    // Null when no crawl has measured it, which the report shows as unmeasured, not zero.
+    issues: v.issueCount ?? null,
     findings: [dupes.has(String(v.id)) ? "near-duplicate-name" : null],
   });
   return {
@@ -302,6 +304,7 @@ function buildPrioritiesReport({ refreshedAt, resolutions = [], priorities = [] 
       { key: "id", label: "ID", kind: "text" },
       { key: "name", label: "Name", kind: "text" },
       { key: "isDefault", label: "Default", kind: "boolean" },
+      { key: "issues", label: "Issues", kind: "number" },
       { key: "description", label: "Description", kind: "text" },
     ],
     rows: [...priorities.map(toRow("Priority", dupPriorities)), ...resolutions.map(toRow("Resolution", dupResolutions))],

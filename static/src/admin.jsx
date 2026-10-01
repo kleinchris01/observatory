@@ -374,7 +374,7 @@ export function AdminApp() {
           {config?.readOnlyMode && (
             <div className="admin-readonly-banner">
               <Icon name="lock" size={14} />
-              Read-only mode is active — Confluence macro users cannot trigger field usage scans.
+              Read-only mode is on. Scans, inventory builds, remediation tickets and clearing data are paused for everyone, admins included. Turn it off under Configuration → Access.
             </div>
           )}
 

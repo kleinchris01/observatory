@@ -1022,6 +1022,22 @@ describe("board dimensions", () => {
     expect(dim(health, "board-columns").score).toBeLessThan(60);
   });
 
+  test("rates are over readable boards; unreadable ones are left out, not counted clean", () => {
+    // 3 broken of 30 boards, but only 10 could be read -> integrity 0.70, below the floor.
+    // Counting the 20 unread boards as clean would have scored 0.90.
+    const d = dim(computeSiteHealth({ boards: boards({ total: 30, readable: 10, unreadable: 20, brokenBackingCount: 3 }) }), "board-backing");
+    expect(d.value).toBeCloseTo(0.7, 5);
+    expect(d.detail).toMatch(/20 more could not be read/);
+  });
+
+  test("a board estate nobody could read is unmeasured, not perfect", () => {
+    const health = computeSiteHealth({ boards: boards({ total: 12, readable: 0, unreadable: 12 }) });
+    for (const key of ["board-backing", "board-columns"]) {
+      expect(dim(health, key).available).toBe(false);
+      expect(dim(health, key).reason).toMatch(/could be read/i);
+    }
+  });
+
   test("both are unmeasured until the inventory exists", () => {
     const health = computeSiteHealth({ fieldUsage: fieldUsage() });
     for (const key of ["board-backing", "board-columns"]) {

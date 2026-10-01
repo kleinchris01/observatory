@@ -615,7 +615,7 @@ function AccessArea({ local, set, setMacroAccess, setRemediation }) {
       <ConfigSection title="Macro access" icon="lock">
         <ConfigRow
           label="Read-only mode"
-          hint="Prevents Confluence macro users from triggering field usage scans. Admins can still run jobs here."
+          hint="Freezes the app for everyone, admins included: no scans, inventory builds, remediation tickets or clearing data, from the macro or from this page. Turn it off to run any of them."
         >
           <Toggle checked={local.readOnlyMode} onChange={(v) => set("readOnlyMode", v)} />
         </ConfigRow>

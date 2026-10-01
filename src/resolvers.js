@@ -166,9 +166,11 @@ import {
   loadProjectRoleActors,
   readDriftSnapshotMeta,
   loadConfigChanges,
+  changeCursorOf,
   loadConfigChangeSummary,
   readEstateSnapshotMeta,
   loadEstateValues,
+  loadEstateValueTotals,
   readBoardSnapshotMeta,
   loadBoards,
   loadBoardColumns,
@@ -202,7 +204,7 @@ import { summarizeBoardInsights, boardIssues, indexFiltersById } from "./lib/boa
 import { buildPillarReport, unavailableReport, isPillarReportKey, countScreenProjects, REPORT_ROW_LIMIT } from "./lib/pillar-reports.js";
 import { parseOql, evaluate as evaluateOql, sortEntities as sortOqlEntities, pinnedPillars } from "./lib/oql.js";
 import { buildOqlCatalog, buildEntityIndex, OQL_PILLARS, CHURN_WINDOW_DAYS } from "./lib/oql-index.js";
-import { summarizeEstateInsights } from "./lib/estate-insights.js";
+import { attachEstateUsage, summarizeEstateInsights } from "./lib/estate-insights.js";
 import { summarizeIssueTypeInsights } from "./lib/issuetype-insights.js";
 import { summarizeAssetInsights } from "./lib/asset-insights.js";
 import {
@@ -247,7 +249,7 @@ import {
 import { summarizeScreenFieldCross } from "./lib/screen-insights.js";
 import { assessFieldDeletion, assessStatusDeletion, summarizeDeletionSafety } from "./lib/deletion-safety.js";
 import { analyzeCascadeGraph, MAX_CHAIN_DEPTH } from "./lib/cascade-graph.js";
-import { buildOwnershipIndex, summarizeOrphanedOwnership } from "./lib/user-ownership.js";
+import { activeRosterIds, buildOwnershipIndex, summarizeOrphanedOwnership } from "./lib/user-ownership.js";
 import {
   hydrateRuleDirectory,
   assessAutomationEvidence,
@@ -276,6 +278,7 @@ import {
   AUTOMATION_PARTS,
   MAX_PREVIEW_FINDINGS,
   MAX_STORED_CASCADES,
+  MAX_STORED_CROSS_RULE,
 } from "./lib/store/automation.js";
 import {
   STRUCTURAL_SYSTEM_FIELDS,
@@ -598,12 +601,28 @@ async function viewerProjectCount(context) {
   }
 }
 
-async function checkMacroAccess({ context }) {
+// The group-membership answer, cached briefly per account and group list. The macro makes
+// several reads per page load, and every one of them is now gated, so without this each
+// would cost a Jira round trip. Same 60-second window, and the same accepted risk, as the
+// admin check: a viewer removed from the group keeps access for up to a minute.
+const MACRO_ACCESS_TTL_MS = 60 * 1000;
+const macroAccessCache = new Map();
+
+export function __clearMacroAccessCache() {
+  macroAccessCache.clear();
+}
+
+// One decision, used both by checkMacroAccess (which the macro asks before rendering) and by
+// withMacroAccessGuard (which every macro read passes through). Before the guard existed the
+// restriction was only a UI decision: the macro hid itself, but any Confluence user could
+// invoke getMacroFields and the rest directly. `failedOpen` marks the accepted risk in
+// SECURITY_CHECKLIST.md 1.3: a failed group lookup grants access rather than blanking the page.
+async function macroAccessDecision(context) {
   try {
     const config = await readAdminConfig();
     const { restrictAccess, allowedGroups } = config.macroAccess || {};
 
-    if (!restrictAccess) return { allowed: true, projectCount: await viewerProjectCount(context) };
+    if (!restrictAccess) return { allowed: true };
 
     const groups = (allowedGroups || []).filter(Boolean);
     if (!groups.length) {
@@ -618,6 +637,10 @@ async function checkMacroAccess({ context }) {
       return { allowed: false, reason: "Please sign in to Jira to view this Observatory." };
     }
 
+    const cacheKey = `${accountId}|${JSON.stringify(groups)}`;
+    const cached = macroAccessCache.get(cacheKey);
+    if (cached && cached.expires > Date.now()) return cached.decision;
+
     const resp = await api.asApp().requestJira(
       route`/rest/api/3/user/groups?accountId=${accountId}`,
       { headers: { Accept: "application/json" } }
@@ -625,25 +648,64 @@ async function checkMacroAccess({ context }) {
 
     if (!resp.ok) {
       console.error("checkMacroAccess: group lookup failed", resp.status);
-      // Fail open -- do not block on an API error. The count is left unknown rather than
-      // guessed at, which the macro renders as its generic scope line.
-      return { allowed: true, projectCount: null };
+      // Fail open -- do not block on an API error. Not cached, so the next call retries.
+      return { allowed: true, failedOpen: true };
     }
 
     const userGroups = await resp.json();
     const userGroupNames = Array.isArray(userGroups) ? userGroups.map((g) => g.name) : [];
     const hasAccess = groups.some((g) => userGroupNames.includes(g));
 
-    return hasAccess
-      ? { allowed: true, projectCount: await viewerProjectCount(context) }
+    const decision = hasAccess
+      ? { allowed: true }
       : {
           allowed: false,
           reason: "You don't have permission to view this Observatory. Contact your Jira administrator to request access.",
         };
+    macroAccessCache.set(cacheKey, { decision, expires: Date.now() + MACRO_ACCESS_TTL_MS });
+    return decision;
   } catch (err) {
     console.error("checkMacroAccess error:", err);
-    return { allowed: true, projectCount: null }; // fail open
+    return { allowed: true, failedOpen: true }; // fail open
   }
+}
+
+async function checkMacroAccess({ context }) {
+  const decision = await macroAccessDecision(context);
+  if (!decision.allowed) return { allowed: false, reason: decision.reason };
+  // On a failed lookup the count is left unknown rather than guessed at, which the macro
+  // renders as its generic scope line.
+  return { allowed: true, projectCount: decision.failedOpen ? null : await viewerProjectCount(context) };
+}
+
+export class MacroAccessError extends Error {
+  constructor(reason) {
+    super(reason || "You don't have permission to view this Observatory.");
+    this.name = "MacroAccessError";
+  }
+}
+
+// Applied to the macro handler's registry in index.js. Not applied on the admin handler:
+// the admin page is gated by Jira ADMINISTER, and the macro's group list is a setting about
+// Confluence readers, not admins.
+export function withMacroAccessGuard(functions) {
+  return Object.fromEntries(
+    Object.entries(functions).map(([name, fn]) => {
+      // The check itself must stay callable, or a denied viewer could not be told why.
+      if (name === "checkMacroAccess") return [name, fn];
+      return [
+        name,
+        async (req) => {
+          const decision = await macroAccessDecision(req?.context);
+          if (!decision.allowed) {
+            logger.warn("macro.denied", { action: name, actorId: req?.context?.accountId || null });
+            throw new MacroAccessError(decision.reason);
+          }
+          return fn(req);
+        },
+      ];
+    })
+  );
 }
 
 // ----- Inventory UI helpers -----
@@ -2024,7 +2086,7 @@ async function getUserInventory({ context }) {
     ruleRefCountByAccount.set(String(entry.label), ids.size);
   }
 
-  const rosterIds = new Set(users.map((u) => u.accountId));
+  const rosterIds = activeRosterIds(users);
   const withOwnership = users.map((u) => {
     const owned = ownership.byAccount.get(u.accountId);
     return {
@@ -2355,12 +2417,7 @@ async function getAccessInventory({ context }, { listLimit = 25 } = {}) {
     };
   }
 
-  let rosterAccountIds = new Set();
-  const userMeta = await readUserSnapshotMeta(installationKey).catch(() => null);
-  if (userMeta?.version) {
-    const users = await loadUsers(installationKey, userMeta.version).catch(() => []);
-    rosterAccountIds = new Set(users.map((u) => u.accountId));
-  }
+  const rosterAccountIds = (await loadActiveRoster(installationKey)) || new Set();
 
   const [
     permSchemes, permHolders, permProjects,
@@ -2504,7 +2561,7 @@ async function getChangeHistory({ payload, context }) {
     trackedPillars: DRIFT_PILLARS.map((p) => ({ key: p.pillar, label: p.label })),
     windowDays: CHANGE_WINDOW_DAYS,
     changes: hasMore ? changes.slice(0, limit) : changes,
-    nextCursor: hasMore ? changes[limit - 1].detectedAt : null,
+    nextCursor: hasMore ? changeCursorOf(changes[limit - 1]) : null,
     summary,
     lastError: meta.lastError || null,
   };
@@ -2552,10 +2609,18 @@ async function getEstateInventory({ context }) {
     };
   }
 
-  const [resolutions, priorities] = await Promise.all([
+  const [rawResolutions, rawPriorities, totals] = await Promise.all([
     loadEstateValues(installationKey, meta.version, "resolution"),
     loadEstateValues(installationKey, meta.version, "priority"),
+    // Usage from the issue crawl. Without it every row read "Not measured", though the crawl
+    // had counted issues per value all along; only the Overview attached the counts.
+    loadEstateValueTotals(installationKey).catch(fallbackOn("estate.usage_load_failed", [], { installationKey })),
   ]);
+  const { resolutions, priorities, usageMeasured, unresolvedIssueCount } = attachEstateUsage({
+    resolutions: rawResolutions,
+    priorities: rawPriorities,
+    totals,
+  });
 
   return {
     state: meta.state || "ready",
@@ -2565,6 +2630,8 @@ async function getEstateInventory({ context }) {
     lastError: meta.lastError || null,
     resolutions,
     priorities,
+    usageMeasured,
+    unresolvedIssueCount,
     governance: summarizeEstateInsights({ resolutions, priorities }),
   };
 }
@@ -2736,6 +2803,9 @@ async function getAutomationInsights({ context }) {
       cascades: analysis.cascades ?? [],
       cascadesTotal: analysis.cascadesTotal ?? (analysis.cascades?.length ?? 0),
       selfTriggeringTotal: analysis.selfTriggeringTotal ?? 0,
+      // The three cross-rule checks. Null, not zero, on an analysis saved before they were
+      // stored: those imports were never measured for them, and the tab says so.
+      ...crossRuleSection(analysis),
       // The blast-radius tier histogram for the overview. Null on an analysis imported
       // before blast scoring existed — the tab shows a "re-import" prompt for that section.
       blast: analysis.blast ?? null,
@@ -2745,6 +2815,34 @@ async function getAutomationInsights({ context }) {
     console.error("getAutomationInsights failed:", error);
     throw error;
   }
+}
+
+// The cross-rule lists, keyed so the getter and the saver agree on the names.
+const CROSS_RULE_KEYS = ["eventCascades", "competingPairs", "fieldContradictions"];
+
+// Saving: totals come from the payload (they describe the estate, not the capped list);
+// a payload without a list leaves the check unmeasured rather than recording zero.
+function storedCrossRule(document) {
+  const out = {};
+  for (const key of CROSS_RULE_KEYS) {
+    const list = document[key];
+    if (!Array.isArray(list)) continue;
+    const total = Number(document[`${key}Total`]);
+    out[key] = list.slice(0, MAX_STORED_CROSS_RULE);
+    out[`${key}Total`] = Number.isFinite(total) && total >= list.length ? total : list.length;
+  }
+  return out;
+}
+
+// Reading: null when the stored analysis predates the check.
+function crossRuleSection(analysis) {
+  const out = {};
+  for (const key of CROSS_RULE_KEYS) {
+    const measured = Array.isArray(analysis[key]);
+    out[key] = measured ? analysis[key] : [];
+    out[`${key}Total`] = measured ? (Number(analysis[`${key}Total`]) || analysis[key].length) : null;
+  }
+  return out;
 }
 
 // The blast rollup is admin-supplied like the rest of the analysis payload. An admin can
@@ -2825,6 +2923,9 @@ async function saveAutomationAnalysis({ payload, context }) {
       cascades: cascades.slice(0, MAX_STORED_CASCADES),
       cascadesTotal: Number(document.cascadesTotal) || cascades.length,
       selfTriggeringTotal: Number(document.selfTriggeringTotal) || 0,
+      // The three cross-rule checks. These were computed by the analysis and then dropped
+      // here, so the tab's tiles read 0 on every site whatever the rules did.
+      ...storedCrossRule(document),
       // The blast-radius rollup: a tier histogram and the two health inputs. Small, and read
       // on first paint, so it rides here rather than costing a SQL round trip. The per-rule
       // scores are shredded into automation_rule_blast by the "blast" index part.
@@ -3881,7 +3982,7 @@ async function getRemediationCandidates({ payload, context }) {
     const meta = await readUserSnapshotMeta(installationKey).catch(() => null);
     if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
     const users = await loadUsers(installationKey, meta.version);
-    const rosterIds = new Set(users.map((u) => u.accountId));
+    const rosterIds = activeRosterIds(users);
     const ownership = await buildOwnershipIndex(installationKey);
     const items = [];
     for (const [accountId, owned] of ownership.byAccount) {
@@ -4188,7 +4289,7 @@ const REMEDIATION_CANDIDATE_LOADERS = {
       readAutomationPart(installationKey, "directory").catch(() => null),
     ]);
     if (!userIndex) return { available: false, reason: "no-automation-index", items: [] };
-    const roster = new Set(users.map((u) => u.accountId));
+    const roster = activeRosterIds(users);
     const items = (userIndex.entries || [])
       .map((e) => String(e.label))
       .filter((accountId) => !roster.has(accountId))
@@ -7644,6 +7745,32 @@ export async function rovoAccessSearch(payload, context) {
   }
 }
 
+// The active roster's accountIds, or null when no people snapshot exists (so an off-roster
+// flag is unknown, not false).
+async function loadActiveRoster(installationKey) {
+  const userMeta = await readUserSnapshotMeta(installationKey).catch(() => null);
+  if (!userMeta?.version) return null;
+  const users = await loadUsers(installationKey, userMeta.version).catch(() => []);
+  return activeRosterIds(users);
+}
+
+// One stored holder row, as the access agent reports it. The row carries the grant in
+// context/contextLabel (permission key, notification event, security level or project) and
+// the holder in holderValue/holderLabel. The agent used to read holderName, permission and
+// offRoster, none of which exist on the row, so every grant came back null, nobody was ever
+// off-roster, and a search by group name compared against the group id.
+function describeAccessHolder(h, rosterIds) {
+  return {
+    type: h.holderType,
+    value: h.holderLabel || h.holderValue || null,
+    id: h.holderValue || null,
+    grants: h.contextLabel || h.context || null,
+    offRoster: h.holderType === "user" && h.holderValue
+      ? (rosterIds ? !rosterIds.has(h.holderValue) : null)
+      : false,
+  };
+}
+
 export async function rovoAccessInspect(payload, context) {
   incrMetric(METRIC_NAMES.resolver);
   try {
@@ -7658,13 +7785,14 @@ export async function rovoAccessInspect(payload, context) {
       const scheme = schemes.find((s) => String(s.id) === identifier || String(s.name || "").toLowerCase() === idLower);
       if (!scheme) continue;
       const holders = (inv[family]?.holders || []).filter((h) => String(h.schemeId) === String(scheme.id));
+      const rosterIds = await loadActiveRoster(getInstallationKey(context));
       return agentOk(inv.refreshedAt || null, {
         family,
         scheme: { id: scheme.id, name: scheme.name, description: scheme.description || null, projectCount: scheme.projectCount ?? null },
-        holders: holders.slice(0, 100).map((h) => ({
-          type: h.holderType, value: h.holderName || h.holderValue || h.parameter || null,
-          permission: h.permission || h.eventName || h.level || null, offRoster: Boolean(h.offRoster),
-        })),
+        holders: holders.slice(0, 100).map((h) => {
+          const d = describeAccessHolder(h, rosterIds);
+          return { type: d.type, value: d.value, id: d.id, permission: d.grants, offRoster: d.offRoster };
+        }),
         holderCount: holders.length,
         findings: inv[family]?.governance?.findings || inv[family]?.governance || null,
       });
@@ -7685,20 +7813,25 @@ export async function rovoAccessImpact(payload, context) {
     const inv = await getAccessInventory({ context });
     if (inv.neverBuilt || !inv.version) return pillarUnavailable("access", { state: inv.state, refreshedAt: null });
     const needle = name.toLowerCase();
+    const rosterIds = await loadActiveRoster(getInstallationKey(context));
 
     const naming = [];
     for (const family of ACCESS_FAMILIES) {
       const schemes = new Map((inv[family]?.schemes || []).map((s) => [String(s.id), s.name]));
       for (const h of inv[family]?.holders || []) {
-        const value = String(h.holderName || h.holderValue || h.parameter || "").toLowerCase();
-        const account = String(h.accountId || "").toLowerCase();
-        if (value === needle || account === needle || (value && value.includes(needle))) {
+        // Matched on the label (group or display name) and the stored id (group id or
+        // accountId), so a group name, a group id or an accountId all find the holder.
+        const label = String(h.holderLabel || "").toLowerCase();
+        const id = String(h.holderValue || "").toLowerCase();
+        if (id === needle || label === needle || (label && label.includes(needle))) {
+          const d = describeAccessHolder(h, rosterIds);
           naming.push({
             family,
             scheme: schemes.get(String(h.schemeId)) || String(h.schemeId),
-            as: h.holderType,
-            grants: h.permission || h.eventName || h.level || null,
-            offRoster: Boolean(h.offRoster),
+            as: d.type,
+            holder: d.value,
+            grants: d.grants,
+            offRoster: d.offRoster,
           });
         }
       }
@@ -8364,15 +8497,20 @@ export async function rovoProjectInspect(payload, context) {
     const ov = await getProjectOverview({ payload: { projectId, projectKey }, context });
     if (!ov.available) return { status: "not-authorised", message: ov.reason || "You do not have Browse Projects on this project." };
 
+    // Read off the keys getProjectOverview actually returns. This used to read projectType,
+    // lead, workflowScheme, roleActors and fieldsInUse, none of which the overview has, so the
+    // agent answered every project with no workflow scheme, no roles and no lead.
     return agentOk(ov.refreshedAt || null, {
-      project: { projectId, projectKey: ov.projectKey || projectKey, projectName: ov.projectName || null, type: ov.projectType || null, lead: ov.lead || null },
-      workflowScheme: ov.workflowScheme ? { name: ov.workflowScheme.name, sharedWithCount: ov.workflowScheme.sharedWithCount ?? null } : null,
+      project: { projectId, projectKey: ov.projectKey || projectKey, projectName: ov.projectName || null },
+      workflowScheme: ov.workflow?.available
+        ? (ov.workflow.scheme ? { id: ov.workflow.scheme.schemeId ?? null, name: ov.workflow.scheme.name } : null)
+        : { available: false, reason: ov.workflow?.reason || null },
       schemes: ov.schemes || null,
-      roleActors: ov.roleActors || null,
-      adoption: ov.adoption || ov.selectedAdoption || null,
-      fieldsInUse: Array.isArray(ov.fields) ? ov.fields.length : (ov.fieldsInUse ?? null),
+      roles: ov.roles || null,
+      boards: ov.boards || null,
+      adoption: ov.adoption || null,
       dataCaveats:
-        "Project activity and archetype-divergence measurement are not built yet -- this is scheme identity, adoption where measured, and field usage.",
+        "Project type, lead and category are not collected yet, so they are unknown rather than empty. Project activity and archetype-divergence measurement are not built yet.",
     });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
@@ -9312,7 +9450,7 @@ async function loadOqlChurnWindow(installationKey, now) {
       const page = await loadConfigChanges(installationKey, { since, before, limit: 500 });
       changes.push(...page);
       if (page.length < 500) break;
-      before = page[page.length - 1].detectedAt;
+      before = changeCursorOf(page[page.length - 1]);
     }
     return changes;
   } catch (error) {
@@ -9435,7 +9573,7 @@ async function loadPillarReportInput(key, { installationKey, context }) {
         const page = await loadConfigChanges(installationKey, { since, before, limit: 500 });
         changes.push(...page);
         if (page.length < 500) break;
-        before = page[page.length - 1].detectedAt;
+        before = changeCursorOf(page[page.length - 1]);
       }
       return { refreshedAt: meta.refreshedAt, changes, windowDays: CHANGE_WINDOW_DAYS };
     }
@@ -9678,6 +9816,9 @@ async function getProjectOverview({ payload, context }) {
     available: true,
     projectId,
     projectKey: projectKey || null,
+    projectName: thisProject?.projectName || null,
+    // When the field snapshot this view is anchored on was built. Null with no snapshot.
+    refreshedAt: fieldMeta?.refreshedAt || null,
     // Tri-state per pillar, never an empty list standing in for an unbuilt one. "No rule
     // touches this project" and "no automation analysis exists" are opposite claims, and
     // only one of them means the project is simple.

@@ -8,20 +8,17 @@
 // count is in the hundreds where its screen count was in the hundreds too but with a tab and
 // field walk underneath each.
 //
-// What this deliberately does NOT do is read gadget CONFIGURATION.
+// Phase three reads each gadget's CONFIGURATION, for the chain field -> filter -> dashboard:
+// a Filter Results gadget points at a saved filter, that filter searches a field, and
+// deleting the field breaks the dashboard three steps later with no error at any of them.
+// Jira exposes the middle link only through dashboard item properties, so it costs further
+// requests per gadget and needs read:dashboard.property:jira.
 //
-// The chain worth having is field -> filter -> dashboard: a Filter Results gadget points at a
-// saved filter, that filter searches a field, and deleting the field breaks the dashboard
-// three steps later with no error at any of them. Jira exposes the middle link only through
-// dashboard item properties -- GET .../items/{itemId}/properties, then a second call per
-// property key -- which is two further requests per gadget on top of one per dashboard, and
-// needs read:dashboard.property:jira as well.
-//
-// So it is not attempted rather than approximated. Gadget titles often contain the filter
-// name ("Filter Results: Open Bugs") and matching on that would produce a dependency graph
-// that is right most of the time, which is the worst kind: every claim this app makes about
-// what depends on what is load-bearing for a deletion decision. The module key and title are
-// stored so the join can be added later without a re-enumeration.
+// It is read, never approximated. Gadget titles often contain the filter name ("Filter
+// Results: Open Bugs"), and matching on that would produce a dependency graph that is right
+// most of the time, which is the worst kind: every claim this app makes about what depends on
+// what is load-bearing for a deletion decision. A gadget whose properties cannot be read is
+// recorded with no filter rather than guessed at.
 
 import { logger } from "./logger.js";
 import {

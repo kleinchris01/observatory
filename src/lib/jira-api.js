@@ -1035,10 +1035,8 @@ export async function getAllDashboards() {
 // per dashboard, which is why the engine walks these with a concurrency limit rather than
 // firing them all at once.
 //
-// What this does NOT return is a gadget's configuration -- which filter a Filter Results
-// gadget points at lives in dashboard item properties, two further calls per gadget. That is
-// the field -> filter -> dashboard chain, and it is deliberately not attempted here; see
-// dashboard-engine.js.
+// This does not return a gadget's configuration: which filter a Filter Results gadget points
+// at lives in dashboard item properties, read separately by getGadgetFilterId.
 export async function getDashboardGadgets(dashboardId) {
   const data = await jiraRequest(route`/rest/api/3/dashboard/${dashboardId}/gadget`);
   return Array.isArray(data?.gadgets) ? data.gadgets : [];
@@ -1176,12 +1174,14 @@ export async function getApplicationRoles() {
 }
 
 // Members of one group, by groupId (name is also accepted by the API but ids are stable
-// across renames). Inactive users are excluded -- a licence held by a deactivated account
-// is a finding for the pillar, not part of the active roster, and is surfaced separately.
+// across renames). Deactivated accounts are included and carry active: false. Excluding
+// them here, as this once did, left the People "Deactivated" filter permanently empty and
+// let licence hygiene score clean on every site, because nothing else ever fetched them.
+// Off-roster checks count active accounts only (activeRosterIds in user-ownership.js).
 export async function getGroupMembers(groupId) {
   if (!groupId) return [];
   return paginate(
-    (startAt) => route`/rest/api/3/group/member?groupId=${groupId}&includeInactiveUsers=false&startAt=${startAt}&maxResults=50`
+    (startAt) => route`/rest/api/3/group/member?groupId=${groupId}&includeInactiveUsers=true&startAt=${startAt}&maxResults=50`
   );
 }
 

@@ -24,6 +24,18 @@ describe("ADMIN_NAV_TABS", () => {
   });
 });
 
+describe("read-only banner", () => {
+  it("says read-only pauses admin work too, and where to turn it off", async () => {
+    invoke.mockImplementation((fnName, payload) => (fnName === "getAdminOverview"
+      ? Promise.resolve(makeOverview({ config: { ...makeOverview().config, readOnlyMode: true } }))
+      : defaultInvokeImpl(fnName, payload)));
+    await renderAdminApp();
+    const banner = await screen.findByText(/Read-only mode is on/i);
+    expect(banner.textContent).toMatch(/admins included/i);
+    expect(banner.textContent).toMatch(/Configuration/);
+  });
+});
+
 describe("admin nav", () => {
   const withHealth = (pillars) => {
     invoke.mockImplementation((fnName, payload) => (fnName === "getAdminOverview"

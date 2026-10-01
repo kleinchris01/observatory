@@ -44,10 +44,12 @@ export function summarizeBoardInsights({ boards = [], filters = null, knownStatu
   let inactiveFilterOwner = 0;  // backing filter's owner is deactivated
   let unmappedColumnBoards = 0; // >=1 column with no status mapped
   let staleColumnBoards = 0;    // >=1 column maps a status id that no longer exists
+  let unreadable = 0;           // Jira refused the board's configuration (team-managed 404s)
 
   const flagged = [];
 
   for (const b of boards) {
+    if (b.configReadable === false) unreadable += 1;
     const issues = boardIssues(b, filterById, knownStatusIds);
     if (issues.includes("no-backing-filter")) noFilter += 1;
     if (issues.includes("backing-filter-deleted")) missingFilter += 1;
@@ -63,6 +65,10 @@ export function summarizeBoardInsights({ boards = [], filters = null, knownStatu
   return {
     available: boards.length > 0,
     total: boards.length,
+    // Boards whose configuration was read. Only these were checked, so they are the
+    // denominator for every board rate; an unreadable board is unmeasured, not healthy.
+    readable: boards.length - unreadable,
+    unreadable,
     noFilter,
     missingFilter,
     inactiveFilterOwner,
@@ -84,6 +90,8 @@ export function summarizeBoardHealth(summary) {
   return {
     available: true,
     total: summary.total,
+    readable: summary.readable ?? summary.total,
+    unreadable: summary.unreadable ?? 0,
     brokenBackingCount: summary.missingFilter + summary.noFilter,
     inactiveFilterOwner: summary.inactiveFilterOwner,
     staleColumnBoards: summary.staleColumnBoards,

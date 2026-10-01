@@ -22,6 +22,7 @@ import { ensureProjectStoreReady, toNumber, withSqlRetry } from "./core.js";
 export {
   MAX_PREVIEW_FINDINGS,
   MAX_STORED_CASCADES,
+  MAX_STORED_CROSS_RULE,
   buildAnalysisDocument,
   buildFindingsDocument,
 } from "../automation-analysis.js";

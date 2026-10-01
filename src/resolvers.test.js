@@ -328,6 +328,7 @@ vi.mock("./lib/store/automation.js", () => ({
   AUTOMATION_PARTS: { analysis: "a:", fields: "f:", statuses: "s:", issueTypes: "it:", users: "u:", directory: "d:", findings: "fi:", cascades: "c:" },
   MAX_PREVIEW_FINDINGS: 20,
   MAX_STORED_CASCADES: 150,
+  MAX_STORED_CROSS_RULE: 100,
 }));
 
 vi.mock("./lib/project-store.js", () => ({
@@ -455,6 +456,7 @@ vi.mock("./lib/project-store.js", () => ({
   loadProjectRoleActors: mocks.loadProjectRoleActors,
   readDriftSnapshotMeta: mocks.readDriftSnapshotMeta,
   loadConfigChanges: mocks.loadConfigChanges,
+  changeCursorOf: (row) => (row?.changeId ? `${row.detectedAt}|${row.changeId}` : row?.detectedAt ?? null),
   loadConfigChangeSummary: mocks.loadConfigChangeSummary,
   readEstateSnapshotMeta: mocks.readEstateSnapshotMeta,
   loadEstateValues: mocks.loadEstateValues,
@@ -612,6 +614,9 @@ vi.mock("./lib/snapshot-engine.js", async (importOriginal) => {
 import {
   SHARED_RESOLVER_FUNCTIONS,
   ADMIN_ONLY_FUNCTIONS,
+  withMacroAccessGuard,
+  MacroAccessError,
+  __clearMacroAccessCache,
   readAdminConfig,
   recordQuickScanScheduledRun,
   getAdminConfigResolver,
@@ -797,6 +802,7 @@ function adminConfig(overrides = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  __clearMacroAccessCache();
   mocks.ensureProjectStoreReady.mockResolvedValue(undefined);
   mocks.writeSnapshotMeta.mockResolvedValue(undefined);
   mocks.replaceFieldSummary.mockResolvedValue(undefined);
@@ -961,6 +967,60 @@ describe("checkMacroAccess", () => {
     mocks.kvsGet.mockRejectedValue(new Error("kvs unavailable"));
     const result = await checkMacroAccess({ context: { accountId: "user-1" } });
     expect(result).toMatchObject({ allowed: true });
+  });
+});
+
+// The macro's group restriction used to be enforced only by the page asking
+// checkMacroAccess first. Every macro read now passes through the same decision.
+describe("withMacroAccessGuard", () => {
+  const restricted = { macroAccess: { restrictAccess: true, allowedGroups: ["jira-admins"] } };
+  const inner = vi.fn(async () => ({ rows: ["data"] }));
+  const guarded = () => withMacroAccessGuard({ getMacroFields: inner, checkMacroAccess: vi.fn(async () => "check") });
+
+  test("lets every call through when the restriction is off", async () => {
+    mocks.kvsGet.mockResolvedValueOnce({ macroAccess: { restrictAccess: false } });
+    await expect(guarded().getMacroFields({ context: { accountId: "u" } })).resolves.toEqual({ rows: ["data"] });
+    expect(mocks.apiAsAppRequestJira).not.toHaveBeenCalled();
+  });
+
+  test("refuses a direct read from a viewer outside the allowed groups", async () => {
+    mocks.kvsGet.mockResolvedValue(restricted);
+    mocks.apiAsAppRequestJira.mockResolvedValueOnce({ ok: true, json: async () => [{ name: "other" }] });
+    await expect(guarded().getMacroFields({ context: { accountId: "u" } })).rejects.toBeInstanceOf(MacroAccessError);
+    expect(inner).not.toHaveBeenCalled();
+  });
+
+  test("refuses an anonymous caller when restricted", async () => {
+    mocks.kvsGet.mockResolvedValue(restricted);
+    await expect(guarded().getMacroFields({ context: {} })).rejects.toThrow(/sign in/i);
+  });
+
+  test("serves a viewer in an allowed group, and asks Jira once per minute, not per call", async () => {
+    mocks.kvsGet.mockResolvedValue(restricted);
+    mocks.apiAsAppRequestJira.mockResolvedValue({ ok: true, json: async () => [{ name: "jira-admins" }] });
+    const fns = guarded();
+    await fns.getMacroFields({ context: { accountId: "u" } });
+    await fns.getMacroFields({ context: { accountId: "u" } });
+    expect(inner).toHaveBeenCalledTimes(2);
+    expect(mocks.apiAsAppRequestJira).toHaveBeenCalledTimes(1);
+  });
+
+  // The documented accepted risk (SECURITY_CHECKLIST 1.3): a failed lookup grants access.
+  test("fails open when the group lookup errors, as the checklist documents", async () => {
+    mocks.kvsGet.mockResolvedValue(restricted);
+    mocks.apiAsAppRequestJira.mockResolvedValueOnce({ ok: false, status: 500 });
+    await expect(guarded().getMacroFields({ context: { accountId: "u" } })).resolves.toEqual({ rows: ["data"] });
+  });
+
+  test("leaves checkMacroAccess itself unguarded so a denied viewer can be told why", async () => {
+    mocks.kvsGet.mockResolvedValue(restricted);
+    mocks.apiAsAppRequestJira.mockResolvedValueOnce({ ok: true, json: async () => [] });
+    await expect(guarded().checkMacroAccess({ context: { accountId: "u" } })).resolves.toBe("check");
+  });
+
+  test("wraps every shared function", () => {
+    const wrapped = withMacroAccessGuard(SHARED_RESOLVER_FUNCTIONS);
+    expect(Object.keys(wrapped).sort()).toEqual(Object.keys(SHARED_RESOLVER_FUNCTIONS).sort());
   });
 });
 
@@ -3710,6 +3770,38 @@ describe("getAutomationInsights", () => {
     expect(result.cascadesTotal).toBe(1);
   });
 
+  test("returns the cross-rule totals and lists the analysis stored", async () => {
+    mocks.readAutomationAnalysis.mockResolvedValueOnce({
+      ...doc,
+      eventCascades: [{ sourceId: 1, targetId: 2 }],
+      eventCascadesTotal: 3,
+      competingPairs: [],
+      competingPairsTotal: 0,
+      fieldContradictions: [{ field: "Priority" }],
+      fieldContradictionsTotal: 1,
+    });
+
+    const result = await getAutomationInsights({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.eventCascadesTotal).toBe(3);
+    expect(result.eventCascades).toHaveLength(1);
+    expect(result.competingPairsTotal).toBe(0);
+    expect(result.fieldContradictionsTotal).toBe(1);
+  });
+
+  // An analysis saved before these checks were stored was never measured for them. Zero
+  // would claim the rules were checked and found clean.
+  test("reports the cross-rule totals as null on an analysis that predates them", async () => {
+    mocks.readAutomationAnalysis.mockResolvedValueOnce(doc);
+
+    const result = await getAutomationInsights({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.eventCascadesTotal).toBeNull();
+    expect(result.competingPairsTotal).toBeNull();
+    expect(result.fieldContradictionsTotal).toBeNull();
+    expect(result.eventCascades).toEqual([]);
+  });
+
   // A document written by an older build can be missing any of these. Each field falls back
   // to an empty value rather than reaching the client as undefined, where the tab would
   // render "undefined rules" or throw on a map of nothing.
@@ -3827,6 +3919,42 @@ describe("saveAutomationAnalysis", () => {
     expect(result.saved).toBe(true);
     const [, stored] = mocks.writeAutomationAnalysis.mock.calls[0];
     expect(stored).toMatchObject({ schemaVersion: 1, estate: valid.estate, findingsTotal: 675, cascadesTotal: 1457 });
+  });
+
+  // The three cross-rule checks were computed by the analysis and then dropped on save, so
+  // their tiles read 0 on every site. Totals describe the estate; lists are capped.
+  test("keeps the cross-rule totals and capped lists", async () => {
+    const pairs = Array.from({ length: 140 }, (_, i) => ({ a: i, b: i + 1 }));
+    await saveAutomationAnalysis({
+      payload: {
+        analysis: {
+          ...valid,
+          eventCascades: [{ sourceId: 1, targetId: 2 }],
+          eventCascadesTotal: 4,
+          competingPairs: pairs,
+          competingPairsTotal: 140,
+          fieldContradictions: [],
+          fieldContradictionsTotal: 0,
+        },
+      },
+      context: ctxWithAccount(),
+    });
+
+    const [, stored] = mocks.writeAutomationAnalysis.mock.calls[0];
+    expect(stored.eventCascadesTotal).toBe(4);
+    expect(stored.eventCascades).toHaveLength(1);
+    expect(stored.competingPairsTotal).toBe(140);
+    expect(stored.competingPairs).toHaveLength(100);
+    expect(stored.fieldContradictionsTotal).toBe(0);
+    expect(stored.fieldContradictions).toEqual([]);
+  });
+
+  test("leaves a cross-rule check unmeasured when the payload carries no list", async () => {
+    await saveAutomationAnalysis({ payload: { analysis: valid }, context: ctxWithAccount() });
+
+    const [, stored] = mocks.writeAutomationAnalysis.mock.calls[0];
+    expect(stored).not.toHaveProperty("eventCascadesTotal");
+    expect(stored).not.toHaveProperty("competingPairsTotal");
   });
 
   // A skewed workstation clock would otherwise stamp the analysis hours out, and that
@@ -6190,7 +6318,8 @@ describe("getChangeHistory", () => {
     );
     const result = await getChangeHistory({ payload: { limit: 2 }, ...ctx });
     expect(result.changes).toHaveLength(2);
-    expect(result.nextCursor).toBe("2026-09-02T00:00:00Z");
+    // Carries the change id: rows of one drift pass share a timestamp.
+    expect(result.nextCursor).toBe("2026-09-02T00:00:00Z|v1-1");
   });
 });
 
@@ -6241,6 +6370,36 @@ describe("getEstateInventory", () => {
     expect(result.neverBuilt).toBe(false);
     expect(result.resolutions).toHaveLength(2);
     expect(result.governance).toMatchObject({ available: true, resolutionDuplicateGroupCount: 1, reducibleResolutionCount: 1 });
+  });
+
+  // The crawl counted issues per value all along; only the Overview attached them, so every
+  // row on the tab read "Not measured".
+  test("attaches the crawl's issue counts to each value", async () => {
+    mocks.readEstateSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadEstateValues.mockImplementation(async (_k, _v, kind) =>
+      kind === "resolution" ? [{ id: "1", name: "Done" }] : [{ id: "10", name: "High" }]);
+    mocks.loadEstateValueTotals.mockResolvedValueOnce([
+      { kind: "resolution", valueId: "1", issueCount: 500 },
+      { kind: "resolution", valueId: "", issueCount: 12 },
+    ]);
+
+    const result = await getEstateInventory(ctx);
+
+    expect(result.resolutions[0].issueCount).toBe(500);
+    expect(result.priorities[0].issueCount).toBe(0);
+    expect(result.usageMeasured).toBe(true);
+    expect(result.unresolvedIssueCount).toBe(12);
+  });
+
+  test("keeps counts unmeasured when the totals cannot be read", async () => {
+    mocks.readEstateSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadEstateValues.mockResolvedValue([{ id: "1", name: "Done" }]);
+    mocks.loadEstateValueTotals.mockRejectedValueOnce(new Error("sql down"));
+
+    const result = await getEstateInventory(ctx);
+
+    expect(result.resolutions[0].issueCount).toBeNull();
+    expect(result.usageMeasured).toBe(false);
   });
 });
 
@@ -6527,7 +6686,7 @@ describe("getPillarReport", () => {
     const report = await getPillarReport(ctx("changes"));
 
     expect(report.total).toBe(501);
-    expect(mocks.loadConfigChanges.mock.calls[1][1]).toMatchObject({ before: page[499].detectedAt, limit: 500 });
+    expect(mocks.loadConfigChanges.mock.calls[1][1]).toMatchObject({ before: `${page[499].detectedAt}|${page[499].changeId}`, limit: 500 });
     expect(mocks.loadConfigChanges.mock.calls[0][1].since).toEqual(expect.any(String));
     expect(report.columns.some((c) => c.key === "findings")).toBe(false);
   });
@@ -6926,7 +7085,9 @@ describe("createRemediationEpic", () => {
 
 describe("getRemediationMetrics", () => {
   test("computes progress over this quarter's tasks, labelled from the playbook catalog", async () => {
-    const period = (() => { const d = new Date(); return `${d.getUTCFullYear()}-Q${Math.floor(d.getUTCMonth() / 3) + 1}`; })();
+    // The store mock pins the period; the test must use the same one, not today's date,
+    // or it fails every time a real quarter turns over.
+    const period = mocks.currentPeriod();
     mocks.loadRemediationTickets.mockResolvedValueOnce([
       { findingKey: "filter-ownership", period, isEpic: true, issueKey: "ADMIN-1" },
       { findingKey: "filter-ownership", period, isEpic: false, issueKey: "ADMIN-2", lastStatusCategory: "done", createdAt: new Date().toISOString(), doneAt: new Date().toISOString() },
@@ -8998,9 +9159,13 @@ describe("rovo access agent", () => {
       return [];
     });
     mocks.loadSchemeHolders.mockImplementation(async (_k, _v, family) => {
+      // The real stored shape (store/access.js loadSchemeHolders). These fixtures used to
+      // carry holderName, permission and offRoster, matching what the agent wrongly read,
+      // which is how a resolver returning null grants passed its tests.
       if (family === "permission") return [
-        { schemeId: "p1", holderType: "group", holderName: "jira-administrators", permission: "ADMINISTER_PROJECTS", offRoster: false },
-        { schemeId: "p1", holderType: "group", holderName: "anyone", permission: "BROWSE_PROJECTS", offRoster: false },
+        { schemeId: "p1", context: "ADMINISTER_PROJECTS", contextLabel: "Administer Projects", holderType: "group", holderValue: "grp-1", holderLabel: "jira-administrators" },
+        { schemeId: "p1", context: "BROWSE_PROJECTS", contextLabel: "Browse Projects", holderType: "anyone", holderValue: "", holderLabel: null },
+        { schemeId: "p1", context: "BROWSE_PROJECTS", contextLabel: "Browse Projects", holderType: "user", holderValue: "acc-gone", holderLabel: "Sam Gone" },
       ];
       return [];
     });
@@ -9032,8 +9197,24 @@ describe("rovo access agent", () => {
     seed();
     const r = await rovoAccessInspect({ identifier: "Default Permission Scheme" }, ctx());
     expect(r.family).toBe("permissions");
-    expect(r.holderCount).toBe(2);
+    expect(r.holderCount).toBe(3);
     expect(r.holders.map((h) => h.value)).toContain("jira-administrators");
+    expect(r.holders.find((h) => h.value === "jira-administrators")).toMatchObject({ id: "grp-1", permission: "Administer Projects", offRoster: false });
+  });
+
+  test("inspect: a user holder is off-roster when the people snapshot does not list them", async () => {
+    seed();
+    mocks.readUserSnapshotMeta.mockResolvedValue({ version: "u1" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "acc-1", active: true }]);
+    const r = await rovoAccessInspect({ identifier: "Default Permission Scheme" }, ctx());
+    expect(r.holders.find((h) => h.id === "acc-gone").offRoster).toBe(true);
+  });
+
+  // No people snapshot: whether a user is on the roster is unknown, not "no".
+  test("inspect: off-roster is unknown when there is no people snapshot", async () => {
+    seed();
+    const r = await rovoAccessInspect({ identifier: "Default Permission Scheme" }, ctx());
+    expect(r.holders.find((h) => h.id === "acc-gone").offRoster).toBeNull();
   });
 
   test("inspect: unknown scheme is not-found", async () => {
@@ -9046,8 +9227,14 @@ describe("rovo access agent", () => {
     seed();
     const r = await rovoAccessImpact({ name: "jira-administrators" }, ctx());
     expect(r.verdict).toBe("named-in-schemes");
-    expect(r.namedIn[0]).toMatchObject({ family: "permissions", as: "group", grants: "ADMINISTER_PROJECTS" });
+    expect(r.namedIn[0]).toMatchObject({ family: "permissions", as: "group", holder: "jira-administrators", grants: "Administer Projects" });
     expect(r.verdictCaveat).toMatch(/global permissions/);
+  });
+
+  test("impact: finds a group by its id as well as its name", async () => {
+    seed();
+    const r = await rovoAccessImpact({ name: "grp-1" }, ctx());
+    expect(r.namedInCount).toBe(1);
   });
 
   test("impact: an unnamed account is not-named-in-any-scheme", async () => {
@@ -9451,6 +9638,26 @@ describe("rovo project agent", () => {
     expect(r.projects.map((p) => p.projectKey)).not.toContain("ABC");
   });
 
+  // The action used to read keys the overview never returns, so every project came back
+  // with no workflow scheme, no roles and no name.
+  test("inspect: reports the workflow scheme, roles and name the overview holds", async () => {
+    seedProjects();
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "w1" });
+    mocks.loadWorkflowSchemeForProject.mockResolvedValueOnce({ schemeId: "ws1", name: "Software Simplified", description: "" });
+    mocks.readAccessSnapshotMeta.mockResolvedValue({ version: "a1" });
+    mocks.loadProjectSchemes.mockResolvedValueOnce([]);
+    mocks.loadProjectRoleActors.mockResolvedValueOnce([
+      { roleId: "r1", roleName: "Administrators", holderType: "user", holderValue: "acc-1", holderLabel: "Dana" },
+    ]);
+    const r = await rovoProjectInspect({ projectId: "10", projectKey: "ABC" }, ctx());
+    expect(r.status).toBe("ok");
+    expect(r.project).toMatchObject({ projectKey: "ABC", projectName: "Alpha Beta" });
+    expect(r.project).not.toHaveProperty("lead");
+    expect(r.workflowScheme).toMatchObject({ id: "ws1", name: "Software Simplified" });
+    expect(r.roles.byRole[0]).toMatchObject({ roleName: "Administrators" });
+    expect(r.dataCaveats).toMatch(/lead/);
+  });
+
   test("inspect: an agent action (no account) reads a project the browse check would have hidden", async () => {
     seedProjects();
     mocks.getBrowsableProjectIds.mockResolvedValue(new Set());
@@ -9695,10 +9902,13 @@ describe("rovo agents: more edge branches", () => {
 
   test("access impact: matches on accountId, not just display name", async () => {
     mocks.readAccessSnapshotMeta.mockResolvedValue({ version: "v", state: "ready", refreshedAt: "t" });
-    mocks.readUserSnapshotMeta.mockResolvedValue(null);
+    // A people snapshot that does not list acc-99, so the holder is off the roster.
+    mocks.readUserSnapshotMeta.mockResolvedValue({ version: "u1" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "acc-1", active: true }]);
     mocks.loadSchemes.mockImplementation(async (_k, _v, f) => f === "permission" ? [{ id: "p1", name: "PS" }] : []);
+    // The stored row shape: the account is holderValue, the grant is context/contextLabel.
     mocks.loadSchemeHolders.mockImplementation(async (_k, _v, f) => f === "permission"
-      ? [{ schemeId: "p1", holderType: "user", accountId: "acc-99", holderName: "Someone", permission: "ADMINISTER_PROJECTS", offRoster: true }]
+      ? [{ schemeId: "p1", context: "ADMINISTER_PROJECTS", contextLabel: "Administer Projects", holderType: "user", holderValue: "acc-99", holderLabel: "Someone" }]
       : []);
     mocks.loadSchemeProjects.mockResolvedValue([]);
     mocks.loadSchemeLevels.mockResolvedValue([]);

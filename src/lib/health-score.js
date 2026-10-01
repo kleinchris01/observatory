@@ -1709,8 +1709,20 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
   // that maps no status, or one that has been removed, drops issues off the wall with no
   // error anywhere.
   const noBoards = "No board inventory yet. Run a full scan to populate it.";
-  const boardTotal = Number(boards?.total) || 0;
-  if (boards?.available && boardTotal > 0) {
+  // Rates are over the boards whose configuration was read. A board Jira refused to show
+  // (team-managed boards answer 404) was never checked, and counting it as clean let a site
+  // full of unreadable boards score perfect board health.
+  const boardsSeen = Number(boards?.total) || 0;
+  const boardsUnread = Math.min(boardsSeen, Number(boards?.unreadable) || 0);
+  const boardTotal = boards?.readable != null ? Math.max(0, Number(boards.readable) || 0) : boardsSeen;
+  const unreadNote = boardsUnread > 0
+    ? ` ${boardsUnread} more could not be read and are left out, not counted as healthy.`
+    : "";
+  const noReadableBoards = `None of the ${boardsSeen} boards' configuration could be read, so nothing was checked. Team-managed boards often refuse it.`;
+  if (boards?.available && boardsSeen > 0 && boardTotal === 0) {
+    dimensions.push(unavailable("board-backing", "Board backing filters", "boards", noReadableBoards));
+    dimensions.push(unavailable("board-columns", "Board columns", "boards", noReadableBoards));
+  } else if (boards?.available && boardTotal > 0) {
     const broken = (Number(boards.brokenBackingCount) || 0) + (Number(boards.inactiveFilterOwner) || 0);
     const integrity = (boardTotal - broken) / boardTotal;
     dimensions.push(targetDimension({
@@ -1725,9 +1737,9 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       affected: broken + (Number(boards.dependentDashboards) || 0),
       estate: boardTotal,
       prior: prior("board-backing"),
-      detail: broken === 0
-        ? `All ${boardTotal} boards run on a live, owned backing filter.`
-        : `${broken} of ${boardTotal} boards have no backing filter, name one that was deleted, or run on a filter whose owner is deactivated.`,
+      detail: (broken === 0
+        ? `All ${boardTotal} readable boards run on a live, owned backing filter.`
+        : `${broken} of ${boardTotal} readable boards have no backing filter, name one that was deleted, or run on a filter whose owner is deactivated.`) + unreadNote,
       action: broken > 0
         ? "A board with no live backing filter shows every issue in the site. Repoint it, or reassign the filter before the account is removed."
         : null,
@@ -1741,9 +1753,9 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(columnIssues / boardTotal, TOLERANCE.boardsColumnHygiene),
-      detail: columnIssues === 0
-        ? `Every board column maps at least one live status.`
-        : `${columnIssues} of ${boardTotal} boards have a column that maps no status, or one that has been deleted.`,
+      detail: (columnIssues === 0
+        ? `Every column on the ${boardTotal} readable boards maps at least one live status.`
+        : `${columnIssues} of ${boardTotal} readable boards have a column that maps no status, or one that has been deleted.`) + unreadNote,
       action: columnIssues > 0
         ? "Issues in an unmapped or deleted status vanish from the board with no error. Fix the column mapping in the board's configuration."
         : null,

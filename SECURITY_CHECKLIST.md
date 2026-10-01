@@ -55,8 +55,19 @@ someone tries.
 
 ### 1.3 Macro viewer access is group-gated
 
-**Enforced, fails open.** `checkMacroAccess` (`src/resolvers.js`) restricts macro
-rendering to configured Jira groups when `macroAccess.restrictAccess` is on.
+**Enforced on every macro read, fails open.** When `macroAccess.restrictAccess` is on,
+`withMacroAccessGuard` (`src/resolvers.js`, applied to the macro handler in `src/index.js`)
+checks the caller's Jira groups before every shared resolver runs. `checkMacroAccess`, which
+the page asks first so it can explain a denial, uses the same decision.
+
+> **Fixed 1 Oct 2026.** Until then only `checkMacroAccess` read the group list. The page hid
+> itself for a viewer outside the groups, but `getMacroFields` and every other macro read
+> answered a direct `invoke()` regardless. Data was still filtered to the projects the caller
+> can browse, so the exposure was "the restriction does nothing", not "everything leaks".
+> `src/index.test.js` now asserts the macro registry goes through the guard.
+
+The group answer is cached per account for 60 seconds (`MACRO_ACCESS_TTL_MS`), the same
+window and the same accepted risk as the admin check in 1.5. A failed lookup is not cached.
 
 > **Accepted risk.** If the Jira group-lookup API call fails, access is **granted**
 > (`src/resolvers.js`, "fail open — don't block on API error"). Rationale: the macro is

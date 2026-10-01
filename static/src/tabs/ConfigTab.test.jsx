@@ -196,6 +196,14 @@ describe("ConfigTab — areas", () => {
     expect(screen.queryByText(/High-impact field/i)).not.toBeInTheDocument();
   });
 
+  // Read-only mode refuses admin builds and scans too. The hint used to say admins could
+  // still run jobs, which sent people looking for a bug when a build was refused.
+  test("describes read-only mode as freezing admin work too", () => {
+    render(<ConfigTab config={cfg()} onSave={vi.fn()} saving={false} />);
+    expect(screen.getByText(/admins included/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Admins can still run jobs/i)).not.toBeInTheDocument();
+  });
+
   test("every area renders when selected", async () => {
     render(<ConfigTab config={cfg()} onSave={vi.fn()} saving={false} />);
 

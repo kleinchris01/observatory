@@ -72,7 +72,7 @@ import { summarizeFilters, summarizeFilterHealth } from "./filter-insights.js";
 import { summarizeDashboards, summarizeDashboardHealth } from "./dashboard-insights.js";
 import { summarizeIssueTypeInsights, summarizeIssueTypeHealth } from "./issuetype-insights.js";
 import { summarizeAssetInsights, summarizeAssetHealth } from "./asset-insights.js";
-import { summarizeEstateInsights, summarizeEstateHealth } from "./estate-insights.js";
+import { attachEstateUsage, summarizeEstateInsights, summarizeEstateHealth } from "./estate-insights.js";
 import { summarizeBoardInsights, summarizeBoardHealth } from "./board-insights.js";
 import {
   summarizePermissionInsights, summarizePermissionHealth,
@@ -80,7 +80,7 @@ import {
   summarizeNotificationInsights, summarizeNotificationHealth,
   summarizeRoleInsights, summarizeRoleHealth,
 } from "./access-insights.js";
-import { buildOwnershipIndex, summarizeOrphanedOwnership } from "./user-ownership.js";
+import { activeRosterIds, buildOwnershipIndex, summarizeOrphanedOwnership } from "./user-ownership.js";
 
 // Top finding-type/field-type breakdowns are capped -- Overview is a glance-level
 // summary, not the full Field Browser, and shipping ~1500 hydrated fields' worth of
@@ -565,7 +565,7 @@ export async function buildUserOverview(installationKey) {
       Promise.resolve().then(() => readAutomationPart(installationKey, "users")).catch(() => null),
     ]);
 
-    const rosterIds = new Set(users.map((u) => u.accountId));
+    const rosterIds = activeRosterIds(users);
 
     // Last activity per licensed account, from the crawl. The finding with money attached:
     // an account holding a seat with no activity for a year is a renewal line nobody is
@@ -716,7 +716,7 @@ export async function buildAccessOverview(installationKey) {
     const userMeta = await readUserSnapshotMeta(installationKey).catch(() => null);
     if (userMeta?.version) {
       const users = await loadUsers(installationKey, userMeta.version).catch(() => []);
-      rosterAccountIds = new Set(users.map((u) => u.accountId));
+      rosterAccountIds = activeRosterIds(users);
     }
 
     const [
@@ -776,27 +776,21 @@ export async function buildEstateOverview(installationKey) {
     // and had nothing to say about which of the two to keep, which is the only question a
     // merge decision actually turns on.
     const totals = await loadEstateValueTotals(installationKey).catch(() => []);
-    const usageByKind = { resolution: new Map(), priority: new Map() };
-    for (const row of totals) {
-      if (usageByKind[row.kind]) usageByKind[row.kind].set(row.valueId, row.issueCount);
-    }
-    // A completed crawl is what turns a missing row into a real zero. Without one, every
-    // value reports its count as unknown rather than as nought.
-    const usageMeasured = totals.length > 0;
-    const attach = (rows, kind) => rows.map((v) => ({
-      ...v,
-      issueCount: usageMeasured ? (usageByKind[kind].get(String(v.id)) ?? 0) : null,
-    }));
 
     const summary = summarizeEstateInsights({ resolutions, priorities });
+    const usage = attachEstateUsage({
+      resolutions: summary.resolutions ?? resolutions,
+      priorities: summary.priorities ?? priorities,
+      totals,
+    });
     return {
       ...summary,
-      resolutions: attach(summary.resolutions ?? resolutions, "resolution"),
-      priorities: attach(summary.priorities ?? priorities, "priority"),
-      usageMeasured,
+      resolutions: usage.resolutions,
+      priorities: usage.priorities,
+      usageMeasured: usage.usageMeasured,
       // Issues carrying no resolution at all. The shape of an unresolved backlog, and a real
       // answer rather than a gap -- which is why the crawl counts it under the empty id.
-      unresolvedIssueCount: usageMeasured ? (usageByKind.resolution.get("") ?? 0) : null,
+      unresolvedIssueCount: usage.unresolvedIssueCount,
       state: meta.state || "idle",
       refreshedAt: meta.refreshedAt || null,
       lastError: meta.lastError || null,

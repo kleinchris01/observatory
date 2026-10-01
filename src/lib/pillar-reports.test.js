@@ -191,6 +191,16 @@ describe("builders", () => {
     expect(report.rows.filter((r) => r.findings.length).every((r) => r.kind === "Resolution")).toBe(true);
   });
 
+  test("priorities: carries each value's issue count, null where unmeasured", () => {
+    const report = buildPillarReport("priorities", {
+      priorities: [{ id: "1", name: "High", issueCount: 31 }],
+      resolutions: [{ id: "10", name: "Done", issueCount: null }],
+    });
+    expect(report.columns.some((c) => c.key === "issues")).toBe(true);
+    expect(report.rows.find((r) => r.name === "High").issues).toBe(31);
+    expect(report.rows.find((r) => r.name === "Done").issues).toBeNull();
+  });
+
   test("people: only inactive accounts that still own things are flagged", () => {
     const report = buildPillarReport("people", {
       users: [

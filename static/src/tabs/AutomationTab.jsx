@@ -17,6 +17,15 @@ import { analyzeRules, expandFinding, hydrateRuleDirectory } from "../../../src/
 // counts belong on the first screen, and the row-level detail belongs behind a click that
 // also decides whether the 116 KB index is worth fetching at all.
 
+// The cross-rule totals are null on an analysis imported before they were stored. That
+// import was never checked for them, so the tile says so instead of showing a zero.
+export function crossRuleValue(total) {
+  return total === null || total === undefined ? "Not measured" : formatNumber(total);
+}
+export function crossRuleHint(total, hint) {
+  return total === null || total === undefined ? "Re-import the rule export to measure this" : hint;
+}
+
 const SEVERITY_TONE = {
   high: "danger",
   medium: "warning",
@@ -1246,8 +1255,8 @@ export function AutomationTab({ siteOrigin, intent = null }) {
               <StatRow>
                 <StatTile
                   label="Event cascades"
-                  value={formatNumber(data.eventCascadesTotal ?? 0)}
-                  hint="One rule's action wakes another via a Jira event, not a field write"
+                  value={crossRuleValue(data.eventCascadesTotal)}
+                  hint={crossRuleHint(data.eventCascadesTotal, "One rule's action wakes another via a Jira event, not a field write")}
                   icon="refreshCw"
                   tone={(data.eventCascadesTotal ?? 0) > 0 ? "warning" : "neutral"}
                 />
@@ -1267,14 +1276,14 @@ export function AutomationTab({ siteOrigin, intent = null }) {
                 />
                 <StatTile
                   label="Competing rules"
-                  value={formatNumber(data.competingPairsTotal ?? 0)}
-                  hint="Same trigger, overlapping scope -- order decides which one wins"
+                  value={crossRuleValue(data.competingPairsTotal)}
+                  hint={crossRuleHint(data.competingPairsTotal, "Same trigger, overlapping scope -- order decides which one wins")}
                   icon="user"
                 />
                 <StatTile
                   label="Field contradictions"
-                  value={formatNumber(data.fieldContradictionsTotal ?? 0)}
-                  hint="Two rules set the same field to different literal values"
+                  value={crossRuleValue(data.fieldContradictionsTotal)}
+                  hint={crossRuleHint(data.fieldContradictionsTotal, "Two rules set the same field to different literal values")}
                   icon="layers"
                 />
                 {estate.authorConcentration && (

@@ -411,13 +411,14 @@ export function DashboardsTab({ siteOrigin = "", intent = null }) {
         )}
       </Panel>
 
-      {/* The missing link, stated rather than left to be inferred from its absence. */}
+      {/* What the gadget -> filter link can and cannot prove, stated rather than inferred. */}
       <p className="ui-note">
         <Icon name="info" size={13} />
         <span>
-          Which filter each gadget reads is not part of this inventory yet — Jira exposes it
-          only through per-gadget properties. So a dashboard is not currently evidence that a
-          filter or a field is in use, and nothing here should be read as saying it is.
+          Each gadget's filter is read from the gadget's own properties, which is how a dashboard
+          counts as evidence that a filter, and the fields it searches, are in use. A gadget whose
+          properties Jira would not return is recorded with no filter, so a dashboard that names
+          no filter is not proof that it depends on none.
         </span>
       </p>
     </>
