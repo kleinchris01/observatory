@@ -158,6 +158,10 @@ vi.mock("./resolvers.js", () => ({
   rovoProjectSearch: vi.fn(),
   rovoProjectInspect: vi.fn(),
   SHARED_RESOLVER_FUNCTIONS: { getFieldInventory: vi.fn() },
+  // Tags each wrapped function so the test can see the macro registry went through it.
+  withMacroAccessGuard: (fns) => Object.fromEntries(
+    Object.entries(fns).map(([name, fn]) => [name, Object.assign((...args) => fn(...args), { macroGuarded: true })])
+  ),
   ADMIN_ONLY_FUNCTIONS: { startIssueScan: vi.fn() },
   getAdminConfigResolver: vi.fn(),
   saveAdminConfigResolver: vi.fn(),
@@ -1138,6 +1142,16 @@ describe("resolver handler registries", () => {
       ...Object.keys(ADMIN_ONLY_FUNCTIONS),
     ]);
     expect(registered.filter((name) => !expected.has(name))).toEqual([]);
+  });
+
+  // The macro's group restriction used to be checked only by the page, so a direct invoke
+  // of any macro read ignored it. The macro registry must pass through the guard.
+  test("the macro handler is built through the macro access guard", () => {
+    for (const name of Object.keys(SHARED_RESOLVER_FUNCTIONS)) {
+      expect(handler.__registered[name].macroGuarded).toBe(true);
+      // The admin page is gated by ADMINISTER, not by the macro's reader groups.
+      expect(adminHandler.__registered[name].macroGuarded).toBeUndefined();
+    }
   });
 
   test("config mutation is not reachable from the macro handler", () => {

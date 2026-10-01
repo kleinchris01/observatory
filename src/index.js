@@ -84,6 +84,7 @@ import {
   rovoProjectSearch,
   rovoProjectInspect,
   SHARED_RESOLVER_FUNCTIONS,
+  withMacroAccessGuard,
   ADMIN_ONLY_FUNCTIONS,
 } from "./resolvers.js";
 
@@ -608,7 +609,9 @@ export async function consumeSnapshot(event) {
   }
 }
 
-export const handler = makeResolver(SHARED_RESOLVER_FUNCTIONS);
+// The macro handler applies the macro's group restriction to every read, not just to the
+// checkMacroAccess call the page makes first. Without it the restriction only hid the UI.
+export const handler = makeResolver(withMacroAccessGuard(SHARED_RESOLVER_FUNCTIONS));
 
 // Every admin-only function -- including getAdminConfig/saveAdminConfig/getAdminOverview/
 // migrateNamespaceKeys, which used to be spread in here individually -- now comes from
