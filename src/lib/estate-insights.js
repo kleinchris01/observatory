@@ -8,6 +8,31 @@
 
 import { findDuplicateStatusGroups } from "./workflow-insights.js";
 
+// Usage per value, from the issue crawl's estate totals. One function so the Priorities tab,
+// the report, OQL and the Overview all read the same numbers. Before this the Overview alone
+// attached the counts, and every row on the tab read "Not measured" on a crawled site.
+//
+// A completed crawl is what turns a missing row into a real zero; with no totals at all,
+// every count stays null (unmeasured) rather than nought.
+export function attachEstateUsage({ resolutions = [], priorities = [], totals = [] } = {}) {
+  const byKind = { resolution: new Map(), priority: new Map() };
+  for (const row of totals || []) {
+    if (byKind[row?.kind]) byKind[row.kind].set(String(row.valueId ?? ""), row.issueCount);
+  }
+  const usageMeasured = (totals || []).length > 0;
+  const attach = (rows, kind) => rows.map((v) => ({
+    ...v,
+    issueCount: usageMeasured ? (byKind[kind].get(String(v.id)) ?? 0) : null,
+  }));
+  return {
+    resolutions: attach(resolutions, "resolution"),
+    priorities: attach(priorities, "priority"),
+    usageMeasured,
+    // Issues carrying no resolution at all; the crawl counts them under the empty id.
+    unresolvedIssueCount: usageMeasured ? (byKind.resolution.get("") ?? 0) : null,
+  };
+}
+
 function duplicateSummary(items, listLimit = 25) {
   const groups = findDuplicateStatusGroups(items).map((g) => ({
     key: g.key,

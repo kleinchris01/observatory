@@ -72,7 +72,7 @@ import { summarizeFilters, summarizeFilterHealth } from "./filter-insights.js";
 import { summarizeDashboards, summarizeDashboardHealth } from "./dashboard-insights.js";
 import { summarizeIssueTypeInsights, summarizeIssueTypeHealth } from "./issuetype-insights.js";
 import { summarizeAssetInsights, summarizeAssetHealth } from "./asset-insights.js";
-import { summarizeEstateInsights, summarizeEstateHealth } from "./estate-insights.js";
+import { attachEstateUsage, summarizeEstateInsights, summarizeEstateHealth } from "./estate-insights.js";
 import { summarizeBoardInsights, summarizeBoardHealth } from "./board-insights.js";
 import {
   summarizePermissionInsights, summarizePermissionHealth,
@@ -776,27 +776,21 @@ export async function buildEstateOverview(installationKey) {
     // and had nothing to say about which of the two to keep, which is the only question a
     // merge decision actually turns on.
     const totals = await loadEstateValueTotals(installationKey).catch(() => []);
-    const usageByKind = { resolution: new Map(), priority: new Map() };
-    for (const row of totals) {
-      if (usageByKind[row.kind]) usageByKind[row.kind].set(row.valueId, row.issueCount);
-    }
-    // A completed crawl is what turns a missing row into a real zero. Without one, every
-    // value reports its count as unknown rather than as nought.
-    const usageMeasured = totals.length > 0;
-    const attach = (rows, kind) => rows.map((v) => ({
-      ...v,
-      issueCount: usageMeasured ? (usageByKind[kind].get(String(v.id)) ?? 0) : null,
-    }));
 
     const summary = summarizeEstateInsights({ resolutions, priorities });
+    const usage = attachEstateUsage({
+      resolutions: summary.resolutions ?? resolutions,
+      priorities: summary.priorities ?? priorities,
+      totals,
+    });
     return {
       ...summary,
-      resolutions: attach(summary.resolutions ?? resolutions, "resolution"),
-      priorities: attach(summary.priorities ?? priorities, "priority"),
-      usageMeasured,
+      resolutions: usage.resolutions,
+      priorities: usage.priorities,
+      usageMeasured: usage.usageMeasured,
       // Issues carrying no resolution at all. The shape of an unresolved backlog, and a real
       // answer rather than a gap -- which is why the crawl counts it under the empty id.
-      unresolvedIssueCount: usageMeasured ? (usageByKind.resolution.get("") ?? 0) : null,
+      unresolvedIssueCount: usage.unresolvedIssueCount,
       state: meta.state || "idle",
       refreshedAt: meta.refreshedAt || null,
       lastError: meta.lastError || null,

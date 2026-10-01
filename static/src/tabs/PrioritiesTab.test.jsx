@@ -45,6 +45,25 @@ const inventory = (over = {}) => ({
 beforeEach(() => vi.clearAllMocks());
 
 describe("PrioritiesTab", () => {
+  // The resolver now attaches the crawl's counts. A counted zero and an uncounted value must
+  // read differently: zero is what makes a value look safe to retire.
+  test("shows each value's issue count, a counted zero, and unmeasured apart", async () => {
+    invoke.mockImplementation((fn) => fn === "getEstateInventory"
+      ? Promise.resolve(inventory({
+        resolutions: [{ id: "1", name: "Done", issueCount: 1204 }, { id: "3", name: "Won't Fix", issueCount: 0 }],
+        priorities: [{ id: "10", name: "High", issueCount: null }],
+      }))
+      : Promise.resolve({}));
+    render(<PrioritiesTab />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /^Resolutions/ }));
+    expect(await screen.findByText("1,204 issues")).toBeInTheDocument();
+    expect(screen.getByText("No issues")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /^Priorities/ }));
+    expect(await screen.findByText("Not measured")).toBeInTheDocument();
+  });
+
   test("reports never-built rather than an empty list", async () => {
     invoke.mockImplementation((fn) => fn === "getEstateInventory"
       ? Promise.resolve({ neverBuilt: true, state: "idle", resolutions: [], priorities: [], governance: { available: false } })

@@ -170,6 +170,7 @@ import {
   loadConfigChangeSummary,
   readEstateSnapshotMeta,
   loadEstateValues,
+  loadEstateValueTotals,
   readBoardSnapshotMeta,
   loadBoards,
   loadBoardColumns,
@@ -203,7 +204,7 @@ import { summarizeBoardInsights, boardIssues, indexFiltersById } from "./lib/boa
 import { buildPillarReport, unavailableReport, isPillarReportKey, countScreenProjects, REPORT_ROW_LIMIT } from "./lib/pillar-reports.js";
 import { parseOql, evaluate as evaluateOql, sortEntities as sortOqlEntities, pinnedPillars } from "./lib/oql.js";
 import { buildOqlCatalog, buildEntityIndex, OQL_PILLARS, CHURN_WINDOW_DAYS } from "./lib/oql-index.js";
-import { summarizeEstateInsights } from "./lib/estate-insights.js";
+import { attachEstateUsage, summarizeEstateInsights } from "./lib/estate-insights.js";
 import { summarizeIssueTypeInsights } from "./lib/issuetype-insights.js";
 import { summarizeAssetInsights } from "./lib/asset-insights.js";
 import {
@@ -2613,10 +2614,18 @@ async function getEstateInventory({ context }) {
     };
   }
 
-  const [resolutions, priorities] = await Promise.all([
+  const [rawResolutions, rawPriorities, totals] = await Promise.all([
     loadEstateValues(installationKey, meta.version, "resolution"),
     loadEstateValues(installationKey, meta.version, "priority"),
+    // Usage from the issue crawl. Without it every row read "Not measured", though the crawl
+    // had counted issues per value all along; only the Overview attached the counts.
+    loadEstateValueTotals(installationKey).catch(fallbackOn("estate.usage_load_failed", [], { installationKey })),
   ]);
+  const { resolutions, priorities, usageMeasured, unresolvedIssueCount } = attachEstateUsage({
+    resolutions: rawResolutions,
+    priorities: rawPriorities,
+    totals,
+  });
 
   return {
     state: meta.state || "ready",
@@ -2626,6 +2635,8 @@ async function getEstateInventory({ context }) {
     lastError: meta.lastError || null,
     resolutions,
     priorities,
+    usageMeasured,
+    unresolvedIssueCount,
     governance: summarizeEstateInsights({ resolutions, priorities }),
   };
 }

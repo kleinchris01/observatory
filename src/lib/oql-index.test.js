@@ -76,6 +76,17 @@ describe("buildEntityIndex", () => {
     expect(new Set(entities.map((e) => e.uid)).size).toBe(3);
   });
 
+  it("ranks priorities and resolutions by issues once a crawl has counted them", () => {
+    const priorities = buildPillarReport("priorities", {
+      priorities: [1, 2, 3, 4].map((i) => ({ id: String(i), name: `P${i}`, issueCount: i * 100 })),
+      resolutions: [],
+    });
+    const { entities } = buildEntityIndex([priorities]);
+    const byName = Object.fromEntries(entities.map((e) => [e.name, e.usage]));
+    expect(byName.P1).toBe("low");
+    expect(byName.P4).toBe("high");
+  });
+
   it("uses account IDs for people and keys for projects", () => {
     const people = buildPillarReport("people", { users: [{ accountId: "abc", displayName: "Sam", active: true }] });
     const projects = buildPillarReport("projects", { projects: [{ projectId: "10", projectKey: "OPS", projectName: "Ops" }] });

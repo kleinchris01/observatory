@@ -43,7 +43,9 @@ export const PILLAR_MEASURES = {
     impact: { label: "Projects it is used in", value: (r) => num(r.projects) },
   },
   priorities: {
-    usage: { label: "Not measured: no usage data is collected for priorities and resolutions", value: null },
+    // Issues carrying the value, from the issue crawl. Null until a crawl has run, which
+    // ranks as unmeasured, never as low.
+    usage: { label: "Issues carrying the value", value: (r) => num(r.issues) },
     impact: { label: "Not measured", value: null },
   },
   people: {

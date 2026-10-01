@@ -226,6 +226,7 @@ const mocks = vi.hoisted(() => ({
   // estate store + estate-engine.js
   readEstateSnapshotMeta: vi.fn(),
   loadEstateValues: vi.fn(async () => []),
+  loadEstateValueTotals: vi.fn(async () => []),
   queueEstateSnapshotBuild: vi.fn(),
   isEstateBuildStale: vi.fn(() => false),
 
@@ -460,6 +461,7 @@ vi.mock("./lib/project-store.js", () => ({
   loadConfigChangeSummary: mocks.loadConfigChangeSummary,
   readEstateSnapshotMeta: mocks.readEstateSnapshotMeta,
   loadEstateValues: mocks.loadEstateValues,
+  loadEstateValueTotals: mocks.loadEstateValueTotals,
   readBoardSnapshotMeta: mocks.readBoardSnapshotMeta,
   loadBoards: mocks.loadBoards,
   loadBoardColumns: mocks.loadBoardColumns,
@@ -6370,6 +6372,36 @@ describe("getEstateInventory", () => {
     expect(result.neverBuilt).toBe(false);
     expect(result.resolutions).toHaveLength(2);
     expect(result.governance).toMatchObject({ available: true, resolutionDuplicateGroupCount: 1, reducibleResolutionCount: 1 });
+  });
+
+  // The crawl counted issues per value all along; only the Overview attached them, so every
+  // row on the tab read "Not measured".
+  test("attaches the crawl's issue counts to each value", async () => {
+    mocks.readEstateSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadEstateValues.mockImplementation(async (_k, _v, kind) =>
+      kind === "resolution" ? [{ id: "1", name: "Done" }] : [{ id: "10", name: "High" }]);
+    mocks.loadEstateValueTotals.mockResolvedValueOnce([
+      { kind: "resolution", valueId: "1", issueCount: 500 },
+      { kind: "resolution", valueId: "", issueCount: 12 },
+    ]);
+
+    const result = await getEstateInventory(ctx);
+
+    expect(result.resolutions[0].issueCount).toBe(500);
+    expect(result.priorities[0].issueCount).toBe(0);
+    expect(result.usageMeasured).toBe(true);
+    expect(result.unresolvedIssueCount).toBe(12);
+  });
+
+  test("keeps counts unmeasured when the totals cannot be read", async () => {
+    mocks.readEstateSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadEstateValues.mockResolvedValue([{ id: "1", name: "Done" }]);
+    mocks.loadEstateValueTotals.mockRejectedValueOnce(new Error("sql down"));
+
+    const result = await getEstateInventory(ctx);
+
+    expect(result.resolutions[0].issueCount).toBeNull();
+    expect(result.usageMeasured).toBe(false);
   });
 });
 

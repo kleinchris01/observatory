@@ -1,5 +1,34 @@
 import { describe, test, expect } from "vitest";
-import { summarizeEstateInsights, summarizeEstateHealth } from "./estate-insights.js";
+import { attachEstateUsage, summarizeEstateInsights, summarizeEstateHealth } from "./estate-insights.js";
+
+describe("attachEstateUsage", () => {
+  const resolutions = [{ id: "1", name: "Done" }, { id: "2", name: "Won't Fix" }];
+  const priorities = [{ id: "10", name: "High" }];
+
+  test("attaches the crawl's count to each value, and a counted zero to one it never saw", () => {
+    const out = attachEstateUsage({
+      resolutions,
+      priorities,
+      totals: [
+        { kind: "resolution", valueId: "1", issueCount: 900 },
+        { kind: "resolution", valueId: "", issueCount: 42 },
+        { kind: "priority", valueId: "10", issueCount: 7 },
+      ],
+    });
+    expect(out.usageMeasured).toBe(true);
+    expect(out.resolutions.map((r) => r.issueCount)).toEqual([900, 0]);
+    expect(out.priorities[0].issueCount).toBe(7);
+    expect(out.unresolvedIssueCount).toBe(42);
+  });
+
+  // No crawl has run: every count is unknown, never zero.
+  test("leaves every count null when no crawl has measured anything", () => {
+    const out = attachEstateUsage({ resolutions, priorities, totals: [] });
+    expect(out.usageMeasured).toBe(false);
+    expect(out.resolutions.every((r) => r.issueCount === null)).toBe(true);
+    expect(out.unresolvedIssueCount).toBeNull();
+  });
+});
 
 describe("summarizeEstateInsights", () => {
   test("clusters near-duplicate resolutions and reports what consolidation would remove", () => {
