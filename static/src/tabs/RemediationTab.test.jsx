@@ -444,7 +444,7 @@ describe("RemediationTab — search and filters", () => {
     expect(screen.getByText("Duplicate filters")).toBeInTheDocument();
     expect(screen.getByText("Duplicate issue type names")).toBeInTheDocument();
     expect(screen.queryByText("Filter ownership")).not.toBeInTheDocument();
-    expect(screen.getByText(/2 of 15/)).toBeInTheDocument();
+    expect(screen.getByText(/2 of 16/)).toBeInTheDocument();
   });
 
   test("searches task summaries and issue keys, listing only the matching tasks", async () => {
@@ -467,7 +467,7 @@ describe("RemediationTab — search and filters", () => {
     const state = screen.getByRole("combobox", { name: /State/ });
     expect(within(state).getByRole("option", { name: "Has open tasks (1)" })).toBeInTheDocument();
     expect(within(state).getByRole("option", { name: "All tasks closed (1)" })).toBeInTheDocument();
-    expect(within(state).getByRole("option", { name: "Not started (13)" })).toBeInTheDocument();
+    expect(within(state).getByRole("option", { name: "Not started (14)" })).toBeInTheDocument();
 
     await user.selectOptions(state, "open");
     expect(screen.getByText("Filter ownership")).toBeInTheDocument();

@@ -198,7 +198,8 @@ describe("SearchTab", () => {
     // Screens have no change history.
     expect(within(screensRow).getAllByText("Not measured")).toHaveLength(1);
     const prioritiesRow = within(grid).getByRole("rowheader", { name: "Priorities & resolutions" }).closest("tr");
-    expect(within(prioritiesRow).getAllByText("Not measured")).toHaveLength(2);
+    // Usage is the crawl's issue count now; only impact is still unmeasured.
+    expect(within(prioritiesRow).getAllByText("Not measured")).toHaveLength(1);
   });
 
   test("an item without enough measured dimensions shows no score rather than zero", async () => {
