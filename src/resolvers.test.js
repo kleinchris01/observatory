@@ -226,7 +226,6 @@ const mocks = vi.hoisted(() => ({
   // estate store + estate-engine.js
   readEstateSnapshotMeta: vi.fn(),
   loadEstateValues: vi.fn(async () => []),
-  loadEstateValueTotals: vi.fn(async () => []),
   queueEstateSnapshotBuild: vi.fn(),
   isEstateBuildStale: vi.fn(() => false),
 
@@ -461,7 +460,6 @@ vi.mock("./lib/project-store.js", () => ({
   loadConfigChangeSummary: mocks.loadConfigChangeSummary,
   readEstateSnapshotMeta: mocks.readEstateSnapshotMeta,
   loadEstateValues: mocks.loadEstateValues,
-  loadEstateValueTotals: mocks.loadEstateValueTotals,
   readBoardSnapshotMeta: mocks.readBoardSnapshotMeta,
   loadBoards: mocks.loadBoards,
   loadBoardColumns: mocks.loadBoardColumns,
