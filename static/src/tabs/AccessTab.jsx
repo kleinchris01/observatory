@@ -27,6 +27,28 @@ function daysSince(iso) {
   return (Date.now() - at) / (24 * 60 * 60 * 1000);
 }
 
+// The most holder rows one expanded scheme renders. Past this the list says how many it is
+// showing; it used to stop at 200 without a word, which read as the scheme's full grant set.
+export const HOLDER_ROW_LIMIT = 200;
+
+// Projects where a role has no user or group actor, read from every holder row for the role.
+// The "empty on N projects" chip used to count from governance.projectsMissingAdminActor,
+// which is a 25-item sample of admin-named roles only, so it undercounted on any large site
+// and never appeared on other roles.
+export function emptyRoleProjects(roleId, holders = []) {
+  const filled = new Set();
+  const seen = new Map();
+  for (const h of holders) {
+    if (String(h.schemeId) !== String(roleId)) continue;
+    const project = String(h.context);
+    if (!seen.has(project)) seen.set(project, h.contextLabel || project);
+    if (h.holderType === "user" || h.holderType === "group") filled.add(project);
+  }
+  return [...seen.entries()].filter(([project]) => !filled.has(project)).map(([, label]) => label);
+}
+
+const ADMIN_ROLE = /admin/i;
+
 const SCHEME_SORTS = [
   { value: "name-asc", label: "Name A–Z" },
   { value: "name-desc", label: "Name Z–A" },
@@ -75,7 +97,7 @@ function SchemeRow({ scheme, holders, flags, contextNoun, holderNoun, jiraHref =
             <p className="admin-config-row__hint">No {holderNoun} recorded on this scheme.</p>
           ) : (
             <ul className="access-holder-list">
-              {rows.slice(0, 200).map((h, i) => (
+              {rows.slice(0, HOLDER_ROW_LIMIT).map((h, i) => (
                 <li key={`${h.context}-${h.holderType}-${h.holderValue}-${i}`}>
                   <span className="access-holder-list__context">{h.contextLabel || h.context || contextNoun}</span>
                   <Chip
@@ -88,6 +110,11 @@ function SchemeRow({ scheme, holders, flags, contextNoun, holderNoun, jiraHref =
                 </li>
               ))}
             </ul>
+          )}
+          {rows.length > HOLDER_ROW_LIMIT && (
+            <p className="admin-config-row__hint">
+              Showing {formatNumber(HOLDER_ROW_LIMIT)} of {formatNumber(rows.length)} {holderNoun}. The Access report in Reports lists every one.
+            </p>
           )}
         </div>
       )}
@@ -342,10 +369,16 @@ function AccessTabInner({ data, view, setView, search, setSearch, schemeSort, se
           ) : (
             <div className="access-list">
               {filterSchemes(role.schemes, role.governance).map((s) => {
-                const emptyProjectKeys = (role.governance?.projectsMissingAdminActor || [])
-                  .filter((x) => x.role === s.name).map((x) => x.projectKey);
+                const emptyProjectKeys = emptyRoleProjects(s.id, role.holders || []);
+                // An empty admin role means only a site admin can manage the project; an empty
+                // role of any other kind is worth knowing but not an emergency.
+                const more = emptyProjectKeys.length > 12 ? ` and ${emptyProjectKeys.length - 12} more` : "";
                 const flags = emptyProjectKeys.length
-                  ? [{ label: `empty on ${emptyProjectKeys.length} ${emptyProjectKeys.length === 1 ? "project" : "projects"}`, tone: "critical", title: `No actor on: ${emptyProjectKeys.slice(0, 12).join(", ")}` }]
+                  ? [{
+                    label: `empty on ${formatNumber(emptyProjectKeys.length)} ${emptyProjectKeys.length === 1 ? "project" : "projects"}`,
+                    tone: ADMIN_ROLE.test(s.name || "") ? "critical" : "neutral",
+                    title: `No actor on: ${emptyProjectKeys.slice(0, 12).join(", ")}${more}`,
+                  }]
                   : [];
                 return (
                   <SchemeRow

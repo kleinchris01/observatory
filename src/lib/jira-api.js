@@ -1035,10 +1035,8 @@ export async function getAllDashboards() {
 // per dashboard, which is why the engine walks these with a concurrency limit rather than
 // firing them all at once.
 //
-// What this does NOT return is a gadget's configuration -- which filter a Filter Results
-// gadget points at lives in dashboard item properties, two further calls per gadget. That is
-// the field -> filter -> dashboard chain, and it is deliberately not attempted here; see
-// dashboard-engine.js.
+// This does not return a gadget's configuration: which filter a Filter Results gadget points
+// at lives in dashboard item properties, read separately by getGadgetFilterId.
 export async function getDashboardGadgets(dashboardId) {
   const data = await jiraRequest(route`/rest/api/3/dashboard/${dashboardId}/gadget`);
   return Array.isArray(data?.gadgets) ? data.gadgets : [];

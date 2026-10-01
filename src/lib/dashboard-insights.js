@@ -7,8 +7,7 @@
 // with no error at any of them.
 //
 // This module covers the dashboard's own health. The middle link -- which filter each gadget
-// reads -- is not available without a per-gadget property fetch, and dashboard-engine.js says
-// why that is deferred rather than guessed at.
+// reads -- comes from the per-gadget property fetch in dashboard-engine.js (phase three).
 //
 // Pure functions over already-loaded rows, like filter-insights.js: no I/O, so the resolver
 // decides what to load and this decides what it means.

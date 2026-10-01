@@ -150,6 +150,16 @@ describe("DashboardsTab", () => {
     expect(within(estate).getByText("Anyone can edit")).toBeInTheDocument();
   });
 
+  // The footer used to say gadget -> filter was not part of the inventory, in the same tab
+  // that draws each gadget's filter. It now says what the link proves and where it stops.
+  test("describes the gadget filter link as read, with its limit", async () => {
+    route({ getDashboardInventory: inventory() });
+    render(<DashboardsTab />);
+
+    expect(await screen.findByText(/Each gadget's filter is read from the gadget's own properties/i)).toBeInTheDocument();
+    expect(screen.queryByText(/not part of this inventory yet/i)).not.toBeInTheDocument();
+  });
+
   // A pass that reached 180 of 200 can say which of those 180 are empty and nothing about
   // the rest. Presenting it as complete would report a shortfall in the BUILD as a defect in
   // the estate.
@@ -182,14 +192,6 @@ describe("DashboardsTab", () => {
 
     await waitFor(() => expect(container.querySelectorAll(".dash-row").length).toBe(1));
     expect(container.querySelector(".dash-row__name").textContent).toBe("Orphan");
-  });
-
-  // The link that is not read yet, stated rather than left to be inferred from its absence.
-  test("says a dashboard is not yet evidence a filter is in use", async () => {
-    route({ getDashboardInventory: inventory() });
-    render(<DashboardsTab />);
-
-    expect(await screen.findByText(/not currently evidence that a filter or a field is in use/i)).toBeInTheDocument();
   });
 
   test("queues a rebuild", async () => {

@@ -3,7 +3,7 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@forge/bridge";
-import { AccessTab } from "./AccessTab";
+import { AccessTab, HOLDER_ROW_LIMIT, emptyRoleProjects } from "./AccessTab";
 
 vi.mock("@forge/bridge", () => ({
   invoke: vi.fn(),
@@ -89,6 +89,25 @@ const inventory = (over = {}) => ({
 
 beforeEach(() => vi.clearAllMocks());
 
+describe("emptyRoleProjects", () => {
+  // Counted from every holder row, not the 25-item governance sample, so a large site
+  // reports the real number.
+  test("lists every project where the role has no user or group actor", () => {
+    const holders = [
+      ...Array.from({ length: 40 }, (_, i) => ({ schemeId: "r1", context: String(i), contextLabel: `P${i}`, holderType: "empty" })),
+      { schemeId: "r1", context: "0", contextLabel: "P0", holderType: "group", holderValue: "g" },
+      { schemeId: "r2", context: "5", contextLabel: "P5", holderType: "empty" },
+    ];
+    const empty = emptyRoleProjects("r1", holders);
+    expect(empty).toHaveLength(39);
+    expect(empty).not.toContain("P0");
+  });
+
+  test("a role filled everywhere is empty nowhere", () => {
+    expect(emptyRoleProjects("r1", [{ schemeId: "r1", context: "1", holderType: "user", holderValue: "a" }])).toEqual([]);
+  });
+});
+
 describe("AccessTab", () => {
   test("reports never-built rather than an empty catalogue", async () => {
     invoke.mockImplementation((fn) => fn === "getAccessInventory"
@@ -120,6 +139,8 @@ describe("AccessTab", () => {
 
     expect(await screen.findByText("Administrators")).toBeInTheDocument();
     expect(screen.getByText("empty on 1 project")).toBeInTheDocument();
+    // Members is filled on OPS and has no row elsewhere, so it carries no chip.
+    expect(screen.getAllByText(/^empty on/)).toHaveLength(1);
 
     await userEvent.click(screen.getByRole("button", { name: /Administrators/ }));
     expect(await screen.findByText(/group: site-admins/i)).toBeInTheDocument();
@@ -137,6 +158,24 @@ describe("AccessTab", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /Prod permissions/ }));
     expect(await screen.findByText(/group: site-admins/i)).toBeInTheDocument();
+  });
+
+  // Past the row limit the list says how many it shows; it used to stop silently.
+  test("says how many grants it is showing when a scheme has more than the row limit", async () => {
+    const base = inventory();
+    const many = Array.from({ length: HOLDER_ROW_LIMIT + 5 }, (_, i) => ({
+      schemeId: base.permissions.schemes[0].id, context: "BROWSE_PROJECTS", contextLabel: "Browse Projects",
+      holderType: "group", holderValue: `g${i}`, holderLabel: `group-${i}`,
+    }));
+    invoke.mockImplementation((fn) => fn === "getAccessInventory"
+      ? Promise.resolve({ ...base, permissions: { ...base.permissions, holders: many } })
+      : Promise.resolve({}));
+    render(<AccessTab />);
+    await screen.findByText("Access");
+    await userEvent.click(screen.getByRole("button", { name: /^Permissions/ }));
+    await userEvent.click(await screen.findByRole("button", { name: new RegExp(base.permissions.schemes[0].name) }));
+
+    expect(await screen.findByText(new RegExp(`Showing ${HOLDER_ROW_LIMIT} of ${HOLDER_ROW_LIMIT + 5}`))).toBeInTheDocument();
   });
 
   test("security view flags a scheme with no levels and one with an empty level", async () => {
