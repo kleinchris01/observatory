@@ -5,7 +5,7 @@ import { Icon } from "../components/Icons";
 import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PanelGrid, GridSpan, PillarHealthPanel, BarList, SortFilterBar, AskRovo } from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
-import { useVisiblePolling, usePersistentState } from "../hooks";
+import { useVisiblePolling, usePersistentState, useNavIntent } from "../hooks";
 
 // The People pillar: the who, not just the what.
 //
@@ -226,7 +226,7 @@ function sortRoster(users, sort) {
   return [...users].sort(by[sort] || by["name-asc"]);
 }
 
-export function PeopleTab() {
+export function PeopleTab({ intent = null } = {}) {
   const [view, setView] = usePersistentState("observatory.section.people", "overview");
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
@@ -236,6 +236,11 @@ export function PeopleTab() {
   const [search, setSearch] = React.useState("");
   const [sort, setSort] = React.useState("name-asc");
   const [rosterFilter, setRosterFilter] = React.useState("all");
+  // Ctrl+K lands on the roster with the person's name in the search box.
+  useNavIntent(intent, (nav) => {
+    if (nav.view) setView(nav.view);
+    setSearch(nav.search ?? "");
+  });
   const [openUser, setOpenUser] = React.useState(null);
   const [details, setDetails] = React.useState({});   // accountId -> detail
   const [detailLoading, setDetailLoading] = React.useState(false);

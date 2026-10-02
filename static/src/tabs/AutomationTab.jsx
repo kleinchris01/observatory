@@ -760,11 +760,19 @@ function BlastRow({ rule, siteOrigin, expanded, onToggle }) {
   );
 }
 
-function BlastSection({ data, siteOrigin, load = invoke }) {
+function BlastSection({ data, siteOrigin, load = invoke, intent = null }) {
   const summary = data.blast ?? null;
   const [tier, setTier] = React.useState("all");
   const [search, setSearch] = React.useState("");
   const [term, setTerm] = React.useState("");
+  // Ctrl+K opens this section -- it lists every rule, not only those with findings -- with the
+  // rule's name already searched.
+  useNavIntent(intent, (nav) => {
+    if (nav.search == null) return;
+    setTier("all");
+    setSearch(nav.search);
+    setTerm(nav.search);
+  });
   const [page, setPage] = React.useState(1);
   const [result, setResult] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
@@ -1414,7 +1422,7 @@ export function AutomationTab({ siteOrigin, intent = null }) {
             icon="shield"
             description="How much of the estate each rule can move if it misfires. Global rules outrank project-scoped ones; a broad trigger, mutating actions and fan-out into other rules push a score up from there."
           >
-            <BlastSection data={data} siteOrigin={siteOrigin} />
+            <BlastSection data={data} siteOrigin={siteOrigin} intent={intent} />
           </Panel>
         ) : (
           <Panel

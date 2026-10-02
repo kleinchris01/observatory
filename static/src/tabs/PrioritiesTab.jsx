@@ -110,7 +110,7 @@ export function PrioritiesTab({ intent, siteOrigin }) {
 
   useNavIntent(intent, (nav) => {
     if (nav.view) setView(nav.view);
-    setSearch("");
+    setSearch(nav.search ?? "");
   });
 
   const load = React.useCallback(async () => {

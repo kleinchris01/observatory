@@ -219,7 +219,7 @@ export function DashboardsTab({ siteOrigin = "", intent = null }) {
 
   useNavIntent(intent, (nav) => {
     setFinding(nav.finding ?? "all");
-    setSearch("");
+    setSearch(nav.search ?? "");
     setPage(1);
   });
 

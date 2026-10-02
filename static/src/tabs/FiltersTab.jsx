@@ -177,8 +177,8 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
   useNavIntent(intent, (nav) => {
     if (nav.view) setView(nav.view);
     setFinding(nav.finding ?? "all");
-    setSearch("");
-    setDeferredSearch("");
+    setSearch(nav.search ?? "");
+    setDeferredSearch(nav.search ?? "");
     setPage(1);
   });
 

@@ -38,6 +38,15 @@ function queryBox() {
 }
 
 describe("SearchTab", () => {
+  test("runs the query a Ctrl+K hand-off carries", async () => {
+    invoke.mockResolvedValueOnce(SCREENS_RESULT);
+    render(<SearchTab onNavigate={vi.fn()} intent={{ query: 'name ~ "bug" OR id ~ "bug"' }} />);
+
+    expect(invoke).toHaveBeenCalledWith("runOqlQuery", { query: 'name ~ "bug" OR id ~ "bug"' });
+    expect(queryBox()).toHaveValue('name ~ "bug" OR id ~ "bug"');
+    expect((await screen.findAllByText("Bug Create")).length).toBeGreaterThan(0);
+  });
+
   test("runs a query on Enter and lays out the results with the pillar's own columns", async () => {
     invoke.mockResolvedValueOnce(SCREENS_RESULT);
     const user = userEvent.setup();

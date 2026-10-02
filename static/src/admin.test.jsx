@@ -94,6 +94,39 @@ describe("admin nav", () => {
     expect(within(nav).getByRole("button", { name: "Overview" })).toHaveAttribute("aria-current", "page");
   });
 
+  it("Ctrl+K and Cmd+K toggle the jump-to palette; Escape closes it", async () => {
+    const user = userEvent.setup();
+    await renderAdminApp();
+    expect(screen.queryByRole("dialog", { name: "Jump to" })).not.toBeInTheDocument();
+
+    await user.keyboard("{Control>}k{/Control}");
+    expect(await screen.findByRole("dialog", { name: "Jump to" })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Jump to" })).not.toBeInTheDocument();
+
+    await user.keyboard("{Meta>}k{/Meta}");
+    expect(await screen.findByRole("dialog", { name: "Jump to" })).toBeInTheDocument();
+    await user.keyboard("{Meta>}k{/Meta}");
+    expect(screen.queryByRole("dialog", { name: "Jump to" })).not.toBeInTheDocument();
+  });
+
+  it("the sidebar's Jump to button opens the palette, and picking a result opens its pillar", async () => {
+    const user = userEvent.setup();
+    invoke.mockImplementation((fnName, payload) => (fnName === "searchEntities"
+      ? Promise.resolve({ ok: true, total: 1, unavailable: [], results: [
+        { uid: "dashboards:10001", pillar: "dashboards", pillarLabel: "Dashboards", name: "Exec dashboard", id: "10001", kind: null, type: null, rank: 1 },
+      ] })
+      : defaultInvokeImpl(fnName, payload)));
+    await renderAdminApp();
+    await user.click(within(document.querySelector(".admin-nav")).getByRole("button", { name: /Jump to/ }));
+    await user.type(screen.getByRole("combobox", { name: "Jump to a page or item" }), "exec");
+    await user.click(await screen.findByRole("option", { name: /Exec dashboard/ }));
+
+    expect(screen.queryByRole("dialog", { name: "Jump to" })).not.toBeInTheDocument();
+    expect(invoke).toHaveBeenCalledWith("searchEntities", { term: "exec", limit: 20 });
+    expect(within(document.querySelector(".admin-nav")).getByRole("button", { name: "Dashboards" })).toHaveAttribute("aria-current", "page");
+  });
+
   it("remembers the tab across a remount", async () => {
     const user = userEvent.setup();
     const { unmount } = await renderAdminApp();

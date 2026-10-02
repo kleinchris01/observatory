@@ -571,6 +571,10 @@ export function WorkflowTab({ intent = null, siteOrigin = "" }) {
   // that view belongs to the view, so the intent travels on rather than being unpacked here.
   useNavIntent(intent, (nav) => {
     if (nav.view) setView(nav.view);
+    if (nav.search != null) {
+      setSearch(nav.search);
+      setDeferredSearch(nav.search);
+    }
   });
   const [insights, setInsights] = React.useState(null);
   const [insightsLoading, setInsightsLoading] = React.useState(false);

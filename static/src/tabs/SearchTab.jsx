@@ -2,6 +2,7 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { PageHeader, Panel, StatRow, StatTile, EmptyState, Chip, LinkButton } from "../components/ui";
 import { formatNumber, formatRelativeTime, formatReportCell, neutralizeFormula, downloadCsv, readStored, writeStored } from "../utils";
+import { useNavIntent } from "../hooks";
 import { parseOql, suggestOql } from "../../../src/lib/oql.js";
 import {
   buildOqlCatalog, OQL_EXAMPLES, OQL_PILLARS, PILLAR_MEASURES, SCORE_WEIGHTS, CHURN_WINDOW_DAYS, MIN_DIMENSIONS_FOR_SCORE,
@@ -396,7 +397,7 @@ function csvRows(result, columns) {
   return lines;
 }
 
-export function SearchTab({ onNavigate }) {
+export function SearchTab({ onNavigate, intent = null }) {
   const [text, setText] = React.useState(() => readStored(STORAGE_QUERY, ""));
   const [result, setResult] = React.useState(null);
   const [running, setRunning] = React.useState(false);
@@ -431,6 +432,11 @@ export function SearchTab({ onNavigate }) {
       setRunning(false);
     }
   }
+
+  // Ctrl+K's last row ("Search all pillars for ...") lands here with a query to run.
+  useNavIntent(intent, (nav) => {
+    if (nav.query) run(nav.query);
+  });
 
   function saveQuery() {
     const name = saveName.trim() || text.trim();
