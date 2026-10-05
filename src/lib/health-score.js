@@ -26,6 +26,13 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   // unreachable status is clutter, whereas one of these is a live process step that the
   // workflow does not document, and a handful of them is already a real divergence.
   ruleOnlyStatuses: 0.10,
+  // A workflow rule or status property naming a field, group or role that no longer exists.
+  // Tight, like the credential bound: each one is a transition that blocks or a check that
+  // silently stopped checking, and a healthy site has none.
+  brokenWorkflowRefs: 0.02,
+  // Company-managed workflows no project-attached scheme uses. Clutter, so forgiving -- but
+  // every one is a place a field or group reference rots unseen.
+  inactiveWorkflows: 0.25,
   flaggedSchemes: 0.40,
   irregularProjects: 0.25,
   // Projects with no work, or none in six months. Forgiving: a healthy estate always
@@ -778,6 +785,54 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       workflow?.available && workflow.schemeStatusesAvailable
         ? "No automation analysis yet, so rule-only statuses cannot be identified."
         : "No workflow inventory yet."));
+  }
+
+  // ── Workflow rule references ──────────────────────────────────────────────
+  // Conditions, validators, post-functions and status properties that name a field, group or
+  // role the site no longer has. Only scored once a build has read the rules: a snapshot that
+  // predates rule capture would otherwise score as a site with no broken rules.
+  const ruleIntegrity = workflow?.ruleIntegrity;
+  if (workflow?.available && ruleIntegrity?.available && Number(ruleIntegrity.rules) > 0) {
+    const broken = (Number(ruleIntegrity.brokenRules) || 0) + (Number(ruleIntegrity.brokenProperties) || 0);
+    const rate = broken / Number(ruleIntegrity.rules);
+    dimensions.push({
+      key: "workflow-rule-references",
+      label: "Workflow rule references",
+      pillar: "workflows",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(rate, TOLERANCE.brokenWorkflowRefs),
+      detail: broken === 0
+        ? `Every field, group and role named by ${ruleIntegrity.rules} workflow rules still exists.`
+        : `${broken} workflow rule${broken === 1 ? "" : "s"} or propert${broken === 1 ? "y names" : "ies name"} a field, group or role that no longer exists.`,
+      action: broken > 0
+        ? "A validator requiring a deleted field blocks the transition or stops checking. Repair or remove each one from the Workflows tab's Rules view."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("workflow-rule-references", "Workflow rule references", "workflows",
+      workflow?.available ? "Rebuild the workflow inventory to read transition rules." : "No workflow inventory yet."));
+  }
+
+  // ── Inactive workflows ────────────────────────────────────────────────────
+  const companyManaged = (Number(ruleIntegrity?.workflows) || 0) - (Number(ruleIntegrity?.teamManaged) || 0);
+  if (workflow?.available && ruleIntegrity?.available && companyManaged > 0) {
+    const inactive = Number(ruleIntegrity.inactive) || 0;
+    dimensions.push({
+      key: "inactive-workflows",
+      label: "Inactive workflows",
+      pillar: "workflows",
+      available: true,
+      weight: 0.5,
+      score: scoreFromRate(inactive / companyManaged, TOLERANCE.inactiveWorkflows),
+      detail: inactive === 0
+        ? "Every company-managed workflow is used by a project's scheme."
+        : `${inactive} of ${companyManaged} company-managed workflows are used by no project's scheme.`,
+      action: inactive > 0 ? "Delete inactive workflows you no longer need; each is configuration nobody sees." : null,
+    });
+  } else {
+    dimensions.push(unavailable("inactive-workflows", "Inactive workflows", "workflows",
+      workflow?.available ? "Rebuild the workflow inventory to list individual workflows." : "No workflow inventory yet."));
   }
 
   // ── Workflow structure ────────────────────────────────────────────────────

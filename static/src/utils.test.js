@@ -3,6 +3,7 @@ import {
   buildProjectUrl,
   buildBoardUrl,
   buildScreenUrl,
+  buildWorkflowUrl,
   buildPermissionSchemeUrl,
   buildPriorityAdminUrl,
   buildResolutionAdminUrl,
@@ -897,6 +898,12 @@ describe("Jira deep-link builders", () => {
     expect(buildScreenUrl(origin, 10)).toBe(`${origin}/secure/admin/ConfigureFieldScreen.jspa?id=10`);
     expect(buildPermissionSchemeUrl(origin, 20)).toBe(`${origin}/secure/admin/EditPermissions!default.jspa?schemeId=20`);
     expect(buildAssetSchemaUrl(origin, 3)).toBe(`${origin}/secure/ObjectSchema.jspa?id=3`);
+  });
+
+  test("buildWorkflowUrl opens the live workflow by its encoded name, and needs both parts", () => {
+    expect(buildWorkflowUrl(origin, "Build Deviation WF")).toBe(`${origin}/secure/admin/workflows/ViewWorkflowSteps.jspa?workflowMode=live&workflowName=Build%20Deviation%20WF`);
+    expect(buildWorkflowUrl(origin, "")).toBeNull();
+    expect(buildWorkflowUrl(null, "WF")).toBeNull();
   });
 
   test("an id of 0 is still an id, not a missing one", () => {

@@ -15,7 +15,7 @@ import {
   copyToClipboard,
 } from "../utils";
 import { Icon } from "./Icons";
-import { AskRovo } from "./ui";
+import { AskRovo, WorkflowUsageList } from "./ui";
 import { FieldOptionsModal } from "./FieldOptionsModal";
 
 // The Rovo affordance is now the shared <AskRovo> from ./ui -- one label shape, one
@@ -407,6 +407,38 @@ export function AutomationUsageSection({ field, enabled = true, siteOrigin, rovo
           })}
         </div>
       )}
+    </CollapsibleSection>
+  );
+}
+
+// Where a workflow validates, checks or writes this field: which transition, between which
+// statuses, and which rule. The question an admin asks before deleting, renaming or retyping
+// a field, and until the workflow snapshot kept transition rules it had no answer anywhere.
+export function WorkflowRulesSection({ field, enabled = true, siteOrigin }) {
+  const [result, setResult] = React.useState(null);
+
+  React.useEffect(() => {
+    if (!enabled) return undefined;
+    let cancelled = false;
+    setResult(null);
+    invoke("getWorkflowRuleUsage", { refType: "field", refId: field.id })
+      .then((data) => { if (!cancelled) setResult(data); })
+      // A failed lookup is "unknown", never "no rule uses this".
+      .catch(() => { if (!cancelled) setResult({ available: false, reason: "error" }); });
+    return () => { cancelled = true; };
+  }, [enabled, field.id]);
+
+  const count = result?.available ? result.total : null;
+  return (
+    <CollapsibleSection
+      title="Workflow Rules"
+      badge={count ? `${formatNumber(count)} in ${formatNumber(result.workflowCount)} workflow${result.workflowCount === 1 ? "" : "s"}` : null}
+    >
+      <WorkflowUsageList
+        result={result}
+        siteOrigin={siteOrigin}
+        emptyMessage="No workflow validator, condition, post-function or status property names this field."
+      />
     </CollapsibleSection>
   );
 }
@@ -1057,6 +1089,7 @@ export function FieldCard({
               </CollapsibleSection>}
 
               {showGovernance ? <AutomationUsageSection field={field} enabled={expanded} siteOrigin={siteOrigin} rovoEnabled={rovoEnabled} /> : null}
+              {showGovernance ? <WorkflowRulesSection field={field} enabled={expanded} siteOrigin={siteOrigin} /> : null}
               {showGovernance ? <FilterUsageSection field={field} enabled={expanded} siteOrigin={siteOrigin} /> : null}
               {showGovernance ? <DashboardUsageSection field={field} enabled={expanded} siteOrigin={siteOrigin} /> : null}
 

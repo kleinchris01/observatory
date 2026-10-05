@@ -104,6 +104,36 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
     });
   }
 
+  const ruleIntegrity = workflow?.ruleIntegrity;
+  const brokenWorkflowRefs = (ruleIntegrity?.brokenRules || 0) + (ruleIntegrity?.brokenProperties || 0);
+  if (workflow?.available && ruleIntegrity?.available && brokenWorkflowRefs > 0) {
+    findings.push({
+      key: "workflow-broken-references",
+      dimension: "workflow-rule-references",
+      pillar: "workflows",
+      tone: "warning",
+      count: brokenWorkflowRefs,
+      title: "Workflow rules naming a deleted field, group or role",
+      detail: "A validator requiring a field that is gone blocks the transition or stops checking.",
+      onOpen: () => onNavigate("workflows", { view: "rules", filter: "broken" }),
+      openLabel: "Workflows",
+    });
+  }
+
+  if (workflow?.available && ruleIntegrity?.available && ruleIntegrity.inactive > 0) {
+    findings.push({
+      key: "workflows-inactive",
+      dimension: "inactive-workflows",
+      pillar: "workflows",
+      tone: "info",
+      count: ruleIntegrity.inactive,
+      title: "Inactive workflows",
+      detail: "Company-managed workflows that no project's scheme uses.",
+      onOpen: () => onNavigate("workflows", { view: "workflow-list", filter: "inactive" }),
+      openLabel: "Workflows",
+    });
+  }
+
   if (workflow?.available && workflow.flaggedSchemeCount > 0) {
     findings.push({
       key: "scheme-balance",

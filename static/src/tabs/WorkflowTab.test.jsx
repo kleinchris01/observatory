@@ -47,6 +47,24 @@ beforeEach(() => {
 });
 
 describe("WorkflowTab", () => {
+  it("offers the workflow, transition rule and restriction views, and opens them on demand", async () => {
+    const user = userEvent.setup();
+    invoke.mockImplementation((name) => Promise.resolve(
+      name === "getWorkflowRules"
+        ? { available: false, reason: "rules-not-read", rules: [], total: 0 }
+        : name === "getWorkflowInsights" ? { available: false } : inventory()
+    ));
+    render(<WorkflowTab />);
+    await screen.findByText("ADVEV Standard");
+
+    for (const label of ["Workflows", "Transition rules", "Restrictions"]) {
+      expect(screen.getAllByRole("button", { name: new RegExp(label) }).length).toBeGreaterThan(0);
+    }
+    await user.click(screen.getByRole("button", { name: /Transition rules/ }));
+    expect(await screen.findByText(/built before transition rules were captured/i)).toBeInTheDocument();
+    expect(invoke).toHaveBeenCalledWith("getWorkflowRules", expect.any(Object));
+  });
+
   it("lists workflow schemes with their project counts", async () => {
     render(<WorkflowTab />);
 

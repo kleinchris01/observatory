@@ -9,6 +9,7 @@ import {
   summarizeContexts,
 } from "./transform.js";
 import { isSelectFieldType } from "./analysis.js";
+import { extractWorkflowRules } from "./workflow-rules.js";
 
 // ----- Constants -----
 
@@ -449,6 +450,14 @@ export async function mapWithConcurrency(items, concurrency, iteratee) {
 }
 
 // ----- Jira API helpers -----
+
+// Every field on the site, system and custom, in one unpaged call. Used where only ids and
+// names are needed -- labelling the fields a workflow rule names, and telling a deleted
+// custom field from a live one.
+export async function getFieldCatalog() {
+  const data = await jiraRequest(route(["/rest/api/3/field"]));
+  return Array.isArray(data) ? data : [];
+}
 
 export async function getAllCustomFields() {
   return paginate(
@@ -1185,6 +1194,33 @@ export async function getGroupMembers(groupId) {
   );
 }
 
+// Which of these group ids still exist, and what they are called.
+//
+// Workflow conditions and status properties name groups by id; a rename keeps the id, a
+// delete leaves it pointing at nothing. One lookup per id (group/bulk filters by groupId and
+// returns an empty page for an unknown one), at bounded concurrency -- a site references a
+// few dozen groups this way, not thousands.
+//
+// Returns { byId: Map<id, name>, missing: Set<id>, failed: Set<id> }. A failed lookup is
+// neither found nor missing: "this group was deleted" is a finding, and a 500 is not.
+export async function getGroupsByIds(groupIds = [], concurrency = 8) {
+  const ids = [...new Set(groupIds.filter(Boolean).map(String))];
+  const byId = new Map();
+  const missing = new Set();
+  const failed = new Set();
+  await mapWithConcurrency(ids, concurrency, async (groupId) => {
+    try {
+      const data = await jiraRequest(route`/rest/api/3/group/bulk?groupId=${groupId}&maxResults=1`);
+      const match = (data?.values || []).find((g) => String(g?.groupId) === groupId);
+      if (match) byId.set(groupId, match.name || groupId);
+      else missing.add(groupId);
+    } catch {
+      failed.add(groupId);
+    }
+  });
+  return { byId, missing, failed };
+}
+
 // The issue type schemes: which set of types a project is allowed to use. Paginated the
 // usual way. Each value carries { id, name, description, defaultIssueTypeId, isDefault } --
 // isDefault marks the one every classic project starts on.
@@ -1529,7 +1565,20 @@ export function normalizeWorkflowSearchResponse(data) {
       const resolved = direct != null ? String(direct) : (reference ? idByReference.get(String(reference)) : null);
       if (resolved) statusIds.push(resolved);
     }
-    return { name, statusIds, transitions: extractTransitionScreens(workflow, idByReference) };
+    return {
+      name,
+      // The current endpoint's id is a UUID; the deprecated one nests { name, entityId }.
+      id: typeof workflow?.id === "string" ? workflow.id : (workflow?.id?.entityId ?? null),
+      // GLOBAL = company-managed, PROJECT = team-managed. Absent on the deprecated endpoint,
+      // which only ever returned company-managed workflows.
+      scopeType: workflow?.scope?.type ?? null,
+      scopeProjectId: workflow?.scope?.project?.id != null ? String(workflow.scope.project.id) : null,
+      statusIds,
+      transitions: extractTransitionScreens(workflow, idByReference),
+      // Conditions, validators, post-functions and properties. Same response, same status
+      // references -- this was simply never kept.
+      rules: extractWorkflowRules(workflow, idByReference),
+    };
   }).filter((workflow) => workflow.name);
 }
 
@@ -1612,7 +1661,7 @@ export async function getAllWorkflowsWithStatuses() {
   }
 
   const legacy = await paginate(
-    (startAt) => route`/rest/api/3/workflow/search?expand=statuses,transitions&startAt=${startAt}&maxResults=${DEFAULT_PAGE_SIZE}`
+    (startAt) => route`/rest/api/3/workflow/search?expand=statuses,transitions,transitions.rules,transitions.properties,statuses.properties&startAt=${startAt}&maxResults=${DEFAULT_PAGE_SIZE}`
   );
   return normalizeWorkflowSearchResponse({ values: legacy });
 }

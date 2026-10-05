@@ -17,6 +17,7 @@ import {
   PeopleUsageSection,
   FilterUsageSection,
   DeletionSafetySection,
+  WorkflowRulesSection,
 } from "./FieldCard";
 
 // ---------------------------------------------------------------------------
@@ -203,6 +204,54 @@ describe("PeopleUsageSection", () => {
   it("says 'not measured / not a user field' rather than claiming zero", () => {
     render(<PeopleUsageSection usage={{ distinctUsers: 0, top: [] }} />);
     expect(screen.getByText(/no user values for this field/i)).toBeInTheDocument();
+  });
+});
+
+describe("WorkflowRulesSection", () => {
+  const field = { id: "customfield_15731", name: "Onsite Modification" };
+  const usage = {
+    available: true, total: 2, workflowCount: 2, refType: "field", refId: "customfield_15731",
+    usages: [
+      {
+        workflowName: "Build Deviation WF", source: "rule",
+        transition: { id: "21", name: "Approve", from: [{ id: "3", name: "In Review" }], to: { id: "4", name: "Approved" } },
+        status: null, rule: { kind: "validator", key: "system:validate-field-value", label: "Field value check", summary: "fieldRequired" }, property: null,
+      },
+      {
+        workflowName: "Other WF", source: "property", transition: null, status: { id: "3", name: "In Review" },
+        rule: null, property: { key: "jira.permission.edit.groupCF", value: "customfield_15731", meaning: "Edit: only group in field customfield_15731" },
+      },
+    ],
+  };
+
+  beforeEach(() => { invoke.mockReset(); });
+
+  it("asks by field id and names the transition, its statuses and the rule", async () => {
+    invoke.mockResolvedValue(usage);
+    render(<WorkflowRulesSection field={field} siteOrigin="https://acme.atlassian.net" />);
+
+    expect(await screen.findByText("Approve")).toBeInTheDocument();
+    expect(invoke).toHaveBeenCalledWith("getWorkflowRuleUsage", { refType: "field", refId: "customfield_15731" });
+    expect(screen.getByText("Field value check")).toBeInTheDocument();
+    expect(screen.getByText("Status: In Review")).toBeInTheDocument();
+    expect(screen.getByText("Edit: only group in field customfield_15731")).toBeInTheDocument();
+    expect(screen.getByText("2 in 2 workflows")).toBeInTheDocument();
+  });
+
+  it("does not query until the card is expanded", () => {
+    render(<WorkflowRulesSection field={field} enabled={false} />);
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it("says nothing was found only when it looked", async () => {
+    invoke.mockResolvedValueOnce({ ...usage, total: 0, workflowCount: 0, usages: [] });
+    const { unmount } = render(<WorkflowRulesSection field={field} />);
+    expect(await screen.findByText(/No workflow validator, condition, post-function or status property names this field/)).toBeInTheDocument();
+    unmount();
+
+    invoke.mockRejectedValueOnce(new Error("down"));
+    render(<WorkflowRulesSection field={field} />);
+    expect(await screen.findByText(/whether a workflow rule uses this is unknown/)).toBeInTheDocument();
   });
 });
 

@@ -5953,6 +5953,8 @@ a.macro-pillar__name:hover { color: var(--cool); text-decoration: underline; }
 .ui-chip--removable:hover .ui-chip__remove { opacity: 1; }
 .ui-chip--warning { color: var(--tone-warning-text); background: rgba(201, 134, 10, 0.14); }
 .ui-chip--critical { color: var(--tone-critical-text); background: rgba(201, 96, 90, 0.14); }
+.ui-chip--active { color: #79b8ff; background: rgba(121, 184, 255, 0.14); }
+.ui-chip--success { color: var(--tone-success-text); background: rgba(44, 122, 87, 0.14); }
 
 .ui-empty {
   display: flex; align-items: center; justify-content: space-between; gap: 1rem;
@@ -5987,6 +5989,27 @@ a.macro-pillar__name:hover { color: var(--cool); text-decoration: underline; }
 .ui-barlist__bar--accent { background: #4d8fd6; }
 .ui-barlist__bar--warn { background: var(--tone-warning); }
 .ui-barlist__value { font-size: 0.75rem; font-variant-numeric: tabular-nums; opacity: 0.75; white-space: nowrap; }
+
+/* Workflow rule usage: where a transition goes, and the rule on it. */
+.ui-srlabel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.ui-transition { display: inline-flex; flex-direction: column; gap: 0.05rem; min-width: 0; }
+.ui-transition__name { font-size: 0.82rem; font-weight: 600; }
+.ui-transition__path { font-size: 0.74rem; opacity: 0.7; }
+.ui-wfusage { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.ui-wfusage__row {
+  display: grid; grid-template-columns: minmax(8rem, 1fr) minmax(10rem, 1.3fr) minmax(10rem, 1.4fr);
+  gap: 0.75rem; align-items: center;
+  padding: 0.5rem 0; border-bottom: 1px solid var(--ds-border, var(--wash-7));
+}
+.ui-wfusage__row:last-child { border-bottom: none; }
+.ui-wfusage__workflow { font-size: 0.8rem; min-width: 0; overflow-wrap: anywhere; }
+.ui-wfusage__what { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; min-width: 0; }
+.ui-wfusage__label { font-size: 0.8rem; overflow-wrap: anywhere; }
+.ui-wfusage__summary { font-size: 0.72rem; opacity: 0.6; }
+.ui-wfusage__more { font-size: 0.75rem; opacity: 0.65; padding-top: 0.5rem; }
+@media (max-width: 720px) {
+  .ui-wfusage__row { grid-template-columns: 1fr; gap: 0.25rem; }
+}
 
 .ui-finding-list { display: flex; flex-direction: column; gap: 0.5rem; }
 .ui-finding {

@@ -6,6 +6,7 @@ import { StatTile, StatRow, Panel, EmptyState, PageHeader, SortFilterBar, Chip, 
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useNavIntent, usePersistentState } from "../hooks";
+import { WorkflowRulesView, WorkflowRestrictionsView, WorkflowCatalogView } from "./WorkflowRulesView";
 
 // Workflow scheme + status inventory.
 //
@@ -734,6 +735,11 @@ export function WorkflowTab({ intent = null, siteOrigin = "" }) {
   const navItems = [
     { key: "schemes", label: "Schemes", icon: "activity", badge: formatNumber(data?.totalCount ?? schemes.length) },
     { key: "statuses", label: "Statuses", icon: "layers", badge: formatNumber(statuses.length) },
+    // What each workflow enforces. Each view fetches its own data when opened, so none of
+    // them costs anything on the schemes view most visits land on.
+    { key: "workflow-list", label: "Workflows", icon: "activity" },
+    { key: "rules", label: "Transition rules", icon: "shield" },
+    { key: "restrictions", label: "Restrictions", icon: "lock" },
     {
       key: "insights",
       label: "Insights",
@@ -842,6 +848,12 @@ export function WorkflowTab({ intent = null, siteOrigin = "" }) {
           <SubNavLayout items={navItems} activeKey={view} onSelect={setView}>
           {view === "insights" ? (
             <WorkflowInsights insights={insights} loading={insightsLoading} siteOrigin={siteOrigin} intent={intent} />
+          ) : view === "rules" ? (
+            <WorkflowRulesView siteOrigin={siteOrigin} intent={intent} />
+          ) : view === "restrictions" ? (
+            <WorkflowRestrictionsView siteOrigin={siteOrigin} />
+          ) : view === "workflow-list" ? (
+            <WorkflowCatalogView siteOrigin={siteOrigin} intent={intent} />
           ) : loading ? (
             <EmptyState>Loading…</EmptyState>
           ) : view === "schemes" ? (

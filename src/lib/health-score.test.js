@@ -142,6 +142,8 @@ const workflow = (over = {}) => ({
   unreachableNoRuleCount: 0,
   automationChecked: true,
   flaggedSchemeCount: 0,
+  // Transition rules read by the build: 600 rules across 120 workflows, none broken.
+  ruleIntegrity: { available: true, workflows: 120, teamManaged: 20, rules: 600, brokenRules: 0, brokenProperties: 0, inactive: 0 },
   ...over,
 });
 
@@ -297,6 +299,37 @@ describe("computeSiteHealth — scoring", () => {
     expect(health.score).toBeGreaterThanOrEqual(90);
     expect(health.grade).toBe("A");
     expect(health.dimensionsScored).toBe(health.dimensionsTotal);
+  });
+
+  describe("workflow rule dimensions", () => {
+    const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+    const rules = (over) => workflow({ ruleIntegrity: { ...workflow().ruleIntegrity, ...over } });
+
+    test("score broken references against the rules read, and say what to do", () => {
+      const clean = dim(computeSiteHealth({ workflow: workflow() }), "workflow-rule-references");
+      expect(clean).toMatchObject({ available: true, score: 100, pillar: "workflows" });
+
+      const broken = dim(computeSiteHealth({ workflow: rules({ brokenRules: 9, brokenProperties: 3 }) }), "workflow-rule-references");
+      expect(broken.score).toBe(0);
+      expect(broken.detail).toMatch(/12 workflow rules or properties name/);
+      expect(broken.action).toMatch(/Rules view/);
+    });
+
+    test("are unavailable, not clean, when the snapshot predates rule capture", () => {
+      const health = computeSiteHealth({ workflow: workflow({ ruleIntegrity: { available: false } }) });
+      for (const key of ["workflow-rule-references", "inactive-workflows"]) {
+        expect(dim(health, key)).toMatchObject({ available: false, score: null });
+        expect(dim(health, key).reason).toMatch(/rebuild the workflow inventory/i);
+      }
+    });
+
+    test("judge inactivity among company-managed workflows only", () => {
+      // 100 company-managed (120 - 20 team-managed); 25 inactive = the tolerance, so it bottoms out.
+      const d = dim(computeSiteHealth({ workflow: rules({ inactive: 25 }) }), "inactive-workflows");
+      expect(d.detail).toMatch(/25 of 100 company-managed/);
+      expect(d.score).toBe(0);
+      expect(d.weight).toBe(0.5);
+    });
   });
 
   describe("automation dimensions", () => {

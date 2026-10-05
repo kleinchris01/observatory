@@ -23,6 +23,7 @@ const workflow = () => ({
   schemeStatusesAvailable: true, hasIssueCounts: true, automationChecked: true,
   duplicateGroupCount: 13, reducibleStatusCount: 14, orphanCount: 94,
   safeToRemoveCount: 8, ruleOnlyStatusCount: 86, flaggedSchemeCount: 8,
+  ruleIntegrity: { available: true, workflows: 327, teamManaged: 40, rules: 1200, brokenRules: 6, brokenProperties: 2, inactive: 31 },
 });
 
 const screens = () => ({
@@ -65,6 +66,8 @@ const EXPECTED = [
   ["Statuses with no evidence of use", "workflows", { view: "insights", panel: "orphans", statuses: "safe-to-remove" }],
   ["Statuses only an automation rule can reach", "workflows", { view: "insights", panel: "orphans", statuses: "rule-only" }],
   ["Workflow schemes with a structural flag", "workflows", { view: "insights", panel: "balance" }],
+  ["Workflow rules naming a deleted field, group or role", "workflows", { view: "rules", filter: "broken" }],
+  ["Inactive workflows", "workflows", { view: "workflow-list", filter: "inactive" }],
 
   ["Automation rules storing a credential in plaintext", "automation", { section: "findings", risk: "embedded-credential" }],
   ["Rules that write a field they trigger on", "automation", { section: "cascades", cascadeKind: "self" }],

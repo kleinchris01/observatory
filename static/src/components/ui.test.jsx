@@ -3,7 +3,7 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { router, rovo } from "@forge/bridge";
-import { StatTile, StatRow, Panel, CollapsiblePanels, Chip, EmptyState, BarList, FindingRow, LinkButton, PageHeader, RuleLink, JiraLink, SortFilterBar, StageRail, formatDurationMs, AskRovo, RemediationStatus } from "./ui";
+import { StatTile, StatRow, Panel, CollapsiblePanels, Chip, EmptyState, BarList, FindingRow, LinkButton, PageHeader, RuleLink, JiraLink, SortFilterBar, StageRail, formatDurationMs, AskRovo, RemediationStatus, TransitionPath, WorkflowUsageList } from "./ui";
 
 // These are the shared vocabulary that replaced four separate stat-card idioms. They are
 // small, but they now render on every tab, so a regression here is a regression
@@ -533,5 +533,54 @@ describe("RemediationStatus", () => {
     expect(screen.getByText("No remediation epic for 2026-Q3")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /Start remediation/ }));
     expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("TransitionPath", () => {
+  test("names the transition and the statuses it runs between", () => {
+    render(<TransitionPath transition={{ name: "Approve", from: [{ name: "In Review" }, { name: "On Hold" }], to: { name: "Approved" } }} />);
+    expect(screen.getByText("Approve")).toBeInTheDocument();
+    expect(screen.getByText(/In Review, On Hold/)).toHaveTextContent(/In Review, On Hold\s*→\s*to\s*Approved/);
+  });
+
+  test("renders nothing without a transition", () => {
+    const { container } = render(<TransitionPath transition={null} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe("WorkflowUsageList", () => {
+  test("never renders an unread snapshot as an empty answer", () => {
+    const { rerender } = render(<WorkflowUsageList result={null} />);
+    expect(screen.getByText(/Looking up workflow rules/)).toBeInTheDocument();
+
+    rerender(<WorkflowUsageList result={{ available: false, reason: "rules-not-read" }} />);
+    expect(screen.getByText(/Rebuild it in the Workflows tab/)).toBeInTheDocument();
+
+    rerender(<WorkflowUsageList result={{ available: false, reason: "no-snapshot" }} />);
+    expect(screen.getByText(/whether a workflow rule uses this is unknown/)).toBeInTheDocument();
+
+    rerender(<WorkflowUsageList result={{ available: true, usages: [] }} emptyMessage="Nothing names it." />);
+    expect(screen.getByText("Nothing names it.")).toBeInTheDocument();
+  });
+
+  test("marks a missing reference and links the workflow", () => {
+    render(<WorkflowUsageList
+      siteOrigin="https://acme.atlassian.net"
+      result={{
+        available: true,
+        truncated: true,
+        usages: [{
+          workflowName: "Build WF",
+          transition: { name: "Approve", from: [{ name: "In Review" }], to: { name: "Approved" } },
+          rule: { kind: "condition", label: "Restrict who can transition", summary: null },
+          refs: [{ type: "group", id: "g-gone", label: null, missing: true }],
+        }],
+      }}
+    />);
+    expect(screen.getByText("Condition")).toBeInTheDocument();
+    expect(screen.getByText("g-gone (missing)")).toHaveClass("ui-chip--critical");
+    expect(screen.getByRole("link", { name: "Build WF" })).toBeInTheDocument();
+    expect(screen.getByText(/Showing the first 1/)).toBeInTheDocument();
   });
 });
