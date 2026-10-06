@@ -151,15 +151,25 @@ export async function loadRemediationTicketsToSync(scopeKey, reopenWindowStart) 
 // An item whose earlier task is done but which is flagged again is NOT in the set: it came
 // back, and this quarter's epic is where it belongs.
 export async function loadTicketedItemIds(scopeKey, findingKey, period = currentPeriod()) {
+  return new Set((await loadTicketedItems(scopeKey, findingKey, period)).keys());
+}
+
+// The same set, with the ticket that holds each item -- so the Remediation tab can say an item
+// is still being worked under an earlier quarter's epic instead of offering to ticket it again.
+// The one place the rule lives; loadTicketedItemIds is this, keys only.
+export async function loadTicketedItems(scopeKey, findingKey, period = currentPeriod()) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
     sql.prepare(`
-      SELECT item_id FROM remediation_tickets_v2
+      SELECT item_id, issue_key, epic_key, period FROM remediation_tickets_v2
       WHERE scope_key = ? AND finding_key = ? AND is_epic = 0
         AND (period = ? OR last_status_category IS NULL OR last_status_category != 'done')
     `).bindParams(scopeKey, String(findingKey), String(period)).execute()
   );
-  return new Set((result.rows || []).map((r) => String(r.item_id)));
+  return new Map((result.rows || []).map((r) => [
+    String(r.item_id),
+    { issueKey: r.issue_key, epicKey: r.epic_key || null, period: r.period || null },
+  ]));
 }
 
 // Refresh the live fields from a Jira read (the hourly sync). Never touches identity.
