@@ -239,7 +239,9 @@ function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, pro
                     ? "The last workflow build could not read transitions, so a screen a transition opens would look unreached. Rebuild the workflow inventory before remediating this."
                     : candidates.reason === "error"
                       ? `Could not read this finding's items: ${candidates.error || "unknown error"}. Open it again to retry.`
-                      : "No data available for this finding right now."}
+                      : candidates.reason === "not-probed"
+                        ? "The last dashboard build ran before gadget filters were checked, so a broken gadget would look fine. Rebuild the dashboard inventory (or run a scan) before remediating this."
+                        : "No data available for this finding right now."}
               </EmptyState>
             ) : (candidates?.items?.length ?? 0) === 0 ? (
               <EmptyState inline>Nothing currently flagged for this finding. Clean.</EmptyState>

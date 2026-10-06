@@ -11226,6 +11226,34 @@ describe("getRemediationCandidates -- filters, dashboards, people, issue types, 
     expect((await run("dashboards-published-unused")).items.map((d) => d.id)).toEqual(["3"]);
   });
 
+  // Live on ford-advev: the last dashboard build predated the filter probe, so every gadget
+  // had a filter id and no state, and the finding read "Nothing currently flagged. Clean."
+  test("broken gadgets: a snapshot whose gadget filters were never probed is not checked, not clean", async () => {
+    const shared = [{ type: "authenticated" }];
+    mocks.readDashboardSnapshotMeta.mockResolvedValueOnce({ version: "d1" });
+    mocks.loadDashboards.mockResolvedValueOnce([
+      { id: "1", name: "Ops", owner: owner(), gadgetCount: 1, shares: shared, editShares: [], gadgets: [{ id: "g1", filterId: "100", filterState: null }] },
+    ]);
+    expect(await run("dashboards-broken-gadgets")).toEqual({ available: false, reason: "not-probed", items: [] });
+
+    mocks.readDashboardSnapshotMeta.mockResolvedValueOnce({ version: "d2" });
+    mocks.loadDashboards.mockResolvedValueOnce([
+      { id: "1", name: "Ops", owner: owner(), gadgetCount: 2, shares: shared, editShares: [], gadgets: [
+        { id: "g1", title: "Bugs", filterId: "100", filterState: "missing" },
+        { id: "g2", filterId: "101", filterState: "readable" },
+      ] },
+      { id: "2", name: "Fine", owner: owner(), gadgetCount: 1, shares: shared, editShares: [], gadgets: [{ id: "g3", filterId: "101", filterState: "readable" }] },
+    ]);
+    const probed = await run("dashboards-broken-gadgets");
+    expect(probed.items.map((d) => d.id)).toEqual(["1"]);
+    expect(probed.items[0].brokenGadgets).toEqual([expect.objectContaining({ filterId: "100", filterState: "missing" })]);
+
+    // No filter gadgets anywhere: nothing to probe, and genuinely clean.
+    mocks.readDashboardSnapshotMeta.mockResolvedValueOnce({ version: "d3" });
+    mocks.loadDashboards.mockResolvedValueOnce([{ id: "3", name: "Text only", owner: owner(), gadgetCount: 1, shares: [], editShares: [], gadgets: [{ id: "g4", filterId: null }] }]);
+    expect(await run("dashboards-broken-gadgets")).toEqual({ available: true, items: [] });
+  });
+
   test("people: one item per off-roster account, with the rules that name it", async () => {
     mocks.readUserSnapshotMeta.mockResolvedValueOnce({ version: "u1" });
     mocks.loadUsers.mockResolvedValueOnce([{ accountId: "live" }]);

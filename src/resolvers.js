@@ -4740,7 +4740,17 @@ async function filterItemsWith(installationKey, code) {
 async function dashboardItemsWith(installationKey, code) {
   const meta = await readDashboardSnapshotMeta(installationKey).catch(() => null);
   if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
-  const summary = summarizeDashboards(await loadDashboards(installationKey, meta.version));
+  const dashboards = await loadDashboards(installationKey, meta.version);
+  // Broken gadgets are only known for gadgets whose filter was probed. A snapshot built before
+  // the probe existed has filter gadgets with no state at all, and an empty list from it is
+  // "not checked", not "clean". (A site with no filter gadgets is genuinely clean.)
+  if (code === "broken-gadget") {
+    const filterGadgets = dashboards.flatMap((d) => d.gadgets || []).filter((g) => g.filterId);
+    if (filterGadgets.length && !filterGadgets.some((g) => g.filterState)) {
+      return { available: false, reason: "not-probed", items: [] };
+    }
+  }
+  const summary = summarizeDashboards(dashboards);
   const items = summary.dashboards
     .filter((d) => (d.findings || []).some((x) => x.code === code))
     .map((d) => ({
