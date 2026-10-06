@@ -487,6 +487,32 @@ describe("OverviewDashboard — workflow, automation and project findings stand 
     expect(noDone).not.toBe(structuralFlag);
   });
 
+  test("promotes broken workflow rule references and inactive workflows, linked to where they are fixed", async () => {
+    const onNavigate = vi.fn();
+    render(<OverviewDashboard
+      dashboard={dashboard()}
+      findingsSummary={findingsSummary}
+      workflow={workflow({ ruleIntegrity: { available: true, workflows: 50, teamManaged: 5, rules: 300, brokenRules: 4, brokenProperties: 1, inactive: 7 } })}
+      onNavigate={onNavigate}
+    />);
+
+    const broken = screen.getByText("Workflow rules naming a deleted field, group or role").closest(".ui-gov");
+    expect(within(broken).getByText("5")).toBeInTheDocument();
+    const inactive = screen.getByText("Inactive workflows").closest(".ui-gov");
+    expect(within(inactive).getByText("7")).toBeInTheDocument();
+  });
+
+  test("raises no rule finding from a snapshot that never read the rules", () => {
+    render(<OverviewDashboard
+      dashboard={dashboard()}
+      findingsSummary={findingsSummary}
+      workflow={workflow({ ruleIntegrity: { available: false } })}
+      onNavigate={vi.fn()}
+    />);
+    expect(screen.queryByText("Workflow rules naming a deleted field, group or role")).not.toBeInTheDocument();
+    expect(screen.queryByText("Inactive workflows")).not.toBeInTheDocument();
+  });
+
   test("promotes every automation finding instead of nesting it under the four scored dimensions", () => {
     const health = {
       score: 70, grade: "C", dimensions: [], weakest: null,

@@ -37,6 +37,8 @@ export const jiraLinks = {
   },
   fieldAdmin: (o) => (o ? `${o}/secure/admin/ViewCustomFields.jspa` : null),
   statusAdmin: (o) => (o ? `${o}/secure/admin/ViewStatuses.jspa` : null),
+  workflow: (o, name) => (o && present(name) ? `${o}/secure/admin/workflows/ViewWorkflowSteps.jspa?workflowMode=live&workflowName=${enc(name)}` : null),
+  workflowsAdmin: (o) => (o ? `${o}/secure/admin/workflows/ListWorkflows.jspa` : null),
   workflowScheme: (o, id) => (o && present(id) ? `${o}/secure/admin/EditWorkflowScheme.jspa?schemeId=${enc(id)}` : null),
   issueTypeAdmin: (o) => (o ? `${o}/secure/admin/ViewIssueTypes.jspa` : null),
   issueTypeScheme: (o, id) => (o && present(id) ? `${o}/secure/admin/ConfigureOptionSchemes!default.jspa?schemeId=${enc(id)}` : null),

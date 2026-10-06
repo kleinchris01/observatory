@@ -23,6 +23,15 @@ describe("jiraLinks", () => {
   });
 });
 
+describe("workflow links", () => {
+  it("opens a live workflow by name and the workflow list", () => {
+    expect(L.workflow("https://a.net", "Build WF")).toBe("https://a.net/secure/admin/workflows/ViewWorkflowSteps.jspa?workflowMode=live&workflowName=Build%20WF");
+    expect(L.workflow("https://a.net", "")).toBeNull();
+    expect(L.workflowsAdmin("https://a.net")).toBe("https://a.net/secure/admin/workflows/ListWorkflows.jspa");
+    expect(L.workflowsAdmin(null)).toBeNull();
+  });
+});
+
 describe("md", () => {
   it("is a link with a URL and the bare label without one", () => {
     expect(md("Filter", `${O}/x`)).toBe(`[Filter](${O}/x)`);

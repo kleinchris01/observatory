@@ -124,6 +124,9 @@ const mocks = vi.hoisted(() => ({
   loadRqtFieldIssueIndex: vi.fn(),
   loadIssueRqtValues: vi.fn(),
   readWorkflowSnapshotMeta: vi.fn(),
+  loadWorkflowRefsFor: vi.fn(async () => []),
+  loadWorkflowRefsByType: vi.fn(async () => []),
+  loadWorkflowsCatalog: vi.fn(async () => []),
   readAutomationAnalysis: vi.fn(),
   replaceAutomationCascades: vi.fn(async () => 0),
   replaceAutomationBlast: vi.fn(async () => 0),
@@ -410,6 +413,9 @@ vi.mock("./lib/project-store.js", () => ({
   loadRqtFieldIssueIndex: mocks.loadRqtFieldIssueIndex,
   loadIssueRqtValues: mocks.loadIssueRqtValues,
   readWorkflowSnapshotMeta: mocks.readWorkflowSnapshotMeta,
+  loadWorkflowRefsFor: mocks.loadWorkflowRefsFor,
+  loadWorkflowRefsByType: mocks.loadWorkflowRefsByType,
+  loadWorkflowsCatalog: mocks.loadWorkflowsCatalog,
   readScreenSnapshotMeta: mocks.readScreenSnapshotMeta,
   loadScreensPage: mocks.loadScreensPage,
   loadScreensForField: mocks.loadScreensForField,
@@ -7196,6 +7202,46 @@ describe("getRemediationTickets", () => {
 });
 
 describe("getRemediationCandidates", () => {
+  test("workflow-broken-references: one item per workflow, listing where each reference sits", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "w1", workflowRules: 5 });
+    mocks.loadStatusesCatalog.mockResolvedValue([{ statusId: "3", name: "In Review" }]);
+    mocks.loadWorkflowsCatalog.mockResolvedValue([{ name: "Build WF", scopeType: "GLOBAL", schemeCount: 1, ruleCount: 5 }]);
+    mocks.loadWorkflowRefsByType.mockResolvedValue([
+      { refType: "field", refId: "customfield_9", refMissing: true, workflowName: "Build WF", source: "rule", ownerKind: "transition", ownerId: "21", ruleSeq: 0 },
+      { refType: "group", refId: "g-gone", refMissing: true, workflowName: "Build WF", source: "property", ownerKind: "status", ownerId: "3", propKey: "jira.permission.edit.group" },
+    ]);
+
+    const r = await getRemediationCandidates({ payload: { findingKey: "workflow-broken-references" }, context: ctxWithAccount() });
+
+    expect(r.available).toBe(true);
+    expect(r.items).toEqual([{
+      id: "Build WF", name: "Build WF", count: 2,
+      refs: [
+        { type: "field", id: "customfield_9", where: "transition 21" },
+        { type: "group", id: "g-gone", where: "status In Review" },
+      ],
+    }]);
+  });
+
+  test("workflows-inactive: company-managed workflows no scheme uses", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "w1", workflowRules: 5 });
+    mocks.loadStatusesCatalog.mockResolvedValue([]);
+    mocks.loadWorkflowRefsByType.mockResolvedValue([]);
+    mocks.loadWorkflowsCatalog.mockResolvedValue([
+      { name: "Zombie", scopeType: "GLOBAL", schemeCount: 0, statusCount: 3, ruleCount: 2 },
+      { name: "Team", scopeType: "PROJECT", schemeCount: 0, statusCount: 3, ruleCount: 0 },
+    ]);
+
+    const r = await getRemediationCandidates({ payload: { findingKey: "workflows-inactive" }, context: ctxWithAccount() });
+    expect(r.items).toEqual([{ id: "Zombie", name: "Zombie", statusCount: 3, ruleCount: 2 }]);
+  });
+
+  test("workflow rule candidates say why there are none when the rules were never read", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "w1", workflowRules: null });
+    const r = await getRemediationCandidates({ payload: { findingKey: "workflows-inactive" }, context: ctxWithAccount() });
+    expect(r).toEqual({ available: false, reason: "rules-not-read", items: [] });
+  });
+
   test("filter-ownership: returns only filters with an orphaned owner, mapped to what the playbook needs", async () => {
     mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "flt1" });
     mocks.loadFilters.mockResolvedValue([
@@ -10221,6 +10267,9 @@ describe("getDeletionSafety", () => {
     mocks.readAutomationAnalysis.mockResolvedValue({ schemaVersion: 1, refreshedAt: Date.now() - 86400000 });
     mocks.readAutomationPart.mockImplementation((_k, part) =>
       Promise.resolve(part === "fields" ? { total: 0, entries: [] } : null));
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "w1", workflowRules: 12, refreshedAt: "2026-10-05T00:00:00.000Z" });
+    mocks.loadStatusesCatalog.mockResolvedValue([{ statusId: "3", name: "In Review" }, { statusId: "4", name: "Approved" }]);
+    mocks.loadWorkflowRefsFor.mockResolvedValue([]);
   };
 
   test("refuses to answer without a field snapshot", async () => {
@@ -10258,6 +10307,32 @@ describe("getDeletionSafety", () => {
 
     expect(result.fields[0].verdict).toBe("in-use");
     expect(result.fields[0].blockers[0].source).toBe("automation");
+  });
+
+  test("blocks on a workflow validator that names the field, and says where", async () => {
+    everything();
+    mocks.loadWorkflowRefsFor.mockResolvedValueOnce([{
+      refType: "field", refId: "customfield_1", workflowName: "Build WF", source: "rule",
+      ownerKind: "transition", ownerId: "21", ruleSeq: 0, transitionName: "Approve",
+      transitionType: "DIRECTED", fromStatusIds: ["3"], toStatusId: "4",
+      ruleKind: "validator", ruleKey: "system:validate-field-value", summary: "fieldRequired",
+    }]);
+
+    const result = await getDeletionSafety({ payload: { fieldIds: ["customfield_1"] }, ...ctx });
+
+    expect(result.fields[0].verdict).toBe("in-use");
+    const blocker = result.fields[0].blockers.find((b) => b.source === "workflow-rules");
+    expect(blocker.summary).toMatch(/Approve \(In Review -> Approved\) in Build WF/);
+  });
+
+  test("treats a workflow snapshot without rule capture as a gap", async () => {
+    everything();
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "w1", workflowRules: null });
+
+    const result = await getDeletionSafety({ payload: { fieldIds: ["customfield_1"] }, ...ctx });
+
+    expect(result.fields[0].verdict).toBe("unknown");
+    expect(result.fields[0].gaps.some((g) => g.source === "workflow rules")).toBe(true);
   });
 
   test("degrades to unknown when a pillar has never been built", async () => {

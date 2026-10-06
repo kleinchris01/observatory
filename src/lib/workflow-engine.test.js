@@ -28,6 +28,9 @@ vi.mock("./jira-api.js", () => ({
   getAllWorkflowsWithStatuses: vi.fn().mockResolvedValue([]),
   getEverInStatusCounts: vi.fn().mockResolvedValue({ counts: new Map(), failures: [] }),
   getStatusesForProjects: vi.fn().mockResolvedValue({ byProject: new Map(), failures: [] }),
+  getFieldCatalog: vi.fn().mockResolvedValue([]),
+  getGroupsByIds: vi.fn().mockResolvedValue({ byId: new Map(), missing: new Set(), failed: new Set() }),
+  getAllProjectRoles: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("./project-store.js", () => ({

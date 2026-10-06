@@ -37,6 +37,8 @@ vi.mock("./project-store.js", () => ({
   loadStatusesCatalog: vi.fn(async () => []),
   loadWorkflowSchemeStatuses: vi.fn(async () => []),
   loadWorkflowSchemes: vi.fn(async () => []),
+  loadWorkflowsCatalog: vi.fn(async () => []),
+  loadWorkflowRefsByType: vi.fn(async () => []),
   readScreenSnapshotMeta: vi.fn(async () => null),
   readWorkflowSnapshotMeta: vi.fn(async () => null),
   transitionAwareWorkflowVersion: (meta) => (meta?.version && meta.transitionScreens != null ? meta.version : null),
@@ -55,7 +57,8 @@ const automationStore = {
 };
 vi.mock("./store/automation.js", () => automationStore);
 
-const { buildProjectInsights, buildFieldUsageInsights, captureSiteHealth, buildUserOverview, buildAssetOverview, buildAccessOverview, buildEstateOverview } = await import("./site-health.js");
+const { buildProjectInsights, buildFieldUsageInsights, captureSiteHealth, buildUserOverview, buildAssetOverview, buildAccessOverview, buildEstateOverview, buildWorkflowOverview } = await import("./site-health.js");
+const workflowStore = await import("./project-store.js");
 
 // The fields pillar scores duplicate naming once, through the dedicated field-naming
 // dimension (built from duplicateClusters). The per-field "duplicate-naming" finding must
@@ -431,5 +434,40 @@ describe("buildProjectInsights — empty input", () => {
       unusedProjectCount: 0,
       staleProjectCount: 0,
     });
+  });
+});
+
+// The health input for the two workflow-rule dimensions. Present only when the snapshot read
+// the rules: a snapshot that predates capture must score "rebuild", not "clean".
+describe("buildWorkflowOverview — rule integrity", () => {
+  test("is unavailable when the snapshot never read transition rules", async () => {
+    workflowStore.readWorkflowSnapshotMeta.mockResolvedValueOnce({ version: "w1", state: "ready", workflowRules: null });
+    const overview = await buildWorkflowOverview("site");
+    expect(overview.ruleIntegrity).toEqual({ available: false });
+    expect(workflowStore.loadWorkflowsCatalog).not.toHaveBeenCalled();
+  });
+
+  test("counts broken references and inactive workflows when it did", async () => {
+    workflowStore.readWorkflowSnapshotMeta.mockResolvedValueOnce({ version: "w1", state: "ready", workflowRules: 9 });
+    workflowStore.loadWorkflowsCatalog.mockResolvedValueOnce([
+      { name: "Live", scopeType: "GLOBAL", schemeCount: 1, ruleCount: 8 },
+      { name: "Zombie", scopeType: "GLOBAL", schemeCount: 0, ruleCount: 1 },
+    ]);
+    workflowStore.loadWorkflowRefsByType.mockResolvedValueOnce([
+      { refType: "field", refId: "customfield_9", refMissing: true, workflowName: "Live", source: "rule", ownerKind: "transition", ownerId: "21", ruleSeq: 0 },
+    ]);
+
+    const overview = await buildWorkflowOverview("site");
+    expect(overview.ruleIntegrity).toEqual({
+      available: true, workflows: 2, teamManaged: 0, rules: 9, brokenRules: 1, brokenProperties: 0, inactive: 1,
+    });
+  });
+
+  test("a failed read degrades to unavailable rather than failing the overview", async () => {
+    workflowStore.readWorkflowSnapshotMeta.mockResolvedValueOnce({ version: "w1", state: "ready", workflowRules: 9 });
+    workflowStore.loadWorkflowsCatalog.mockRejectedValueOnce(new Error("tidb"));
+    const overview = await buildWorkflowOverview("site");
+    expect(overview.available).toBe(true);
+    expect(overview.ruleIntegrity).toEqual({ available: false });
   });
 });

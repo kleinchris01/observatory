@@ -226,6 +226,8 @@ const DEFAULT_TOLERANCES = {
   unusedFields: 0.35,
   duplicateStatuses: 0.15,
   unreachableStatuses: 0.20,
+  brokenWorkflowRefs: 0.02,
+  inactiveWorkflows: 0.25,
   flaggedSchemes: 0.40,
   irregularProjects: 0.25,
   credentialRules: 0.02,
@@ -943,6 +945,10 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent, targetPct, setTa
             tail="of statuses that no transition can reach." />
           <ToleranceRule tone="cleanup" badge="Workflow" name="Rule-only statuses" pct={pct} set={setTolerancePercent} k="ruleOnlyStatuses"
             tail="of statuses reached only by an automation rule, never by a person." />
+          <ToleranceRule tone="cleanup" badge="Workflow" name="Broken rule references" pct={pct} set={setTolerancePercent} k="brokenWorkflowRefs"
+            tail="of workflow rules naming a field, group or role that no longer exists." />
+          <ToleranceRule tone="cleanup" badge="Workflow" name="Inactive workflows" pct={pct} set={setTolerancePercent} k="inactiveWorkflows"
+            tail="of company-managed workflows no project's scheme uses." />
           <ToleranceRule tone="standardize" badge="Workflow" name="Scheme balance" pct={pct} set={setTolerancePercent} k="flaggedSchemes"
             tail="of workflow schemes carrying a structural finding." />
         </div>

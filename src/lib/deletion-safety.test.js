@@ -18,6 +18,7 @@ const allClean = {
   filters: { available: true, count: 0, names: [] },
   dashboards: { available: true, count: 0, names: [] },
   rqt: { available: true, issueCount: 0 },
+  workflowRules: { available: true, count: 0, workflowCount: 0, examples: [] },
 };
 
 describe("assessFieldDeletion — what it refuses to say", () => {
@@ -57,6 +58,26 @@ describe("assessFieldDeletion — what it refuses to say", () => {
 
 describe("assessFieldDeletion — blockers", () => {
   const withOne = (over) => assessFieldDeletion({ ...allClean, ...over });
+
+  test("a workflow validator or post-function naming the field blocks deletion", () => {
+    const result = withOne({
+      workflowRules: { available: true, count: 3, workflowCount: 2, examples: ["Approve (In Review -> Approved) in Build WF"] },
+    });
+
+    expect(result.verdict).toBe(VERDICT.IN_USE);
+    const blocker = result.blockers.find((b) => b.source === "workflow-rules");
+    expect(blocker).toMatchObject({ severity: "high" });
+    expect(blocker.summary).toMatch(/3 workflow rules or properties in 2 workflows/);
+    expect(blocker.summary).toMatch(/Approve \(In Review -> Approved\)/);
+  });
+
+  test("an unread workflow rule snapshot is a gap, never a clean pass", () => {
+    const result = withOne({ workflowRules: null });
+
+    expect(result.verdict).toBe(VERDICT.UNKNOWN);
+    expect(result.gaps.map((g) => g.source)).toContain("workflow rules");
+    expect(result.checked).not.toContain("workflow rules");
+  });
 
   test("values in issues block deletion, and say what is lost", () => {
     const result = withOne({ usage: { totalIssueCount: 4820, activeProjectCount: 9 } });

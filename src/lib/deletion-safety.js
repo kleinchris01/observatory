@@ -43,6 +43,7 @@ export function assessFieldDeletion({
   dashboards = null,   // { available, count, names: [] } | null
   rqt = null,          // { available, issueCount } | null
   invisibleData = null, // { projects: [], totalIssues } | null -- from the screen cross
+  workflowRules = null, // { available, count, workflowCount, examples: [] } | null
 } = {}) {
   const blockers = [];
   const gaps = [];
@@ -139,6 +140,29 @@ export function assessFieldDeletion({
     gaps.push(gap("screens", "No screen inventory has been built, so whether a form carries this field is unknown."));
   }
 
+  // ── Workflow rules ────────────────────────────────────────────────────────
+  //
+  // A validator that requires the field, a condition that checks it, a post-function that
+  // writes it, or a status property that names it. High, because the failure is a
+  // transition that blocks or a check that silently stops checking -- and it surfaces on
+  // someone else's ticket, not on the field.
+  if (workflowRules?.available) {
+    checked.push("workflow rules");
+    const count = Number(workflowRules.count) || 0;
+    if (count > 0) {
+      const workflows = Number(workflowRules.workflowCount) || 0;
+      const examples = (workflowRules.examples || []).slice(0, 3).join("; ");
+      blockers.push({
+        source: "workflow-rules",
+        severity: "high",
+        summary: `${count} workflow rule${count === 1 ? "" : "s"} or propert${count === 1 ? "y" : "ies"} in ${workflows} workflow${workflows === 1 ? "" : "s"} name this field${examples ? `: ${examples}` : ""}.`,
+        detail: "A validator requiring a deleted field blocks the transition or stops validating; a post-function writing it fails. Remove the field from those transitions first.",
+      });
+    }
+  } else {
+    gaps.push(gap("workflow rules", "No workflow snapshot with rule capture has been built, so a transition validating or writing this field cannot be ruled out."));
+  }
+
   // ── What reads it ─────────────────────────────────────────────────────────
   for (const [key, source, label, severity] of [
     ["filters", filters, "saved filter", "medium"],
@@ -192,7 +216,7 @@ export function assessFieldDeletion({
     // Said on every verdict, including the clean ones. The app cannot read Marketplace app
     // configuration, and a site running ScriptRunner can have a post-function writing this
     // field on every transition with nothing here to show for it.
-    caveat: "Observatory cannot read Marketplace app configuration (ScriptRunner listeners, JMWE post-functions) or anything writing through the REST API. Absence of a reference here is absence of one this app can see.",
+    caveat: "Workflow validators and post-functions from apps are only seen where they name the field by id. Observatory cannot read ScriptRunner listeners or anything writing through the REST API. Absence of a reference here is absence of one this app can see.",
   };
 }
 

@@ -1,6 +1,6 @@
 import React from "react";
 import { Icon, useLiveDuration } from "./Icons";
-import { buildAutomationRuleUrl, buildIssueUrl, handleJiraLinkClick, ROVO_AGENTS, openRovo } from "../utils";
+import { buildAutomationRuleUrl, buildIssueUrl, buildWorkflowUrl, handleJiraLinkClick, ROVO_AGENTS, openRovo } from "../utils";
 
 // Shared presentation primitives.
 //
@@ -224,6 +224,85 @@ export function RuleLink({ id, name, siteOrigin, className = "" }) {
   );
 }
 
+
+// "In Review, On Hold -> Approved": where a workflow transition goes from and to, in the
+// words Jira's own editor uses ("Any status" for a global transition, "Create" for the
+// initial one). The transition name alone is frequently just "Done" on a dozen transitions.
+export function TransitionPath({ transition }) {
+  if (!transition) return null;
+  const from = (transition.from || []).map((s) => s?.name).filter(Boolean).join(", ") || "?";
+  return (
+    <span className="ui-transition">
+      <span className="ui-transition__name">{transition.name || transition.id}</span>
+      <span className="ui-transition__path">
+        {from} <span aria-hidden="true">→</span><span className="ui-srlabel"> to </span> {transition.to?.name || "?"}
+      </span>
+    </span>
+  );
+}
+
+const RULE_KIND_TONE = { validator: "warning", condition: "active", "post-function": "neutral", trigger: "neutral", property: "neutral" };
+const RULE_KIND_LABEL = { validator: "Validator", condition: "Condition", "post-function": "Post-function", trigger: "Trigger", property: "Property" };
+
+// Every workflow rule or property that points at one thing -- a field, a group -- as rows of
+// workflow, where (transition path or status) and what (rule or property meaning).
+//
+// Shared because three surfaces ask the same question about different things: the field
+// card ("where is this field validated"), the Workflows tab, and the group lookups in People
+// and Access ("which statuses lock editing to this group"). `result` is the resolver's
+// tri-state answer, rendered as such: unavailable never reads as "nothing found".
+export function WorkflowUsageList({ result, siteOrigin, emptyMessage = "No workflow rule or property names this." }) {
+  if (!result) return <EmptyState inline>Looking up workflow rules…</EmptyState>;
+  if (!result.available) {
+    return (
+      <EmptyState inline>
+        {result.reason === "rules-not-read"
+          ? "The workflow inventory was built before transition rules were captured. Rebuild it in the Workflows tab."
+          : "No workflow inventory has been built, so whether a workflow rule uses this is unknown."}
+      </EmptyState>
+    );
+  }
+  if (!result.usages?.length) return <EmptyState inline>{emptyMessage}</EmptyState>;
+
+  return (
+    <ul className="ui-wfusage">
+      {result.usages.map((usage, i) => {
+        const kind = usage.rule?.kind || "property";
+        return (
+          <li key={`${usage.workflowName}-${i}`} className="ui-wfusage__row">
+            <span className="ui-wfusage__workflow">
+              <JiraLink href={buildWorkflowUrl(siteOrigin, usage.workflowName)} title={`Open ${usage.workflowName} in Jira`}>
+                {usage.workflowName}
+              </JiraLink>
+            </span>
+            <span className="ui-wfusage__where">
+              {usage.transition
+                ? <TransitionPath transition={usage.transition} />
+                : <span className="ui-transition__name">Status: {usage.status?.name || "?"}</span>}
+            </span>
+            <span className="ui-wfusage__what">
+              <Chip tone={RULE_KIND_TONE[kind] || "neutral"}>{RULE_KIND_LABEL[kind] || kind}</Chip>
+              <span className="ui-wfusage__label" title={usage.rule?.key || usage.property?.key || ""}>
+                {usage.rule ? usage.rule.label : (usage.property?.meaning || usage.property?.key)}
+              </span>
+              {usage.rule?.summary && <span className="ui-wfusage__summary">{usage.rule.summary}</span>}
+              {(usage.refs || []).map((ref) => (
+                <Chip
+                  key={`${ref.type}-${ref.id}`}
+                  tone={ref.missing ? "critical" : "neutral"}
+                  title={ref.missing ? `${ref.id} no longer exists on this site` : ref.id}
+                >
+                  {ref.label || ref.id}{ref.missing ? " (missing)" : ""}
+                </Chip>
+              ))}
+            </span>
+          </li>
+        );
+      })}
+      {result.truncated && <li className="ui-wfusage__more">Showing the first {result.usages.length}. Narrow the search in the Workflows tab.</li>}
+    </ul>
+  );
+}
 
 // The generic form of RuleLink, for every other Jira object a pillar lists: a project, a
 // board, a screen, a scheme, an Assets schema. The caller has already decided WHICH url to

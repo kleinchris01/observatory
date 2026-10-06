@@ -19,6 +19,7 @@ import {
   summarizeWorkflowInsights,
 } from "./workflow-insights.js";
 import { fallbackOn } from "./logger.js";
+import { summarizeRuleInsights } from "./workflow-rules.js";
 import {
   loadIssueScanProjectTotals,
   loadProjectActivity,
@@ -37,6 +38,8 @@ import {
   readScreenSnapshotMeta,
   readWorkflowSnapshotMeta,
   transitionAwareWorkflowVersion,
+  loadWorkflowsCatalog,
+  loadWorkflowRefsByType,
   readIssueTypeSnapshotMeta,
   loadIssueTypes,
   readAssetSnapshotMeta,
@@ -378,6 +381,17 @@ export async function buildWorkflowOverview(installationKey) {
     // a scheme used once is a bespoke process by definition.
     const sharedSchemes = schemes.filter((s) => (s.projectCount ?? 0) > 1).length;
 
+    // Broken rule references and inactive workflows. Only when this snapshot read the rules;
+    // otherwise unavailable, so the dimensions say "rebuild" rather than scoring clean.
+    const ruleIntegrity = meta.workflowRules != null
+      ? await Promise.all([
+          loadWorkflowsCatalog(installationKey, meta.version),
+          loadWorkflowRefsByType(installationKey, meta.version, ["field", "group", "role"]),
+        ])
+          .then(([catalog, refs]) => ({ available: true, ...summarizeRuleInsights({ meta, catalog, refs }).totals }))
+          .catch(fallbackOn("overview.workflow_rules_failed", () => ({ available: false }), { installationKey }))
+      : { available: false };
+
     return {
       available: true,
       state: meta.state || "idle",
@@ -385,6 +399,7 @@ export async function buildWorkflowOverview(installationKey) {
       schemeCount: schemes.length,
       statusCount: statuses.length,
       sharedSchemes,
+      ruleIntegrity,
       schemeStatusesAvailable,
       hasIssueCounts,
       ...summarizeWorkflowInsights({ duplicateGroups, orphans, balance }),

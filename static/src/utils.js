@@ -126,6 +126,12 @@ export function buildScreenUrl(siteOrigin, screenId) {
   return `${siteOrigin}/secure/admin/ConfigureFieldScreen.jspa?id=${encodeURIComponent(screenId)}`;
 }
 
+// legacy -- one live workflow's steps, by name (the only key the scheme association gives).
+export function buildWorkflowUrl(siteOrigin, workflowName) {
+  if (!siteOrigin || !workflowName) return null;
+  return `${siteOrigin}/secure/admin/workflows/ViewWorkflowSteps.jspa?workflowMode=live&workflowName=${encodeURIComponent(workflowName)}`;
+}
+
 // legacy -- one permission scheme's grants.
 export function buildPermissionSchemeUrl(siteOrigin, schemeId) {
   if (!siteOrigin || schemeId === null || schemeId === undefined || schemeId === "") return null;

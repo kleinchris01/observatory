@@ -9,7 +9,11 @@ import {
   getAllWorkflowsWithStatuses,
   getEverInStatusCounts,
   getStatusesForProjects,
+  getFieldCatalog,
+  getGroupsByIds,
+  getAllProjectRoles,
 } from "./jira-api.js";
+import { buildWorkflowRuleRows, countSchemesByWorkflow, labelReferences } from "./workflow-rules.js";
 import {
   ensureProjectStoreReady,
   writeWorkflowSnapshotMeta,
@@ -232,12 +236,20 @@ export async function buildWorkflowSnapshot(installationKey) {
       }
     }
 
+    // What each workflow enforces. Same response as the screens above; only ever absent when
+    // the workflow read itself failed, in which case nothing is written and the meta says
+    // null ("never read"), not zero.
+    const workflowRules = workflows.length > 0
+      ? await buildLabelledRuleRows(workflows, countSchemesByWorkflow(schemeRows))
+      : null;
+
     await replaceWorkflowSnapshot(installationKey, version, {
       schemes: schemeRows,
       schemeProjects: schemeProjectRows,
       statuses: statusRows,
       schemeStatuses: schemeStatusRows,
       transitionScreens: transitionScreenRows,
+      workflowRules,
     });
 
     // Zero means this build walked the workflows and found no transition opening a screen.
@@ -260,6 +272,7 @@ export async function buildWorkflowSnapshot(installationKey) {
       // A number, including zero, only when the workflows were actually read. Its presence
       // is what tells a later read that this build looked for transition screens at all.
       transitionScreens: transitionScreensKnown ? transitionScreenRows.length : null,
+      workflowRules: workflowRules ? workflowRules.rules.length : null,
       lastError: null,
     });
 
@@ -282,6 +295,50 @@ export async function buildWorkflowSnapshot(installationKey) {
   }
 }
 
+
+// Rule rows with every reference labelled and, where it can be told, marked missing.
+//
+// Three catalogue reads, each best-effort: a failed one leaves its references unlabelled
+// and unjudged rather than failing the snapshot, because the rules themselves are still
+// the answer to "where is this field validated".
+export async function buildLabelledRuleRows(workflows, schemeCountByWorkflow = new Map()) {
+  const rows = buildWorkflowRuleRows(workflows, schemeCountByWorkflow);
+  const groupIds = [...new Set(rows.refs.filter((r) => r.refType === "group").map((r) => r.refId))];
+  const needsRoles = rows.refs.some((r) => r.refType === "role");
+
+  const [fields, groups, roles] = await Promise.all([
+    getFieldCatalog().catch((error) => {
+      logger.warn("workflow-rules.field-catalog-failed", { error: String(error?.message || error) });
+      return null;
+    }),
+    groupIds.length
+      ? getGroupsByIds(groupIds).catch((error) => {
+          logger.warn("workflow-rules.group-lookup-failed", { error: String(error?.message || error) });
+          return null;
+        })
+      : Promise.resolve({ byId: new Map(), missing: new Set(), failed: new Set() }),
+    needsRoles
+      ? getAllProjectRoles().catch((error) => {
+          logger.warn("workflow-rules.role-lookup-failed", { error: String(error?.message || error) });
+          return null;
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const fieldsById = fields ? new Map(fields.map((f) => [String(f.id), f])) : null;
+  const rolesById = roles ? new Map(roles.map((r) => [String(r.id), r.name])) : null;
+  rows.refs = labelReferences(rows.refs, { fieldsById, groups, rolesById });
+
+  logger.info("workflow-rules.captured", {
+    workflows: rows.workflows.length,
+    transitions: rows.transitions.length,
+    rules: rows.rules.length,
+    properties: rows.properties.length,
+    refs: rows.refs.length,
+    missingRefs: rows.refs.filter((r) => r.refMissing === true).length,
+  });
+  return rows;
+}
 
 // Measure how many issues have ever been in each status, using JQL's WAS operator.
 //

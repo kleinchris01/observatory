@@ -190,6 +190,7 @@ import { computeRemediationMetrics } from "./lib/remediation-metrics.js";
 import { queueRemediationSync } from "./lib/remediation-sync.js";
 import { renderADF } from "./lib/adf.js";
 import { queueWorkflowSnapshotBuild, isWorkflowBuildStale, queueStatusHistoryBuild } from "./lib/workflow-engine.js";
+import { getWorkflowRuleUsage, getWorkflowRules, getWorkflowRestrictions, getWorkflowRuleInsights, loadFieldWorkflowEvidence } from "./lib/workflow-rule-reads.js";
 import { measureScreenFetchCost, probeScreenEndpoints, DEFAULT_SAMPLE_SIZE } from "./lib/screen-probe.js";
 import { probeAssetsApi as probeAssetsApiProbe } from "./lib/asset-probe.js";
 import { queueScreenSnapshotBuild, isScreenBuildStale } from "./lib/screen-engine.js";
@@ -4372,6 +4373,31 @@ Object.assign(REMEDIATION_CANDIDATE_LOADERS, {
   "unreachable-with-issues": ({ installationKey }) => workflowItems(installationKey, (w) => w.orphans
     .filter((o) => !o.ruleOnly && (o.issueCount ?? 0) > 0)
     .map((o) => ({ id: String(o.statusId), name: o.name, issueCount: o.issueCount }))),
+  "workflow-broken-references": async ({ context }) => {
+    const insights = await getWorkflowRuleInsights({ context });
+    if (!insights.available) return { available: false, reason: insights.reason, items: [] };
+    const byWorkflow = new Map();
+    for (const ref of insights.brokenRefs) {
+      if (!byWorkflow.has(ref.workflowName)) byWorkflow.set(ref.workflowName, []);
+      byWorkflow.get(ref.workflowName).push({
+        type: ref.type,
+        id: ref.id,
+        where: ref.status ? `status ${ref.status.name}` : `transition ${ref.transitionId}`,
+      });
+    }
+    return {
+      available: true,
+      items: [...byWorkflow.entries()].map(([name, refs]) => ({ id: name, name, count: refs.length, refs })),
+    };
+  },
+  "workflows-inactive": async ({ context }) => {
+    const insights = await getWorkflowRuleInsights({ context });
+    if (!insights.available) return { available: false, reason: insights.reason, items: [] };
+    return {
+      available: true,
+      items: insights.inactive.map((w) => ({ id: w.name, name: w.name, statusCount: w.statusCount, ruleCount: w.ruleCount })),
+    };
+  },
   "workflow-scheme-structure": ({ installationKey }) => workflowItems(installationKey, (w) => w.balance
     .filter((b) => b.flags.length > 0)
     .map((b) => ({ id: b.schemeId, name: b.name, projectCount: b.projectCount, flags: b.flags.map((f) => f.message) }))),
@@ -6098,6 +6124,11 @@ export async function getDeletionSafety({ payload, context }) {
       })
     : null;
 
+  // Workflow rules naming these fields: one indexed read for the whole batch. Null when no
+  // snapshot has captured rules, which the assessor reports as a gap rather than a pass.
+  const workflowEvidence = await loadFieldWorkflowEvidence(installationKey, fieldIds)
+    .catch(fallbackOn("deletion_safety.workflow_rules_failed", () => null, { installationKey }));
+
   const assessments = [];
   for (const fieldId of fieldIds) {
     const field = byId.get(fieldId) || { id: fieldId, name: null };
@@ -6152,6 +6183,7 @@ export async function getDeletionSafety({ payload, context }) {
         ? { available: true, issueCount: Number(rqtById.get(fieldId)?.issueCount) || 0 }
         : null,
       invisibleData: invisibleById.get(fieldId) || null,
+      workflowRules: workflowEvidence?.get(fieldId) ?? null,
     }));
   }
 
@@ -10611,6 +10643,10 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   syncRemediationNow,      // Mutating: queues a remediation status sync from Jira
   getRemediationCandidates,// Admin read: current items behind one finding, ready to ticket
   getStatusAutomationUsage,// Admin read: which rules reference one status, by direction
+  getWorkflowRuleUsage,    // Admin read: workflow rules and properties pointing at one field, group, role...
+  getWorkflowRules,        // Admin read: one page of transition conditions, validators and post-functions
+  getWorkflowRestrictions, // Admin read: what each status locks down (edit, comment...) and to whom
+  getWorkflowRuleInsights, // Admin read: workflow inventory, broken rule references, inactive workflows
   getDashboardInventory,   // Admin read: dashboards, their gadgets and their findings
   buildDashboardInventory, // Mutating: queues a rebuild of the dashboard snapshot
   getFilterInventory,      // Admin read: saved filters, their findings and their references

@@ -1809,6 +1809,104 @@ export const CREATE_AUDIT_LOG_SCOPE_AT_INDEX = `
   CREATE INDEX IF NOT EXISTS idx_audit_log_scope_at ON audit_log (scope_key, at)
 `;
 
+// What each workflow enforces (workflow-rules.js). Four tables, all versioned with the
+// workflow snapshot and replaced with it:
+//
+//   snapshot_workflow_transitions  every transition: type, from-statuses, to-status
+//   snapshot_workflow_rules        each condition / validator / post-function on one -- the
+//                                  rule key and a safe summary, NEVER its raw parameters
+//   snapshot_workflow_properties   every property on a status or a transition
+//   snapshot_workflow_refs         what those point at (field, group, role, permission,
+//                                  status, user), one row per reference, carrying enough
+//                                  context to render without a join
+//
+// refs is keyed by a per-build sequence rather than by its context columns: the natural key
+// (workflow name + owner + rule + property key) runs past TiDB's 3072-byte key limit.
+export const CREATE_SNAPSHOT_WORKFLOW_TRANSITIONS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_workflow_transitions (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    workflow_name VARCHAR(255) NOT NULL,
+    transition_id VARCHAR(64) NOT NULL,
+    transition_name VARCHAR(255) NULL,
+    transition_type VARCHAR(16) NULL,
+    from_status_ids TEXT NULL,
+    to_status_id VARCHAR(64) NULL,
+    rule_count INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, version, workflow_name, transition_id)
+  )
+`;
+
+export const CREATE_SNAPSHOT_WORKFLOW_RULES_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_workflow_rules (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    workflow_name VARCHAR(255) NOT NULL,
+    transition_id VARCHAR(64) NOT NULL,
+    rule_seq INTEGER NOT NULL,
+    rule_kind VARCHAR(16) NOT NULL,
+    rule_key VARCHAR(191) NULL,
+    summary VARCHAR(500) NULL,
+    PRIMARY KEY (scope_key, version, workflow_name, transition_id, rule_seq)
+  )
+`;
+
+export const CREATE_SNAPSHOT_WORKFLOW_PROPERTIES_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_workflow_properties (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    workflow_name VARCHAR(255) NOT NULL,
+    owner_kind VARCHAR(16) NOT NULL,
+    owner_id VARCHAR(64) NOT NULL,
+    prop_key VARCHAR(160) NOT NULL,
+    prop_value TEXT NULL,
+    PRIMARY KEY (scope_key, version, workflow_name, owner_kind, owner_id, prop_key)
+  )
+`;
+
+export const CREATE_SNAPSHOT_WORKFLOW_REFS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_workflow_refs (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    seq INTEGER NOT NULL,
+    ref_type VARCHAR(16) NOT NULL,
+    ref_id VARCHAR(191) NOT NULL,
+    ref_label VARCHAR(255) NULL,
+    ref_missing TINYINT NULL,
+    workflow_name VARCHAR(255) NOT NULL,
+    source VARCHAR(16) NOT NULL,
+    owner_kind VARCHAR(16) NOT NULL,
+    owner_id VARCHAR(64) NOT NULL,
+    rule_seq INTEGER NULL,
+    prop_key VARCHAR(160) NULL,
+    PRIMARY KEY (scope_key, version, seq)
+  )
+`;
+
+// One row per workflow: the inventory #16 asked for, and what lets "inactive" exclude
+// team-managed workflows (scope PROJECT), which never sit in a scheme at all.
+export const CREATE_SNAPSHOT_WORKFLOWS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_workflows (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    workflow_name VARCHAR(255) NOT NULL,
+    workflow_id VARCHAR(64) NULL,
+    scope_type VARCHAR(16) NULL,
+    scope_project_id VARCHAR(64) NULL,
+    status_count INTEGER NOT NULL DEFAULT 0,
+    transition_count INTEGER NOT NULL DEFAULT 0,
+    rule_count INTEGER NOT NULL DEFAULT 0,
+    scheme_count INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, version, workflow_name)
+  )
+`;
+
+// "Which workflow rules touch this field / this group" is a single-key read.
+export const CREATE_SNAPSHOT_WORKFLOW_REFS_BY_TARGET_INDEX = `
+  CREATE INDEX IF NOT EXISTS idx_snapshot_workflow_refs_target
+    ON snapshot_workflow_refs (scope_key, version, ref_type, ref_id)
+`;
+
 // Every ADD COLUMN below is written IF NOT EXISTS, without exception.
 //
 // The CREATE TABLE constants above describe the CURRENT shape of each table, not the
@@ -2082,7 +2180,19 @@ const projectStoreMigrations = migrationRunner
   .enqueue(
     "v161_alter_remediation_tickets_v2_add_status_changed_at",
     "ALTER TABLE remediation_tickets_v2 ADD COLUMN IF NOT EXISTS status_changed_at VARCHAR(64) NULL"
-  );
+  )
+
+  // ── v162-v167: what each workflow enforces -- transitions, rules, properties, references ──
+  .enqueue("v162_create_snapshot_workflow_transitions_table", CREATE_SNAPSHOT_WORKFLOW_TRANSITIONS_TABLE)
+  .enqueue("v163_create_snapshot_workflow_rules_table", CREATE_SNAPSHOT_WORKFLOW_RULES_TABLE)
+  .enqueue("v164_create_snapshot_workflow_properties_table", CREATE_SNAPSHOT_WORKFLOW_PROPERTIES_TABLE)
+  .enqueue("v165_create_snapshot_workflow_refs_table", CREATE_SNAPSHOT_WORKFLOW_REFS_TABLE)
+  .enqueue("v166_create_snapshot_workflow_refs_by_target_index", CREATE_SNAPSHOT_WORKFLOW_REFS_BY_TARGET_INDEX)
+  // NULL = this snapshot never read workflow rules (it predates capture, or the read failed);
+  // a number, including zero, = it did. Same contract as transition_screens.
+  .enqueue("v167_alter_workflow_meta_add_workflow_rules",
+    "ALTER TABLE workflow_snapshot_meta ADD COLUMN IF NOT EXISTS workflow_rules INTEGER NULL")
+  .enqueue("v168_create_snapshot_workflows_table", CREATE_SNAPSHOT_WORKFLOWS_TABLE);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

@@ -1192,7 +1192,63 @@ Object.assign(REMEDIATION_PLAYBOOKS, {
 
 // ── Workflows ───────────────────────────────────────────────────────────────
 
+const REF_NOUN = { field: "field", group: "group", role: "project role" };
+
 Object.assign(REMEDIATION_PLAYBOOKS, {
+  // One task per workflow, listing every broken reference in it: the person who fixes them
+  // opens one workflow once, not one ticket per validator.
+  "workflow-broken-references": definePlaybook({
+    pillar: "workflows",
+    label: "Workflow rules naming deleted fields or groups",
+    findings: ["workflow-broken-references"],
+    granularity: "group",
+    epic: {
+      summary: (n) => `Repair ${n} ${plural(n, "workflow")} whose rules name a deleted field, group or role`,
+      why: (n) => `${n} ${plural(n, "workflow has", "workflows have")} a condition, validator, post-function or status property pointing at something the site no longer has. A validator requiring a deleted field blocks the transition or stops validating; a status locked to a deleted group may lock everyone out of editing.`,
+      strategy: `Open each workflow, find the transitions and statuses listed, and either point the rule at the field or group that replaced it or remove the rule.`,
+      done: `Every child task is closed and the next scan reports no workflow rule naming a missing field, group or role.`,
+    },
+    task: {
+      heading: "The workflow",
+      summary: (it) => `Repair ${it.count ?? "the"} broken ${plural(Number(it.count) || 0, "reference")} in workflow "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [
+        ["Workflow", it.name || it.id],
+        ["Broken references", (it.refs || []).map((r) => `${REF_NOUN[r.type] || r.type} ${r.id} (${r.where})`).join("; ")],
+      ],
+      steps: () => [
+        "Open the workflow (link below) and edit a draft.",
+        "For each transition or status listed, open its conditions, validators, post-functions or properties.",
+        "Point the rule at the field, group or role that replaced the missing one, or remove the rule.",
+        "Publish the draft.",
+      ],
+      done: "The workflow names nothing missing, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[`Workflow: ${it.name || it.id}`, L.workflow(o, it.name || it.id)]],
+  }),
+
+  "workflows-inactive": definePlaybook({
+    pillar: "workflows",
+    label: "Inactive workflows",
+    findings: ["workflows-inactive"],
+    epic: {
+      summary: (n) => `Delete ${n} inactive ${plural(n, "workflow")}`,
+      why: (n) => `${n} company-managed ${plural(n, "workflow is", "workflows are")} used by no project's workflow scheme. ${plural(n, "It governs", "They govern")} nothing, but ${plural(n, "its", "their")} rules and properties still name fields and groups, which keeps those looking in use.`,
+      strategy: `Confirm each workflow is genuinely unused (Jira lists inactive workflows separately), then delete it. Keep any you are deliberately holding as a template.`,
+      done: `Every child task is closed and the next scan reports no inactive workflows.`,
+    },
+    task: {
+      heading: "The workflow",
+      summary: (it) => `Delete inactive workflow "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [["Workflow", it.name || it.id], ["Statuses", it.statusCount], ["Transition rules", it.ruleCount]],
+      steps: () => [
+        "Open the workflow list (link below) and confirm this workflow is under Inactive.",
+        "If it is kept as a template, say so on this ticket and close it; otherwise delete it.",
+      ],
+      done: "The workflow is deleted or documented as a template, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[`Workflow: ${it.name || it.id}`, L.workflow(o, it.name || it.id)], ["Workflows admin", L.workflowsAdmin(o)]],
+  }),
+
   "workflow-duplicate-statuses": definePlaybook({
     pillar: "workflows",
     label: "Duplicate statuses",

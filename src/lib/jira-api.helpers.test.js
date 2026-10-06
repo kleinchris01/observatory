@@ -37,6 +37,8 @@ import {
   normalizeWorkflowSearchResponse,
   extractTransitionScreens,
   getAllWorkflowsWithStatuses,
+  getGroupsByIds,
+  getFieldCatalog,
   getEverInStatusCounts,
   getProjectStatuses,
   getStatusesForProjects,
@@ -662,7 +664,7 @@ describe("normalizeWorkflowSearchResponse", () => {
   test("reads the deprecated shape, where statuses carry ids directly", () => {
     expect(normalizeWorkflowSearchResponse({
       values: [{ id: { name: "Bug WF" }, statuses: [{ id: "3" }, { id: "5" }] }],
-    })).toEqual([{ name: "Bug WF", statusIds: ["3", "5"], transitions: [] }]);
+    })).toMatchObject([{ name: "Bug WF", statusIds: ["3", "5"], transitions: [] }]);
   });
 
   test("resolves statusReference UUIDs through the current shape's lookup table", () => {
@@ -675,7 +677,7 @@ describe("normalizeWorkflowSearchResponse", () => {
     });
 
     // Real status ids, never the references themselves.
-    expect(result).toEqual([{ name: "Bug WF", statusIds: ["3", "5"], transitions: [] }]);
+    expect(result).toMatchObject([{ name: "Bug WF", statusIds: ["3", "5"], transitions: [] }]);
   });
 
   test("drops references it cannot resolve rather than emitting a UUID as a status id", () => {
@@ -684,7 +686,7 @@ describe("normalizeWorkflowSearchResponse", () => {
       statuses: [{ statusReference: "uuid-a", id: "3" }],
     });
 
-    expect(result).toEqual([{ name: "Bug WF", statusIds: ["3"], transitions: [] }]);
+    expect(result).toMatchObject([{ name: "Bug WF", statusIds: ["3"], transitions: [] }]);
   });
 
   test("skips workflows with no resolvable name", () => {
@@ -699,7 +701,7 @@ describe("normalizeWorkflowSearchResponse", () => {
 
   test("tolerates a workflow with no statuses at all", () => {
     expect(normalizeWorkflowSearchResponse({ workflows: [{ name: "Empty WF" }] }))
-      .toEqual([{ name: "Empty WF", statusIds: [], transitions: [] }]);
+      .toMatchObject([{ name: "Empty WF", statusIds: [], transitions: [] }]);
   });
 });
 
@@ -769,7 +771,7 @@ describe("normalizeWorkflowSearchResponse - transitions", () => {
       statuses: [{ statusReference: "uuid-a", id: "3" }],
     });
 
-    expect(result).toEqual([{
+    expect(result).toMatchObject([{
       name: "Bug WF",
       statusIds: ["3"],
       transitions: [{ id: "11", name: "Start", toStatus: null, screenId: "220" }],
@@ -793,7 +795,7 @@ describe("getAllWorkflowsWithStatuses", () => {
       },
     }));
 
-    await expect(getAllWorkflowsWithStatuses()).resolves.toEqual([{ name: "Bug WF", statusIds: ["3"], transitions: [] }]);
+    await expect(getAllWorkflowsWithStatuses()).resolves.toMatchObject([{ name: "Bug WF", statusIds: ["3"], transitions: [] }]);
     expect(mockRequestJira).toHaveBeenCalledTimes(1);
     const [path, init] = mockRequestJira.mock.calls[0];
     expect(String(path)).toContain("/workflows/search");
@@ -832,7 +834,7 @@ describe("getAllWorkflowsWithStatuses", () => {
 
     const result = await getAllWorkflowsWithStatuses();
 
-    expect(result).toEqual([{ name: "Legacy WF", statusIds: ["7"], transitions: [] }]);
+    expect(result).toMatchObject([{ name: "Legacy WF", statusIds: ["7"], transitions: [] }]);
     expect(mockRequestJira.mock.calls.at(-1)[0]).toContain("/workflow/search");
   });
 
@@ -845,7 +847,7 @@ describe("getAllWorkflowsWithStatuses", () => {
 
     // A 200 that parses to zero workflows means the shape changed, not that the site has
     // none -- so it must still try the other endpoint rather than report an empty site.
-    await expect(getAllWorkflowsWithStatuses()).resolves.toEqual([{ name: "Legacy WF", statusIds: ["7"], transitions: [] }]);
+    await expect(getAllWorkflowsWithStatuses()).resolves.toMatchObject([{ name: "Legacy WF", statusIds: ["7"], transitions: [] }]);
   });
 
   test("propagates the error when both endpoints fail", async () => {
@@ -1108,5 +1110,57 @@ describe("getGroupMembers", () => {
   test("returns [] for a missing groupId without a request", async () => {
     expect(await getGroupMembers("")).toEqual([]);
     expect(mockRequestJira).not.toHaveBeenCalled();
+  });
+});
+
+// Workflow conditions and status properties name groups by id. A lookup that failed must not
+// read as "this group was deleted" -- that finding sends an admin to repair rules that work.
+describe("getGroupsByIds", () => {
+  test("sorts ids into found, missing and failed, asking once per distinct id", async () => {
+    mockRequestJira.mockImplementation(async (path) => {
+      const p = String(path);
+      if (p.includes("groupId=live")) return jiraResponse({ body: { values: [{ groupId: "live", name: "Plant Engineers" }] } });
+      if (p.includes("groupId=gone")) return jiraResponse({ body: { values: [] } });
+      return jiraResponse({ ok: false, status: 400, text: "bad request" });
+    });
+
+    const result = await getGroupsByIds(["live", "gone", "broken", "live", ""]);
+    expect(result.byId).toEqual(new Map([["live", "Plant Engineers"]]));
+    expect([...result.missing]).toEqual(["gone"]);
+    expect([...result.failed]).toEqual(["broken"]);
+    expect(mockRequestJira.mock.calls.filter(([p]) => String(p).includes("groupId=live"))).toHaveLength(1);
+  });
+
+  test("asks nothing for an empty list", async () => {
+    const result = await getGroupsByIds([]);
+    expect(result.byId.size + result.missing.size + result.failed.size).toBe(0);
+    expect(mockRequestJira).not.toHaveBeenCalled();
+  });
+});
+
+describe("getFieldCatalog", () => {
+  test("returns the whole field list from one unpaged call", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: [{ id: "customfield_1", name: "Cost" }, { id: "resolution", name: "Resolution" }] }));
+    expect(await getFieldCatalog()).toHaveLength(2);
+    expect(String(mockRequestJira.mock.calls[0][0])).toMatch(/\/rest\/api\/3\/field$/);
+  });
+
+  test("tolerates a non-array body", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { errorMessages: [] } }));
+    expect(await getFieldCatalog()).toEqual([]);
+  });
+});
+
+// The deprecated fallback is the only path on a site where the current endpoint 401s, so it
+// must ask for the rules and properties too, or rule capture silently disappears there.
+describe("legacy workflow expand", () => {
+  test("requests transition rules and status properties", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ ok: false, status: 401, text: "scope does not match" }))
+      .mockResolvedValueOnce(jiraResponse({ body: { values: [{ id: { name: "Legacy WF" }, statuses: [{ id: "7" }] }], isLast: true } }));
+    await getAllWorkflowsWithStatuses();
+    const legacy = String(mockRequestJira.mock.calls[1][0]);
+    expect(legacy).toContain("transitions.rules");
+    expect(legacy).toContain("statuses.properties");
   });
 });
