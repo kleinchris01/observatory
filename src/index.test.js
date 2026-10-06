@@ -1249,7 +1249,7 @@ describe("Rovo action routing", () => {
     // Resolver handlers are resolver definitions; everything else is a plain function.
     for (const name of handlers) expect(index[name], name).toBeDefined();
     // And every action names a function the manifest declares.
-    const functions = new Set([...manifest.matchAll(/- key: ([\w-]+)\n\s+handler:/g)].map((m) => m[1]));
+    const functions = new Set([...manifest.matchAll(/- key: ([\w-]+)\r?\n\s+handler:/g)].map((m) => m[1]));
     for (const [, fn] of manifest.matchAll(/function: ([\w-]+)/g)) expect(functions.has(fn), fn).toBe(true);
   });
 });
