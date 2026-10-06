@@ -631,6 +631,30 @@ export const adminHandler = makeResolver({
   ...ADMIN_ONLY_FUNCTIONS,
 });
 
+// ── Rovo action routing ──────────────────────────────────────────────────────
+//
+// One Forge function per agent rather than one per action: the app descriptor has a hard
+// size limit (257 KB), every function adds to it, and the field schemes agent pushed it over.
+// Each agent's actions are told apart by their one required input, which no other action of
+// that agent declares -- search takes `query`, inspect `identifier`, impact `name` (or
+// `field`). Missing all three falls through to search, which answers with its own
+// "a search query is required" rather than a guess.
+export function routeAgentAction({ search, inspect, impact, impactInput = "name" }) {
+  return async (payload, context) => {
+    const has = (key) => payload?.[key] != null && String(payload[key]).trim() !== "";
+    if (has(impactInput)) return impact(payload, context);
+    if (has("identifier")) return inspect(payload, context);
+    return search(payload, context);
+  };
+}
+
+export const rovoWorkflowAction = routeAgentAction({ search: rovoWorkflowSearch, inspect: rovoWorkflowInspect, impact: rovoWorkflowImpact });
+export const rovoIssueTypeAction = routeAgentAction({ search: rovoIssueTypeSearch, inspect: rovoIssueTypeInspect, impact: rovoIssueTypeImpact });
+export const rovoAccessAction = routeAgentAction({ search: rovoAccessSearch, inspect: rovoAccessInspect, impact: rovoAccessImpact });
+export const rovoAssetAction = routeAgentAction({ search: rovoAssetSearch, inspect: rovoAssetInspect, impact: rovoAssetImpact });
+export const rovoScreenAction = routeAgentAction({ search: rovoScreenSearch, inspect: rovoScreenInspect, impact: rovoScreenImpact });
+export const rovoFieldConfigAction = routeAgentAction({ search: rovoFieldConfigSearch, inspect: rovoFieldConfigInspect, impact: rovoFieldConfigImpact, impactInput: "field" });
+
 export { rovoSearchFields, rovoInspectField };
 export { rovoSearchAutomationRules, rovoInspectAutomationRule, rovoAutomationUsage };
 export { rovoWorkflowSearch, rovoWorkflowInspect, rovoWorkflowImpact };
@@ -639,7 +663,8 @@ export { rovoAccessSearch, rovoAccessInspect, rovoAccessImpact };
 export { rovoPeopleSearch, rovoPeopleInspect, rovoPeopleImpact };
 export { rovoAssetSearch, rovoAssetInspect, rovoAssetImpact };
 export { rovoEstateSearch, rovoEstateInspect };
-export { rovoFieldConfigSearch, rovoFieldConfigInspect, rovoFieldConfigImpact } from "./lib/fieldconfig-reads.js";
+import { rovoFieldConfigSearch, rovoFieldConfigInspect, rovoFieldConfigImpact } from "./lib/fieldconfig-reads.js";
+export { rovoFieldConfigSearch, rovoFieldConfigInspect, rovoFieldConfigImpact };
 export { rovoScreenSearch, rovoScreenInspect, rovoScreenImpact };
 export { rovoChangeSearch, rovoChangeInspect };
 export { rovoProjectSearch, rovoProjectInspect };
