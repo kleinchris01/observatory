@@ -3760,6 +3760,12 @@ async function getAutomationBlast({ payload, context }) {
 // A synchronous resolver creates a bounded batch. A finding with hundreds of items is
 // finished by the queued job (a later change); this covers the common case in one click.
 const MAX_SYNC_REMEDIATION_TASKS = 20;
+// The count cap alone is not enough: a Forge resolver is killed at ~25s, and on a slow site
+// one issue create plus its row write takes ~3-4s, so 20 never fit -- the invocation died
+// around task 7, the UI got no itemsRemaining back and stopped, and a create cut off mid-flight
+// could land in Jira unrecorded. No new task starts once this much of the invocation has
+// gone; the UI chains the next batch off itemsRemaining.
+const REMEDIATION_TIME_BUDGET_MS = 15000;
 
 async function getRemediationTickets({ payload, context }) {
   incrMetric(METRIC_NAMES.resolver);
@@ -3846,6 +3852,7 @@ async function syncRemediationNow({ context }) {
 
 async function createRemediationEpic({ payload, context }) {
   incrMetric(METRIC_NAMES.resolver);
+  const startedAt = Date.now();
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
 
@@ -3910,8 +3917,12 @@ async function createRemediationEpic({ payload, context }) {
   const batch = todo.slice(0, MAX_SYNC_REMEDIATION_TASKS);
 
   let tasksCreated = 0;
+  let attempted = 0;
   const failures = [];
   for (const it of batch) {
+    // Always attempt at least one, so a slow epic create cannot stall the chain at zero.
+    if (attempted > 0 && Date.now() - startedAt > REMEDIATION_TIME_BUDGET_MS) break;
+    attempted += 1;
     const fields = {
       project: { key: rc.projectKey },
       issuetype: { name: rc.taskIssueType || "Task" },
@@ -3950,7 +3961,7 @@ async function createRemediationEpic({ payload, context }) {
     period,
     tasksCreated,
     itemsTotal: items.length,
-    itemsRemaining: Math.max(0, todo.length - batch.length),
+    itemsRemaining: Math.max(0, todo.length - attempted),
     failures,
   };
 }

@@ -221,6 +221,59 @@ describe("RemediationTab", () => {
     await waitFor(() => expect(screen.queryByRole("button", { name: /Creating/i })).not.toBeInTheDocument());
   });
 
+  // Adding to an existing epic: progress counts against what is still to ticket, not every
+  // flagged item -- "0 of 31" when only 24 were going to be created read as a stall.
+  test("progress counts only the items not yet ticketed", async () => {
+    let resolveBatch;
+    const createRemediationEpic = vi.fn().mockImplementationOnce(() => new Promise((resolve) => { resolveBatch = resolve; }));
+    const items = Array.from({ length: 30 }, (_, i) => ({ id: `item-${i}`, name: `Item ${i}` }));
+    mockInvoke({
+      getRemediationTickets: {
+        available: true, total: 6,
+        groups: [{
+          findingKey: "filter-ownership", pillar: "filters",
+          epic: { issueKey: "ADMIN-1" },
+          tasks: items.slice(0, 5).map((it, i) => ({ issueKey: `ADMIN-${i + 2}`, itemId: it.id, summary: it.name })),
+          taskCount: 5, openCount: 5,
+        }],
+      },
+      getRemediationCandidates: { available: true, items },
+      createRemediationEpic,
+    });
+
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    await checkItems(user);
+    await user.click(await screen.findByRole("button", { name: /Add 25 tasks to ADMIN-1/i }));
+
+    expect(await screen.findByRole("button", { name: /Creating… 0 of 25/i })).toBeInTheDocument();
+    resolveBatch({ ok: true, epicKey: "ADMIN-1", tasksCreated: 25, itemsRemaining: 0 });
+    await waitFor(() => expect(screen.queryByRole("button", { name: /Creating/i })).not.toBeInTheDocument());
+  });
+
+  test("a batch that throws still refreshes the task list, since some tasks may have landed", async () => {
+    const getRemediationTickets = vi.fn(() => ({ available: false, total: 0, groups: [] }));
+    mockInvoke({
+      getRemediationTickets,
+      getRemediationCandidates: { available: true, items: [{ id: "1", name: "X" }] },
+    });
+    invoke.mockImplementation((fn, payload) => {
+      if (fn === "createRemediationEpic") return Promise.reject(new Error("Function timed out"));
+      if (fn === "getRemediationTickets") return Promise.resolve(withDefaults(getRemediationTickets(payload)));
+      if (fn === "getRemediationCandidates") return Promise.resolve({ available: true, items: [{ id: "1", name: "X" }] });
+      return Promise.resolve({});
+    });
+
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    await checkItems(user);
+    const before = getRemediationTickets.mock.calls.length;
+    await user.click(await screen.findByRole("button", { name: /Create (\d{4}-Q\d )?remediation epic/i }));
+
+    expect(await screen.findByText("Function timed out")).toBeInTheDocument();
+    await waitFor(() => expect(getRemediationTickets.mock.calls.length).toBeGreaterThan(before));
+  });
+
   test("reports partial failures after the loop finishes rather than dropping them", async () => {
     const createRemediationEpic = vi.fn().mockResolvedValue({
       ok: true, epicKey: "ADMIN-1", tasksCreated: 1, itemsRemaining: 0,
