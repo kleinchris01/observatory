@@ -529,6 +529,15 @@ describe("OverviewDashboard — workflow, automation and project findings stand 
     expect(screen.getByText("Field schemes no project uses")).toBeInTheDocument();
   });
 
+  test("promotes dormant licences only when the crawl measured activity", () => {
+    const users = (over) => ({ available: true, totalUsers: 50, deactivatedUsers: 0, activityMeasured: true, dormantAccounts: 4, dormantAfterDays: 365, ...over });
+    const { unmount } = render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} users={users()} onNavigate={vi.fn()} />);
+    expect(within(screen.getByText("Licensed accounts idle for a year").closest(".ui-gov")).getByText("4")).toBeInTheDocument();
+    unmount();
+    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} users={users({ activityMeasured: false })} onNavigate={vi.fn()} />);
+    expect(screen.queryByText("Licensed accounts idle for a year")).not.toBeInTheDocument();
+  });
+
   test("raises no rule finding from a snapshot that never read the rules", () => {
     render(<OverviewDashboard
       dashboard={dashboard()}

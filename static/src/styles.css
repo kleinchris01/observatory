@@ -5990,6 +5990,8 @@ a.macro-pillar__name:hover { color: var(--cool); text-decoration: underline; }
 .ui-barlist__bar--warn { background: var(--tone-warning); }
 .ui-barlist__value { font-size: 0.75rem; font-variant-numeric: tabular-nums; opacity: 0.75; white-space: nowrap; }
 
+.people-owned-list--nested { margin: 4px 0 0 12px; }
+
 /* Field schemes tab: an expandable scheme/configuration row and its field list. */
 .fc-row { flex-direction: column; align-items: stretch; }
 .fc-row__toggle {

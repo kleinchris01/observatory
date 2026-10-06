@@ -7250,6 +7250,31 @@ describe("getRemediationTickets", () => {
 });
 
 describe("getRemediationCandidates", () => {
+  test("people-dormant-licences: the accounts the dormant dimension counted, with what they own", async () => {
+    mocks.readAutomationPart.mockResolvedValue(null);
+    mocks.readUserSnapshotMeta.mockResolvedValue({ version: "u1", state: "ready" });
+    mocks.loadUsers.mockResolvedValue([
+      { accountId: "idle", displayName: "Idle Ida", active: true, applications: [{ name: "Jira Software" }], groups: [{ id: "g", name: "jira-users" }] },
+      { accountId: "busy", displayName: "Busy Bo", active: true, applications: [], groups: [] },
+    ]);
+    mocks.loadUserActivity.mockResolvedValueOnce([
+      { accountId: "idle", lastActivityAt: "2020-01-01T00:00:00Z" },
+      { accountId: "busy", lastActivityAt: new Date().toISOString() },
+    ]);
+    const r = await getRemediationCandidates({ payload: { findingKey: "people-dormant-licences" }, context: ctxWithAccount() });
+    expect(r.available).toBe(true);
+    expect(r.items).toEqual([expect.objectContaining({ accountId: "idle", displayName: "Idle Ida", products: ["Jira Software"], groups: ["jira-users"], lastActivityAt: "2020-01-01T00:00:00Z" })]);
+  });
+
+  test("people-dormant-licences: unmeasured activity is a reason, not an empty list", async () => {
+    mocks.readAutomationPart.mockResolvedValue(null);
+    mocks.readUserSnapshotMeta.mockResolvedValue({ version: "u1", state: "ready" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "x", displayName: "X", active: true, applications: [], groups: [] }]);
+    mocks.loadUserActivity.mockResolvedValueOnce([]);
+    const r = await getRemediationCandidates({ payload: { findingKey: "people-dormant-licences" }, context: ctxWithAccount() });
+    expect(r).toEqual({ available: false, reason: "no-activity", items: [] });
+  });
+
   test("fieldconfig candidates come from the stored findings, and say why there are none without a build", async () => {
     mocks.getFieldConfigInventory.mockResolvedValue({
       neverBuilt: false,

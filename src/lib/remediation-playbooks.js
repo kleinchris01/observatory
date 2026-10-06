@@ -886,6 +886,38 @@ Object.assign(REMEDIATION_PLAYBOOKS, {
     links: (it, o) => [[`Dashboard: ${it.name || it.id}`, L.dashboard(o, it.id)]],
   }),
 
+  // One task per account: each is a person (or their manager) to ask, and a seat to free.
+  "people-dormant-licences": definePlaybook({
+    pillar: "users",
+    label: "Licensed accounts idle for a year",
+    findings: ["people-dormant-licences"],
+    epic: {
+      summary: (n) => `Review ${n} licensed ${plural(n, "account")} idle for a year`,
+      why: (n) => `${n} licensed ${plural(n, "account has", "accounts have")} not created, updated or been assigned an issue in a year. Each holds a paid seat, and an unused login with its old access intact.`,
+      strategy: `Confirm with each person or their manager. Remove the account from its product access group (which frees the seat) or deactivate it; keep it only with a reason written on the ticket.`,
+      done: `Every child task is closed and the next scan reports no account idle for a year, or each remaining one carries a documented reason.`,
+    },
+    task: {
+      heading: "The account",
+      summary: (it) => `Review idle licence for ${it.displayName || it.accountId || "(unknown)"}`,
+      facts: (it) => [
+        ["Account", it.displayName],
+        ["Account id", it.accountId],
+        ["Last issue activity", it.lastActivityAt],
+        ["Products", (it.products || []).join(", ")],
+        ["Access groups", (it.groups || []).join(", ")],
+        ["Owns", it.ownedCount ? `${it.ownedCount} filters, dashboards or rules` : null],
+      ],
+      steps: () => [
+        "Ask the person, or their manager, whether they still need Jira.",
+        "If not: reassign anything they own first (the People tab lists it), then remove them from the product access group or deactivate the account.",
+        "If they do: note why on this ticket and close it.",
+      ],
+      done: "The account no longer holds an unused licence, or the reason it does is on this ticket.",
+    },
+    links: (it, o) => [[`Profile: ${it.displayName || it.accountId}`, L.person(o, it.accountId)]],
+  }),
+
   "filters-shared-everyone": definePlaybook({
     pillar: "filters",
     label: "Filters shared with every logged-in user",

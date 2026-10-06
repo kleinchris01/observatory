@@ -5,7 +5,7 @@ import { Icon } from "../components/Icons";
 import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PanelGrid, GridSpan, PillarHealthPanel, BarList, SortFilterBar, AskRovo } from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
-import { useVisiblePolling, usePersistentState } from "../hooks";
+import { useVisiblePolling, usePersistentState, useNavIntent } from "../hooks";
 
 // The People pillar: the who, not just the what.
 //
@@ -98,6 +98,11 @@ function UserRow({ user, expanded, detail, detailLoading, onToggle }) {
           {user.accountType === "app" && (
             <Chip tone="warning" title="This account is an app, not a person">app</Chip>
           )}
+          {user.dormant === true && (
+            <Chip tone="warning" title="Holds a licence and has not created, updated or been assigned an issue in a year">
+              {user.lastActivityAt ? `idle since ${formatRelativeTime(user.lastActivityAt)}` : "dormant"}
+            </Chip>
+          )}
           {!user.active && <Chip tone="critical" title="Deactivated in Jira">inactive</Chip>}
         </span>
       </button>
@@ -164,6 +169,40 @@ function UserRow({ user, expanded, detail, detailLoading, onToggle }) {
 
               <div className="ui-split__col">
                 <h4 className="ui-subhead">
+                  Granted via groups <span className="people-owned__count">{(detail?.grantedByGroups || []).length || ""}</span>
+                </h4>
+                {(detail?.grantedByGroups || []).length ? (
+                  // Grouped by the group that earns the grant: "via jira-administrators" and
+                  // "via marketing-contractors" are different facts even on the same scheme.
+                  <ul className="people-owned-list">
+                    {Object.entries((detail.grantedByGroups || []).reduce((acc, g) => {
+                      (acc[g.viaGroup] ||= []).push(g);
+                      return acc;
+                    }, {})).map(([group, grants]) => (
+                      <li key={group}>
+                        <strong>{group}</strong>
+                        <ul className="people-owned-list people-owned-list--nested">
+                          {grants.map((g, i) => (
+                            <li key={`${g.schemeType}-${g.schemeId}-${g.context}-${i}`}>
+                              {g.schemeName}
+                              <Chip tone="neutral" title={`${g.schemeType} scheme`}>{g.schemeType}: {g.contextLabel || g.context}</Chip>
+                            </li>
+                          ))}
+                        </ul>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="admin-config-row__hint">
+                    {detail?.accessGrantsAvailable === false
+                      ? "Build the access inventory (or run a full scan) to see what this person's groups are granted."
+                      : "None of this person's groups is named by a permission, security level or notification scheme."}
+                  </p>
+                )}
+              </div>
+
+              <div className="ui-split__col">
+                <h4 className="ui-subhead">
                   Granted by schemes <span className="people-owned__count">{(detail?.grantedBySchemes || []).length || ""}</span>
                 </h4>
                 {(detail?.grantedBySchemes || []).length ? (
@@ -206,6 +245,7 @@ const ROSTER_FILTERS = [
   { value: "inactive", label: "Deactivated" },
   { value: "multi", label: "Multi-product" },
   { value: "owners", label: "Owns config" },
+  { value: "dormant", label: "Dormant licence" },
 ];
 
 function matchesRosterFilter(user, filter) {
@@ -213,6 +253,9 @@ function matchesRosterFilter(user, filter) {
   if (filter === "inactive") return !user.active;
   if (filter === "multi") return (user.applications?.length ?? 0) > 1;
   if (filter === "owners") return ownsCount(user) > 0;
+  // `true` only where the crawl measured the account and found nothing for a year; an
+  // unmeasured account (null) is never listed as dormant.
+  if (filter === "dormant") return user.dormant === true;
   return true;
 }
 
@@ -226,7 +269,7 @@ function sortRoster(users, sort) {
   return [...users].sort(by[sort] || by["name-asc"]);
 }
 
-export function PeopleTab() {
+export function PeopleTab({ intent = null } = {}) {
   const [view, setView] = usePersistentState("observatory.section.people", "overview");
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
@@ -236,6 +279,13 @@ export function PeopleTab() {
   const [search, setSearch] = React.useState("");
   const [sort, setSort] = React.useState("name-asc");
   const [rosterFilter, setRosterFilter] = React.useState("all");
+  // Arrived from an Overview finding: land on the view it names, filtered to what it counted.
+  // The admin app always passed this; the tab never read it, so every People finding opened
+  // whichever view the reader had last left open.
+  useNavIntent(intent, (nav) => {
+    if (nav.view) setView(nav.view);
+    setRosterFilter(ROSTER_FILTERS.some((f) => f.value === nav.filter) ? nav.filter : "all");
+  });
   const [openUser, setOpenUser] = React.useState(null);
   const [details, setDetails] = React.useState({});   // accountId -> detail
   const [detailLoading, setDetailLoading] = React.useState(false);
@@ -421,6 +471,15 @@ export function PeopleTab() {
           icon="checkCircle"
         />
         <StatTile label="Multi-product" value={formatNumber(g?.multiProductUsers ?? 0)} hint="Hold more than one product licence" icon="layers" />
+        <StatTile
+          label="Dormant licences"
+          value={g?.activityMeasured ? formatNumber(g.dormantAccounts ?? 0) : "—"}
+          hint={g?.activityMeasured
+            ? `No issue activity in ${g.dormantAfterDays ?? 365} days, of ${formatNumber(g.measuredAccounts ?? 0)} measured`
+            : "Run a full scan to measure last activity"}
+          tone={g?.activityMeasured && g.dormantAccounts > 0 ? "warning" : "neutral"}
+          icon="clock"
+        />
         <StatTile
           label="App accounts"
           value={formatNumber(g?.appUsers ?? 0)}

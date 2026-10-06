@@ -170,6 +170,7 @@ import {
   changeCursorOf,
   loadConfigChangeSummary,
   readEstateSnapshotMeta,
+  loadUserActivity,
   readFieldConfigSnapshotMeta,
   loadEstateValues,
   loadEstateValueTotals,
@@ -255,7 +256,7 @@ import {
 import { summarizeScreenFieldCross } from "./lib/screen-insights.js";
 import { assessFieldDeletion, assessStatusDeletion, summarizeDeletionSafety } from "./lib/deletion-safety.js";
 import { analyzeCascadeGraph, MAX_CHAIN_DEPTH } from "./lib/cascade-graph.js";
-import { activeRosterIds, buildOwnershipIndex, summarizeOrphanedOwnership } from "./lib/user-ownership.js";
+import { activeRosterIds, buildOwnershipIndex, summarizeOrphanedOwnership, classifyUserActivity } from "./lib/user-ownership.js";
 import {
   hydrateRuleDirectory,
   assessAutomationEvidence,
@@ -2093,14 +2094,24 @@ async function getUserInventory({ context }) {
   }
 
   const rosterIds = activeRosterIds(users);
+  // Last activity and the dormant flag per account -- the same classification the score uses,
+  // so the roster lists exactly the accounts the dormant-licences dimension counted.
+  const activity = classifyUserActivity(
+    users,
+    await loadUserActivity(installationKey, [...rosterIds]).catch(fallbackOn("people.activity_load_failed", () => [], { installationKey }))
+  );
   const withOwnership = users.map((u) => {
     const owned = ownership.byAccount.get(u.accountId);
+    const act = activity.byAccount.get(String(u.accountId));
     return {
       ...u,
       ownedFilters: owned?.filters.length ?? 0,
       ownedDashboards: owned?.dashboards.length ?? 0,
       authoredRules: owned?.rules.length ?? 0,
       automationRefs: ruleRefCountByAccount.get(u.accountId) ?? 0,
+      lastActivityAt: act?.lastActivityAt ?? null,
+      // true / false where the crawl measured the account, null where it did not.
+      dormant: act?.dormant ?? null,
     };
   });
 
@@ -2124,7 +2135,13 @@ async function getUserInventory({ context }) {
     version: meta.version,
     users: withOwnership,
     applicationSummary: meta.applicationSummary || [],
-    governance: { ...governance, ...orphaned, automationRefUsers, orphanedAutomationRefUsers },
+    governance: {
+      ...governance, ...orphaned, automationRefUsers, orphanedAutomationRefUsers,
+      activityMeasured: activity.measured,
+      measuredAccounts: activity.measuredAccounts,
+      dormantAccounts: activity.dormantAccounts,
+      dormantAfterDays: activity.dormantAfterDays,
+    },
     automationRefsAvailable: Boolean(ruleUserIndex),
     ownershipAvailable: ownership.available,
     lastError: meta.lastError || null,
@@ -4302,6 +4319,23 @@ const REMEDIATION_CANDIDATE_LOADERS = {
   "filters-zombie-subscriptions": ({ installationKey }) => filterItemsWith(installationKey, "subscribed-but-unused"),
   "filters-shared-everyone": ({ installationKey }) => filterItemsWith(installationKey, "shared-with-everyone"),
   "filters-public": ({ installationKey }) => filterItemsWith(installationKey, "shared-publicly"),
+  "people-dormant-licences": async ({ context }) => {
+    const inv = await getUserInventory({ context });
+    if (inv.neverBuilt) return { available: false, reason: "no-roster", items: [] };
+    if (!inv.governance?.activityMeasured) return { available: false, reason: "no-activity", items: [] };
+    return {
+      available: true,
+      items: inv.users.filter((u) => u.dormant === true).map((u) => ({
+        id: u.accountId,
+        accountId: u.accountId,
+        displayName: u.displayName,
+        lastActivityAt: u.lastActivityAt,
+        products: (u.applications || []).map((a) => a.name),
+        groups: (u.groups || []).map((g) => g.name),
+        ownedCount: (u.ownedFilters || 0) + (u.ownedDashboards || 0) + (u.authoredRules || 0),
+      })),
+    };
+  },
   "dashboards-public": ({ installationKey }) => dashboardItemsWith(installationKey, "shared-publicly"),
   "dashboards-open-edit": ({ installationKey }) => dashboardItemsWith(installationKey, "editable-by-everyone"),
   "dashboards-empty": ({ installationKey }) => dashboardItemsWith(installationKey, "empty"),

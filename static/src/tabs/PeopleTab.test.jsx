@@ -206,3 +206,54 @@ describe("PeopleTab", () => {
     expect(await screen.findByText(/Build queued/i)).toBeInTheDocument();
   });
 });
+
+describe("PeopleTab -- dormant licences and group grants", () => {
+  const withDormant = () => roster({
+    governance: { ...roster().governance, activityMeasured: true, measuredAccounts: 2, dormantAccounts: 1, dormantAfterDays: 365 },
+    users: [
+      { ...roster().users[0], lastActivityAt: "2025-01-01T00:00:00Z", dormant: true },
+      { ...roster().users[1], lastActivityAt: null, dormant: null },
+    ],
+  });
+
+  test("an Overview intent opens the roster filtered to dormant licences", async () => {
+    invoke.mockImplementation((fn) => (fn === "getUserInventory" ? Promise.resolve(withDormant()) : Promise.resolve({})));
+    render(<PeopleTab intent={{ view: "roster", filter: "dormant" }} />);
+    expect(await screen.findByText("Ann Admin")).toBeInTheDocument();
+    expect(screen.queryByText("Bot Account")).not.toBeInTheDocument();
+    expect(screen.getByText(/^idle since/)).toBeInTheDocument();
+  });
+
+  test("the dormant tile counts only what the crawl measured", async () => {
+    invoke.mockImplementation((fn) => (fn === "getUserInventory" ? Promise.resolve(withDormant()) : Promise.resolve({})));
+    render(<PeopleTab />);
+    const tile = (await screen.findByText("Dormant licences")).closest(".ui-stat");
+    expect(tile).toHaveTextContent("1");
+    expect(tile).toHaveTextContent(/of 2 measured/);
+  });
+
+  test("the drawer lists grants earned through each group", async () => {
+    invoke.mockImplementation((fn, payload) => {
+      if (fn === "getUserInventory") return Promise.resolve(withDormant());
+      if (fn === "getUserDetails" && payload.accountId === "a1") {
+        return Promise.resolve({
+          available: true, inRoster: true, user: roster().users[0],
+          ownedFilters: [], ownedDashboards: [], authoredRules: [], referencedInRules: [], fieldAppearances: [],
+          grantedBySchemes: [],
+          grantedByGroups: [
+            { schemeType: "permission", schemeId: "1", schemeName: "Prod permissions", context: "ADMINISTER_PROJECTS", contextLabel: "Administer Projects", viaGroup: "jira-administrators" },
+            { schemeType: "notification", schemeId: "n1", schemeName: "Prod notifications", context: "1", contextLabel: "Issue Created", viaGroup: "jira-software-users" },
+          ],
+          accessGrantsAvailable: true, automationRefsAvailable: true, fieldAppearancesAvailable: true,
+          ownershipAvailable: { filters: true, dashboards: true, rules: true },
+        });
+      }
+      return Promise.resolve({});
+    });
+    render(<PeopleTab intent={{ view: "roster" }} />);
+    await userEvent.click(await screen.findByRole("button", { name: /Ann Admin/ }));
+    expect(await screen.findByText("jira-administrators")).toBeInTheDocument();
+    expect(screen.getByText("permission: Administer Projects")).toBeInTheDocument();
+    expect(screen.getByText("notification: Issue Created")).toBeInTheDocument();
+  });
+});

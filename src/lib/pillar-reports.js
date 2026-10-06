@@ -381,11 +381,13 @@ function buildPeopleReport({ refreshedAt, users = [] }) {
     ownedFilters: Number(u.ownedFilters) || 0,
     ownedDashboards: Number(u.ownedDashboards) || 0,
     automationRefs: Number(u.automationRefs) || 0,
+    lastActivity: u.lastActivityAt || null,
     // A deactivated account that still owns things is the pillar's orphaned-ownership
     // finding at the row level: everything it owns disappears if the account is deleted.
     findings: [
       !u.active && (Number(u.ownedFilters) || 0) + (Number(u.ownedDashboards) || 0) > 0 ? "inactive-owner" : null,
       !u.active && (Number(u.automationRefs) || 0) > 0 ? "inactive-in-automation" : null,
+      u.dormant === true ? "dormant-licence" : null,
     ],
   }));
   return {
@@ -400,6 +402,7 @@ function buildPeopleReport({ refreshedAt, users = [] }) {
       { key: "ownedFilters", label: "Owned filters", kind: "number" },
       { key: "ownedDashboards", label: "Owned dashboards", kind: "number" },
       { key: "automationRefs", label: "Automation references", kind: "number" },
+      { key: "lastActivity", label: "Last issue activity", kind: "date" },
     ],
     rows,
     summary: [{ label: "Inactive", value: count(rows, (r) => !r.active), tone: "neutral" }],

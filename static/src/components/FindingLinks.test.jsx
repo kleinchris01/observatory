@@ -95,6 +95,8 @@ const EXPECTED = [
   ["Filters naming a project that does not exist", "filters", { view: "broken" }],
   ["Email subscriptions on filters nobody opens", "filters", { view: "filters", finding: "subscribed-but-unused" }],
   ["Filters shared publicly", "filters", { view: "filters", finding: "shared-publicly" }],
+  ["Licensed accounts idle for a year", "people", { view: "roster", filter: "dormant" }],
+  ["Deactivated accounts still holding a licence", "people", { view: "roster", filter: "inactive" }],
   ["Filters shared with every logged-in user", "filters", { view: "filters", finding: "shared-with-everyone" }],
   ["Dashboards shared publicly", "dashboards", { finding: "shared-publicly" }],
   ["Duplicate saved filters", "filters", { view: "duplicates" }],
@@ -116,6 +118,7 @@ function renderAll(onNavigate) {
   return render(<OverviewDashboard
     dashboard={dashboard()}
     filters={filters()}
+    users={{ available: true, totalUsers: 80, deactivatedUsers: 3, activityMeasured: true, dormantAccounts: 6, dormantAfterDays: 365 }}
     dashboards={{ available: true, total: 90, orphanedCount: 0, editableByEveryoneCount: 0, sharedPubliclyCount: 3, emptyCount: 0, publishedUnusedCount: 0 }}
     findingsSummary={{ adminAttention: 123, risky: 88, cleanup: 364, standardize: 129 }}
     findingsByCode={{
