@@ -1907,6 +1907,119 @@ export const CREATE_SNAPSHOT_WORKFLOW_REFS_BY_TARGET_INDEX = `
     ON snapshot_workflow_refs (scope_key, version, ref_type, ref_id)
 `;
 
+// The field behaviour pillar (fieldconfig-engine.js): field schemes, or legacy field
+// configuration schemes + field configurations, normalised into one shape. Findings are
+// computed at build time and stored on the scheme and configuration rows.
+export const CREATE_FIELDCONFIG_SNAPSHOT_META_TABLE = `
+  CREATE TABLE IF NOT EXISTS fieldconfig_snapshot_meta (
+    scope_key VARCHAR(191) NOT NULL,
+    state VARCHAR(32) NOT NULL DEFAULT 'idle',
+    version VARCHAR(64) NULL,
+    started_at VARCHAR(64) NULL,
+    completed_at VARCHAR(64) NULL,
+    refreshed_at VARCHAR(64) NULL,
+    source VARCHAR(32) NULL,
+    fallback_reason VARCHAR(500) NULL,
+    total_schemes INTEGER NOT NULL DEFAULT 0,
+    total_configs INTEGER NOT NULL DEFAULT 0,
+    unread_owners INTEGER NOT NULL DEFAULT 0,
+    summary_json TEXT NULL,
+    inconsistent_json TEXT NULL,
+    last_error TEXT NULL,
+    PRIMARY KEY (scope_key)
+  )
+`;
+
+export const CREATE_SNAPSHOT_FIELDCFG_SCHEMES_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_fieldcfg_schemes (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    scheme_id VARCHAR(64) NOT NULL,
+    source VARCHAR(32) NOT NULL,
+    source_id VARCHAR(64) NULL,
+    name VARCHAR(255) NULL,
+    description TEXT NULL,
+    is_default TINYINT NOT NULL DEFAULT 0,
+    project_count INTEGER NOT NULL DEFAULT 0,
+    measured TINYINT NULL,
+    field_count INTEGER NULL,
+    required_count INTEGER NOT NULL DEFAULT 0,
+    restricted_count INTEGER NOT NULL DEFAULT 0,
+    finding_codes TEXT NULL,
+    duplicate_of VARCHAR(64) NULL,
+    PRIMARY KEY (scope_key, version, scheme_id)
+  )
+`;
+
+export const CREATE_SNAPSHOT_FIELDCFG_SCHEME_PROJECTS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_fieldcfg_scheme_projects (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    scheme_id VARCHAR(64) NOT NULL,
+    project_id VARCHAR(64) NOT NULL,
+    project_key VARCHAR(64) NULL,
+    project_name VARCHAR(255) NULL,
+    PRIMARY KEY (scope_key, version, scheme_id, project_id)
+  )
+`;
+
+export const CREATE_SNAPSHOT_FIELDCFG_CONFIGS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_fieldcfg_configs (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    config_id VARCHAR(64) NOT NULL,
+    source_id VARCHAR(64) NULL,
+    name VARCHAR(255) NULL,
+    description TEXT NULL,
+    is_default TINYINT NOT NULL DEFAULT 0,
+    used TINYINT NOT NULL DEFAULT 0,
+    items_read TINYINT NOT NULL DEFAULT 0,
+    total_field_count INTEGER NULL,
+    notable_count INTEGER NOT NULL DEFAULT 0,
+    required_count INTEGER NOT NULL DEFAULT 0,
+    hidden_count INTEGER NOT NULL DEFAULT 0,
+    required_hidden TEXT NULL,
+    finding_codes TEXT NULL,
+    duplicate_of VARCHAR(64) NULL,
+    PRIMARY KEY (scope_key, version, config_id)
+  )
+`;
+
+export const CREATE_SNAPSHOT_FIELDCFG_MAPPINGS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_fieldcfg_mappings (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    scheme_id VARCHAR(64) NOT NULL,
+    work_type_id VARCHAR(64) NOT NULL,
+    config_id VARCHAR(64) NOT NULL,
+    PRIMARY KEY (scope_key, version, scheme_id, work_type_id)
+  )
+`;
+
+export const CREATE_SNAPSHOT_FIELDCFG_ITEMS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_fieldcfg_items (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    owner_kind VARCHAR(8) NOT NULL,
+    owner_id VARCHAR(64) NOT NULL,
+    work_type_id VARCHAR(64) NOT NULL,
+    field_id VARCHAR(128) NOT NULL,
+    associated TINYINT NULL,
+    hidden TINYINT NULL,
+    required TINYINT NULL,
+    description TEXT NULL,
+    renderer VARCHAR(64) NULL,
+    restricted_to TEXT NULL,
+    PRIMARY KEY (scope_key, version, owner_kind, owner_id, work_type_id, field_id)
+  )
+`;
+
+// "What does each scheme do to this field" is a single-key read.
+export const CREATE_SNAPSHOT_FIELDCFG_ITEMS_BY_FIELD_INDEX = `
+  CREATE INDEX IF NOT EXISTS idx_snapshot_fieldcfg_items_field
+    ON snapshot_fieldcfg_items (scope_key, version, field_id)
+`;
+
 // Every ADD COLUMN below is written IF NOT EXISTS, without exception.
 //
 // The CREATE TABLE constants above describe the CURRENT shape of each table, not the
@@ -2192,7 +2305,16 @@ const projectStoreMigrations = migrationRunner
   // a number, including zero, = it did. Same contract as transition_screens.
   .enqueue("v167_alter_workflow_meta_add_workflow_rules",
     "ALTER TABLE workflow_snapshot_meta ADD COLUMN IF NOT EXISTS workflow_rules INTEGER NULL")
-  .enqueue("v168_create_snapshot_workflows_table", CREATE_SNAPSHOT_WORKFLOWS_TABLE);
+  .enqueue("v168_create_snapshot_workflows_table", CREATE_SNAPSHOT_WORKFLOWS_TABLE)
+
+  // ── v169-v175: the field behaviour pillar -- field schemes / field configurations ──
+  .enqueue("v169_create_fieldconfig_snapshot_meta_table", CREATE_FIELDCONFIG_SNAPSHOT_META_TABLE)
+  .enqueue("v170_create_snapshot_fieldcfg_schemes_table", CREATE_SNAPSHOT_FIELDCFG_SCHEMES_TABLE)
+  .enqueue("v171_create_snapshot_fieldcfg_scheme_projects_table", CREATE_SNAPSHOT_FIELDCFG_SCHEME_PROJECTS_TABLE)
+  .enqueue("v172_create_snapshot_fieldcfg_configs_table", CREATE_SNAPSHOT_FIELDCFG_CONFIGS_TABLE)
+  .enqueue("v173_create_snapshot_fieldcfg_mappings_table", CREATE_SNAPSHOT_FIELDCFG_MAPPINGS_TABLE)
+  .enqueue("v174_create_snapshot_fieldcfg_items_table", CREATE_SNAPSHOT_FIELDCFG_ITEMS_TABLE)
+  .enqueue("v175_create_snapshot_fieldcfg_items_by_field_index", CREATE_SNAPSHOT_FIELDCFG_ITEMS_BY_FIELD_INDEX);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

@@ -125,6 +125,7 @@ const mocks = vi.hoisted(() => ({
   loadIssueRqtValues: vi.fn(),
   readWorkflowSnapshotMeta: vi.fn(),
   loadWorkflowRefsFor: vi.fn(async () => []),
+  readFieldConfigSnapshotMeta: vi.fn(async () => null),
   loadWorkflowRefsByType: vi.fn(async () => []),
   loadWorkflowsCatalog: vi.fn(async () => []),
   readAutomationAnalysis: vi.fn(),
@@ -230,6 +231,9 @@ const mocks = vi.hoisted(() => ({
   readEstateSnapshotMeta: vi.fn(),
   loadEstateValues: vi.fn(async () => []),
   queueEstateSnapshotBuild: vi.fn(),
+  queueFieldConfigSnapshotBuild: vi.fn(),
+  isFieldConfigBuildStale: vi.fn(() => false),
+  getFieldConfigInventory: vi.fn(),
   isEstateBuildStale: vi.fn(() => false),
 
   // board store + board-engine.js
@@ -414,6 +418,7 @@ vi.mock("./lib/project-store.js", () => ({
   loadIssueRqtValues: mocks.loadIssueRqtValues,
   readWorkflowSnapshotMeta: mocks.readWorkflowSnapshotMeta,
   loadWorkflowRefsFor: mocks.loadWorkflowRefsFor,
+  readFieldConfigSnapshotMeta: mocks.readFieldConfigSnapshotMeta,
   loadWorkflowRefsByType: mocks.loadWorkflowRefsByType,
   loadWorkflowsCatalog: mocks.loadWorkflowsCatalog,
   readScreenSnapshotMeta: mocks.readScreenSnapshotMeta,
@@ -545,6 +550,17 @@ vi.mock("./lib/estate-engine.js", () => ({
 vi.mock("./lib/board-engine.js", () => ({
   queueBoardSnapshotBuild: mocks.queueBoardSnapshotBuild,
   isBoardBuildStale: mocks.isBoardBuildStale,
+}));
+
+vi.mock("./lib/fieldconfig-engine.js", () => ({
+  queueFieldConfigSnapshotBuild: mocks.queueFieldConfigSnapshotBuild,
+  isFieldConfigBuildStale: mocks.isFieldConfigBuildStale,
+}));
+
+vi.mock("./lib/fieldconfig-reads.js", () => ({
+  getFieldConfigInventory: mocks.getFieldConfigInventory,
+  getFieldConfigItems: vi.fn(),
+  getFieldBehaviour: vi.fn(),
 }));
 
 vi.mock("./lib/workflow-engine.js", () => ({
@@ -730,6 +746,7 @@ const {
   buildChangeHistory,
   getEstateInventory,
   buildEstateInventory,
+  buildFieldConfigInventory,
   getBoardInventory,
   buildBoardInventory,
   probeGlobalPermissions,
@@ -6409,6 +6426,32 @@ describe("getEstateInventory", () => {
   });
 });
 
+describe("buildFieldConfigInventory", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("queues a build when nothing is running", async () => {
+    mocks.readFieldConfigSnapshotMeta.mockResolvedValueOnce({ state: "ready" });
+    expect(await buildFieldConfigInventory(ctx)).toEqual({ queued: true });
+    expect(mocks.queueFieldConfigSnapshotBuild).toHaveBeenCalledWith("test-install");
+  });
+
+  test("refuses while a live build is running, but not a wedged one", async () => {
+    mocks.readFieldConfigSnapshotMeta.mockResolvedValueOnce({ state: "building" });
+    expect(await buildFieldConfigInventory(ctx)).toMatchObject({ queued: false, reason: "already-building" });
+
+    mocks.readFieldConfigSnapshotMeta.mockResolvedValueOnce({ state: "building" });
+    mocks.isFieldConfigBuildStale.mockReturnValueOnce(true);
+    expect(await buildFieldConfigInventory(ctx)).toEqual({ queued: true });
+  });
+
+  test("refuses in read-only mode", async () => {
+    mocks.readFieldConfigSnapshotMeta.mockResolvedValueOnce(null);
+    mocks.kvsGet.mockResolvedValueOnce({ readOnlyMode: true });
+    expect(await buildFieldConfigInventory(ctx)).toMatchObject({ queued: false, error: expect.stringMatching(/Read-only/) });
+    expect(mocks.queueFieldConfigSnapshotBuild).not.toHaveBeenCalled();
+  });
+});
+
 describe("buildEstateInventory", () => {
   const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
 
@@ -6554,7 +6597,7 @@ describe("runOqlQuery", () => {
     const result = await runOqlQuery(ctx("usage = low"));
     expect(result.ok).toBe(true);
     expect(result.pillars.map((p) => p.key)).toEqual([
-      "fields", "projects", "workflows", "issueTypes", "priorities", "people", "assets", "access",
+      "fields", "projects", "workflows", "issueTypes", "fieldConfigs", "priorities", "people", "assets", "access",
       "screens", "filters", "dashboards", "boards", "automation",
     ]);
     expect(result.pillars.filter((p) => p.status === "unavailable" && !p.reason)).toEqual([]);
@@ -7202,6 +7245,26 @@ describe("getRemediationTickets", () => {
 });
 
 describe("getRemediationCandidates", () => {
+  test("fieldconfig candidates come from the stored findings, and say why there are none without a build", async () => {
+    mocks.getFieldConfigInventory.mockResolvedValue({
+      neverBuilt: false,
+      schemes: [
+        { id: "fcs:1", sourceId: "1", name: "Old", codes: ["unused"] },
+        { id: "fcs:2", sourceId: "2", name: "Keep", codes: [] },
+        { id: "fcs:3", sourceId: "3", name: "Copy", codes: ["duplicate"], duplicateOf: "fcs:2" },
+      ],
+      configs: [{ id: "fc:9", sourceId: "9", name: "Build", codes: ["required-hidden"], requiredHidden: [{ fieldId: "customfield_1", fieldName: "Total Cost" }], routes: [{ schemeName: "Keep", workTypeName: "Bug" }] }],
+    });
+    const get = (findingKey) => getRemediationCandidates({ payload: { findingKey }, context: ctxWithAccount() });
+
+    expect((await get("fieldconfig-required-hidden")).items).toEqual([{ id: "fc:9", sourceId: "9", name: "Build", fieldNames: ["Total Cost"], usedBy: ["Keep (Bug)"] }]);
+    expect((await get("fieldconfig-unused")).items).toEqual([{ id: "fcs:1", sourceId: "1", name: "Old", kind: "scheme" }]);
+    expect((await get("fieldconfig-duplicates")).items).toEqual([expect.objectContaining({ kind: "scheme", keep: "fcs:2", keepName: "Keep", members: ["fcs:2", "fcs:3"], memberNames: ["Keep", "Copy"] })]);
+
+    mocks.getFieldConfigInventory.mockResolvedValueOnce({ neverBuilt: true });
+    expect(await get("fieldconfig-unused")).toEqual({ available: false, reason: "no-snapshot", items: [] });
+  });
+
   test("workflow-broken-references: one item per workflow, listing where each reference sits", async () => {
     mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "w1", workflowRules: 5 });
     mocks.loadStatusesCatalog.mockResolvedValue([{ statusId: "3", name: "In Review" }]);

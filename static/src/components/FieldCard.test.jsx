@@ -18,6 +18,7 @@ import {
   FilterUsageSection,
   DeletionSafetySection,
   WorkflowRulesSection,
+  FieldBehaviourSection,
 } from "./FieldCard";
 
 // ---------------------------------------------------------------------------
@@ -204,6 +205,53 @@ describe("PeopleUsageSection", () => {
   it("says 'not measured / not a user field' rather than claiming zero", () => {
     render(<PeopleUsageSection usage={{ distinctUsers: 0, top: [] }} />);
     expect(screen.getByText(/no user values for this field/i)).toBeInTheDocument();
+  });
+});
+
+describe("FieldBehaviourSection", () => {
+  const field = { id: "customfield_1", name: "Total Cost" };
+  beforeEach(() => { invoke.mockReset(); });
+
+  it("on field schemes, names where the field is required and where it does not exist", async () => {
+    invoke.mockResolvedValue({
+      available: true, source: "field-schemes", requiredIn: 1,
+      missingFrom: [{ id: "fs:3", name: "Ops" }],
+      owners: [
+        { ownerKind: "scheme", id: "fs:2", name: "Build", projectCount: 1, projectKeys: ["BLD"], measured: true, associated: true, required: true, restrictedTo: ["Build Deviation"], overrides: [{ workTypeName: "Bug", required: false }] },
+        { ownerKind: "scheme", id: "fs:3", name: "Ops", projectCount: 2, projectKeys: ["OPS"], measured: true, associated: false },
+      ],
+    });
+    render(<FieldBehaviourSection field={field} />);
+    expect(await screen.findByText("Build")).toBeInTheDocument();
+    expect(invoke).toHaveBeenCalledWith("getFieldBehaviour", { fieldId: "customfield_1" });
+    expect(screen.getByText("required")).toBeInTheDocument();
+    expect(screen.getByText("only Build Deviation")).toBeInTheDocument();
+    expect(screen.getByText("Bug: optional")).toBeInTheDocument();
+    expect(screen.getByText("not in this scheme")).toBeInTheDocument();
+    expect(screen.getByText("required in 1 · absent from 1")).toBeInTheDocument();
+  });
+
+  it("on legacy configurations, warns about a required field that is hidden", async () => {
+    invoke.mockResolvedValue({
+      available: true, source: "field-configurations", requiredIn: 1, hiddenIn: 1,
+      conflicts: [{ id: "fc:2", name: "Build fields" }],
+      owners: [{ ownerKind: "config", id: "fc:2", name: "Build fields", measured: true, required: true, hidden: true, routes: [{ schemeName: "Build scheme", workTypeName: "Default" }] }],
+    });
+    render(<FieldBehaviourSection field={field} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Required but hidden in Build fields/);
+    expect(screen.getByText("hidden")).toHaveClass("ui-chip--critical");
+    expect(screen.getByRole("button", { name: /Field Configurations/ })).toBeInTheDocument();
+  });
+
+  it("an unbuilt or failed lookup is unknown, never 'nothing'", async () => {
+    invoke.mockRejectedValueOnce(new Error("down"));
+    render(<FieldBehaviourSection field={field} />);
+    expect(await screen.findByText(/where this field is required or hidden is unknown/)).toBeInTheDocument();
+  });
+
+  it("does not query until the card is expanded", () => {
+    render(<FieldBehaviourSection field={field} enabled={false} />);
+    expect(invoke).not.toHaveBeenCalled();
   });
 });
 

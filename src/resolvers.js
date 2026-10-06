@@ -169,6 +169,7 @@ import {
   changeCursorOf,
   loadConfigChangeSummary,
   readEstateSnapshotMeta,
+  readFieldConfigSnapshotMeta,
   loadEstateValues,
   loadEstateValueTotals,
   readBoardSnapshotMeta,
@@ -191,6 +192,8 @@ import { queueRemediationSync } from "./lib/remediation-sync.js";
 import { renderADF } from "./lib/adf.js";
 import { queueWorkflowSnapshotBuild, isWorkflowBuildStale, queueStatusHistoryBuild } from "./lib/workflow-engine.js";
 import { getWorkflowRuleUsage, getWorkflowRules, getWorkflowRestrictions, getWorkflowRuleInsights, loadFieldWorkflowEvidence } from "./lib/workflow-rule-reads.js";
+import { getFieldConfigInventory, getFieldConfigItems, getFieldBehaviour } from "./lib/fieldconfig-reads.js";
+import { queueFieldConfigSnapshotBuild, isFieldConfigBuildStale } from "./lib/fieldconfig-engine.js";
 import { measureScreenFetchCost, probeScreenEndpoints, DEFAULT_SAMPLE_SIZE } from "./lib/screen-probe.js";
 import { probeAssetsApi as probeAssetsApiProbe } from "./lib/asset-probe.js";
 import { queueScreenSnapshotBuild, isScreenBuildStale } from "./lib/screen-engine.js";
@@ -227,6 +230,7 @@ import {
   buildAssetOverview,
   buildAccessOverview,
   buildEstateOverview,
+  buildFieldConfigOverview,
   buildBoardOverview,
   buildDriftHealthOverview,
   attachUniqueIssueCounts,
@@ -2656,6 +2660,27 @@ async function buildEstateInventory({ context }) {
   return { queued: true };
 }
 
+// Queue a field scheme / field configuration build. Same guard as every other inventory:
+// a live build is not doubled, a wedged one is not honoured, and read-only mode refuses.
+async function buildFieldConfigInventory({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readFieldConfigSnapshotMeta(installationKey);
+  if (meta?.state === "building" && !isFieldConfigBuildStale(meta)) {
+    return { queued: false, reason: "already-building", meta };
+  }
+
+  const adminConfig = await readAdminConfig();
+  if (adminConfig.readOnlyMode) {
+    return { queued: false, error: "Read-only mode is enabled. Disable it before building the field scheme inventory." };
+  }
+
+  await queueFieldConfigSnapshotBuild(installationKey);
+  return { queued: true };
+}
+
 // The boards pillar's read: every agile board with its backing filter, location and column
 // mapping. Structure only -- the cross-pillar joins (broken backing filter, statuses not
 // mapped to a column, personal boards owned by inactive users) and the governance score
@@ -4375,6 +4400,48 @@ Object.assign(REMEDIATION_CANDIDATE_LOADERS, {
   "unreachable-with-issues": ({ installationKey }) => workflowItems(installationKey, (w) => w.orphans
     .filter((o) => !o.ruleOnly && (o.issueCount ?? 0) > 0)
     .map((o) => ({ id: String(o.statusId), name: o.name, issueCount: o.issueCount }))),
+  // ── Field schemes / configurations: all three from the stored findings ──
+  "fieldconfig-required-hidden": async ({ context }) => {
+    const inv = await getFieldConfigInventory({ context });
+    if (inv.neverBuilt) return { available: false, reason: "no-snapshot", items: [] };
+    return {
+      available: true,
+      items: inv.configs.filter((c) => c.requiredHidden.length).map((c) => ({
+        id: c.id, sourceId: c.sourceId, name: c.name,
+        fieldNames: c.requiredHidden.map((f) => f.fieldName),
+        usedBy: (c.routes || []).map((r) => `${r.schemeName} (${r.workTypeName})`),
+      })),
+    };
+  },
+  "fieldconfig-unused": async ({ context }) => {
+    const inv = await getFieldConfigInventory({ context });
+    if (inv.neverBuilt) return { available: false, reason: "no-snapshot", items: [] };
+    const pick = (rows, kind) => rows.filter((r) => r.codes.includes("unused")).map((r) => ({ id: r.id, sourceId: r.sourceId, name: r.name, kind }));
+    return { available: true, items: [...pick(inv.schemes, "scheme"), ...pick(inv.configs, "config")] };
+  },
+  "fieldconfig-duplicates": async ({ context }) => {
+    const inv = await getFieldConfigInventory({ context });
+    if (inv.neverBuilt) return { available: false, reason: "no-snapshot", items: [] };
+    const groups = [];
+    for (const [rows, kind] of [[inv.schemes, "scheme"], [inv.configs, "config"]]) {
+      const byId = new Map(rows.map((r) => [r.id, r]));
+      const byKeep = new Map();
+      for (const row of rows) {
+        if (!row.duplicateOf) continue;
+        if (!byKeep.has(row.duplicateOf)) byKeep.set(row.duplicateOf, [row.duplicateOf]);
+        byKeep.get(row.duplicateOf).push(row.id);
+      }
+      for (const [keep, members] of byKeep) {
+        groups.push({
+          id: `${kind}:${keep}`, kind, keep, keepName: byId.get(keep)?.name || keep, members,
+          memberNames: members.map((m) => byId.get(m)?.name || m),
+          memberSourceIds: members.map((m) => byId.get(m)?.sourceId || null),
+          name: byId.get(keep)?.name || keep, count: members.length,
+        });
+      }
+    }
+    return { available: true, items: groups };
+  },
   "workflow-broken-references": async ({ context }) => {
     const insights = await getWorkflowRuleInsights({ context });
     if (!insights.available) return { available: false, reason: insights.reason, items: [] };
@@ -8990,7 +9057,7 @@ export async function setFirstRunState({ payload, context }) {
 export async function getAdminOverview({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
-  const [meta, summaryCounts, config, legacySummaryCount, workflow, screens, issueTypeOverview, userOverview, assetOverview, accessOverview, estateOverview, boardOverview, driftHealth, filterOverview, dashboardOverview, automationAnalysis] = await Promise.all([
+  const [meta, summaryCounts, config, legacySummaryCount, workflow, screens, issueTypeOverview, userOverview, assetOverview, accessOverview, estateOverview, boardOverview, driftHealth, filterOverview, dashboardOverview, automationAnalysis, fieldConfigOverview] = await Promise.all([
     readSnapshotMeta(installationKey),
     // Counted in SQL rather than loaded. This used to pull up to 5,000 summary rows --
     // including two LONGTEXT columns -- across the wire, and use them for a count grouped by
@@ -9018,6 +9085,7 @@ export async function getAdminOverview({ context }) {
     // report as unavailable, which is the same thing a fresh install shows -- an overview
     // that 500s because one optional input is missing is worse than one missing a section.
     readAutomationAnalysis(installationKey).catch(fallbackOn("overview.automation_load_failed", () => null, { installationKey })),
+    buildFieldConfigOverview(installationKey),
   ]);
 
   // The rates are computed at analysis time and stored, so the score never needs the rules.
@@ -9122,6 +9190,7 @@ export async function getAdminOverview({ context }) {
     notifications: accessOverview?.notifications?.health ?? null,
     roles: accessOverview?.roles?.health ?? null,
     estate: estateOverview?.health ?? null,
+    fieldConfigs: fieldConfigOverview?.health ?? null,
     boards: boardOverview?.health ?? null,
     drift: driftHealth,
     // Workflow, project and automation dimensions were scored against hardcoded constants
@@ -9165,6 +9234,7 @@ export async function getAdminOverview({ context }) {
     assets: assetOverview,
     access: accessOverview,
     estate: estateOverview,
+    fieldConfigs: fieldConfigOverview,
     boards: boardOverview,
     // The counts the Overview's findings list needs, not just the score's rate. Same lesson
     // the automation pillar learned: trimming this to the headline fields made every problem
@@ -9276,6 +9346,7 @@ const PILLAR_INPUTS = {
   automation: ["automation"],
   projects: ["projects", "adoption"],
   drift: ["drift"],
+  fieldConfigs: ["fieldConfigs"],
 };
 
 async function getPillarHealth({ payload, context }) {
@@ -9291,7 +9362,7 @@ async function getPillarHealth({ payload, context }) {
   // already reports as unavailable -- and unavailable dimensions from other pillars are
   // discarded below anyway, so the returned pillar is byte-identical to what the full
   // computation produced for it.
-  const [workflow, screens, filterOverview, dashboardOverview, issueTypeOverview, userOverview, assetOverview, accessOverview, estateOverview, boardOverview, driftHealth, automationAnalysis] = await Promise.all([
+  const [workflow, screens, filterOverview, dashboardOverview, issueTypeOverview, userOverview, assetOverview, accessOverview, estateOverview, boardOverview, driftHealth, automationAnalysis, fieldConfigOverview] = await Promise.all([
     needs.has("workflow") ? buildWorkflowOverview(installationKey) : Promise.resolve(null),
     needs.has("screens") ? buildScreenOverview(installationKey) : Promise.resolve(null),
     needs.has("filters") ? buildFilterOverview(installationKey) : Promise.resolve(null),
@@ -9306,6 +9377,7 @@ async function getPillarHealth({ payload, context }) {
     needs.has("automation")
       ? readAutomationAnalysis(installationKey).catch(fallbackOn("pillar-health.automation_load_failed", () => null, { installationKey }))
       : Promise.resolve(null),
+    needs.has("fieldConfigs") ? buildFieldConfigOverview(installationKey) : Promise.resolve(null),
   ]);
 
   let fieldUsage = null;
@@ -9366,6 +9438,7 @@ async function getPillarHealth({ payload, context }) {
     notifications: accessOverview?.notifications?.health ?? null,
     roles: accessOverview?.roles?.health ?? null,
     estate: estateOverview?.health ?? null,
+    fieldConfigs: fieldConfigOverview?.health ?? null,
     boards: boardOverview?.health ?? null,
     drift: driftHealth,
     tolerances: config?.healthTolerances,
@@ -9528,6 +9601,11 @@ async function loadPillarReportInput(key, { installationKey, context }) {
       if (inventory.neverBuilt) return { unavailable: notBuilt("issue type") };
       const schemeItems = await loadIssueTypeSchemeItems(installationKey, inventory.version);
       return { refreshedAt: inventory.refreshedAt, issueTypes: inventory.issueTypes, schemeItems, usage: inventory.usage };
+    }
+    case "fieldConfigs": {
+      const inventory = await getFieldConfigInventory({ context });
+      if (inventory.neverBuilt) return { unavailable: notBuilt("field scheme") };
+      return inventory;
     }
     case "priorities": {
       const inventory = await getEstateInventory({ context });
@@ -10504,6 +10582,7 @@ const AUDITED_ADMIN_ACTIONS = new Set([
   "buildAccessInventory",
   "buildChangeHistory",
   "buildEstateInventory",
+  "buildFieldConfigInventory",
   "buildBoardInventory",
   "createRemediationEpic",
   "syncRemediationNow",
@@ -10649,6 +10728,10 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getWorkflowRules,        // Admin read: one page of transition conditions, validators and post-functions
   getWorkflowRestrictions, // Admin read: what each status locks down (edit, comment...) and to whom
   getWorkflowRuleInsights, // Admin read: workflow inventory, broken rule references, inactive workflows
+  getFieldConfigInventory, // Admin read: field schemes / configurations, their projects and findings
+  getFieldConfigItems,     // Admin read: one scheme's or configuration's fields, paged
+  getFieldBehaviour,       // Admin read: what every scheme or configuration does to one field
+  buildFieldConfigInventory, // Mutating: queues a field scheme / configuration build
   getDashboardInventory,   // Admin read: dashboards, their gadgets and their findings
   buildDashboardInventory, // Mutating: queues a rebuild of the dashboard snapshot
   getFilterInventory,      // Admin read: saved filters, their findings and their references

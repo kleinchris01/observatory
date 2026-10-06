@@ -820,8 +820,14 @@ describe("ROVO_AGENTS registry", () => {
     }
   });
 
-  test("covers all eleven pillars", () => {
-    expect(Object.keys(ROVO_AGENTS)).toHaveLength(11);
+  // Matched against the manifest rather than a count: a count passes when one agent is added
+  // and another dropped, and the manifest is what Rovo actually opens.
+  test("has exactly the agents the manifest declares", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const manifest = readFileSync(resolve(process.cwd(), "manifest.yml"), "utf8");
+    const declared = [...manifest.matchAll(/-\s*key:\s*(observatory-[a-z]+-expert)(?![a-z-])/g)].map((m) => m[1]).sort();
+    expect(Object.keys(ROVO_AGENTS).sort()).toEqual(declared);
   });
 });
 

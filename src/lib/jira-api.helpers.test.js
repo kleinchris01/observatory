@@ -39,6 +39,14 @@ import {
   getAllWorkflowsWithStatuses,
   getGroupsByIds,
   getFieldCatalog,
+  getAllFieldSchemes,
+  getFieldSchemeProjectAssignments,
+  getFieldSchemeFields,
+  getAllFieldConfigurations,
+  getFieldConfigurationItems,
+  getAllFieldConfigurationSchemes,
+  getFieldConfigurationSchemeMappings,
+  getFieldConfigurationSchemeProjects,
   getEverInStatusCounts,
   getProjectStatuses,
   getStatusesForProjects,
@@ -1162,5 +1170,40 @@ describe("legacy workflow expand", () => {
     const legacy = String(mockRequestJira.mock.calls[1][0]);
     expect(legacy).toContain("transitions.rules");
     expect(legacy).toContain("statuses.properties");
+  });
+});
+
+// Field schemes (current) and field configurations (legacy). Paths are pinned because both
+// generations are in flux -- one experimental, one deprecated -- and a typo here reads as
+// "this site has no field schemes", which flips the whole pillar onto the other model.
+describe("field behaviour endpoints", () => {
+  const page = (values) => jiraResponse({ body: { values, isLast: true } });
+
+  test.each([
+    ["getAllFieldSchemes", () => getAllFieldSchemes(), "/rest/api/3/config/fieldschemes?"],
+    ["getFieldSchemeProjectAssignments", () => getFieldSchemeProjectAssignments(), "/rest/api/3/config/fieldschemes/projects?"],
+    ["getFieldSchemeFields", () => getFieldSchemeFields("7"), "/rest/api/3/config/fieldschemes/7/fields?"],
+    ["getAllFieldConfigurations", () => getAllFieldConfigurations(), "/rest/api/3/fieldconfiguration?"],
+    ["getFieldConfigurationItems", () => getFieldConfigurationItems("3"), "/rest/api/3/fieldconfiguration/3/fields?"],
+    ["getAllFieldConfigurationSchemes", () => getAllFieldConfigurationSchemes(), "/rest/api/3/fieldconfigurationscheme?"],
+    ["getFieldConfigurationSchemeMappings", () => getFieldConfigurationSchemeMappings(), "/rest/api/3/fieldconfigurationscheme/mapping?"],
+  ])("%s reads %s", async (_name, call, path) => {
+    mockRequestJira.mockResolvedValueOnce(page([{ id: 1 }]));
+    expect(await call()).toEqual([{ id: 1 }]);
+    expect(String(mockRequestJira.mock.calls[0][0])).toContain(path);
+  });
+
+  test("scheme projects are asked for in batches of project ids, de-duplicated", async () => {
+    mockRequestJira.mockResolvedValue(page([{ projectIds: ["1"] }]));
+    const ids = Array.from({ length: 60 }, (_, i) => String(i + 1));
+    const rows = await getFieldConfigurationSchemeProjects([...ids, "1", ""]);
+    expect(mockRequestJira).toHaveBeenCalledTimes(2);
+    expect(String(mockRequestJira.mock.calls[0][0])).toContain("projectId=1&projectId=2");
+    expect(rows).toHaveLength(2);
+  });
+
+  test("no project ids asks nothing", async () => {
+    expect(await getFieldConfigurationSchemeProjects([])).toEqual([]);
+    expect(mockRequestJira).not.toHaveBeenCalled();
   });
 });

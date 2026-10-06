@@ -32,8 +32,13 @@ vi.mock("./project-store.js", () => ({
   loadSchemeLevels: vi.fn(async () => []),
   loadFilters: vi.fn(async () => []),
   loadDashboards: vi.fn(async () => []),
+  readFieldConfigSnapshotMeta: vi.fn(async () => null),
+  loadFieldConfigSchemes: vi.fn(async () => []),
+  loadFieldConfigConfigs: vi.fn(async () => []),
+  loadFieldConfigSchemeProjects: vi.fn(async () => []),
 }));
 
+import { DRIFT_PILLARS } from "./drift-engine.js";
 import {
   fnv1a,
   digestFields,
@@ -203,5 +208,25 @@ describe("buildDriftSnapshot", () => {
 
     await expect(buildDriftSnapshot("inst")).rejects.toThrow("write failed");
     expect(store.writeDriftSnapshotMeta).toHaveBeenLastCalledWith("inst", expect.objectContaining({ state: "failed" }));
+  });
+});
+
+describe("field scheme contributor", () => {
+  const spec = DRIFT_PILLARS.find((p) => p.pillar === "fieldConfigs");
+
+  test("tracks schemes, configurations and which scheme each project is on", async () => {
+    store.loadFieldConfigSchemes.mockResolvedValueOnce([
+      { id: "fs:1", name: "Build", isDefault: false, measured: true, fieldCount: 40, requiredCount: 3, restrictedCount: 1 },
+      { id: "fs:2", name: "Unread", isDefault: false, measured: false, fieldCount: null },
+    ]);
+    store.loadFieldConfigConfigs.mockResolvedValueOnce([{ id: "fc:2", name: "Cfg", itemsRead: true, requiredCount: 1, hiddenCount: 2, requiredHidden: ["customfield_1"] }]);
+    store.loadFieldConfigSchemeProjects.mockResolvedValueOnce([{ schemeId: "fs:1", projectId: "10", projectKey: "BLD" }]);
+
+    const entities = await spec.collect("site", "v1");
+    expect(entities.map((e) => e.entityType)).toEqual(["field-scheme", "field-scheme", "field-configuration", "field-scheme-assignment"]);
+    expect(entities[0].fields).toMatchObject({ fieldCount: 40, requiredCount: 3 });
+    // An owner the build could not read digests no counts, so a time-budget miss is never a "change".
+    expect(entities[1].fields).not.toHaveProperty("fieldCount");
+    expect(entities[3]).toMatchObject({ entityId: "10", label: "BLD", fields: { scheme: "Build" } });
   });
 });

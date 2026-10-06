@@ -50,6 +50,7 @@ import {
   readIssueTypeSnapshotMeta,
   readAccessSnapshotMeta,
   readEstateSnapshotMeta,
+  readFieldConfigSnapshotMeta,
   readBoardSnapshotMeta,
   readUserSnapshotMeta,
   readAssetSnapshotMeta,
@@ -64,6 +65,7 @@ import { buildScreenSnapshot } from "./screen-engine.js";
 import { buildIssueTypeSnapshot } from "./issuetype-engine.js";
 import { buildAccessSnapshot } from "./access-engine.js";
 import { buildEstateSnapshot } from "./estate-engine.js";
+import { buildFieldConfigSnapshot } from "./fieldconfig-engine.js";
 import { buildBoardSnapshot } from "./board-engine.js";
 import { buildUserSnapshot } from "./user-engine.js";
 import { buildAssetSnapshot } from "./asset-engine.js";
@@ -83,6 +85,7 @@ const screens = { run: (key) => buildScreenSnapshot(key) };
 const issueTypes = { run: (key) => buildIssueTypeSnapshot(key) };
 const access = { run: (key) => buildAccessSnapshot(key) };
 const estate = { run: (key) => buildEstateSnapshot(key) };
+const fieldConfigs = { run: (key) => buildFieldConfigSnapshot(key) };
 const boards = { run: (key) => buildBoardSnapshot(key) };
 const people = { run: (key) => buildUserSnapshot(key) };
 // Returns { unavailable: true, reason } off JSM Premium rather than throwing, so this stage
@@ -163,6 +166,7 @@ export const STAGE_RUNNERS = {
   fields,
   "status-history": statusHistory,
   "issue-types": issueTypes,
+  "field-configs": fieldConfigs,
   access,
   estate,
   issues: {
@@ -236,6 +240,7 @@ export const QUICK_SCAN_RUNNERS = {
   },
   "status-history": statusHistory,
   "issue-types": issueTypes,
+  "field-configs": fieldConfigs,
   access,
   estate,
   boards,
@@ -575,6 +580,8 @@ export async function readStageProducedCounts(installationKey, scanType) {
     put("issue-types", readIssueTypeSnapshotMeta, (m) => m.totalTypes),
     put("access", readAccessSnapshotMeta, (m) => m.totalPermissionSchemes + m.totalSecuritySchemes + m.totalNotificationSchemes + (m.totalProjectRoles || 0)),
     put("estate", readEstateSnapshotMeta, (m) => m.totalResolutions + m.totalPriorities),
+    // Schemes plus legacy configurations: the owners whose fields were walked.
+    put("field-configs", readFieldConfigSnapshotMeta, (m) => m.totalSchemes + m.totalConfigs),
     put("boards", readBoardSnapshotMeta, (m) => m.totalBoards),
     put("people", readUserSnapshotMeta, (m) => m.totalUsers),
     // Object types rather than schemas: a site with three schemas and 400 types has done far

@@ -15,7 +15,7 @@ import {
   copyToClipboard,
 } from "../utils";
 import { Icon } from "./Icons";
-import { AskRovo, WorkflowUsageList } from "./ui";
+import { AskRovo, Chip, WorkflowUsageList } from "./ui";
 import { FieldOptionsModal } from "./FieldOptionsModal";
 
 // The Rovo affordance is now the shared <AskRovo> from ./ui -- one label shape, one
@@ -439,6 +439,82 @@ export function WorkflowRulesSection({ field, enabled = true, siteOrigin }) {
         siteOrigin={siteOrigin}
         emptyMessage="No workflow validator, condition, post-function or status property names this field."
       />
+    </CollapsibleSection>
+  );
+}
+
+// What every field scheme (or legacy field configuration) does to this field: where it is
+// required, hidden or described, and -- on field schemes -- which projects do not have it at
+// all. The other half of "what does Jira enforce on this field", beside the workflow rules.
+export function FieldBehaviourSection({ field, enabled = true }) {
+  const [result, setResult] = React.useState(null);
+
+  React.useEffect(() => {
+    if (!enabled) return undefined;
+    let cancelled = false;
+    setResult(null);
+    invoke("getFieldBehaviour", { fieldId: field.id })
+      .then((data) => { if (!cancelled) setResult(data); })
+      .catch(() => { if (!cancelled) setResult({ available: false, reason: "error" }); });
+    return () => { cancelled = true; };
+  }, [enabled, field.id]);
+
+  const legacy = result?.source === "field-configurations";
+  const badge = result?.available
+    ? [result.requiredIn ? `required in ${formatNumber(result.requiredIn)}` : null,
+      legacy && result.hiddenIn ? `hidden in ${formatNumber(result.hiddenIn)}` : null,
+      !legacy && result.missingFrom?.length ? `absent from ${formatNumber(result.missingFrom.length)}` : null].filter(Boolean).join(" · ") || null
+    : null;
+
+  return (
+    <CollapsibleSection title={legacy ? "Field Configurations" : "Field Schemes"} badge={badge}>
+      {!result ? (
+        <div className="empty-state empty-state--inline">Checking field schemes…</div>
+      ) : !result.available ? (
+        <div className="empty-state empty-state--inline">
+          No field scheme inventory has been built, so where this field is required or hidden is unknown.
+        </div>
+      ) : !result.owners?.length ? (
+        <div className="empty-state empty-state--inline">No field scheme or configuration in use mentions this field.</div>
+      ) : (
+        <>
+          {legacy && result.conflicts?.length > 0 && (
+            <div className="danger-zone__error" role="alert">
+              Required but hidden in {result.conflicts.map((c) => c.name).join(", ")}. Nobody can fill it in there, so creating or editing those issues fails.
+            </div>
+          )}
+          <ul className="ui-wfusage">
+            {result.owners.map((owner) => (
+              <li key={owner.id} className="ui-wfusage__row">
+                <span className="ui-wfusage__workflow">{owner.name}</span>
+                <span className="ui-wfusage__where">
+                  <span className="ui-transition__path">
+                    {owner.ownerKind === "scheme"
+                      ? `${formatNumber(owner.projectCount)} project${owner.projectCount === 1 ? "" : "s"}${owner.projectKeys?.length ? `: ${owner.projectKeys.join(", ")}` : ""}`
+                      : owner.routes?.length ? owner.routes.map((r) => `${r.schemeName} (${r.workTypeName})`).join("; ") : "No scheme routes to it"}
+                  </span>
+                </span>
+                <span className="ui-wfusage__what">
+                  {owner.measured === false ? (
+                    <Chip>not read</Chip>
+                  ) : owner.associated === false ? (
+                    <Chip tone="warning" title="Projects on this scheme do not have the field at all">not in this scheme</Chip>
+                  ) : (
+                    <>
+                      <Chip tone={owner.required ? "warning" : "neutral"}>{owner.required ? "required" : "optional"}</Chip>
+                      {owner.hidden && <Chip tone={owner.required ? "critical" : "neutral"}>hidden</Chip>}
+                      {owner.restrictedTo?.length > 0 && <Chip title="Only these work types have the field">{`only ${owner.restrictedTo.join(", ")}`}</Chip>}
+                      {(owner.overrides || []).map((o) => (
+                        <Chip key={o.workTypeName}>{`${o.workTypeName}: ${o.required ? "required" : "optional"}`}</Chip>
+                      ))}
+                    </>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </CollapsibleSection>
   );
 }
@@ -1090,6 +1166,7 @@ export function FieldCard({
 
               {showGovernance ? <AutomationUsageSection field={field} enabled={expanded} siteOrigin={siteOrigin} rovoEnabled={rovoEnabled} /> : null}
               {showGovernance ? <WorkflowRulesSection field={field} enabled={expanded} siteOrigin={siteOrigin} /> : null}
+              {showGovernance ? <FieldBehaviourSection field={field} enabled={expanded} /> : null}
               {showGovernance ? <FilterUsageSection field={field} enabled={expanded} siteOrigin={siteOrigin} /> : null}
               {showGovernance ? <DashboardUsageSection field={field} enabled={expanded} siteOrigin={siteOrigin} /> : null}
 

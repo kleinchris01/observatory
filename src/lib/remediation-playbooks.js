@@ -1237,6 +1237,93 @@ Object.assign(REMEDIATION_PLAYBOOKS, {
   }),
 });
 
+// ── Field schemes / field configurations ────────────────────────────────────
+
+// A legacy owner links to its admin page; a field scheme has no published URL yet.
+const fieldOwnerLink = (it, o) => {
+  if (it.kind === "config") return L.fieldConfiguration(o, it.sourceId);
+  if (it.kind === "scheme" && String(it.id || "").startsWith("fcs:") && it.sourceId) return L.fieldConfigurationScheme(o, it.sourceId);
+  return null;
+};
+const FIELD_OWNER_NOUN = { config: "field configuration", scheme: "field scheme" };
+
+Object.assign(REMEDIATION_PLAYBOOKS, {
+  "fieldconfig-required-hidden": definePlaybook({
+    pillar: "fieldConfigs",
+    label: "Fields required but hidden",
+    findings: ["fieldconfig-required-hidden"],
+    epic: {
+      summary: (n) => `Fix ${n} field ${plural(n, "configuration")} that require a field they also hide`,
+      why: (n) => `${n} field ${plural(n, "configuration requires", "configurations require")} at least one field that ${plural(n, "it", "they")} also hide${n === 1 ? "s" : ""}. Nobody can fill in a hidden field, so every create or edit through ${plural(n, "it", "them")} fails with a validation error that names a field the user cannot see.`,
+      strategy: `For each configuration, decide per field whether it should be visible (unhide it) or not required (make it optional). Check the projects and work types that use the configuration first.`,
+      done: `Every child task is closed and the next scan reports no required-and-hidden fields.`,
+    },
+    task: {
+      heading: "The field configuration",
+      summary: (it) => `Unhide or make optional ${it.fieldNames?.length ?? "the"} ${plural(it.fieldNames?.length || 0, "field")} in "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [
+        ["Field configuration", it.name || it.id],
+        ["Required but hidden", (it.fieldNames || []).join(", ")],
+        ["Used by", (it.usedBy || []).join("; ")],
+      ],
+      steps: () => [
+        "Open the field configuration (link below).",
+        "For each field listed, either Show it or make it Optional.",
+        "Create an issue in one of the affected projects to confirm the form submits.",
+      ],
+      done: "No field in the configuration is both required and hidden, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[`Field configuration: ${it.name || it.id}`, fieldOwnerLink({ ...it, kind: "config" }, o)]],
+  }),
+
+  "fieldconfig-unused": definePlaybook({
+    pillar: "fieldConfigs",
+    label: "Field schemes and configurations no project uses",
+    findings: ["fieldconfig-unused"],
+    epic: {
+      summary: (n) => `Delete ${n} unused field ${plural(n, "scheme or configuration", "schemes and configurations")}`,
+      why: (n) => `${n} field ${plural(n, "scheme or configuration is", "schemes and configurations are")} used by no project. Each is one more option in every picker, and one more place a field's required or hidden setting can be changed for nobody.`,
+      strategy: `Confirm each is genuinely unassigned (the scan can be a day old), then delete it. Default schemes and configurations are never included. Keep any held deliberately as a template, and say so on its ticket.`,
+      done: `Every child task is closed and the next scan reports no unused field schemes or configurations.`,
+    },
+    task: {
+      heading: "The unused item",
+      summary: (it) => `Delete unused ${FIELD_OWNER_NOUN[it.kind] || "field scheme"} "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [["Kind", FIELD_OWNER_NOUN[it.kind]], ["Name", it.name || it.id], ["Id", it.sourceId]],
+      steps: () => [
+        "Open it (link below) and confirm no project uses it.",
+        "Delete it, or close this ticket noting it is kept as a template.",
+      ],
+      done: "It no longer exists or is documented as a template, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[`${FIELD_OWNER_NOUN[it.kind] || "Field scheme"}: ${it.name || it.id}`, fieldOwnerLink(it, o)], ["Field configurations admin", it.kind === "config" ? L.fieldConfigurationsAdmin(o) : null]],
+  }),
+
+  "fieldconfig-duplicates": definePlaybook({
+    pillar: "fieldConfigs",
+    label: "Duplicate field schemes and configurations",
+    findings: ["fieldconfig-duplicates"],
+    granularity: "group",
+    epic: {
+      summary: (n) => `Consolidate ${n} group${n === 1 ? "" : "s"} of identical field schemes or configurations`,
+      why: (n) => `${n} group${n === 1 ? " of field schemes or configurations is" : "s of field schemes or configurations are"} identical. Every change to a required field or a description has to be made in each copy, and the copy somebody forgets is how two projects drift apart.`,
+      strategy: `For each group, keep the one named on the ticket, point every project using the others at it, then delete the others.`,
+      done: `Every child task is closed and the next scan reports no duplicate groups.`,
+    },
+    task: {
+      heading: "The duplicates",
+      summary: (it) => `Consolidate ${it.members?.length ?? "the"} identical ${FIELD_OWNER_NOUN[it.kind] || "field scheme"}s into "${it.keepName || it.keep || "(unknown)"}"`,
+      facts: (it) => [["Keep", it.keepName || it.keep], ["Duplicates", (it.memberNames || []).filter((n) => n !== it.keepName).join(", ")]],
+      steps: (it) => [
+        `Move every project using a duplicate onto "${it.keepName || it.keep || "the one to keep"}".`,
+        "Delete each duplicate once no project uses it.",
+      ],
+      done: "One remains from the group, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => (it.members || []).map((m, i) => [`${FIELD_OWNER_NOUN[it.kind] || "Field scheme"}: ${(it.memberNames || [])[i] || m}`, fieldOwnerLink({ kind: it.kind, id: m, sourceId: (it.memberSourceIds || [])[i] }, o)]),
+  }),
+});
+
 // ── Workflows ───────────────────────────────────────────────────────────────
 
 const REF_NOUN = { field: "field", group: "group", role: "project role" };

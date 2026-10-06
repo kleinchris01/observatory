@@ -147,6 +147,16 @@ const workflow = (over = {}) => ({
   ...over,
 });
 
+// A legacy site, so all three field-scheme dimensions score: on field schemes the
+// required-but-hidden dimension cannot apply.
+const fieldConfigs = (over = {}) => ({
+  available: true, source: "field-configurations",
+  usageJudged: 40, unusedSchemes: 0, unusedConfigs: 0,
+  duplicateJudged: 40, duplicateGroups: 0, reducible: 0,
+  conflictJudged: 30, requiredHiddenConfigs: 0, requiredHiddenPairs: 0,
+  ...over,
+});
+
 // The counts, not the display lists. The score used to read `overConfigured.length` off
 // the Overview's top-8 lists, which capped its own numerator at sixteen.
 const projects = (over = {}) => ({
@@ -294,11 +304,44 @@ describe("computeSiteHealth — scoring", () => {
       permissions: permissions(), security: security(), notifications: notifications(), roles: roles(), estate: estate(), boards: boards(),
       drift: drift(),
       screenCross: screenCross(),
+      fieldConfigs: fieldConfigs(),
     });
 
     expect(health.score).toBeGreaterThanOrEqual(90);
     expect(health.grade).toBe("A");
     expect(health.dimensionsScored).toBe(health.dimensionsTotal);
+  });
+
+  describe("field scheme dimensions", () => {
+    const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+
+    test("score unused, conflicting and duplicate schemes as rates, each on what was measured", () => {
+      const health = computeSiteHealth({ fieldConfigs: fieldConfigs({ unusedSchemes: 6, unusedConfigs: 6, requiredHiddenConfigs: 1, requiredHiddenPairs: 3, reducible: 8, duplicateGroups: 3 }) });
+      expect(dim(health, "fieldconfig-usage")).toMatchObject({ pillar: "fieldConfigs", available: true, score: 0 });
+      expect(dim(health, "fieldconfig-usage").detail).toMatch(/12 of 40 non-default field configurations and schemes/);
+      const conflict = dim(health, "fieldconfig-required-hidden");
+      expect(conflict.score).toBe(0);
+      expect(conflict.detail).toMatch(/1 of 30 field configurations require a field they also hide \(3 fields/);
+      expect(dim(health, "fieldconfig-duplicates").detail).toMatch(/8 field configurations duplicate another exactly, across 3 groups/);
+    });
+
+    test("on field schemes the required-but-hidden dimension says why it cannot apply", () => {
+      const d = dim(computeSiteHealth({ fieldConfigs: fieldConfigs({ source: "field-schemes", conflictJudged: null }) }), "fieldconfig-required-hidden");
+      expect(d).toMatchObject({ available: false, score: null });
+      expect(d.reason).toMatch(/cannot hide a required field/);
+    });
+
+    test("nothing built is unavailable everywhere, never clean", () => {
+      const health = computeSiteHealth({ fieldConfigs: { available: false } });
+      for (const key of ["fieldconfig-usage", "fieldconfig-required-hidden", "fieldconfig-duplicates"]) {
+        expect(dim(health, key)).toMatchObject({ available: false, score: null });
+      }
+    });
+
+    test("duplicates are not judged when no owner's fields were read", () => {
+      const d = dim(computeSiteHealth({ fieldConfigs: fieldConfigs({ duplicateJudged: 0 }) }), "fieldconfig-duplicates");
+      expect(d.available).toBe(false);
+    });
   });
 
   describe("workflow rule dimensions", () => {

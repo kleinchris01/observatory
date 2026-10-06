@@ -502,6 +502,33 @@ describe("OverviewDashboard — workflow, automation and project findings stand 
     expect(within(inactive).getByText("7")).toBeInTheDocument();
   });
 
+  test("promotes field scheme findings, the required-but-hidden one as critical", () => {
+    render(<OverviewDashboard
+      dashboard={dashboard()}
+      findingsSummary={findingsSummary}
+      workflow={workflow()}
+      fieldConfigs={{ available: true, source: "field-configurations", summary: { requiredHiddenConfigs: 2, requiredHiddenPairs: 5, unusedSchemes: 1, unusedConfigs: 3, reducible: 2, duplicateGroups: 1 } }}
+      onNavigate={vi.fn()}
+    />);
+    const conflict = screen.getByText("Fields required but hidden").closest(".ui-gov");
+    expect(within(conflict).getByText("5")).toBeInTheDocument();
+    expect(conflict.className).toMatch(/ui-gov--critical/);
+    expect(within(screen.getByText("Field configurations and schemes no project uses").closest(".ui-gov")).getByText("4")).toBeInTheDocument();
+    expect(screen.getByText("Identical field configurations or schemes")).toBeInTheDocument();
+  });
+
+  test("on field schemes, raises no required-but-hidden finding", () => {
+    render(<OverviewDashboard
+      dashboard={dashboard()}
+      findingsSummary={findingsSummary}
+      workflow={workflow()}
+      fieldConfigs={{ available: true, source: "field-schemes", summary: { requiredHiddenPairs: null, unusedSchemes: 2, unusedConfigs: 0, reducible: 0 } }}
+      onNavigate={vi.fn()}
+    />);
+    expect(screen.queryByText("Fields required but hidden")).not.toBeInTheDocument();
+    expect(screen.getByText("Field schemes no project uses")).toBeInTheDocument();
+  });
+
   test("raises no rule finding from a snapshot that never read the rules", () => {
     render(<OverviewDashboard
       dashboard={dashboard()}
