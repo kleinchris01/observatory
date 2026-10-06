@@ -1363,8 +1363,28 @@ describe("dashboard rules", () => {
     const pillar = health.pillars.find((p) => p.key === "dashboards");
 
     expect(pillar.dimensions.map((d) => d.key).sort()).toEqual([
-      "dashboard-adoption", "dashboard-content", "dashboard-exposure", "dashboard-ownership",
+      "dashboard-adoption", "dashboard-content", "dashboard-exposure", "dashboard-ownership", "dashboard-public",
     ]);
+  });
+});
+
+describe("public exposure", () => {
+  const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+
+  test("a public filter or dashboard scores apart from, and harder than, a logged-in share", () => {
+    const health = computeSiteHealth({
+      filters: filters({ total: 100, sharedWithEveryoneCount: 2, sharedPubliclyCount: 2 }),
+      dashboards: dashboards({ total: 100, sharedPubliclyCount: 2 }),
+    });
+    expect(dim(health, "filter-public")).toMatchObject({ score: 0, weight: 1.5 });
+    expect(dim(health, "filter-exposure").score).toBeGreaterThan(50);
+    expect(dim(health, "filter-public").detail).toBe("2 of 100 filters are shared publicly.");
+    expect(dim(health, "dashboard-public").score).toBe(0);
+  });
+
+  test("none public is a clean score, not an unmeasured one", () => {
+    const health = computeSiteHealth({ filters: filters({ total: 10, sharedPubliclyCount: 0 }) });
+    expect(dim(health, "filter-public")).toMatchObject({ available: true, score: 100 });
   });
 });
 
@@ -1400,7 +1420,7 @@ describe("filter rules", () => {
     const pillar = health.pillars.find((p) => p.key === "filters");
 
     expect(pillar.dimensions.map((d) => d.key).sort()).toEqual([
-      "filter-exposure", "filter-ownership", "filter-scope", "filter-subscriptions",
+      "filter-exposure", "filter-ownership", "filter-public", "filter-scope", "filter-subscriptions",
     ]);
   });
 });
@@ -1412,7 +1432,7 @@ describe("pillar weighting", () => {
     const bad = computeSiteHealth({
       fieldUsage: fieldUsage(), workflow: workflow(), projects: projects(), automation: automation(),
       screens: screens(), adoption: adoption(), filters: filters(),
-      dashboards: dashboards({ total: 100, orphanedCount: 100, editableByEveryoneCount: 100, publishedUnusedCount: 100, emptyCount: 100 }),
+      dashboards: dashboards({ total: 100, orphanedCount: 100, editableByEveryoneCount: 100, sharedPubliclyCount: 100, publishedUnusedCount: 100, emptyCount: 100 }),
     });
 
     // Dashboards is one of seven pillars carrying weight 1 out of 9 total, so a pillar scoring

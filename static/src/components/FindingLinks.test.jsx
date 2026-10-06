@@ -85,7 +85,9 @@ const EXPECTED = [
   ["Saved filters with no live owner", "filters", { view: "filters", finding: "orphaned-owner" }],
   ["Filters naming a project that does not exist", "filters", { view: "broken" }],
   ["Email subscriptions on filters nobody opens", "filters", { view: "filters", finding: "subscribed-but-unused" }],
+  ["Filters shared publicly", "filters", { view: "filters", finding: "shared-publicly" }],
   ["Filters shared with every logged-in user", "filters", { view: "filters", finding: "shared-with-everyone" }],
+  ["Dashboards shared publicly", "dashboards", { finding: "shared-publicly" }],
   ["Duplicate saved filters", "filters", { view: "duplicates" }],
 
   ["Projects people have stopped using", "projects", { filter: "fell-off" }],
@@ -97,7 +99,7 @@ const EXPECTED = [
 
 const filters = () => ({
   available: true, total: 412,
-  orphanedCount: 18, sharedWithEveryoneCount: 34, subscribedButUnusedCount: 7,
+  orphanedCount: 18, sharedWithEveryoneCount: 34, sharedPubliclyCount: 2, subscribedButUnusedCount: 7,
   brokenProjectCount: 3, duplicateGroupCount: 22, reducibleCount: 41,
 });
 
@@ -105,6 +107,7 @@ function renderAll(onNavigate) {
   return render(<OverviewDashboard
     dashboard={dashboard()}
     filters={filters()}
+    dashboards={{ available: true, total: 90, orphanedCount: 0, editableByEveryoneCount: 0, sharedPubliclyCount: 3, emptyCount: 0, publishedUnusedCount: 0 }}
     findingsSummary={{ adminAttention: 123, risky: 88, cleanup: 364, standardize: 129 }}
     findingsByCode={{
       "global-context-low-usage": 4, "dead-configuration": 9,

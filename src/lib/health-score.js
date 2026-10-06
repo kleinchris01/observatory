@@ -79,6 +79,10 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   // on a deletion timer, where an over-shared one is merely untidy.
   orphanedFilters: 0.05,
   overSharedFilters: 0.20,
+  // Filters and dashboards shared globally -- readable by anonymous visitors on a site that
+  // allows public access. A data-exposure fact, not untidiness, so the bound is tight: one in
+  // fifty is already a bad day.
+  publicShares: 0.02,
   zombieSubscriptions: 0.10,
   brokenFilterScope: 0.05,
   // Dashboards that are orphaned, editable by anyone, or empty. Looser than the filter bound:
@@ -553,6 +557,24 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       action: exposed > 0 ? "Confirm each is meant to be a site-wide search rather than a personal one shared once and forgotten." : null,
     });
 
+    // Public is scored apart from logged-in sharing, and harder: one is staff seeing a search,
+    // the other is the internet seeing the issues it returns.
+    const publicFilters = Number(filters.sharedPubliclyCount) || 0;
+    dimensions.push({
+      key: "filter-public",
+      label: "Public filters",
+      pillar: "filters",
+      available: true,
+      weight: 1.5,
+      score: scoreFromRate(publicFilters / filterTotal, TOLERANCE.publicShares),
+      detail: publicFilters === 0
+        ? "No filter is shared publicly."
+        : `${publicFilters} of ${filterTotal} filters are shared publicly.`,
+      action: publicFilters > 0
+        ? "On a site that allows anonymous access, anyone with the link can run these and read every issue they return. Narrow each to a group, project or role."
+        : null,
+    });
+
     dimensions.push({
       key: "filter-subscriptions",
       label: "Filter subscriptions",
@@ -592,6 +614,7 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     for (const [key, label] of [
       ["filter-ownership", "Filter ownership"],
       ["filter-exposure", "Filter exposure"],
+      ["filter-public", "Public filters"],
       ["filter-subscriptions", "Filter subscriptions"],
       ["filter-scope", "Filter scope"],
     ]) {
@@ -643,6 +666,22 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
         : null,
     });
 
+    const publicDashboards = Number(dashboards.sharedPubliclyCount) || 0;
+    dimensions.push({
+      key: "dashboard-public",
+      label: "Public dashboards",
+      pillar: "dashboards",
+      available: true,
+      weight: 1.5,
+      score: scoreFromRate(publicDashboards / dashTotal, TOLERANCE.publicShares),
+      detail: publicDashboards === 0
+        ? "No dashboard is shared publicly."
+        : `${publicDashboards} of ${dashTotal} dashboards are shared publicly.`,
+      action: publicDashboards > 0
+        ? "On a site that allows anonymous access, anyone with the link can open these. Share each with the group or project that uses it."
+        : null,
+    });
+
     dimensions.push({
       key: "dashboard-adoption",
       label: "Dashboard adoption",
@@ -685,6 +724,7 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     for (const [key, label] of [
       ["dashboard-ownership", "Dashboard ownership"],
       ["dashboard-exposure", "Dashboard exposure"],
+      ["dashboard-public", "Public dashboards"],
       ["dashboard-adoption", "Dashboard adoption"],
       ["dashboard-content", "Dashboard content"],
     ]) {

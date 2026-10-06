@@ -50,10 +50,12 @@ describe("shapeFilter", () => {
     expect(shapeFilter(raw({ subscriptions: undefined })).filter.subscriptionCount).toBe(0);
   });
 
-  test("flags a filter shared with everyone", () => {
-    const shaped = shapeFilter(raw({ sharePermissions: [{ type: "global" }] }));
+  test("flags a filter shared with every logged-in user, and keeps a public share out of that flag", () => {
+    const shaped = shapeFilter(raw({ sharePermissions: [{ type: "loggedin" }] }));
     expect(shaped.filter.sharedWithEveryone).toBe(true);
     expect(shaped.shares).toHaveLength(1);
+    // `global` is public, reported by its own finding from the stored shares.
+    expect(shapeFilter(raw({ sharePermissions: [{ type: "global" }] })).filter.sharedWithEveryone).toBe(false);
   });
 
   test("reads a share target from whichever key names it", () => {

@@ -12,16 +12,31 @@
 // Pure functions over already-loaded rows, like filter-insights.js: no I/O, so the resolver
 // decides what to load and this decides what it means.
 
-// Share permission types that mean "everyone". Same set filters use, and for the same reason:
-// Jira has spelled this three ways over time and all three still appear in payloads.
-const EVERYONE_TYPES = new Set(["global", "authenticated", "loggedin"]);
 
 // A dashboard with no gadgets renders as an empty grid. Not a defect on its own -- somebody
 // may be mid-build -- which is why it is reported as cleanup rather than as a problem.
 export const EMPTY_DASHBOARD_GADGETS = 0;
 
+// Share permission types, read from Jira's published spec rather than from habit:
+//
+//   global                  shared GLOBALLY -- the public, anonymous visitors included on a site
+//                           that allows anonymous access
+//   loggedin / authenticated every logged-in user (`authenticated` is the request spelling,
+//                           `loggedin` what responses return)
+//
+// These were one "everyone" set, which made a dashboard on the open internet read exactly like
+// one shared with staff. They are two findings now, and public is the sharper of the two.
+const PUBLIC_TYPES = new Set(["global"]);
+const LOGGED_IN_TYPES = new Set(["authenticated", "loggedin"]);
+const shareType = (share) => String(share?.type || "").toLowerCase();
+
+export function isSharedPublicly(shares = []) {
+  return shares.some((share) => PUBLIC_TYPES.has(shareType(share)));
+}
+
+// Every logged-in user -- and only that. A public share is reported as public, not twice.
 export function isSharedWithEveryone(shares = []) {
-  return shares.some((share) => EVERYONE_TYPES.has(String(share?.type || "").toLowerCase()));
+  return !isSharedPublicly(shares) && shares.some((share) => LOGGED_IN_TYPES.has(shareType(share)));
 }
 
 // Editable by everyone, which is a different and sharper claim than readable by everyone.
@@ -30,7 +45,7 @@ export function isSharedWithEveryone(shares = []) {
 // document with no owner in practice: the next person to rearrange it does so for everybody,
 // and the person whose name is on it will not know.
 export function isEditableByEveryone(editShares = []) {
-  return editShares.some((share) => EVERYONE_TYPES.has(String(share?.type || "").toLowerCase()));
+  return editShares.some((share) => PUBLIC_TYPES.has(shareType(share)) || LOGGED_IN_TYPES.has(shareType(share)));
 }
 
 // Same tri-state the filter pillar uses, and it matters more here.
@@ -68,6 +83,14 @@ export function analyzeDashboard(dashboard) {
     });
   }
 
+  if (isSharedPublicly(dashboard?.shares)) {
+    findings.push({
+      code: "shared-publicly",
+      severity: "high",
+      detail: "Shared globally. On a site that allows anonymous access, anyone on the internet with the link can open it and read every gadget on it.",
+    });
+  }
+
   if (isEditableByEveryone(dashboard?.editShares)) {
     findings.push({
       code: "editable-by-everyone",
@@ -76,7 +99,7 @@ export function analyzeDashboard(dashboard) {
     });
   }
 
-  if (isSharedWithEveryone(dashboard?.shares) && popularity === 0) {
+  if ((isSharedWithEveryone(dashboard?.shares) || isSharedPublicly(dashboard?.shares)) && popularity === 0) {
     // Shared with the whole site and favourited by nobody. Either is unremarkable alone;
     // together they describe a dashboard published to everyone that nobody wanted.
     findings.push({
@@ -128,6 +151,7 @@ export function summarizeDashboards(dashboards = []) {
     total: dashboards.length,
     orphanedCount: analyzed.filter((d) => has(d, "orphaned-owner")).length,
     editableByEveryoneCount: analyzed.filter((d) => has(d, "editable-by-everyone")).length,
+    sharedPubliclyCount: analyzed.filter((d) => has(d, "shared-publicly")).length,
     publishedUnusedCount: analyzed.filter((d) => has(d, "published-unused")).length,
     emptyCount: gadgetsKnown ? analyzed.filter((d) => has(d, "empty")).length : null,
     gadgetsKnown,
@@ -154,6 +178,7 @@ export function summarizeDashboardHealth(summary) {
     total: summary.total,
     orphanedCount: summary.orphanedCount,
     editableByEveryoneCount: summary.editableByEveryoneCount,
+    sharedPubliclyCount: summary.sharedPubliclyCount,
     emptyCount: summary.emptyCount,
     publishedUnusedCount: summary.publishedUnusedCount,
   };

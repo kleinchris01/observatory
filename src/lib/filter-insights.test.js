@@ -61,11 +61,17 @@ describe("analyzeFilter", () => {
   });
 
   test("flags a filter shared with every logged-in user", () => {
-    for (const type of ["global", "authenticated", "loggedin"]) {
+    for (const type of ["authenticated", "loggedin"]) {
       expect(codes(filter({ shares: [{ type }] }))).toContain("shared-with-everyone");
     }
     expect(codes(filter({ shares: [{ type: "project", project: { id: "1" } }] })))
       .not.toContain("shared-with-everyone");
+  });
+
+  test("flags a globally shared filter as public, high, and only as public", () => {
+    const found = codes(filter({ shares: [{ type: "global" }, { type: "loggedin" }] }));
+    expect(found).toContain("shared-publicly");
+    expect(found).not.toContain("shared-with-everyone");
   });
 
   test("flags a subscription on a filter nobody opens", () => {
@@ -191,7 +197,7 @@ describe("summarizeFilters", () => {
   const estate = [
     filter({ id: "1", name: "Fine" }),
     filter({ id: "2", name: "Orphan", owner: { active: false } }),
-    filter({ id: "3", name: "Everyone", shares: [{ type: "global" }] }),
+    filter({ id: "3", name: "Everyone", shares: [{ type: "loggedin" }] }),
     filter({ id: "4", name: "Zombie", subscriptionCount: 2, lastUsedAt: daysAgo(500) }),
     filter({ id: "5", name: "Broken", projectRefs: ["GHOST"] }),
   ];
@@ -200,7 +206,7 @@ describe("summarizeFilters", () => {
     const s = summarizeFilters(estate, { now: NOW, projectKeys: new Set(["X"]) });
     expect(s).toMatchObject({
       available: true, total: 5,
-      orphanedCount: 1, sharedWithEveryoneCount: 1, subscribedButUnusedCount: 1, brokenProjectCount: 1,
+      orphanedCount: 1, sharedWithEveryoneCount: 1, sharedPubliclyCount: 0, subscribedButUnusedCount: 1, brokenProjectCount: 1,
     });
   });
 

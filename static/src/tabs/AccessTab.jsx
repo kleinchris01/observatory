@@ -338,7 +338,10 @@ function AccessTabInner({ data, view, setView, search, setSearch, schemeSort, se
               {filterSchemes(notif.schemes, notif.governance).map((s) => {
                 const fragile = (notif.governance?.fragileSchemes || []).find((x) => String(x.id) === String(s.id));
                 const flags = fragile
-                  ? [{ label: `${fragile.namedUserCount} named ${fragile.namedUserCount === 1 ? "recipient" : "recipients"}`, tone: "warning", title: "Routes an event to a specific person" }]
+                  ? [
+                    ...(fragile.namedUserCount ? [{ label: `${fragile.namedUserCount} named ${fragile.namedUserCount === 1 ? "recipient" : "recipients"}`, tone: "warning", title: "Routes an event to a specific person" }] : []),
+                    ...(fragile.emailAddressCount ? [{ label: `${fragile.emailAddressCount} email ${fragile.emailAddressCount === 1 ? "address" : "addresses"}`, tone: "warning", title: "Sends issue content to an address outside the user directory" }] : []),
+                  ]
                   : [];
                 return (
                   <SchemeRow

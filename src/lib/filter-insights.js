@@ -10,10 +10,6 @@
 
 import { normalizeJql } from "./jql-refs.js";
 
-// Share permission types Jira uses. `global` is every logged-in user on the site; `authenticated`
-// is the same thing under its older name; `loggedin` appears on some payloads. All three mean
-// "everyone", which is the claim worth flagging.
-const EVERYONE_TYPES = new Set(["global", "authenticated", "loggedin"]);
 // A filter shared to `project` with no role is every user who can browse that project.
 const OPEN_PROJECT_SHARE = new Set(["project"]);
 
@@ -22,8 +18,26 @@ const OPEN_PROJECT_SHARE = new Set(["project"]);
 // enough to catch quarterly use would flag half the site every quarter.
 export const STALE_FILTER_DAYS = 365;
 
+// Share permission types, read from Jira's published spec rather than from habit:
+//
+//   global                  shared GLOBALLY -- the public, anonymous visitors included on a site
+//                           that allows anonymous access
+//   loggedin / authenticated every logged-in user (`authenticated` is the request spelling,
+//                           `loggedin` what responses return)
+//
+// These were one "everyone" set, which made a filter on the open internet read exactly like
+// one shared with staff. They are two findings now, and public is the sharper of the two.
+const PUBLIC_TYPES = new Set(["global"]);
+const LOGGED_IN_TYPES = new Set(["authenticated", "loggedin"]);
+const shareType = (share) => String(share?.type || "").toLowerCase();
+
+export function isSharedPublicly(shares = []) {
+  return shares.some((share) => PUBLIC_TYPES.has(shareType(share)));
+}
+
+// Every logged-in user -- and only that. A public share is reported as public, not twice.
 export function isSharedWithEveryone(shares = []) {
-  return shares.some((share) => EVERYONE_TYPES.has(String(share?.type || "").toLowerCase()));
+  return !isSharedPublicly(shares) && shares.some((share) => LOGGED_IN_TYPES.has(shareType(share)));
 }
 
 // Shared to a whole project with no role restriction.
@@ -85,7 +99,13 @@ export function analyzeFilter(filter, { now = Date.now(), staleDays = STALE_FILT
     });
   }
 
-  if (isSharedWithEveryone(filter?.shares)) {
+  if (isSharedPublicly(filter?.shares)) {
+    findings.push({
+      code: "shared-publicly",
+      severity: "high",
+      detail: "Shared globally. On a site that allows anonymous access, anyone on the internet who has the link can run it -- and see every issue it returns.",
+    });
+  } else if (isSharedWithEveryone(filter?.shares)) {
     findings.push({
       code: "shared-with-everyone",
       severity: "medium",
@@ -237,6 +257,7 @@ export function summarizeFilters(filters = [], { now = Date.now(), projectKeys =
     total: filters.length,
     orphanedCount: analyzed.filter((f) => has(f, "orphaned-owner")).length,
     sharedWithEveryoneCount: analyzed.filter((f) => has(f, "shared-with-everyone")).length,
+    sharedPubliclyCount: analyzed.filter((f) => has(f, "shared-publicly")).length,
     subscribedButUnusedCount: analyzed.filter((f) => has(f, "subscribed-but-unused")).length,
     staleCount: analyzed.filter((f) => has(f, "stale")).length,
     neverUsedCount: analyzed.filter((f) => has(f, "never-used")).length,
@@ -282,6 +303,7 @@ export function summarizeFilterHealth(summary) {
     total: summary.total,
     orphanedCount: summary.orphanedCount,
     sharedWithEveryoneCount: summary.sharedWithEveryoneCount,
+    sharedPubliclyCount: summary.sharedPubliclyCount,
     subscribedButUnusedCount: summary.subscribedButUnusedCount,
     brokenProjectCount: summary.brokenProjectCount,
     projectsChecked: summary.projectsChecked,

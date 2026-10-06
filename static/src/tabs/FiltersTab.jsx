@@ -74,7 +74,11 @@ function FilterRow({ filter, siteOrigin, lastUsedTracked = true }) {
             {formatNumber(filter.subscriptionCount)} subscription{filter.subscriptionCount === 1 ? "" : "s"}
           </Chip>
         )}
-        {filter.sharedWithEveryone && <Chip tone="warning">everyone</Chip>}
+        {/* From the findings, which read the shares themselves: the stored flag predates the
+            public / logged-in split and would call a public filter "everyone". */}
+        {filter.findings?.some((f) => f.code === "shared-publicly")
+          ? <Chip tone="critical" title="Shared globally: anonymous visitors can run it on a site that allows public access">public</Chip>
+          : filter.findings?.some((f) => f.code === "shared-with-everyone") && <Chip tone="warning">everyone</Chip>}
         <span className="filter-row__used">
           {filter.lastUsedAt
             ? `opened ${formatRelativeTime(filter.lastUsedAt)}`
@@ -277,8 +281,15 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
                 tone={data.orphanedCount > 0 ? "critical" : "neutral"}
               />
               <StatTile
+                label="Shared publicly"
+                value={formatNumber(data.sharedPubliclyCount ?? 0)}
+                hint="anonymous visitors can run them"
+                tone={data.sharedPubliclyCount > 0 ? "critical" : "neutral"}
+              />
+              <StatTile
                 label="Shared with everyone"
                 value={formatNumber(data.sharedWithEveryoneCount)}
+                hint="every logged-in user"
                 tone={data.sharedWithEveryoneCount > 0 ? "warning" : "neutral"}
               />
               <StatTile

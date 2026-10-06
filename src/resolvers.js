@@ -4275,6 +4275,8 @@ const REMEDIATION_CANDIDATE_LOADERS = {
   // ── Filters and dashboards: the same analysis their tabs run, every row ──
   "filters-zombie-subscriptions": ({ installationKey }) => filterItemsWith(installationKey, "subscribed-but-unused"),
   "filters-shared-everyone": ({ installationKey }) => filterItemsWith(installationKey, "shared-with-everyone"),
+  "filters-public": ({ installationKey }) => filterItemsWith(installationKey, "shared-publicly"),
+  "dashboards-public": ({ installationKey }) => dashboardItemsWith(installationKey, "shared-publicly"),
   "dashboards-open-edit": ({ installationKey }) => dashboardItemsWith(installationKey, "editable-by-everyone"),
   "dashboards-empty": ({ installationKey }) => dashboardItemsWith(installationKey, "empty"),
   "dashboards-published-unused": ({ installationKey }) => dashboardItemsWith(installationKey, "published-unused"),

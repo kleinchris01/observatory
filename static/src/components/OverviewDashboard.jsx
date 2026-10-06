@@ -425,6 +425,20 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
     });
   }
 
+  if (dashboards?.available && dashboards.sharedPubliclyCount > 0) {
+    findings.push({
+      key: "dashboards-public",
+      dimension: "dashboard-public",
+      pillar: "dashboards",
+      tone: "critical",
+      count: dashboards.sharedPubliclyCount,
+      title: "Dashboards shared publicly",
+      detail: "Shared globally: on a site that allows anonymous access, anyone with the link can open them.",
+      onOpen: () => onNavigate("dashboards", { finding: "shared-publicly" }),
+      openLabel: "Dashboards",
+    });
+  }
+
   if (dashboards?.available && dashboards.editableByEveryoneCount > 0) {
     findings.push({
       key: "dashboards-open-edit",
@@ -530,6 +544,20 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       title: "Email subscriptions on filters nobody opens",
       detail: "Recurring email from a search no one reads is what teaches people to filter Jira to trash, taking the useful mail with it.",
       onOpen: () => onNavigate("filters", { view: "filters", finding: "subscribed-but-unused" }),
+      openLabel: "Filters",
+    });
+  }
+
+  if (filters?.available && filters.sharedPubliclyCount > 0) {
+    findings.push({
+      key: "filters-public",
+      dimension: "filter-public",
+      pillar: "filters",
+      tone: "critical",
+      count: filters.sharedPubliclyCount,
+      title: "Filters shared publicly",
+      detail: "Shared globally: on a site that allows anonymous access, anyone with the link can run them and read every issue they return.",
+      onOpen: () => onNavigate("filters", { view: "filters", finding: "shared-publicly" }),
       openLabel: "Filters",
     });
   }

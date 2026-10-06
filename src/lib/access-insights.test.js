@@ -165,3 +165,43 @@ describe("listLimit", () => {
     expect(full.unusedSchemeCount).toBe(40);
   });
 });
+
+// Public and logged-in grants, as the spec defines them: `anyone` is anonymous users, and an
+// applicationRole grant with no application is "any logged-in user".
+describe("public and logged-in grants", () => {
+  const scheme = { id: "1", name: "Open scheme" };
+  const grant = (context, holderType, holderValue = "") => ({ schemeId: "1", context, holderType, holderValue });
+
+  test("any permission open to anonymous users is a risky reason, browse or not", () => {
+    const s = summarizePermissionInsights({
+      schemes: [scheme],
+      holders: [grant("CREATE_ISSUES", "anyone"), grant("ADD_COMMENTS", "anyone")],
+      schemeProjects: [{ schemeId: "1" }],
+    });
+    expect(s.riskySchemes[0].reasons).toEqual(["2 other permissions open to anonymous users (public): CREATE_ISSUES, ADD_COMMENTS"]);
+    expect(s.publicSchemeCount).toBe(1);
+  });
+
+  test("a sensitive permission for every logged-in user is risky; browse for everyone is only counted", () => {
+    const s = summarizePermissionInsights({
+      schemes: [scheme],
+      holders: [grant("BROWSE_PROJECTS", "applicationRole"), grant("DELETE_ISSUES", "applicationRole"), grant("EDIT_ISSUES", "applicationRole", "jira-software")],
+    });
+    expect(s.riskySchemes[0].reasons).toEqual(["1 sensitive permission granted to every logged-in user: DELETE_ISSUES"]);
+    expect(s.loggedInSensitiveSchemeCount).toBe(1);
+    // The grant naming an application is not "every logged-in user".
+    expect(s.loggedInGrantCount).toBe(2);
+  });
+
+  test("notifications to a raw email address make a scheme fragile; groups are counted", () => {
+    const s = summarizeNotificationInsights({
+      schemes: [{ id: "n1", name: "Mailer" }],
+      holders: [
+        { schemeId: "n1", holderType: "emailAddress", holderValue: "ops@vendor.example" },
+        { schemeId: "n1", holderType: "group", holderValue: "g1" },
+      ],
+    });
+    expect(s.fragileSchemes).toEqual([{ id: "n1", name: "Mailer", namedUserCount: 0, emailAddressCount: 1, groupRecipientCount: 1 }]);
+    expect(s).toMatchObject({ fragileSchemeCount: 1, emailRecipientCount: 1, groupRecipientCount: 1 });
+  });
+});

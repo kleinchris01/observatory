@@ -506,7 +506,8 @@ function buildFiltersReport({ refreshedAt, filters = [] }) {
     name: f.name,
     owner: f.ownerName || null,
     ownerActive: f.ownerActive,
-    sharedWithEveryone: Boolean(f.sharedWithEveryone),
+    sharedWithEveryone: (f.findings || []).some((x) => x.code === "shared-with-everyone"),
+    sharedPublicly: (f.findings || []).some((x) => x.code === "shared-publicly"),
     subscriptions: Number(f.subscriptionCount) || 0,
     favourites: Number(f.favouritedCount) || 0,
     lastUsed: f.lastUsedAt || null,
@@ -519,6 +520,7 @@ function buildFiltersReport({ refreshedAt, filters = [] }) {
       { key: "name", label: "Name", kind: "text" },
       { key: "owner", label: "Owner", kind: "text" },
       { key: "ownerActive", label: "Owner active", kind: "boolean" },
+      { key: "sharedPublicly", label: "Shared publicly", kind: "boolean" },
       { key: "sharedWithEveryone", label: "Shared with everyone", kind: "boolean" },
       { key: "subscriptions", label: "Subscriptions", kind: "number" },
       { key: "favourites", label: "Favourites", kind: "number" },
@@ -529,17 +531,23 @@ function buildFiltersReport({ refreshedAt, filters = [] }) {
 }
 
 function buildDashboardsReport({ refreshedAt, dashboards = [] }) {
-  const rows = dashboards.map((d) => ({
-    id: d.id,
-    name: d.name,
-    owner: d.ownerName || null,
-    ownerActive: d.ownerActive,
-    gadgets: d.gadgetCount ?? null,
-    favourites: Number(d.popularity) || 0,
-    sharedWithEveryone: Boolean(d.sharedWithEveryone),
-    editableByEveryone: Boolean(d.editableByEveryone),
-    findings: analyzeDashboard(d).map((x) => x.code),
-  }));
+  const rows = dashboards.map((d) => {
+    const findings = analyzeDashboard(d).map((x) => x.code);
+    const sharedPublicly = findings.includes("shared-publicly");
+    return {
+      id: d.id,
+      name: d.name,
+      owner: d.ownerName || null,
+      ownerActive: d.ownerActive,
+      gadgets: d.gadgetCount ?? null,
+      favourites: Number(d.popularity) || 0,
+      sharedPublicly,
+      // A public dashboard is reported as public, not also as "everyone".
+      sharedWithEveryone: !sharedPublicly && Boolean(d.sharedWithEveryone),
+      editableByEveryone: Boolean(d.editableByEveryone),
+      findings,
+    };
+  });
   return {
     refreshedAt,
     columns: [
@@ -549,6 +557,7 @@ function buildDashboardsReport({ refreshedAt, dashboards = [] }) {
       { key: "ownerActive", label: "Owner active", kind: "boolean" },
       { key: "gadgets", label: "Gadgets", kind: "number" },
       { key: "favourites", label: "Favourites", kind: "number" },
+      { key: "sharedPublicly", label: "Shared publicly", kind: "boolean" },
       { key: "sharedWithEveryone", label: "Shared with everyone", kind: "boolean" },
       { key: "editableByEveryone", label: "Editable by everyone", kind: "boolean" },
     ],

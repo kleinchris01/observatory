@@ -6,6 +6,7 @@ import {
   isSharedWithEveryone,
   summarizeDashboards,
   summarizeDashboardHealth,
+  isSharedPublicly,
 } from "./dashboard-insights.js";
 
 // A dashboard is the most visible thing in Jira and the least owned. The failure modes worth
@@ -35,11 +36,23 @@ describe("classifyOwner", () => {
 });
 
 describe("share classification", () => {
-  test("recognises every spelling Jira has used for everyone", () => {
-    for (const type of ["global", "authenticated", "loggedin"]) {
+  // Per the published spec: `global` is shared globally (the public), `loggedin` /
+  // `authenticated` every logged-in user. Two different claims, so two findings.
+  test("tells a public share from a logged-in one", () => {
+    for (const type of ["authenticated", "loggedin"]) {
       expect(isSharedWithEveryone([{ type }])).toBe(true);
-      expect(isEditableByEveryone([{ type }])).toBe(true);
+      expect(isSharedPublicly([{ type }])).toBe(false);
     }
+    expect(isSharedPublicly([{ type: "global" }])).toBe(true);
+    expect(isSharedWithEveryone([{ type: "global" }])).toBe(false);
+    for (const type of ["global", "authenticated", "loggedin"]) expect(isEditableByEveryone([{ type }])).toBe(true);
+  });
+
+  test("a public dashboard is a high finding, and counts toward published-unused", () => {
+    const findings = analyzeDashboard({ owner: { active: true }, shares: [{ type: "global" }], popularity: 0, gadgetCount: 3 });
+    expect(findings[0]).toMatchObject({ code: "shared-publicly", severity: "high" });
+    expect(findings.map((f) => f.code)).toContain("published-unused");
+    expect(summarizeDashboards([{ id: "1", owner: { active: true }, shares: [{ type: "global" }], gadgetCount: 1 }]).sharedPubliclyCount).toBe(1);
   });
 
   test("a project or group share is not everyone", () => {
