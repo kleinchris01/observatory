@@ -85,7 +85,7 @@ import {
   summarizeNotificationInsights, summarizeNotificationHealth,
   summarizeRoleInsights, summarizeRoleHealth,
 } from "./access-insights.js";
-import { activeRosterIds, buildOwnershipIndex, summarizeOrphanedOwnership } from "./user-ownership.js";
+import { activeRosterIds, buildOwnershipIndex, summarizeOrphanedOwnership, classifyUserActivity, DORMANT_ACCOUNT_DAYS } from "./user-ownership.js";
 
 // Top finding-type/field-type breakdowns are capped -- Overview is a glance-level
 // summary, not the full Field Browser, and shipping ~1500 hydrated fields' worth of
@@ -565,10 +565,6 @@ export async function buildIssueTypeOverview(installationKey) {
 
 // The People pillar's health inputs: how many licensed accounts are deactivated, and how
 // much owned config (filters / dashboards / rules) belongs to an account not in the roster.
-// A year, matching the default the People pillar's dormant-seat story specified. Not
-// admin-tunable through this constant -- the tolerance on the Governance rules page is what
-// an admin moves; this is only the line between "active" and "idle" for counting purposes.
-const DORMANT_ACCOUNT_DAYS = 365;
 
 export async function buildUserOverview(installationKey) {
   try {
@@ -594,23 +590,7 @@ export async function buildUserOverview(installationKey) {
     // missing row is never counted as dormant. A crawl that has not completed suppresses the
     // measurement entirely rather than reporting the whole roster as idle.
     const activity = await loadUserActivity(installationKey, [...rosterIds]).catch(() => []);
-    const activityByAccount = new Map(activity.map((a) => [a.accountId, a]));
-    const activityMeasured = activity.length > 0;
-    const dormantCutoff = new Date(Date.now() - DORMANT_ACCOUNT_DAYS * 86400000).toISOString();
-
-    let dormantAccounts = 0;
-    let measuredAccounts = 0;
-    if (activityMeasured) {
-      for (const user of users) {
-        // Deactivated accounts are excluded, not counted: they are a different finding, and
-        // double-reporting them would make the licence number look worse than it is.
-        if (user.active === false) continue;
-        const row = activityByAccount.get(user.accountId);
-        if (!row?.lastActivityAt) continue; // unmeasured, not idle
-        measuredAccounts += 1;
-        if (row.lastActivityAt < dormantCutoff) dormantAccounts += 1;
-      }
-    }
+    const { measured: activityMeasured, measuredAccounts, dormantAccounts } = classifyUserActivity(users, activity);
     const orphaned = summarizeOrphanedOwnership(ownership, rosterIds);
     const totalUsers = Number(summary?.totalUsers) || users.length;
     const deactivatedUsers = Math.max(0, totalUsers - (Number(summary?.activeUsers) || totalUsers));

@@ -97,3 +97,36 @@ export function summarizeOrphanedOwnership(ownership, rosterAccountIds) {
     ownedArtifactTotal: totalFilters + totalDashboards + totalRules,
   };
 }
+
+// A year: the line between "idle" and "active" for a licensed seat. Not admin-tunable here --
+// the tolerance on the Governance rules page is what an admin moves.
+export const DORMANT_ACCOUNT_DAYS = 365;
+
+// Which licensed accounts are dormant, from the crawl's last-activity rows. One function, so
+// the score, the roster, the report and remediation can never count a different set.
+//
+// Tri-state on purpose. "No activity recorded" covers both a genuinely idle account and one
+// the crawl never reached, and only the first justifies taking a licence away -- so an
+// account with no row is unmeasured, never dormant. With no rows at all the whole
+// measurement is unavailable rather than "everyone idle". Deactivated accounts are excluded:
+// they are a different finding, and counting them twice would inflate the licence number.
+export function classifyUserActivity(users = [], activityRows = [], { now = Date.now(), dormantDays = DORMANT_ACCOUNT_DAYS } = {}) {
+  const byRow = new Map(activityRows.map((a) => [String(a.accountId), a]));
+  const measured = activityRows.length > 0;
+  const cutoff = new Date(now - dormantDays * 86400000).toISOString();
+  const byAccount = new Map();
+  let measuredAccounts = 0;
+  let dormantAccounts = 0;
+  for (const user of users) {
+    const row = byRow.get(String(user.accountId));
+    const lastActivityAt = row?.lastActivityAt || null;
+    const counted = measured && user.active !== false && Boolean(lastActivityAt);
+    const dormant = counted && lastActivityAt < cutoff;
+    if (counted) {
+      measuredAccounts += 1;
+      if (dormant) dormantAccounts += 1;
+    }
+    byAccount.set(String(user.accountId), { lastActivityAt, dormant: counted ? dormant : null });
+  }
+  return { measured, measuredAccounts, dormantAccounts, dormantAfterDays: dormantDays, byAccount };
+}

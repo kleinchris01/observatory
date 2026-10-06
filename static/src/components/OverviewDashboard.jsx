@@ -759,7 +759,7 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       count: users.deactivatedUsers,
       title: "Deactivated accounts still holding a licence",
       detail: "They count against the seat total and clutter every user picker until the licence is reclaimed.",
-      onOpen: () => onNavigate("people", { view: "roster" }),
+      onOpen: () => onNavigate("people", { view: "roster", filter: "inactive" }),
       openLabel: "People",
     });
   }
@@ -1013,6 +1013,21 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       detail: `${fc.duplicateGroups} group${fc.duplicateGroups === 1 ? "" : "s"}. Every change has to be made in each copy.`,
       onOpen: () => onNavigate("fieldConfigs", { view: fcLegacy ? "configs" : "schemes", filter: "duplicate" }),
       openLabel: "Field schemes",
+    });
+  }
+
+  // ── People: licensed accounts idle for a year ─────────────────────────
+  if (users?.available && users.activityMeasured && users.dormantAccounts > 0) {
+    findings.push({
+      key: "people-dormant-licences",
+      dimension: "dormant-licences",
+      pillar: "users",
+      tone: "warning",
+      count: users.dormantAccounts,
+      title: "Licensed accounts idle for a year",
+      detail: `Holding a seat with no issue created, updated or assigned in ${users.dormantAfterDays ?? 365} days.`,
+      onOpen: () => onNavigate("people", { view: "roster", filter: "dormant" }),
+      openLabel: "People",
     });
   }
 

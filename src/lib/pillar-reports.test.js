@@ -223,6 +223,19 @@ describe("builders", () => {
     expect(report.rows.find((r) => r.name === "Done").issues).toBeNull();
   });
 
+  test("people: a dormant licence is a finding, with the last activity date beside it", () => {
+    const report = buildPillarReport("people", {
+      users: [
+        { displayName: "Idle", accountId: "a", active: true, lastActivityAt: "2025-01-01T00:00:00Z", dormant: true },
+        { displayName: "Unseen", accountId: "b", active: true, lastActivityAt: null, dormant: null },
+      ],
+    });
+    const byName = Object.fromEntries(report.rows.map((r) => [r.name, r]));
+    expect(byName.Idle.findings).toEqual(["dormant-licence"]);
+    expect(byName.Unseen.findings).toEqual([]);
+    expect(report.columns.some((c) => c.key === "lastActivity")).toBe(true);
+  });
+
   test("people: only inactive accounts that still own things are flagged", () => {
     const report = buildPillarReport("people", {
       users: [
