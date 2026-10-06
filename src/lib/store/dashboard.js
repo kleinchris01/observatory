@@ -225,10 +225,11 @@ export async function recordGadgetConfigs(scopeKey, version, entries = []) {
     await withSqlRetry(() =>
       sql.prepare(`
         UPDATE snapshot_dashboard_gadgets
-        SET filter_id = ?, config_walk_done = 1
+        SET filter_id = ?, filter_state = ?, config_walk_done = 1
         WHERE scope_key = ? AND version = ? AND dashboard_id = ? AND gadget_id = ?
       `).bindParams(
         entry.filterId ? String(entry.filterId) : null,
+        entry.filterId && entry.filterState ? String(entry.filterState) : null,
         scopeKey, version, String(entry.dashboardId), String(entry.gadgetId)
       ).execute()
     );
@@ -336,7 +337,7 @@ export async function loadDashboards(scopeKey, version) {
       FROM snapshot_dashboard_shares WHERE scope_key = ? AND version = ?
     `).bindParams(scopeKey, version).execute()),
     withSqlRetry(() => sql.prepare(`
-      SELECT dashboard_id, gadget_id, title, module_key, filter_id
+      SELECT dashboard_id, gadget_id, title, module_key, filter_id, filter_state
       FROM snapshot_dashboard_gadgets WHERE scope_key = ? AND version = ?
     `).bindParams(scopeKey, version).execute()),
   ]);
@@ -357,6 +358,7 @@ export async function loadDashboards(scopeKey, version) {
     gadgetsByDashboard.get(id).push({
       id: String(row.gadget_id), title: row.title || null, moduleKey: row.module_key || null,
       filterId: row.filter_id ? String(row.filter_id) : null,
+      filterState: row.filter_state || null,
     });
   }
 

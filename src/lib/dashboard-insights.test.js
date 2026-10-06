@@ -187,3 +187,33 @@ describe("summarizeDashboardHealth", () => {
     expect(summarizeDashboardHealth(summarizeDashboards([]))).toEqual({ available: false });
   });
 });
+
+// A gadget whose filter nobody but its owner can read shows everyone else an error.
+describe("broken gadgets", () => {
+  const base = { owner: { active: true }, popularity: 3, gadgetCount: 2 };
+  const gadget = (filterState, over = {}) => ({ id: "g", title: "Open bugs", filterId: "500", filterState, ...over });
+
+  test("a missing filter is high, on any dashboard", () => {
+    const f = analyzeDashboard({ ...base, shares: [], gadgets: [gadget("missing")] }).find((x) => x.code === "broken-gadget");
+    expect(f).toMatchObject({ severity: "high", gadgets: [{ filterState: "missing" }] });
+    expect(f.detail).toMatch(/1 gadget reads a filter that no longer exists/);
+  });
+
+  test("a private filter only counts when the dashboard is shared", () => {
+    expect(analyzeDashboard({ ...base, shares: [], gadgets: [gadget("private")] }).some((x) => x.code === "broken-gadget")).toBe(false);
+    const f = analyzeDashboard({ ...base, shares: [{ type: "group" }], gadgets: [gadget("private")] }).find((x) => x.code === "broken-gadget");
+    expect(f).toMatchObject({ severity: "medium" });
+  });
+
+  test("readable and unknown filters raise nothing, and only probed dashboards are counted", () => {
+    const dashboards = [
+      { id: "1", ...base, shares: [], gadgets: [gadget("readable")] },
+      { id: "2", ...base, shares: [], gadgets: [gadget("unknown")] },
+      { id: "3", ...base, shares: [], gadgets: [gadget("missing")] },
+      { id: "4", ...base, shares: [], gadgets: [gadget(null, { filterId: null })] },
+    ];
+    const s = summarizeDashboards(dashboards);
+    expect(s.brokenGadgetCount).toBe(1);
+    expect(s.filterGadgetDashboards).toBe(2);
+  });
+});

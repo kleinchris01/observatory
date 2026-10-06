@@ -27,6 +27,7 @@ import {
   getDashboardPage,
   getDashboardGadgets,
   getGadgetFilterId,
+  probeFilter,
   mapWithConcurrency,
 } from "./jira-api.js";
 import { shouldRetry } from "./analysis.js";
@@ -365,6 +366,17 @@ export const dashboardBuildSpec = {
         return { ...g, filterId: null };
       }
     });
+
+    // Whether each gadget's filter can still be read. Once per distinct filter in this chunk:
+    // a dozen gadgets on one filter are one question, not twelve.
+    const filterIds = [...new Set(configs.map((c) => c.filterId).filter(Boolean).map(String))];
+    const states = new Map();
+    await mapWithConcurrency(filterIds, DASHBOARD_FETCH_CONCURRENCY, async (id) => {
+      states.set(id, await probeFilter(id).catch(() => "unknown"));
+    });
+    for (const config of configs) {
+      if (config.filterId) config.filterState = states.get(String(config.filterId)) || "unknown";
+    }
 
     await recordGadgetConfigs(installationKey, version, configs);
 

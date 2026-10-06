@@ -4337,6 +4337,7 @@ const REMEDIATION_CANDIDATE_LOADERS = {
     };
   },
   "dashboards-public": ({ installationKey }) => dashboardItemsWith(installationKey, "shared-publicly"),
+  "dashboards-broken-gadgets": ({ installationKey }) => dashboardItemsWith(installationKey, "broken-gadget"),
   "dashboards-open-edit": ({ installationKey }) => dashboardItemsWith(installationKey, "editable-by-everyone"),
   "dashboards-empty": ({ installationKey }) => dashboardItemsWith(installationKey, "empty"),
   "dashboards-published-unused": ({ installationKey }) => dashboardItemsWith(installationKey, "published-unused"),
@@ -4708,6 +4709,8 @@ async function dashboardItemsWith(installationKey, code) {
       ownerName: d.owner?.displayName || d.ownerName || null,
       popularity: Number(d.popularity) || 0,
       gadgetCount: d.gadgetCount ?? null,
+      // The broken gadgets themselves, for the broken-gadget playbook; empty for the rest.
+      brokenGadgets: (d.findings || []).find((x) => x.code === "broken-gadget")?.gadgets || [],
     }));
   return { available: true, items };
 }

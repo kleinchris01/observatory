@@ -2314,7 +2314,12 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v172_create_snapshot_fieldcfg_configs_table", CREATE_SNAPSHOT_FIELDCFG_CONFIGS_TABLE)
   .enqueue("v173_create_snapshot_fieldcfg_mappings_table", CREATE_SNAPSHOT_FIELDCFG_MAPPINGS_TABLE)
   .enqueue("v174_create_snapshot_fieldcfg_items_table", CREATE_SNAPSHOT_FIELDCFG_ITEMS_TABLE)
-  .enqueue("v175_create_snapshot_fieldcfg_items_by_field_index", CREATE_SNAPSHOT_FIELDCFG_ITEMS_BY_FIELD_INDEX);
+  .enqueue("v175_create_snapshot_fieldcfg_items_by_field_index", CREATE_SNAPSHOT_FIELDCFG_ITEMS_BY_FIELD_INDEX)
+  // Whether a gadget's filter can be read: readable / private / missing / unknown, from
+  // probeFilter during the dashboard build. NULL = not probed (a snapshot that predates it,
+  // or a gadget with no filter), which the dimension treats as unmeasured.
+  .enqueue("v176_alter_dashboard_gadgets_add_filter_state",
+    "ALTER TABLE snapshot_dashboard_gadgets ADD COLUMN IF NOT EXISTS filter_state VARCHAR(16) NULL");
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

@@ -132,6 +132,7 @@ vi.mock("./jira-api.js", () => ({
   getDashboardPage: vi.fn(),
   getDashboardGadgets: vi.fn(async () => []),
   getGadgetFilterId: vi.fn(async () => null),
+  probeFilter: vi.fn(async () => "readable"),
   mapWithConcurrency: async (items, _n, fn) => Promise.all(items.map(fn)),
 }));
 vi.mock("./logger.js", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
@@ -187,6 +188,25 @@ describe("dashboardBuildSpec.runChunk — phase-aware progress", () => {
     const r = await spec.runChunk({ installationKey: "i", version: "v", cursor: { phase: "configs", walked: 0, listTotal: 613, gadgetTotal: 4000 } });
     expect(r.totalExpected).toBe(5226);
     expect(r.done).toBe(false);
+  });
+
+  test("probes each distinct gadget filter once, and records its state on every gadget using it", async () => {
+    const api = await import("./jira-api.js");
+    store.loadGadgetsNeedingConfig.mockResolvedValue([
+      { dashboardId: "1", gadgetId: "g1" }, { dashboardId: "1", gadgetId: "g2" }, { dashboardId: "2", gadgetId: "g3" },
+    ]);
+    api.getGadgetFilterId.mockImplementation(async (_d, g) => (g === "g3" ? null : "500"));
+    api.probeFilter.mockResolvedValueOnce("missing");
+    store.recordGadgetConfigs.mockResolvedValue({ recorded: 3 });
+
+    await spec.runChunk({ installationKey: "i", version: "v", cursor: { phase: "configs", walked: 0 } });
+
+    expect(api.probeFilter).toHaveBeenCalledTimes(1);
+    const [, , recorded] = store.recordGadgetConfigs.mock.calls.at(-1);
+    expect(recorded.map((c) => [c.gadgetId, c.filterId, c.filterState])).toEqual([
+      ["g1", "500", "missing"], ["g2", "500", "missing"], ["g3", null, undefined],
+    ]);
+    api.getGadgetFilterId.mockImplementation(async () => null);
   });
 
   test("a config chunk resumed from a pre-fix cursor leaves the meta's total alone", async () => {

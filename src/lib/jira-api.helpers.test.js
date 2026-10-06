@@ -38,6 +38,7 @@ import {
   extractTransitionScreens,
   getAllWorkflowsWithStatuses,
   getGroupsByIds,
+  probeFilter,
   getFieldCatalog,
   getAllFieldSchemes,
   getFieldSchemeProjectAssignments,
@@ -1205,5 +1206,24 @@ describe("field behaviour endpoints", () => {
   test("no project ids asks nothing", async () => {
     expect(await getFieldConfigurationSchemeProjects([])).toEqual([]);
     expect(mockRequestJira).not.toHaveBeenCalled();
+  });
+});
+
+// Jira answers 400 for both "not found" and "not allowed"; the override call tells them apart.
+describe("probeFilter", () => {
+  const ok = () => jiraResponse({ body: { id: "500" } });
+  const refused = () => jiraResponse({ ok: false, status: 400, text: "not available to you" });
+
+  test.each([
+    ["readable", [ok()], 1],
+    ["private", [refused(), ok()], 2],
+    ["missing", [refused(), refused()], 2],
+    ["unknown", [jiraResponse({ ok: false, status: 401, text: "auth" })], 1],
+    ["unknown", [refused(), jiraResponse({ ok: false, status: 401, text: "auth" })], 2],
+  ])("%s", async (expected, responses, calls) => {
+    for (const r of responses) mockRequestJira.mockResolvedValueOnce(r);
+    expect(await probeFilter("500")).toBe(expected);
+    expect(mockRequestJira).toHaveBeenCalledTimes(calls);
+    if (calls === 2) expect(String(mockRequestJira.mock.calls[1][0])).toContain("overrideSharePermissions=true");
   });
 });
