@@ -126,6 +126,8 @@ const mocks = vi.hoisted(() => ({
   readWorkflowSnapshotMeta: vi.fn(),
   loadWorkflowRefsFor: vi.fn(async () => []),
   readFieldConfigSnapshotMeta: vi.fn(async () => null),
+  loadTransitionsTouchingStatus: vi.fn(async () => []),
+  loadStatusWorkflowProperties: vi.fn(async () => []),
   loadWorkflowRefsByType: vi.fn(async () => []),
   loadWorkflowsCatalog: vi.fn(async () => []),
   readAutomationAnalysis: vi.fn(),
@@ -419,6 +421,8 @@ vi.mock("./lib/project-store.js", () => ({
   readWorkflowSnapshotMeta: mocks.readWorkflowSnapshotMeta,
   loadWorkflowRefsFor: mocks.loadWorkflowRefsFor,
   readFieldConfigSnapshotMeta: mocks.readFieldConfigSnapshotMeta,
+  loadTransitionsTouchingStatus: mocks.loadTransitionsTouchingStatus,
+  loadStatusWorkflowProperties: mocks.loadStatusWorkflowProperties,
   loadWorkflowRefsByType: mocks.loadWorkflowRefsByType,
   loadWorkflowsCatalog: mocks.loadWorkflowsCatalog,
   readScreenSnapshotMeta: mocks.readScreenSnapshotMeta,
@@ -750,6 +754,7 @@ const {
   getBoardInventory,
   buildBoardInventory,
   probeGlobalPermissions,
+  getStatusDetail,
 } = __RAW_ADMIN_ONLY_FUNCTIONS;
 
 const {
@@ -9014,7 +9019,11 @@ describe("rovo workflow agent", () => {
   const ctx = () => ctxWithAccount();
 
   function seedBuilt() {
-    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v9", state: "ready", refreshedAt: "2026-09-01T00:00:00.000Z" });
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v9", state: "ready", refreshedAt: "2026-09-01T00:00:00.000Z", workflowRules: 4 });
+    mocks.loadTransitionsTouchingStatus.mockResolvedValue([]);
+    mocks.loadStatusWorkflowProperties.mockResolvedValue([]);
+    mocks.loadWorkflowRefsFor.mockResolvedValue([]);
+    mocks.loadWorkflowRefsByType.mockResolvedValue([]);
     mocks.loadWorkflowSchemes.mockResolvedValue([
       { schemeId: "s1", name: "Software Simplified Workflow Scheme", description: "the default", defaultWorkflow: "SSW", projectCount: 3 },
       { schemeId: "s2", name: "Ops Scheme", description: "", defaultWorkflow: "Ops", projectCount: 1 },
@@ -9109,6 +9118,51 @@ describe("rovo workflow agent", () => {
     expect(r.blockers).toEqual([]);
     expect(r.gaps).toEqual([]);
     expect(r.verdictCaveat).toMatch(/board columns, saved filter JQL/);
+  });
+
+  test("impact: a status in a workflow no scheme reaches is still in use -- Jira will not delete it", async () => {
+    seedBuilt();
+    mocks.loadTransitionsTouchingStatus.mockResolvedValueOnce([
+      { workflowName: "Old WF", transitionId: "21", transitionName: "Park", transitionType: "DIRECTED", fromStatusIds: ["1"], toStatusId: "9", ruleCount: 1 },
+    ]);
+    const r = await rovoWorkflowImpact({ name: "On Hold" }, ctx());
+    expect(r.inWorkflows).toEqual(["Old WF"]);
+    expect(r.verdict).toBe("in-use");
+    expect(r.blockers).toEqual([expect.objectContaining({ source: "workflows", summary: "In 1 workflow: Old WF." })]);
+  });
+
+  test("impact: a snapshot that never read transitions leaves the workflows check a gap", async () => {
+    seedBuilt();
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v9", state: "ready", refreshedAt: "2026-09-01T00:00:00.000Z", workflowRules: null });
+    const r = await rovoWorkflowImpact({ name: "On Hold" }, ctx());
+    expect(r.workflowsChecked).toBe(false);
+    expect(r.verdict).toBe("unknown");
+    expect(r.gaps.map((g) => g.source)).toContain("workflows");
+  });
+
+  test("status detail: the drawer's read, with transitions in both directions and the restrictions on it", async () => {
+    seedBuilt();
+    mocks.loadTransitionsTouchingStatus.mockResolvedValueOnce([
+      { workflowName: "SSW", transitionId: "11", transitionName: "Review", transitionType: "DIRECTED", fromStatusIds: ["1"], toStatusId: "2", ruleCount: 2 },
+      { workflowName: "SSW", transitionId: "12", transitionName: "Back", transitionType: "GLOBAL", fromStatusIds: [], toStatusId: "1", ruleCount: 0 },
+    ]);
+    mocks.loadStatusWorkflowProperties.mockResolvedValueOnce([{ workflowName: "SSW", key: "jira.issue.editable", value: "false" }]);
+
+    const r = await getStatusDetail({ payload: { statusId: "2" }, context: ctxWithAccount() });
+    expect(r).toMatchObject({ available: true, found: true, status: { statusId: "2", name: "In Review" }, schemeCount: 1, workflows: ["SSW"], verdict: "in-use" });
+    expect(r.transitions).toEqual([
+      expect.objectContaining({ name: "Review", direction: "into", from: ["To Do"], to: "In Review", ruleCount: 2 }),
+      expect.objectContaining({ name: "Back", direction: "out", from: ["Any status"], to: "To Do" }),
+    ]);
+    expect(r.restrictions.restrictions[0]).toMatchObject({ effect: "not-editable" });
+    expect(r.schemes[0]).toMatchObject({ schemeId: "s1" });
+  });
+
+  test("status detail: unknown status and no snapshot are different answers", async () => {
+    seedBuilt();
+    expect(await getStatusDetail({ payload: { statusId: "404" }, context: ctxWithAccount() })).toMatchObject({ available: true, found: false });
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ state: "idle" });
+    expect(await getStatusDetail({ payload: { statusId: "2" }, context: ctxWithAccount() })).toEqual({ available: false, reason: "no-snapshot" });
   });
 
   test("impact: a status no board column maps and no filter references is still in-use when a board column DOES map it", async () => {

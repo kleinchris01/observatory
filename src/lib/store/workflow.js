@@ -800,3 +800,32 @@ export async function writeWorkflowSnapshotMeta(scopeKey, patch) {
 
   return next;
 }
+
+// Every transition into or out of one status, across every workflow -- active or not. Which
+// workflows contain a status is a deletion question in its own right: Jira refuses to delete a
+// status any workflow uses, whether or not a project's scheme reaches that workflow.
+export async function loadTransitionsTouchingStatus(scopeKey, version, statusId) {
+  await ensureProjectStoreReady();
+  const id = String(statusId);
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT workflow_name, transition_id, transition_name, transition_type, from_status_ids, to_status_id, rule_count
+      FROM snapshot_workflow_transitions
+      WHERE scope_key = ? AND version = ? AND (to_status_id = ? OR from_status_ids LIKE ?)
+      ORDER BY workflow_name ASC, transition_name ASC
+      LIMIT 2000
+    `).bindParams(scopeKey, version, id, `%"${id.replace(/[\%_"]/g, "")}"%`).execute()
+  );
+  return (result.rows || []).map((row) => ({
+    workflowName: row.workflow_name,
+    transitionId: row.transition_id,
+    transitionName: row.transition_name || row.transition_id,
+    transitionType: row.transition_type || null,
+    fromStatusIds: safeParseJson(row.from_status_ids, []),
+    toStatusId: row.to_status_id || null,
+    ruleCount: toNumber(row.rule_count, 0),
+  }))
+    // The LIKE is a prefilter; a status id that is a substring of another ("1" in "10") is
+    // excluded here, where the parsed list can be checked exactly.
+    .filter((t) => t.toStatusId === id || t.fromStatusIds.map(String).includes(id));
+}

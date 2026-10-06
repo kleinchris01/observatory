@@ -231,6 +231,7 @@ describe("computeVerdict — the shared core", () => {
 
 // Every source consulted and every source clean, mirroring allClean above for the field case.
 const statusAllClean = {
+  workflows: { available: true, count: 0, names: [], ruleRefCount: 0 },
   status: { id: "9", name: "On Hold" },
   schemes: { reachedByCount: 0 },
   issueUsage: { count: 0 },
@@ -307,5 +308,25 @@ describe("assessStatusDeletion — evidence quality", () => {
   test("an unnamed status is a gap on the catalogue, not a silent skip", () => {
     const result = assessStatusDeletion({ ...statusAllClean, status: { id: "9" } });
     expect(result.gaps).toEqual(expect.arrayContaining([expect.objectContaining({ source: "status catalogue" })]));
+  });
+});
+
+describe("assessStatusDeletion -- workflows", () => {
+  test("a status in any workflow, even one no scheme reaches, is in use", () => {
+    const result = assessStatusDeletion({ ...statusAllClean, workflows: { available: true, count: 2, names: ["Old WF", "Build WF"], ruleRefCount: 0 } });
+    expect(result.verdict).toBe(VERDICT.IN_USE);
+    expect(result.blockers[0]).toMatchObject({ source: "workflows", severity: "high" });
+    expect(result.blockers[0].summary).toBe("In 2 workflows: Old WF, Build WF.");
+  });
+
+  test("a workflow rule naming the status is a medium blocker", () => {
+    const result = assessStatusDeletion({ ...statusAllClean, workflows: { available: true, count: 0, names: [], ruleRefCount: 1 } });
+    expect(result.blockers).toEqual([expect.objectContaining({ source: "workflow-rules", severity: "medium" })]);
+  });
+
+  test("no transition snapshot is a gap", () => {
+    const result = assessStatusDeletion({ ...statusAllClean, workflows: null });
+    expect(result.verdict).toBe(VERDICT.UNKNOWN);
+    expect(result.gaps.map((g) => g.source)).toContain("workflows");
   });
 });

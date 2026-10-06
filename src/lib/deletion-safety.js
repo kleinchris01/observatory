@@ -266,6 +266,7 @@ export function assessStatusDeletion({
   automation = null,  // { available, writeCount, readCount, triggerCount } | null
   boards = null,      // { available, onBoard: boolean } | null
   filters = null,     // { available, count, names: [] } | null
+  workflows = null,   // { available, count, names: [], ruleRefCount } | null -- from the transition snapshot
 } = {}) {
   const blockers = [];
   const gaps = [];
@@ -292,6 +293,36 @@ export function assessStatusDeletion({
     }
   } else {
     gaps.push(gap("workflow schemes", "No scheme->status mapping has been built, so reachability is unknown."));
+  }
+
+  // ── Workflows that contain it ─────────────────────────────────────────────
+  //
+  // Separate from scheme reachability, and stricter: Jira refuses to delete a status that ANY
+  // workflow uses -- including an inactive workflow no project's scheme reaches. A status the
+  // scheme chain calls unreachable can still be undeletable for exactly that reason.
+  if (workflows?.available) {
+    checked.push("workflows");
+    const count = Number(workflows.count) || 0;
+    if (count > 0) {
+      const names = (workflows.names || []).slice(0, 3).join(", ");
+      blockers.push({
+        source: "workflows",
+        severity: "high",
+        summary: `In ${count} workflow${count === 1 ? "" : "s"}${names ? `: ${names}` : ""}.`,
+        detail: "Jira will not delete a status any workflow uses, active or not. Remove it from those workflows first.",
+      });
+    }
+    const refs = Number(workflows.ruleRefCount) || 0;
+    if (refs > 0) {
+      blockers.push({
+        source: "workflow-rules",
+        severity: "medium",
+        summary: `${refs} workflow rule${refs === 1 ? " names" : "s name"} this status (a previous-status validator, say).`,
+        detail: "Those rules stop matching once the status is gone, and nothing reports it.",
+      });
+    }
+  } else {
+    gaps.push(gap("workflows", "No workflow snapshot with transitions has been built, so which workflows contain this status is unknown."));
   }
 
   // ── Issues currently in it ────────────────────────────────────────────────

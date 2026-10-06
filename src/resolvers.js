@@ -107,6 +107,7 @@ import {
   loadRqtFieldIssueIndex,
   loadIssueRqtValues,
   readWorkflowSnapshotMeta,
+  loadTransitionsTouchingStatus,
   transitionAwareWorkflowVersion,
   readRecentFullScanRuns,
   loadWorkflowSchemes,
@@ -7600,6 +7601,97 @@ export async function rovoWorkflowInspect(payload, context) {
   }
 }
 
+// Everything known about one status, for the status drawer and the workflow agent's impact
+// answer alike -- one function, so the tab and Rovo cannot give two different verdicts.
+//
+// `lookup` is { statusId } or { name }. Returns { available: false, ... } when no workflow
+// snapshot exists and { found: false } when the status is not in the catalogue.
+async function computeStatusDetail(installationKey, context, lookup) {
+  const wf = await loadWorkflowForAgent(installationKey);
+  if (!wf.available) return { available: false, snapshotStatus: wf.snapshotStatus };
+
+  const byId = lookup?.statusId != null && lookup.statusId !== "" ? String(lookup.statusId) : null;
+  const byName = String(lookup?.name || "").trim().toLowerCase();
+  const status = wf.statuses.find((s) => (byId
+    ? String(s.statusId ?? s.id) === byId
+    : String(s.name || "").toLowerCase() === byName));
+  if (!status) return { available: true, found: false, refreshedAt: wf.refreshedAt };
+
+  const sid = String(status.statusId ?? status.id);
+  const reachingSchemeIds = new Set(
+    wf.schemeStatuses.filter((p) => String(p.statusId) === sid).map((p) => String(p.schemeId))
+  );
+  const reachingSchemes = wf.schemes.filter((s) => reachingSchemeIds.has(String(s.schemeId)));
+  let projectCount = 0;
+  const projectSample = [];
+  for (const scheme of reachingSchemes.slice(0, 25)) {
+    const projects = await loadWorkflowSchemeProjects(installationKey, wf.meta.version, scheme.schemeId).catch(() => []);
+    projectCount += projects.length;
+    for (const p of projects.slice(0, 10)) projectSample.push(p.projectKey);
+  }
+  const automation = await loadStatusAutomationReferences(installationKey, [status.name]).catch(() => null);
+  const rules = automation?.[status.name.toLowerCase()] || automation?.[status.name] || null;
+
+  // Board columns and saved filters: joins over data other pillars already hold.
+  const boardStatusIds = await computeBoardStatusIds(installationKey).catch(() => null);
+  const onBoard = boardStatusIds ? boardStatusIds.has(sid) : null;
+  const filterUsage = await getFilterUsage({ payload: { kind: "status", label: status.name }, context }).catch(() => null);
+  const referencingFilters = filterUsage?.available ? filterUsage.filters : null;
+  const issueCount = wf.hasIssueCounts ? Number(wf.issueCounts.get(sid) ?? 0) : null;
+
+  // The workflows that contain it, from the transitions read with the rules, and what those
+  // workflows enforce while an issue sits in it. Only when the snapshot read the rules:
+  // without them "in no workflow" would be a claim nobody checked.
+  const rulesRead = wf.meta.workflowRules != null;
+  const [transitions, ruleUsage, restrictions] = rulesRead
+    ? await Promise.all([
+        loadTransitionsTouchingStatus(installationKey, wf.meta.version, sid).catch(() => null),
+        getWorkflowRuleUsage({ payload: { refType: "status", refId: sid }, context }).catch(() => null),
+        getWorkflowRestrictions({ payload: { statusId: sid }, context }).catch(() => null),
+      ])
+    : [null, null, null];
+  const workflowNames = transitions ? [...new Set(transitions.map((t) => t.workflowName))] : null;
+
+  const assessment = assessStatusDeletion({
+    status,
+    schemes: { reachedByCount: reachingSchemeIds.size },
+    issueUsage: issueCount === null ? null : { count: issueCount },
+    automation: automation ? { available: true, writeCount: rules?.ruleCount ?? 0 } : null,
+    boards: boardStatusIds ? { available: true, onBoard } : null,
+    filters: referencingFilters
+      ? { available: true, count: referencingFilters.length, names: referencingFilters.map((f) => f.name) }
+      : null,
+    workflows: workflowNames
+      ? { available: true, count: workflowNames.length, names: workflowNames, ruleRefCount: ruleUsage?.available ? ruleUsage.total : 0 }
+      : null,
+  });
+
+  return {
+    available: true,
+    found: true,
+    refreshedAt: wf.refreshedAt,
+    status,
+    statusRow: statusRow(status, wf),
+    reachingSchemes,
+    reachingSchemeCount: reachingSchemeIds.size,
+    projectCount,
+    projectSample: [...new Set(projectSample)].slice(0, 20),
+    automationChecked: Boolean(automation),
+    automationRules: rules,
+    boardChecked: boardStatusIds !== null,
+    onBoard,
+    referencingFilters,
+    issueCount,
+    everCount: wf.hasHistoryCounts ? (wf.historyCounts.get(sid) ?? null) : null,
+    rulesRead,
+    workflowNames,
+    transitions,
+    ruleUsage,
+    restrictions,
+    assessment,
+  };
+}
+
 export async function rovoWorkflowImpact(payload, context) {
   incrMetric(METRIC_NAMES.resolver);
   try {
@@ -7607,91 +7699,101 @@ export async function rovoWorkflowImpact(payload, context) {
     const name = String(payload?.name || "").trim();
     if (!name) return { status: "error", message: "A status name is required." };
 
-    const wf = await loadWorkflowForAgent(installationKey);
-    if (!wf.available) return pillarUnavailable("workflows", wf.snapshotStatus);
+    const d = await computeStatusDetail(installationKey, context, { name });
+    if (!d.available) return pillarUnavailable("workflows", d.snapshotStatus);
+    if (!d.found) return agentNotFound(d.refreshedAt, `No status named "${name}" is in the catalogue.`);
 
-    const status = wf.statuses.find((s) => String(s.name || "").toLowerCase() === name.toLowerCase());
-    if (!status) return agentNotFound(wf.refreshedAt, `No status named "${name}" is in the catalogue.`);
-
-    const sid = String(status.statusId ?? status.id);
-    const reachingSchemeIds = new Set(
-      wf.schemeStatuses.filter((p) => String(p.statusId) === sid).map((p) => String(p.schemeId))
-    );
-    const reachingSchemes = wf.schemes.filter((s) => reachingSchemeIds.has(String(s.schemeId)));
-    let projectCount = 0;
-    const projectSample = [];
-    for (const scheme of reachingSchemes.slice(0, 25)) {
-      const projects = await loadWorkflowSchemeProjects(installationKey, wf.meta.version, scheme.schemeId).catch(() => []);
-      projectCount += projects.length;
-      for (const p of projects.slice(0, 10)) projectSample.push(p.projectKey);
-    }
-    const automation = await loadStatusAutomationReferences(installationKey, [status.name]).catch(() => null);
-    const rules = automation?.[status.name.toLowerCase()] || automation?.[status.name] || null;
-
-    // Two more pillars this used to disclaim rather than check: board columns and saved
-    // filters. Both were already computed elsewhere in the app -- board columns for the
-    // status-reachability finding above, filter references via the same snapshot_filter_refs
-    // lookup deletion-safety already uses for fields, just never with kind: "status" -- so
-    // this is a join, not new analysis.
-    const boardStatusIds = await computeBoardStatusIds(installationKey).catch(() => null);
-    const onBoard = boardStatusIds ? boardStatusIds.has(sid) : null;
-
-    // The shared reverse lookup -- getFilterUsage already reads the filter snapshot meta and
-    // calls loadFilterReferencesFor for whichever kind is asked, and is the one place that
-    // join is supposed to live. Called directly rather than re-deriving the same two steps
-    // here a second time; a screen or issue-type impact answer added later reaches for the
-    // same function instead of writing a third copy.
-    const filterUsage = await getFilterUsage({ payload: { kind: "status", label: status.name }, context }).catch(() => null);
-    const referencingFilters = filterUsage?.available ? filterUsage.filters : null;
-    const issueCount = wf.hasIssueCounts ? Number(wf.issueCounts.get(sid) ?? 0) : null;
-
-    // The consequential judgement, drawn from the same shared verdict every deletion-safety
-    // answer in the app uses -- not a bespoke boolean re-derived here. Any real blocker is
-    // in-use regardless of what else could not be checked; the previous version of this
-    // function got that backwards for one case (a confirmed automation reference could still
-    // read "unknown" if issue counts happened to be unmeasured), which assessStatusDeletion
-    // does not repeat because computeVerdict is the one place that logic is allowed to live.
-    const assessment = assessStatusDeletion({
-      status,
-      schemes: { reachedByCount: reachingSchemeIds.size },
-      issueUsage: issueCount === null ? null : { count: issueCount },
-      automation: automation ? { available: true, writeCount: rules?.ruleCount ?? 0 } : null,
-      boards: boardStatusIds ? { available: true, onBoard } : null,
-      filters: referencingFilters
-        ? { available: true, count: referencingFilters.length, names: referencingFilters.map((f) => f.name) }
+    return agentOk(d.refreshedAt, {
+      subject: d.statusRow,
+      reachedBySchemes: d.reachingSchemes.map((s) => ({ schemeId: s.schemeId, name: s.name })),
+      reachedBySchemeCount: d.reachingSchemeCount,
+      governedProjectCount: d.projectCount,
+      projectSample: d.projectSample,
+      automationChecked: d.automationChecked,
+      automationRules: d.automationRules,
+      boardChecked: d.boardChecked,
+      onAnyBoard: d.onBoard,
+      filtersChecked: Boolean(d.referencingFilters),
+      referencingFilters: d.referencingFilters
+        ? d.referencingFilters.slice(0, 10).map((f) => ({ id: f.id, name: f.name }))
         : null,
-    });
-
-    return agentOk(wf.refreshedAt, {
-      subject: statusRow(status, wf),
-      reachedBySchemes: reachingSchemes.map((s) => ({ schemeId: s.schemeId, name: s.name })),
-      reachedBySchemeCount: reachingSchemeIds.size,
-      governedProjectCount: projectCount,
-      projectSample: [...new Set(projectSample)].slice(0, 20),
-      automationChecked: Boolean(automation),
-      automationRules: rules,
-      boardChecked: boardStatusIds !== null,
-      onAnyBoard: onBoard,
-      filtersChecked: Boolean(referencingFilters),
-      referencingFilters: referencingFilters
-        ? referencingFilters.slice(0, 10).map((f) => ({ id: f.id, name: f.name }))
+      referencingFilterCount: d.referencingFilters ? d.referencingFilters.length : null,
+      issueCount: d.issueCount,
+      everCount: d.everCount,
+      workflowsChecked: d.workflowNames !== null,
+      inWorkflows: d.workflowNames,
+      restrictions: d.restrictions?.available
+        ? d.restrictions.restrictions.map((r) => ({ workflow: r.workflowName, restriction: r.description, holder: r.holder?.label || r.holder?.id || null }))
         : null,
-      referencingFilterCount: referencingFilters ? referencingFilters.length : null,
-      issueCount,
-      everCount: wf.hasHistoryCounts ? (wf.historyCounts.get(sid) ?? null) : null,
-      verdict: assessment.verdict,
-      blockers: assessment.blockers,
-      gaps: assessment.gaps,
+      verdict: d.assessment.verdict,
+      blockers: d.assessment.blockers,
+      gaps: d.assessment.gaps,
       verdictCaveat:
-        "This covers workflow schemes, issue counts, board columns, saved filter JQL and " +
-        "(where an analysis exists) automation. It does not cover dashboards built directly " +
-        "on a status without a saved filter, or apps.",
+        "This covers workflow schemes, the workflows that contain the status, issue counts, " +
+        "board columns, saved filter JQL and (where an analysis exists) automation. It does " +
+        "not cover dashboards built directly on a status without a saved filter, or apps.",
     });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
     console.error("rovoWorkflowImpact failed:", error);
     throw error;
   }
+}
+
+// The status drawer: everything about one status, with its deletion verdict.
+async function getStatusDetail({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+  const statusId = requireNonEmptyString(String(payload?.statusId ?? ""), "statusId");
+
+  const d = await computeStatusDetail(installationKey, context, { statusId });
+  if (!d.available) return { available: false, reason: "no-snapshot" };
+  if (!d.found) return { available: true, found: false, refreshedAt: d.refreshedAt };
+
+  const names = new Map();
+  // Names for the transition endpoints come from the restriction/rule readers' status map;
+  // here the catalogue the detail already loaded is enough.
+  const wfStatuses = await loadWorkflowForAgent(installationKey).then((wf) => wf.statuses || []).catch(() => []);
+  for (const s of wfStatuses) names.set(String(s.statusId ?? s.id), s.name);
+  const sid = d.statusRow.statusId;
+  const label = (id) => (id == null ? null : names.get(String(id)) || `Status ${id}`);
+
+  return {
+    available: true,
+    found: true,
+    refreshedAt: d.refreshedAt,
+    status: d.statusRow,
+    schemes: d.reachingSchemes.map((s) => ({ schemeId: s.schemeId, name: s.name, projectCount: s.projectCount ?? null })),
+    schemeCount: d.reachingSchemeCount,
+    projectCount: d.projectCount,
+    projectSample: d.projectSample,
+    rulesRead: d.rulesRead,
+    workflows: d.workflowNames,
+    // Into and out of the status, with how many rules each carries -- "who can put an issue
+    // here, and what has to be true first".
+    transitions: d.transitions
+      ? d.transitions.slice(0, 200).map((t) => ({
+          workflowName: t.workflowName,
+          name: t.transitionName,
+          direction: t.toStatusId === sid ? "into" : "out",
+          from: t.transitionType === "INITIAL" ? ["Create"] : !t.fromStatusIds.length ? ["Any status"] : t.fromStatusIds.map(label),
+          to: label(t.toStatusId),
+          ruleCount: t.ruleCount,
+        }))
+      : null,
+    restrictions: d.restrictions,
+    ruleUsage: d.ruleUsage,
+    automationChecked: d.automationChecked,
+    boardChecked: d.boardChecked,
+    onBoard: d.onBoard,
+    filters: d.referencingFilters ? d.referencingFilters.slice(0, 20).map((f) => ({ id: f.id, name: f.name })) : null,
+    verdict: d.assessment.verdict,
+    headline: d.assessment.headline,
+    blockers: d.assessment.blockers,
+    gaps: d.assessment.gaps,
+    caveat: d.assessment.caveat,
+  };
 }
 
 // ── Rovo: issue type expert ─────────────────────────────────────────────────
@@ -10732,6 +10834,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getFieldConfigItems,     // Admin read: one scheme's or configuration's fields, paged
   getFieldBehaviour,       // Admin read: what every scheme or configuration does to one field
   buildFieldConfigInventory, // Mutating: queues a field scheme / configuration build
+  getStatusDetail,         // Admin read: one status -- schemes, workflows, transitions, restrictions, deletion verdict
   getDashboardInventory,   // Admin read: dashboards, their gadgets and their findings
   buildDashboardInventory, // Mutating: queues a rebuild of the dashboard snapshot
   getFilterInventory,      // Admin read: saved filters, their findings and their references
