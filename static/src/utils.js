@@ -126,6 +126,18 @@ export function buildScreenUrl(siteOrigin, screenId) {
   return `${siteOrigin}/secure/admin/ConfigureFieldScreen.jspa?id=${encodeURIComponent(screenId)}`;
 }
 
+// legacy -- one workflow scheme's issue type mappings.
+export function buildWorkflowSchemeUrl(siteOrigin, schemeId) {
+  if (!siteOrigin || schemeId === null || schemeId === undefined || schemeId === "") return null;
+  return `${siteOrigin}/secure/admin/EditWorkflowScheme.jspa?schemeId=${encodeURIComponent(schemeId)}`;
+}
+
+// legacy -- the site's status list.
+export function buildStatusAdminUrl(siteOrigin) {
+  if (!siteOrigin) return null;
+  return `${siteOrigin}/secure/admin/ViewStatuses.jspa`;
+}
+
 // legacy -- one live workflow's steps, by name (the only key the scheme association gives).
 export function buildWorkflowUrl(siteOrigin, workflowName) {
   if (!siteOrigin || !workflowName) return null;

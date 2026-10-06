@@ -25,6 +25,7 @@ import {
   loadRefsForRules,
   loadRestrictingProperties,
   loadWorkflowsCatalog,
+  loadTransitionsTouchingStatus,
   readWorkflowSnapshotMeta,
   writeWorkflowSnapshotMeta,
 } from "./workflow.js";
@@ -203,5 +204,21 @@ describe("meta", () => {
     const write = issued.find((e) => /INSERT INTO workflow_snapshot_meta/.test(e.statement));
     expect(write.params).toHaveLength(placeholders(write.statement));
     expect(write.params).toContain(42);
+  });
+});
+
+describe("loadTransitionsTouchingStatus", () => {
+  test("matches transitions into or out of the status, exactly, never by substring", async () => {
+    rowsFor = () => [
+      { workflow_name: "WF", transition_id: "1", transition_name: "In", transition_type: "DIRECTED", from_status_ids: '["3"]', to_status_id: "1", rule_count: 2 },
+      { workflow_name: "WF", transition_id: "2", transition_name: "Out", transition_type: "DIRECTED", from_status_ids: '["1"]', to_status_id: "4", rule_count: 0 },
+      // A LIKE hit for "10" that is not status 1.
+      { workflow_name: "WF", transition_id: "3", transition_name: "Other", transition_type: "DIRECTED", from_status_ids: '["10"]', to_status_id: "11", rule_count: 0 },
+    ];
+    const rows = await loadTransitionsTouchingStatus("site", "v1", 1);
+    const read = issued.at(-1);
+    expect(read.params).toEqual(["site", "v1", "1", '%"1"%']);
+    expect(rows.map((r) => r.transitionName)).toEqual(["In", "Out"]);
+    expect(rows[0]).toMatchObject({ ruleCount: 2, fromStatusIds: ["3"], toStatusId: "1" });
   });
 });

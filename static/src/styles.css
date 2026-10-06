@@ -6350,6 +6350,14 @@ a.macro-pillar__name:hover { color: var(--cool); text-decoration: underline; }
 }
 :root[data-theme="light"] .wf-statusrules { background: rgba(0, 0, 0, 0.02); }
 .wf-statusrules__head { display: flex; align-items: center; gap: 10px; }
+/* Status cards open the status drawer. */
+.wf-status--button { font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.wf-status--button:hover, .wf-status--open { border-color: var(--accent, #4d8fd6); }
+.wf-status--button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.wf-statusrules__actions { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.wf-statusdetail { display: flex; flex-direction: column; gap: 13px; margin: 6px 0 13px; }
+.wf-statusdetail__verdict { display: flex; flex-direction: column; gap: 6px; }
+.wf-statusdetail__headline { margin: 0; font-size: 0.85rem; font-weight: 600; }
 .wf-statusrules__title { margin: 0; font-size: 0.88rem; font-weight: 600; flex: 1; }
 .wf-statusrules__groups { display: flex; flex-direction: column; gap: 13px; }
 .wf-statusrules__group { display: flex; flex-direction: column; gap: 6px; }

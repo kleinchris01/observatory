@@ -1,8 +1,8 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
-import { formatTimestamp, formatRelativeTime, formatNumber } from "../utils";
+import { formatTimestamp, formatRelativeTime, formatNumber, buildWorkflowSchemeUrl, buildStatusAdminUrl, buildWorkflowUrl } from "../utils";
 import { Icon } from "../components/Icons";
-import { StatTile, StatRow, Panel, EmptyState, PageHeader, SortFilterBar, Chip, RuleLink, AskRovo } from "../components/ui";
+import { StatTile, StatRow, Panel, EmptyState, PageHeader, SortFilterBar, Chip, RuleLink, AskRovo, JiraLink, FindingRow, PillarHealthPanel, WorkflowUsageList } from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useNavIntent, usePersistentState } from "../hooks";
@@ -133,9 +133,145 @@ const DUPLICATE_KIND_LABEL = {
 //
 // Fetched when a status is opened rather than with the page. There are 94 unreachable
 // statuses on this site and a reader opens one or two.
+const VERDICT_TONE = { "in-use": "warning", "no-evidence-of-use": "success", unknown: "neutral" };
+const BLOCKER_TONE = { high: "critical", medium: "warning", low: "info" };
+
+// What the status drawer adds above the rule and filter lists: the deletion verdict, the
+// schemes and workflows that hold the status, every transition into and out of it, and what
+// each workflow restricts while an issue sits in it. One read, getStatusDetail, which is the
+// same computation the workflow agent's impact answer uses -- so the tab and Rovo agree.
+function StatusDetail({ detail, siteOrigin }) {
+  if (!detail) return <EmptyState inline>Reading the status…</EmptyState>;
+  if (!detail.available) return <EmptyState inline>No workflow inventory has been built.</EmptyState>;
+  if (!detail.found) return <EmptyState inline>This status is not in the current snapshot.</EmptyState>;
+
+  const into = (detail.transitions || []).filter((t) => t.direction === "into");
+  const out = (detail.transitions || []).filter((t) => t.direction === "out");
+  const restrictions = detail.restrictions?.available ? detail.restrictions.restrictions : null;
+
+  return (
+    <div className="wf-statusdetail">
+      <section className={`wf-statusdetail__verdict wf-statusdetail__verdict--${detail.verdict}`}>
+        <Chip tone={VERDICT_TONE[detail.verdict] || "neutral"}>{detail.verdict.replace(/-/g, " ")}</Chip>
+        <p className="wf-statusdetail__headline">{detail.headline}</p>
+        {detail.blockers.map((b) => (
+          <FindingRow key={`${b.source}-${b.summary}`} tone={BLOCKER_TONE[b.severity] || "info"} title={b.summary} detail={b.detail} />
+        ))}
+        {detail.gaps.length > 0 && (
+          <p className="ui-note">
+            <Icon name="info" size={13} />
+            <span>Not checked: {detail.gaps.map((g) => g.source).join(", ")}.</span>
+          </p>
+        )}
+      </section>
+
+      <section className="wf-statusrules__group">
+        <header className="wf-statusrules__grouphead">
+          <Chip tone={detail.schemeCount > 0 ? "warning" : "neutral"}>Reached by workflow schemes</Chip>
+          <span className="wf-statusrules__count">{formatNumber(detail.schemeCount)}</span>
+          <p className="wf-statusrules__hint">
+            {detail.schemeCount === 0
+              ? "No project's workflow scheme reaches it."
+              : `Governing ${formatNumber(detail.projectCount)} project${detail.projectCount === 1 ? "" : "s"}${detail.projectSample.length ? `: ${detail.projectSample.join(", ")}` : ""}.`}
+          </p>
+        </header>
+        {detail.schemes.length > 0 && (
+          <ul className="wf-statusrules__list">
+            {detail.schemes.map((s) => (
+              <li key={s.schemeId} className="wf-statusrules__rule">
+                <JiraLink href={buildWorkflowSchemeUrl(siteOrigin, s.schemeId)} title={`Open ${s.name} in Jira`}>{s.name}</JiraLink>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="wf-statusrules__group">
+        <header className="wf-statusrules__grouphead">
+          <Chip tone={detail.workflows?.length ? "warning" : "neutral"}>In workflows</Chip>
+          {detail.workflows && <span className="wf-statusrules__count">{formatNumber(detail.workflows.length)}</span>}
+          <p className="wf-statusrules__hint">
+            {!detail.rulesRead
+              ? "The workflow inventory predates transition capture. Rebuild it to see which workflows contain this status."
+              : detail.workflows.length === 0
+                ? "No workflow contains it, active or not."
+                : "Jira will not delete a status any workflow uses, active or not."}
+          </p>
+        </header>
+        {detail.workflows?.length > 0 && (
+          <ul className="wf-statusrules__list">
+            {detail.workflows.map((name) => (
+              <li key={name} className="wf-statusrules__rule">
+                <JiraLink href={buildWorkflowUrl(siteOrigin, name)} title={`Open ${name} in Jira`}>{name}</JiraLink>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {detail.transitions && detail.transitions.length > 0 && (
+        <section className="wf-statusrules__group">
+          <header className="wf-statusrules__grouphead">
+            <Chip>Transitions</Chip>
+            <span className="wf-statusrules__count">{formatNumber(into.length)} in · {formatNumber(out.length)} out</span>
+            <p className="wf-statusrules__hint">How an issue gets here and leaves. A transition with rules has a condition or validator that has to pass first.</p>
+          </header>
+          <ul className="ui-wfusage">
+            {[...into, ...out].map((t, i) => (
+              <li key={`${t.workflowName}-${t.name}-${i}`} className="ui-wfusage__row">
+                <span className="ui-wfusage__workflow">{t.workflowName}</span>
+                <span className="ui-wfusage__where">
+                  <span className="ui-transition">
+                    <span className="ui-transition__name">{t.name}</span>
+                    <span className="ui-transition__path">{t.from.join(", ")} → {t.to || "?"}</span>
+                  </span>
+                </span>
+                <span className="ui-wfusage__what">
+                  <Chip tone={t.direction === "into" ? "active" : "neutral"}>{t.direction}</Chip>
+                  {t.ruleCount > 0 && <Chip tone="warning">{`${formatNumber(t.ruleCount)} rule${t.ruleCount === 1 ? "" : "s"}`}</Chip>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {restrictions && restrictions.length > 0 && (
+        <section className="wf-statusrules__group">
+          <header className="wf-statusrules__grouphead">
+            <Chip tone="warning">Restricted while here</Chip>
+            <span className="wf-statusrules__count">{formatNumber(restrictions.length)}</span>
+            <p className="wf-statusrules__hint">Status properties that narrow who can edit, comment or act while an issue sits in this status.</p>
+          </header>
+          <ul className="wf-statusrules__list">
+            {restrictions.map((r, i) => (
+              <li key={`${r.workflowName}-${r.key}-${i}`} className="wf-statusrules__rule">
+                <span>{r.workflowName}: {r.effect === "not-editable" ? "not editable by anyone" : `${r.permission} only ${r.holder?.label || r.holder?.id || r.holderType}`}</span>
+                {r.holder?.missing && <Chip tone="critical">missing</Chip>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {detail.ruleUsage?.available && detail.ruleUsage.total > 0 && (
+        <section className="wf-statusrules__group">
+          <header className="wf-statusrules__grouphead">
+            <Chip tone="warning">Named by workflow rules</Chip>
+            <span className="wf-statusrules__count">{formatNumber(detail.ruleUsage.total)}</span>
+            <p className="wf-statusrules__hint">A previous-status validator or similar. These stop matching if the status goes.</p>
+          </header>
+          <WorkflowUsageList result={detail.ruleUsage} siteOrigin={siteOrigin} />
+        </section>
+      )}
+    </div>
+  );
+}
+
 function StatusRulesPanel({ status, siteOrigin, onClose, load = invoke }) {
   const [usage, setUsage] = React.useState(null);
   const [filters, setFilters] = React.useState(null);
+  const [detail, setDetail] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
@@ -145,18 +281,21 @@ function StatusRulesPanel({ status, siteOrigin, onClose, load = invoke }) {
     // filter searching on it breaks silently when it goes. Fetched together because the
     // answer is only complete with both, and asked for independently because either pillar
     // can be unbuilt without the other.
+    setDetail(null);
     Promise.all([
       load("getStatusAutomationUsage", { statusName: status.name }).catch(() => null),
       load("getFilterUsage", { kind: "status", label: status.name }).catch(() => null),
+      load("getStatusDetail", { statusId: String(status.statusId ?? status.id) }).catch(() => ({ available: false })),
     ])
-      .then(([rules, filterUsage]) => {
+      .then(([rules, filterUsage, statusDetail]) => {
         if (cancelled) return;
         setUsage(rules);
         setFilters(filterUsage);
+        setDetail(statusDetail);
         setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [status.name, load]);
+  }, [status.name, status.statusId, status.id, load]);
 
   // Ordered by consequence, not alphabetically. A rule that transitions into this status is
   // the reason it cannot be deleted; the other two break if it is.
@@ -170,8 +309,25 @@ function StatusRulesPanel({ status, siteOrigin, onClose, load = invoke }) {
     <div className="wf-statusrules">
       <div className="wf-statusrules__head">
         <h4 className="wf-statusrules__title">{status.name}</h4>
-        <button type="button" className="ghost-button" onClick={onClose}>Close</button>
+        <span className="wf-statusrules__actions">
+          <JiraLink className="ui-linkbutton" href={buildStatusAdminUrl(siteOrigin)} title="Open the status list in Jira">Statuses in Jira</JiraLink>
+          <AskRovo
+            agent="observatory-workflow-expert"
+            scope="this status"
+            context="the status name and its deletion verdict"
+            disabled={!detail?.found}
+            buildPrompt={() =>
+              buildRovoPrompt({
+                task: `Can the status "${status.name}" be retired? Explain what holds it in place and what to do first.`,
+                facts: [["Status", status.name], ["Verdict", detail?.verdict || "unknown"], ["Workflows containing it", detail?.workflows?.length ?? "unknown"], ["Schemes reaching it", detail?.schemeCount ?? null]],
+              })
+            }
+          />
+          <button type="button" className="ghost-button" onClick={onClose}>Close</button>
+        </span>
       </div>
+
+      {!loading && <StatusDetail detail={detail} siteOrigin={siteOrigin} />}
 
       {loading ? (
         <EmptyState inline>Looking up the rules…</EmptyState>
@@ -588,6 +744,18 @@ export function WorkflowTab({ intent = null, siteOrigin = "" }) {
   const [statusUsage, setStatusUsage] = React.useState("all");
   const [statusSort, setStatusSort] = React.useState("name");
   const [measuring, setMeasuring] = React.useState(false);
+  // The status opened from the Statuses view. Every status gets the drawer, not only the
+  // unreachable ones the Insights view lists.
+  const [openStatus, setOpenStatus] = React.useState(null);
+  const [pillar, setPillar] = React.useState(null);
+  React.useEffect(() => {
+    if (view !== "insights") return undefined;
+    let cancelled = false;
+    invoke("getPillarHealth", { pillar: "workflows" })
+      .then((result) => { if (!cancelled) setPillar(result?.pillar || null); })
+      .catch(() => { if (!cancelled) setPillar(null); });
+    return () => { cancelled = true; };
+  }, [view]);
 
   const load = React.useCallback(async ({ forceRefresh = false } = {}) => {
     if (forceRefresh) setBuilding(true); else setLoading(true);
@@ -847,7 +1015,10 @@ export function WorkflowTab({ intent = null, siteOrigin = "" }) {
               is why moving between it and any other tab felt like changing product. */}
           <SubNavLayout items={navItems} activeKey={view} onSelect={setView}>
           {view === "insights" ? (
-            <WorkflowInsights insights={insights} loading={insightsLoading} siteOrigin={siteOrigin} intent={intent} />
+            <>
+              <PillarHealthPanel pillar={pillar} />
+              <WorkflowInsights insights={insights} loading={insightsLoading} siteOrigin={siteOrigin} intent={intent} />
+            </>
           ) : view === "rules" ? (
             <WorkflowRulesView siteOrigin={siteOrigin} intent={intent} />
           ) : view === "restrictions" ? (
@@ -988,7 +1159,13 @@ export function WorkflowTab({ intent = null, siteOrigin = "" }) {
                   </h4>
                   <div className="wf-status-grid">
                     {items.map((status) => (
-                      <div key={status.id} className="wf-status">
+                      <button
+                        type="button"
+                        key={status.id}
+                        className={`wf-status wf-status--button${openStatus?.id === status.id ? " wf-status--open" : ""}`}
+                        aria-expanded={openStatus?.id === status.id}
+                        onClick={() => setOpenStatus(openStatus?.id === status.id ? null : status)}
+                      >
                         <span className="wf-status__name" title={status.name}>{status.name}</span>
                         <span className="wf-status__metrics">
                           {/* Null renders as an em dash, never as 0: an unmeasured status
@@ -1003,9 +1180,12 @@ export function WorkflowTab({ intent = null, siteOrigin = "" }) {
                             {status.departedCount > 0 ? `−${formatNumber(status.departedCount)}` : ""}
                           </span>
                         </span>
-                      </div>
+                      </button>
                     ))}
                   </div>
+                  {openStatus && items.some((s) => s.id === openStatus.id) && (
+                    <StatusRulesPanel status={openStatus} siteOrigin={siteOrigin} onClose={() => setOpenStatus(null)} />
+                  )}
                 </section>
               ))}
 

@@ -826,3 +826,79 @@ describe("WorkflowInsights — filters that search on a status", () => {
   });
 });
 
+
+// Every status opens the drawer: the deletion verdict, the schemes and workflows that hold it,
+// the transitions in and out, and what each workflow restricts while an issue sits there.
+describe("WorkflowTab — status drawer", () => {
+  const payload = {
+    schemes: [], page: 1, pageSize: 10, totalCount: 0, totalPages: 1,
+    snapshotStatus: { state: "ready", version: "v1", refreshedAt: "2026-08-03T12:00:00.000Z" },
+    statuses: [
+      { id: "2", name: "In Review", statusCategory: "In Progress", issueCount: 3, everCount: 50, departedCount: 47 },
+      { id: "9", name: "On Hold", statusCategory: "In Progress", issueCount: 0, everCount: 0, departedCount: 0 },
+    ],
+    statusCounts: { hasCurrentCounts: true, hasHistoryCounts: true },
+  };
+  const detail = {
+    available: true, found: true, refreshedAt: "2026-08-03T12:00:00.000Z",
+    status: { statusId: "2", name: "In Review" },
+    schemes: [{ schemeId: "s1", name: "Build scheme" }], schemeCount: 1, projectCount: 4, projectSample: ["BLD"],
+    rulesRead: true, workflows: ["Build WF", "Old WF"],
+    transitions: [
+      { workflowName: "Build WF", name: "Submit", direction: "into", from: ["Open"], to: "In Review", ruleCount: 2 },
+      { workflowName: "Build WF", name: "Approve", direction: "out", from: ["In Review"], to: "Approved", ruleCount: 0 },
+    ],
+    restrictions: { available: true, restrictions: [{ workflowName: "Build WF", key: "jira.permission.edit.group", effect: "restrict-permission", permission: "edit", holder: { label: "Plant Engineers", missing: false } }] },
+    ruleUsage: { available: true, total: 0, usages: [] },
+    verdict: "in-use", headline: "In use — 2 reasons not to delete this yet.",
+    blockers: [{ source: "workflows", severity: "high", summary: "In 2 workflows: Build WF, Old WF.", detail: "Jira will not delete a status any workflow uses, active or not." }],
+    gaps: [{ source: "board columns" }],
+  };
+
+  function route(statusDetail = detail) {
+    invoke.mockImplementation((fn) => {
+      if (fn === "getWorkflowInventory") return Promise.resolve(payload);
+      if (fn === "getStatusDetail") return Promise.resolve(statusDetail);
+      return Promise.resolve({ available: false });
+    });
+  }
+
+  async function openDrawer(name = "In Review") {
+    render(<WorkflowTab siteOrigin="https://acme.atlassian.net" />);
+    await userEvent.click(await screen.findByRole("button", { name: /^Statuses/i }));
+    const card = (await screen.findAllByText(name)).find((el) => el.closest(".wf-status--button")).closest("button");
+    await userEvent.click(card);
+    return card;
+  }
+
+  test("opens from any status card with the verdict and what holds the status", async () => {
+    route();
+    const card = await openDrawer();
+    expect(card).toHaveAttribute("aria-expanded", "true");
+    expect(invoke).toHaveBeenCalledWith("getStatusDetail", { statusId: "2" });
+    expect(await screen.findByText("In use — 2 reasons not to delete this yet.")).toBeInTheDocument();
+    expect(screen.getByText("In 2 workflows: Build WF, Old WF.")).toBeInTheDocument();
+    expect(screen.getByText(/Not checked: board columns/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Build scheme" }).getAttribute("href")).toContain("EditWorkflowScheme.jspa?schemeId=s1");
+    expect(screen.getByRole("link", { name: "Old WF" }).getAttribute("href")).toContain("workflowName=Old%20WF");
+    expect(screen.getByText("1 in · 1 out")).toBeInTheDocument();
+    expect(screen.getByText("2 rules")).toBeInTheDocument();
+    expect(screen.getByText(/Build WF: edit only Plant Engineers/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Ask Rovo about this status/ })).toBeInTheDocument();
+  });
+
+  test("a snapshot without transitions says to rebuild rather than 'in no workflow'", async () => {
+    route({ ...detail, rulesRead: false, workflows: null, transitions: null, restrictions: null, ruleUsage: null, blockers: [], verdict: "unknown", headline: "No evidence of use, but 1 source could not be checked." });
+    await openDrawer();
+    expect(await screen.findByText(/predates transition capture/)).toBeInTheDocument();
+    expect(screen.queryByText(/No workflow contains it/)).not.toBeInTheDocument();
+  });
+
+  test("closing the drawer collapses the card", async () => {
+    route();
+    const card = await openDrawer();
+    await screen.findByText("In use — 2 reasons not to delete this yet.");
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(card).toHaveAttribute("aria-expanded", "false");
+  });
+});
