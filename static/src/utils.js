@@ -348,6 +348,7 @@ export const PILLAR_REPORT_NAV = [
   { key: "projects", label: "Projects", icon: "folder", agent: "observatory-project-expert", health: ["projects"] },
   { key: "workflows", label: "Workflows", icon: "activity", agent: "observatory-workflow-expert", health: ["workflows"] },
   { key: "issueTypes", label: "Issue types", icon: "tag", agent: "observatory-issuetype-expert", health: ["issueTypes"] },
+  { key: "fieldConfigs", label: "Field schemes", icon: "listChecks", agent: "observatory-fieldconfig-expert", health: ["fieldConfigs"] },
   { key: "priorities", label: "Priorities", icon: "flag", agent: "observatory-estate-expert", health: ["estate"] },
   { key: "people", label: "People", icon: "user", agent: "observatory-people-expert", health: ["users"] },
   { key: "assets", label: "Assets", icon: "database", agent: "observatory-assets-expert", health: ["assets"] },
@@ -770,6 +771,10 @@ export const ROVO_AGENTS = {
   "observatory-workflow-expert": {
     name: "Observatory Workflow Expert",
     reads: "the workflow scheme and status inventory",
+  },
+  "observatory-fieldconfig-expert": {
+    name: "Observatory Field Setup Expert",
+    reads: "the field schemes (or legacy field configurations) and what each enforces per field",
   },
   "observatory-issuetype-expert": {
     name: "Observatory Issue Type Expert",

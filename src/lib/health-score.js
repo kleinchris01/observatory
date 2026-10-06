@@ -33,6 +33,14 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   // Company-managed workflows no project-attached scheme uses. Clutter, so forgiving -- but
   // every one is a place a field or group reference rots unseen.
   inactiveWorkflows: 0.25,
+  // Field schemes (or legacy field configurations and their schemes) no project uses.
+  // Clutter, forgiving: a few kept as templates is normal.
+  unusedFieldConfigs: 0.30,
+  // Legacy only: configurations where a field is both required and hidden. A defect, not
+  // untidiness -- every create or edit through that configuration fails -- so it is tight.
+  requiredHiddenConfigs: 0.02,
+  // Schemes or configurations identical to another: every change made twice.
+  duplicateFieldConfigs: 0.20,
   flaggedSchemes: 0.40,
   irregularProjects: 0.25,
   // Projects with no work, or none in six months. Forgiving: a healthy estate always
@@ -409,6 +417,9 @@ export const PILLAR_WEIGHTS = {
   // score. Same low weight as estate for the same reason: small surface, and a single
   // dimension pillar should not move the headline as much as one with a dozen.
   drift: 0.5,
+  // What Jira enforces on each field per project: required, hidden, which fields a project
+  // has at all. As structural as screens, and the half of a field's story screens do not tell.
+  fieldConfigs: 1,
 };
 
 export const HEALTH_PILLARS = [
@@ -418,6 +429,7 @@ export const HEALTH_PILLARS = [
   { key: "workflows", label: "Workflows and statuses" },
   { key: "screens", label: "Screens" },
   { key: "issueTypes", label: "Issue types" },
+  { key: "fieldConfigs", label: "Field schemes" },
   { key: "users", label: "People" },
   { key: "assets", label: "Assets (CMDB)" },
   { key: "permissions", label: "Permission schemes" },
@@ -453,7 +465,7 @@ export function resolveHealthTolerances(overrides = {}) {
   return out;
 }
 
-export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, screenCross, adoption, filters, dashboards, issueTypes, users, assets, permissions, security, notifications, roles, estate, boards, drift, tolerances, targets, priorValues } = {}) {
+export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, screenCross, adoption, filters, dashboards, issueTypes, users, assets, permissions, security, notifications, roles, estate, boards, drift, fieldConfigs, tolerances, targets, priorValues } = {}) {
   const TOLERANCE = resolveHealthTolerances(tolerances);
   const TARGET = resolveHealthTargets(targets);
   const dimensions = [];
@@ -825,6 +837,70 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       workflow?.available && workflow.schemeStatusesAvailable
         ? "No automation analysis yet, so rule-only statuses cannot be identified."
         : "No workflow inventory yet."));
+  }
+
+  // ── Field schemes / field configurations ──────────────────────────────────
+  // Three dimensions over one stored summary. Each is scored only on what was measured: usage
+  // needs no contents, duplicates and conflicts need the owner's fields to have been read.
+  const fc = fieldConfigs?.available ? fieldConfigs : null;
+  const fcModel = fc?.source === "field-configurations" ? "field configurations" : "field schemes";
+  if (fc && Number(fc.usageJudged) > 0) {
+    const unused = (Number(fc.unusedSchemes) || 0) + (Number(fc.unusedConfigs) || 0);
+    dimensions.push({
+      key: "fieldconfig-usage",
+      label: "Field scheme usage",
+      pillar: "fieldConfigs",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(unused / Number(fc.usageJudged), TOLERANCE.unusedFieldConfigs),
+      detail: unused === 0
+        ? `Every non-default ${fcModel === "field schemes" ? "field scheme" : "field configuration and scheme"} is used by a project.`
+        : `${unused} of ${fc.usageJudged} non-default ${fcModel === "field schemes" ? "field schemes" : "field configurations and schemes"} are used by no project.`,
+      action: unused > 0 ? "Delete the ones nobody uses from the Field schemes tab, keeping any held deliberately as templates." : null,
+    });
+  } else {
+    dimensions.push(unavailable("fieldconfig-usage", "Field scheme usage", "fieldConfigs",
+      fc ? "Only the default scheme exists, so there is nothing to judge." : "No field scheme inventory yet."));
+  }
+
+  if (fc && fc.source === "field-configurations" && Number(fc.conflictJudged) > 0) {
+    const conflicts = Number(fc.requiredHiddenConfigs) || 0;
+    dimensions.push({
+      key: "fieldconfig-required-hidden",
+      label: "Required but hidden fields",
+      pillar: "fieldConfigs",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(conflicts / Number(fc.conflictJudged), TOLERANCE.requiredHiddenConfigs),
+      detail: conflicts === 0
+        ? "No field configuration requires a field it also hides."
+        : `${conflicts} of ${fc.conflictJudged} field configurations require a field they also hide (${fc.requiredHiddenPairs} fields in all).`,
+      action: conflicts > 0 ? "Nobody can fill in a hidden required field, so every create or edit through these configurations fails. Unhide it or make it optional." : null,
+    });
+  } else {
+    dimensions.push(unavailable("fieldconfig-required-hidden", "Required but hidden fields", "fieldConfigs",
+      !fc ? "No field scheme inventory yet."
+        : fc.source === "field-schemes" ? "Field schemes cannot hide a required field, so this cannot happen on this site."
+          : "No field configuration's contents could be read."));
+  }
+
+  if (fc && Number(fc.duplicateJudged) > 0) {
+    const reducible = Number(fc.reducible) || 0;
+    dimensions.push({
+      key: "fieldconfig-duplicates",
+      label: "Duplicate field schemes",
+      pillar: "fieldConfigs",
+      available: true,
+      weight: 0.5,
+      score: scoreFromRate(reducible / Number(fc.duplicateJudged), TOLERANCE.duplicateFieldConfigs),
+      detail: reducible === 0
+        ? `No two ${fcModel} are identical.`
+        : `${reducible} ${fcModel} duplicate another exactly, across ${fc.duplicateGroups} groups.`,
+      action: reducible > 0 ? "Point the projects on each duplicate at the one to keep, then delete the rest." : null,
+    });
+  } else {
+    dimensions.push(unavailable("fieldconfig-duplicates", "Duplicate field schemes", "fieldConfigs",
+      fc ? "No scheme's fields could be read, so duplicates cannot be judged." : "No field scheme inventory yet."));
   }
 
   // ── Workflow rule references ──────────────────────────────────────────────

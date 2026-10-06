@@ -42,6 +42,10 @@ export const PILLAR_MEASURES = {
     usage: { label: "Issues of this type", value: (r) => num(r.issues) },
     impact: { label: "Projects it is used in", value: (r) => num(r.projects) },
   },
+  fieldConfigs: {
+    usage: { label: "Projects using it", value: (r) => num(r.projects) },
+    impact: { label: "Required fields it sets", value: (r) => num(r.required) },
+  },
   priorities: {
     // Issues carrying the value, from the issue crawl. Null until a crawl has run, which
     // ranks as unmeasured, never as low.
@@ -138,7 +142,7 @@ export function churnLevel(count) {
 
 // The pillars the drift engine digests. The rest have no change history, so their churn is
 // unmeasured -- not zero.
-export const CHURN_TRACKED_PILLARS = ["fields", "workflows", "issueTypes", "access", "priorities", "filters", "dashboards"];
+export const CHURN_TRACKED_PILLARS = ["fields", "workflows", "issueTypes", "access", "priorities", "filters", "dashboards", "fieldConfigs"];
 
 const ACCESS_TYPE_BY_LABEL = {
   "Permission scheme": "permission",
@@ -153,7 +157,7 @@ const ACCESS_TYPE_BY_LABEL = {
 export function changeEntityKey(change) {
   const type = String(change?.entityType || "");
   const id = String(change?.entityId ?? "");
-  const simple = { field: "fields", "workflow-scheme": "workflows", "issue-type": "issueTypes", filter: "filters", dashboard: "dashboards" };
+  const simple = { field: "fields", "workflow-scheme": "workflows", "issue-type": "issueTypes", filter: "filters", dashboard: "dashboards", "field-scheme": "fieldConfigs", "field-configuration": "fieldConfigs" };
   if (simple[type]) return `${simple[type]}|${id}`;
   if (type === "priority" || type === "resolution") return `priorities|${type}|${id}`;
   if (type === "security-level") return `access|security|${id.split(":")[0]}`;
@@ -306,6 +310,8 @@ const PILLAR_ALIASES = {
   dashboard: "dashboards", board: "boards", rules: "automation", rule: "automation",
   users: "people", user: "people", resolutions: "priorities", priority: "priorities",
   "priorities & resolutions": "priorities", estate: "priorities",
+  "field schemes": "fieldConfigs", "field scheme": "fieldConfigs", fieldschemes: "fieldConfigs", fieldconfigs: "fieldConfigs",
+  "field configurations": "fieldConfigs", "field configuration": "fieldConfigs", "field-configs": "fieldConfigs",
   permissions: "access", security: "access", notifications: "access", roles: "access",
   asset: "assets", "object types": "assets",
 };

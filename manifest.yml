@@ -148,6 +148,19 @@ modules:
       actions:
         - search-estate
         - inspect-estate
+    - key: observatory-fieldconfig-expert
+      name: Observatory Field Setup Expert
+      description: A specialist in what Jira enforces on each field per project and work type - field schemes, or...
+      prompt: resource:agent-resources;prompts/fieldconfig-expert.txt
+      conversationStarters:
+        - Is this site on field schemes or legacy field configurations?
+        - Where is a specific field required, and where is it not available at all?
+        - Which field configurations require a field they also hide?
+        - Which field schemes does no project use?
+      actions:
+        - search-fieldconfig
+        - inspect-fieldconfig
+        - fieldconfig-impact
     - key: observatory-screen-expert
       name: Observatory Screen Expert
       description: A Jira screen specialist that explains the screen catalogue, tabs and fields, the...
@@ -518,6 +531,44 @@ modules:
           type: string
           required: false
           description: Limit to priorities or resolutions
+    - key: search-fieldconfig
+      name: Search field schemes and configurations
+      function: rovo-fieldcfg-search
+      actionVerb: GET
+      description: Search field schemes (or legacy field configurations and their schemes) by name or by a project key...
+      inputs:
+        query:
+          title: Search query
+          type: string
+          required: true
+          description: A scheme or configuration name, or a project key
+        maxResults:
+          title: Maximum results
+          type: integer
+          required: false
+          description: Optional maximum number of matches to return
+    - key: inspect-fieldconfig
+      name: Inspect a field scheme or configuration
+      function: rovo-fieldcfg-inspect
+      actionVerb: GET
+      description: Return one field scheme or field configuration - its projects, work-type routing, required fields and...
+      inputs:
+        identifier:
+          title: Scheme or configuration
+          type: string
+          required: true
+          description: A field scheme or field configuration name.
+    - key: fieldconfig-impact
+      name: Where a field is required, hidden or missing
+      function: rovo-fieldcfg-impact
+      actionVerb: GET
+      description: For one field, every field scheme or configuration and what it does to the field - required, hidden...
+      inputs:
+        field:
+          title: Field
+          type: string
+          required: true
+          description: A field name or id, e.g. customfield_10021.
     - key: search-screens
       name: Search screens and screen schemes
       function: rovo-screen-search
@@ -693,6 +744,12 @@ modules:
       handler: index.rovoEstateSearch
     - key: rovo-estate-inspect
       handler: index.rovoEstateInspect
+    - key: rovo-fieldcfg-search
+      handler: index.rovoFieldConfigSearch
+    - key: rovo-fieldcfg-inspect
+      handler: index.rovoFieldConfigInspect
+    - key: rovo-fieldcfg-impact
+      handler: index.rovoFieldConfigImpact
     - key: rovo-screen-search
       handler: index.rovoScreenSearch
     - key: rovo-screen-inspect
@@ -733,6 +790,11 @@ permissions:
     - read:jira-work
     - read:field:jira
     - read:field-configuration:jira
+    # The field schemes pillar. Jira is replacing field configurations + field configuration
+    # schemes with field schemes; the scheme LIST, the project assignments and the legacy
+    # field configuration scheme calls all take this scope (a scheme's fields and projects
+    # take read:field-configuration:jira above). Read from the published spec, not guessed.
+    - read:field-configuration-scheme:jira
     - read:project:jira
     - read:issue-meta:jira
     - read:issue.changelog:jira

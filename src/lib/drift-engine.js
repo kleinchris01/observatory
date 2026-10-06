@@ -41,6 +41,10 @@ import {
   loadSchemeLevels,
   loadFilters,
   loadDashboards,
+  readFieldConfigSnapshotMeta,
+  loadFieldConfigSchemes,
+  loadFieldConfigConfigs,
+  loadFieldConfigSchemeProjects,
 } from "./project-store.js";
 
 export const DRIFT_BUILD_STALE_MS = 16 * 60 * 1000;
@@ -239,6 +243,39 @@ async function collectEstate(installationKey, version) {
   ];
 }
 
+// Field schemes (or legacy schemes and configurations), plus which scheme each project is on --
+// moving a project to another field scheme changes what it requires as surely as editing the
+// scheme does. Counts are digested only where the owner's fields were read, so an owner the
+// last build ran out of time on is not reported as "changed".
+async function collectFieldConfigs(installationKey, version) {
+  const [schemes, configs, assignments] = await Promise.all([
+    loadFieldConfigSchemes(installationKey, version),
+    loadFieldConfigConfigs(installationKey, version),
+    loadFieldConfigSchemeProjects(installationKey, version),
+  ]);
+  const schemeName = new Map(schemes.map((s) => [s.id, s.name]));
+  return [
+    ...schemes.map((s) => ({
+      entityType: "field-scheme", entityId: s.id, label: s.name,
+      fields: {
+        name: s.name, description: s.description, isDefault: s.isDefault,
+        ...(s.measured === false ? {} : { fieldCount: s.fieldCount, requiredCount: s.requiredCount, restrictedCount: s.restrictedCount }),
+      },
+    })),
+    ...configs.map((c) => ({
+      entityType: "field-configuration", entityId: c.id, label: c.name,
+      fields: {
+        name: c.name, description: c.description, isDefault: c.isDefault,
+        ...(c.itemsRead ? { requiredCount: c.requiredCount, hiddenCount: c.hiddenCount, requiredHidden: c.requiredHidden } : {}),
+      },
+    })),
+    ...assignments.map((a) => ({
+      entityType: "field-scheme-assignment", entityId: a.projectId, label: a.projectKey,
+      fields: { scheme: schemeName.get(a.schemeId) || a.schemeId },
+    })),
+  ];
+}
+
 // The registry. `readMeta` returns the pillar's snapshot meta -- a falsy `version` means the
 // inventory has never been built, so the pillar is skipped rather than reported as emptied.
 export const DRIFT_PILLARS = [
@@ -247,6 +284,7 @@ export const DRIFT_PILLARS = [
   { pillar: "issueTypes", label: "Issue types", readMeta: readIssueTypeSnapshotMeta, collect: collectIssueTypes },
   { pillar: "access", label: "Access", readMeta: readAccessSnapshotMeta, collect: collectAccess },
   { pillar: "estate", label: "Priorities & resolutions", readMeta: readEstateSnapshotMeta, collect: collectEstate },
+  { pillar: "fieldConfigs", label: "Field schemes", readMeta: readFieldConfigSnapshotMeta, collect: collectFieldConfigs },
   { pillar: "filters", label: "Saved filters", readMeta: readFilterSnapshotMeta, collect: collectFilters },
   { pillar: "dashboards", label: "Dashboards", readMeta: readDashboardSnapshotMeta, collect: collectDashboards },
 ];
@@ -272,6 +310,9 @@ const TYPE_NOUNS = {
   "security-level": "Security level",
   filter: "Saved filter",
   dashboard: "Dashboard",
+  "field-scheme": "Field scheme",
+  "field-configuration": "Field configuration",
+  "field-scheme-assignment": "Project field scheme",
 };
 
 function noun(entityType) {

@@ -181,6 +181,28 @@ describe("builders", () => {
     expect(report.notes[0]).toMatch(/not fully measured/);
   });
 
+  test("fieldConfigs: schemes and configurations, with the stored finding codes and projects through routes", () => {
+    const report = buildPillarReport("fieldConfigs", {
+      sourceLabel: "Field configurations (legacy)",
+      summary: { unmeasured: 1 },
+      schemes: [
+        { id: "fcs:default", source: "field-configurations", name: "Default", isDefault: true, projectCount: 4, codes: [] },
+        { id: "fcs:5", source: "field-configurations", sourceId: "5", name: "Old", projectCount: 0, codes: ["unused"] },
+      ],
+      configs: [
+        { id: "fc:2", sourceId: "2", name: "Build", itemsRead: true, requiredCount: 3, totalFieldCount: 900, codes: ["required-hidden"], routes: [{ schemeId: "fcs:default" }] },
+        { id: "fc:3", sourceId: "3", name: "Unread", itemsRead: false, codes: ["unused", "unmeasured"], routes: [] },
+      ],
+    });
+    expect(report.total).toBe(4);
+    const byId = Object.fromEntries(report.rows.map((r) => [r.id, r]));
+    expect(byId["fc:2"]).toMatchObject({ kind: "Field configuration", projects: 4, required: 3, fields: 900, findings: ["required-hidden"] });
+    // Unread is "not measured", never a finding and never zero.
+    expect(byId["fc:3"]).toMatchObject({ required: null, fields: null, findings: ["unused"] });
+    expect(report.summary).toEqual(expect.arrayContaining([{ label: "Model", value: "Field configurations (legacy)" }]));
+    expect(report.notes[0]).toMatch(/1 could not be read/);
+  });
+
   test("priorities: both lists in one report, near-duplicates flagged per list", () => {
     const report = buildPillarReport("priorities", {
       priorities: [{ id: "1", name: "High", isDefault: true }],

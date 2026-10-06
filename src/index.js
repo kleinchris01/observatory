@@ -28,6 +28,7 @@ import { buildUserSnapshot } from "./lib/user-engine.js";
 import { buildAssetSnapshot, buildAssetTypeCounts } from "./lib/asset-engine.js";
 import { buildAccessSnapshot } from "./lib/access-engine.js";
 import { buildEstateSnapshot } from "./lib/estate-engine.js";
+import { buildFieldConfigSnapshot } from "./lib/fieldconfig-engine.js";
 import { syncRemediationTickets, queueRemediationSync } from "./lib/remediation-sync.js";
 import { buildBoardSnapshot } from "./lib/board-engine.js";
 import { buildDriftSnapshot } from "./lib/drift-engine.js";
@@ -527,6 +528,14 @@ export async function consumeSnapshot(event) {
       return;
     }
 
+    if (jobType === "build-fieldconfig-snapshot") {
+      const result = await buildFieldConfigSnapshot(installationKey);
+      console.log(
+        `build-fieldconfig-snapshot: ${result?.source ?? "?"}, ${result?.schemes ?? 0} schemes, ${result?.configs ?? 0} configurations, ${result?.unread ?? 0} unread`
+      );
+      return;
+    }
+
     // "Sync now" from the Remediation tab. Queued rather than run in the resolver: a resolver
     // has seconds, and a few thousand tickets need minutes.
     if (jobType === "sync-remediation") {
@@ -630,6 +639,7 @@ export { rovoAccessSearch, rovoAccessInspect, rovoAccessImpact };
 export { rovoPeopleSearch, rovoPeopleInspect, rovoPeopleImpact };
 export { rovoAssetSearch, rovoAssetInspect, rovoAssetImpact };
 export { rovoEstateSearch, rovoEstateInspect };
+export { rovoFieldConfigSearch, rovoFieldConfigInspect, rovoFieldConfigImpact } from "./lib/fieldconfig-reads.js";
 export { rovoScreenSearch, rovoScreenInspect, rovoScreenImpact };
 export { rovoChangeSearch, rovoChangeInspect };
 export { rovoProjectSearch, rovoProjectInspect };

@@ -19,7 +19,7 @@ import { HEALTH_PILLARS } from "../../../src/lib/health-score";
 // omitted rather than rendered as zero, because "0 duplicate statuses" and "we have never
 // looked for duplicate statuses" are completely different statements.
 
-function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, issueTypes, users, assets, access, estate, automation, filters, dashboards, onNavigate }) {
+function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, issueTypes, users, assets, access, estate, fieldConfigs, automation, filters, dashboards, onNavigate }) {
   const findings = [];
 
   if (findingsSummary?.adminAttention > 0) {
@@ -972,6 +972,50 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
     });
   }
 
+  // ── Field schemes / field configurations ──────────────────────────────
+  const fc = fieldConfigs?.available ? fieldConfigs.summary || {} : null;
+  const fcLegacy = fieldConfigs?.source === "field-configurations";
+  if (fc && fcLegacy && fc.requiredHiddenPairs > 0) {
+    findings.push({
+      key: "fieldconfig-required-hidden",
+      dimension: "fieldconfig-required-hidden",
+      pillar: "fieldConfigs",
+      tone: "critical",
+      count: fc.requiredHiddenPairs,
+      title: "Fields required but hidden",
+      detail: `In ${fc.requiredHiddenConfigs} field configuration${fc.requiredHiddenConfigs === 1 ? "" : "s"}. Nobody can fill them in, so every create or edit through them fails.`,
+      onOpen: () => onNavigate("fieldConfigs", { view: "configs", filter: "required-hidden" }),
+      openLabel: "Field schemes",
+    });
+  }
+  const fcUnused = fc ? (fc.unusedSchemes || 0) + (fc.unusedConfigs || 0) : 0;
+  if (fcUnused > 0) {
+    findings.push({
+      key: "fieldconfig-unused",
+      dimension: "fieldconfig-usage",
+      pillar: "fieldConfigs",
+      tone: "info",
+      count: fcUnused,
+      title: fcLegacy ? "Field configurations and schemes no project uses" : "Field schemes no project uses",
+      detail: "Configuration nobody sees, still maintained.",
+      onOpen: () => onNavigate("fieldConfigs", { view: fcLegacy && (fc.unusedConfigs || 0) > (fc.unusedSchemes || 0) ? "configs" : "schemes", filter: "unused" }),
+      openLabel: "Field schemes",
+    });
+  }
+  if (fc && fc.reducible > 0) {
+    findings.push({
+      key: "fieldconfig-duplicates",
+      dimension: "fieldconfig-duplicates",
+      pillar: "fieldConfigs",
+      tone: "warning",
+      count: fc.reducible,
+      title: fcLegacy ? "Identical field configurations or schemes" : "Identical field schemes",
+      detail: `${fc.duplicateGroups} group${fc.duplicateGroups === 1 ? "" : "s"}. Every change has to be made in each copy.`,
+      onOpen: () => onNavigate("fieldConfigs", { view: fcLegacy ? "configs" : "schemes", filter: "duplicate" }),
+      openLabel: "Field schemes",
+    });
+  }
+
   // ── Priorities & resolutions ──────────────────────────────────────────
   // "estate-findings" is not a scored dimension key — the scored cards state the rate,
   // these state the list to act on.
@@ -1288,7 +1332,7 @@ export function useHealthHistory({ days = 90, load = invoke } = {}) {
   return history;
 }
 
-function GovernanceLedgerPanel({ health, findings, history, workflow, screens, access, estate, automation, filters, dashboards, onNavigate, siteOrigin = "" }) {
+function GovernanceLedgerPanel({ health, findings, history, workflow, screens, access, estate, fieldConfigs, automation, filters, dashboards, onNavigate, siteOrigin = "" }) {
   const ledger = React.useMemo(() => buildGovernanceLedger({ health, findings, history }), [health, findings, history]);
 
   // Where each finding's remediation stands. Fetched here rather than folded into
@@ -1326,6 +1370,7 @@ function GovernanceLedgerPanel({ health, findings, history, workflow, screens, a
     !dashboards?.available && { label: "dashboard inventory", tab: "dashboards" },
     !access?.available && { label: "access scheme inventory", tab: "access" },
     !estate?.available && { label: "priorities & resolutions inventory", tab: "priorities" },
+    !fieldConfigs?.available && { label: "field scheme inventory", tab: "fieldConfigs" },
   ].filter(Boolean);
 
   // No rows at all. Two different reasons, and they must not be worded the same: a site
@@ -1520,11 +1565,11 @@ function RqtPanel({ onOpenRqtIndex }) {
   );
 }
 
-export function OverviewDashboard({ dashboard, findingsSummary, findingsByCode, workflow, screens, issueTypes, users, assets, access, estate, automation, filters, dashboards, health, history, onOpenRqtIndex, onNavigate, siteOrigin = "" }) {
+export function OverviewDashboard({ dashboard, findingsSummary, findingsByCode, workflow, screens, issueTypes, users, assets, access, estate, fieldConfigs, automation, filters, dashboards, health, history, onOpenRqtIndex, onNavigate, siteOrigin = "" }) {
   // onNavigate is optional so this stays renderable in isolation; without it the deep
   // links become inert rather than throwing.
   const navigate = onNavigate || (() => {});
-  const findings = buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, issueTypes, users, assets, access, estate, automation, filters, dashboards, onNavigate: navigate });
+  const findings = buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, issueTypes, users, assets, access, estate, fieldConfigs, automation, filters, dashboards, onNavigate: navigate });
   // A caller may pass history in -- tests do -- but nobody has to.
   const fetched = useHealthHistory();
   const series = history ?? fetched;
@@ -1539,6 +1584,7 @@ export function OverviewDashboard({ dashboard, findingsSummary, findingsByCode, 
         screens={screens}
         access={access}
         estate={estate}
+        fieldConfigs={fieldConfigs}
         automation={automation}
         filters={filters}
         dashboards={dashboards}

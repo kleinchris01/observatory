@@ -37,6 +37,11 @@ export const jiraLinks = {
   },
   fieldAdmin: (o) => (o ? `${o}/secure/admin/ViewCustomFields.jspa` : null),
   statusAdmin: (o) => (o ? `${o}/secure/admin/ViewStatuses.jspa` : null),
+  // Legacy field configurations and their schemes, by numeric id. Field schemes have no
+  // stable admin URL published yet, so they link nowhere rather than somewhere wrong.
+  fieldConfiguration: (o, id) => (o && present(id) ? `${o}/secure/admin/ConfigureFieldLayout!default.jspa?id=${enc(id)}` : null),
+  fieldConfigurationScheme: (o, id) => (o && present(id) ? `${o}/secure/admin/ConfigureFieldLayoutScheme!default.jspa?id=${enc(id)}` : null),
+  fieldConfigurationsAdmin: (o) => (o ? `${o}/secure/admin/ViewFieldLayouts.jspa` : null),
   workflow: (o, name) => (o && present(name) ? `${o}/secure/admin/workflows/ViewWorkflowSteps.jspa?workflowMode=live&workflowName=${enc(name)}` : null),
   workflowsAdmin: (o) => (o ? `${o}/secure/admin/workflows/ListWorkflows.jspa` : null),
   workflowScheme: (o, id) => (o && present(id) ? `${o}/secure/admin/EditWorkflowScheme.jspa?schemeId=${enc(id)}` : null),

@@ -26,6 +26,11 @@ const workflow = () => ({
   ruleIntegrity: { available: true, workflows: 327, teamManaged: 40, rules: 1200, brokenRules: 6, brokenProperties: 2, inactive: 31 },
 });
 
+const fieldConfigs = () => ({
+  available: true, source: "field-configurations",
+  summary: { requiredHiddenConfigs: 2, requiredHiddenPairs: 5, unusedSchemes: 1, unusedConfigs: 3, reducible: 2, duplicateGroups: 1 },
+});
+
 const screens = () => ({
   available: true, totalScreens: 746, emptyScreens: 12, unresolvedScreens: 14,
   unreachedScreens: 252, transitionOnlyScreens: 6, transitionsKnown: true,
@@ -68,6 +73,10 @@ const EXPECTED = [
   ["Workflow schemes with a structural flag", "workflows", { view: "insights", panel: "balance" }],
   ["Workflow rules naming a deleted field, group or role", "workflows", { view: "rules", filter: "broken" }],
   ["Inactive workflows", "workflows", { view: "workflow-list", filter: "inactive" }],
+
+  ["Fields required but hidden", "fieldConfigs", { view: "configs", filter: "required-hidden" }],
+  ["Field configurations and schemes no project uses", "fieldConfigs", { view: "configs", filter: "unused" }],
+  ["Identical field configurations or schemes", "fieldConfigs", { view: "configs", filter: "duplicate" }],
 
   ["Automation rules storing a credential in plaintext", "automation", { section: "findings", risk: "embedded-credential" }],
   ["Rules that write a field they trigger on", "automation", { section: "cascades", cascadeKind: "self" }],
@@ -115,6 +124,7 @@ function renderAll(onNavigate) {
       stale: 11, "context-sprawl": 6, "missing-description": 14,
     }}
     workflow={workflow()}
+    fieldConfigs={fieldConfigs()}
     screens={screens()}
     automation={automation()}
     onNavigate={onNavigate}

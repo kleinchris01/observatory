@@ -38,6 +38,7 @@ vi.mock("./project-store.js", () => ({
   loadWorkflowSchemeStatuses: vi.fn(async () => []),
   loadWorkflowSchemes: vi.fn(async () => []),
   loadWorkflowsCatalog: vi.fn(async () => []),
+  readFieldConfigSnapshotMeta: vi.fn(async () => null),
   loadWorkflowRefsByType: vi.fn(async () => []),
   readScreenSnapshotMeta: vi.fn(async () => null),
   readWorkflowSnapshotMeta: vi.fn(async () => null),
@@ -57,7 +58,7 @@ const automationStore = {
 };
 vi.mock("./store/automation.js", () => automationStore);
 
-const { buildProjectInsights, buildFieldUsageInsights, captureSiteHealth, buildUserOverview, buildAssetOverview, buildAccessOverview, buildEstateOverview, buildWorkflowOverview } = await import("./site-health.js");
+const { buildProjectInsights, buildFieldUsageInsights, captureSiteHealth, buildUserOverview, buildAssetOverview, buildAccessOverview, buildEstateOverview, buildWorkflowOverview, buildFieldConfigOverview } = await import("./site-health.js");
 const workflowStore = await import("./project-store.js");
 
 // The fields pillar scores duplicate naming once, through the dedicated field-naming
@@ -469,5 +470,27 @@ describe("buildWorkflowOverview — rule integrity", () => {
     const overview = await buildWorkflowOverview("site");
     expect(overview.available).toBe(true);
     expect(overview.ruleIntegrity).toEqual({ available: false });
+  });
+});
+
+describe("buildFieldConfigOverview", () => {
+  test("is unavailable until a build has completed", async () => {
+    workflowStore.readFieldConfigSnapshotMeta.mockResolvedValueOnce({ state: "building" });
+    expect(await buildFieldConfigOverview("site")).toMatchObject({ available: false, state: "building" });
+  });
+
+  test("carries the model and the stored summary into the health input", async () => {
+    workflowStore.readFieldConfigSnapshotMeta.mockResolvedValueOnce({
+      version: "v1", state: "ready", refreshedAt: "t", source: "field-schemes",
+      summary: { usageJudged: 5, unusedSchemes: 1 },
+    });
+    const overview = await buildFieldConfigOverview("site");
+    expect(overview).toMatchObject({ available: true, source: "field-schemes", sourceLabel: "Field schemes" });
+    expect(overview.health).toEqual({ available: true, refreshedAt: "t", usageJudged: 5, unusedSchemes: 1 });
+  });
+
+  test("a failed read degrades to unavailable", async () => {
+    workflowStore.readFieldConfigSnapshotMeta.mockRejectedValueOnce(new Error("tidb"));
+    expect(await buildFieldConfigOverview("site")).toEqual({ available: false, state: "error" });
   });
 });

@@ -15,7 +15,7 @@ import { RemediationProgress } from "./RemediationProgress";
 // nav lists the pillars.
 const PILLAR_ORDER = [
   ["fields", "Fields"], ["projects", "Projects"], ["workflows", "Workflows"], ["issueTypes", "Issue Types"],
-  ["estate", "Priorities"], ["users", "People"], ["assets", "Assets"], ["permissions", "Access"],
+  ["fieldConfigs", "Field Schemes"], ["estate", "Priorities"], ["users", "People"], ["assets", "Assets"], ["permissions", "Access"],
   ["security", "Access"], ["notifications", "Access"], ["roles", "Access"], ["screens", "Screens"],
   ["filters", "Saved Filters"], ["dashboards", "Dashboards"], ["boards", "Boards"], ["automation", "Automation"],
 ];

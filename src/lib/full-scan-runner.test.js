@@ -26,6 +26,7 @@ vi.mock("./project-store.js", () => ({
   readIssueTypeSnapshotMeta: vi.fn(async () => null),
   readAccessSnapshotMeta: vi.fn(async () => null),
   readEstateSnapshotMeta: vi.fn(async () => null),
+  readFieldConfigSnapshotMeta: vi.fn(async () => null),
   readBoardSnapshotMeta: vi.fn(async () => null),
   readUserSnapshotMeta: vi.fn(async () => null),
   readAssetSnapshotMeta: vi.fn(async () => null),
@@ -36,6 +37,7 @@ vi.mock("./project-store.js", () => ({
 
 vi.mock("./access-engine.js", () => ({ buildAccessSnapshot: vi.fn() }));
 vi.mock("./estate-engine.js", () => ({ buildEstateSnapshot: vi.fn() }));
+vi.mock("./fieldconfig-engine.js", () => ({ buildFieldConfigSnapshot: vi.fn() }));
 vi.mock("./board-engine.js", () => ({ buildBoardSnapshot: vi.fn() }));
 vi.mock("./user-engine.js", () => ({ buildUserSnapshot: vi.fn() }));
 vi.mock("./asset-engine.js", () => ({ buildAssetSnapshot: vi.fn() }));
@@ -94,6 +96,7 @@ import { readFullScanMeta, writeFullScanMeta, readFilterSnapshotMeta, readIssueS
 import { runIssueScanCoordinator } from "./scan-engine.js";
 import { buildWorkflowSnapshot } from "./workflow-engine.js";
 import { buildIssueTypeSnapshot } from "./issuetype-engine.js";
+import { buildFieldConfigSnapshot } from "./fieldconfig-engine.js";
 import { buildUserSnapshot } from "./user-engine.js";
 import { buildAssetSnapshot } from "./asset-engine.js";
 import { queueFilterSnapshotBuild } from "./filter-engine.js";
@@ -186,11 +189,22 @@ describe("running a stage", () => {
     expect(lastWrite().stages.find((s) => s.key === "issue-types").state).toBe("done");
   });
 
+  test("runs the field-configs stage inline through its engine", async () => {
+    readFullScanMeta.mockResolvedValue(running({
+      stages: withDone(["workflows", "screens", "filters", "dashboards", "fields", "status-history", "issue-types"]),
+    }));
+
+    await runFullScanStep("inst", { jobToken: "job-token" });
+
+    expect(buildFieldConfigSnapshot).toHaveBeenCalledWith("inst");
+    expect(lastWrite().stages.find((s) => s.key === "field-configs").state).toBe("done");
+  });
+
   // Two pillars that were scored but never scanned. The stage list alone does not prove the
   // wiring: a key in FULL_SCAN_STAGES with no entry in STAGE_RUNNERS is a stage that cannot
   // run, which is a worse failure than not having the stage at all.
   const upToBoards = ["workflows", "screens", "filters", "dashboards", "fields",
-    "status-history", "issue-types", "access", "estate", "boards"];
+    "status-history", "issue-types", "field-configs", "access", "estate", "boards"];
 
   test("runs the people stage inline through the user engine", async () => {
     readFullScanMeta.mockResolvedValue(running({ stages: withDone(upToBoards) }));
@@ -255,7 +269,7 @@ describe("running a stage", () => {
   // one poll interval later -- a whole-site crawl "finishing" in ~31 seconds.
   test("the issue-crawl handoff flips the crawl meta to queued before starting the coordinator", async () => {
     readFullScanMeta.mockResolvedValue(running({
-      stages: withDone(["workflows", "screens", "filters", "dashboards", "fields", "status-history", "issue-types", "access", "estate", "boards", "people", "assets"]),
+      stages: withDone(["workflows", "screens", "filters", "dashboards", "fields", "status-history", "issue-types", "field-configs", "access", "estate", "boards", "people", "assets"]),
     }));
 
     const result = await runFullScanStep("inst", { jobToken: "job-token" });

@@ -43,6 +43,7 @@ export const PILLAR_REPORTS = [
   { key: "projects", label: "Projects", entity: "projects", health: ["projects"] },
   { key: "workflows", label: "Workflows", entity: "workflow schemes", health: ["workflows"] },
   { key: "issueTypes", label: "Issue types", entity: "issue types", health: ["issueTypes"] },
+  { key: "fieldConfigs", label: "Field schemes", entity: "schemes and configurations", health: ["fieldConfigs"] },
   { key: "priorities", label: "Priorities & resolutions", entity: "values", health: ["estate"] },
   { key: "people", label: "People", entity: "licensed users", health: ["users"] },
   { key: "assets", label: "Assets", entity: "object types", health: ["assets"] },
@@ -280,6 +281,60 @@ function buildIssueTypesReport({ refreshedAt, issueTypes = [], schemeItems = [],
     ],
     rows,
     notes,
+  };
+}
+
+// Field schemes, or -- on a legacy site -- configuration schemes and field configurations,
+// one row each. Findings are the codes the build stored; nothing is re-judged here.
+function buildFieldConfigsReport({ refreshedAt, sourceLabel = null, schemes = [], configs = [], summary = null }) {
+  const configProjects = new Map();
+  const schemeProjects = new Map(schemes.map((s) => [s.id, Number(s.projectCount) || 0]));
+  for (const c of configs) {
+    const schemeIds = new Set((c.routes || []).map((r) => r.schemeId));
+    configProjects.set(c.id, [...schemeIds].reduce((n, id) => n + (schemeProjects.get(id) || 0), 0));
+  }
+  const rows = [
+    ...schemes.map((s) => ({
+      kind: s.source === "field-configurations" ? "Configuration scheme" : "Field scheme",
+      // The prefixed id (fs:, fcs:, fc:): a legacy scheme and a configuration can share a
+      // numeric id, and the change log keys on this one.
+      id: s.id,
+      name: s.name,
+      isDefault: Boolean(s.isDefault),
+      projects: Number(s.projectCount) || 0,
+      fields: s.fieldCount ?? null,
+      required: s.source === "field-configurations" ? null : (s.requiredCount ?? null),
+      findings: (s.codes || []).filter((c) => c !== "unmeasured"),
+    })),
+    ...configs.map((c) => ({
+      kind: "Field configuration",
+      id: c.id,
+      name: c.name,
+      isDefault: Boolean(c.isDefault),
+      projects: configProjects.get(c.id) ?? 0,
+      fields: c.totalFieldCount ?? null,
+      required: c.itemsRead ? c.requiredCount : null,
+      findings: (c.codes || []).filter((code) => code !== "unmeasured"),
+    })),
+  ];
+  return {
+    refreshedAt,
+    columns: [
+      { key: "kind", label: "Kind", kind: "text" },
+      { key: "id", label: "ID", kind: "text" },
+      { key: "name", label: "Name", kind: "text" },
+      { key: "isDefault", label: "Default", kind: "boolean" },
+      { key: "projects", label: "Projects", kind: "number" },
+      { key: "fields", label: "Fields", kind: "number" },
+      { key: "required", label: "Required fields", kind: "number" },
+    ],
+    rows,
+    summary: [
+      { label: "Model", value: sourceLabel || "unknown" },
+      { label: "Schemes", value: schemes.length },
+      ...(configs.length ? [{ label: "Field configurations", value: configs.length }] : []),
+    ],
+    notes: summary?.unmeasured ? [`${summary.unmeasured} could not be read on the last build; their field counts are blank.`] : [],
   };
 }
 
@@ -667,6 +722,7 @@ export const PILLAR_REPORT_BUILDERS = {
   projects: buildProjectsReport,
   workflows: buildWorkflowsReport,
   issueTypes: buildIssueTypesReport,
+  fieldConfigs: buildFieldConfigsReport,
   priorities: buildPrioritiesReport,
   people: buildPeopleReport,
   assets: buildAssetsReport,

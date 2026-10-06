@@ -61,6 +61,11 @@ export const FULL_SCAN_STAGES = [
   // disturbing the dependency-blocking cases the earlier stages exercise; it needs nothing,
   // so its position is a scheduling choice, not a correctness one.
   { key: "issue-types", label: "Issue type inventory", needs: [], mode: "inline" },
+  // What Jira enforces on each field per project and work type: field schemes, or legacy
+  // field configuration schemes + configurations on a site not yet migrated. Inline: the
+  // per-owner item walk runs under its own time budget inside the consumer ceiling and
+  // records what it did not reach as unread rather than overrunning.
+  { key: "field-configs", label: "Field scheme / configuration inventory", needs: [], mode: "inline" },
   // Permission, issue-security and notification schemes with their holders and project
   // assignments. Structural and cheap -- dozens of schemes, one bulk call each plus one
   // per-project call for the permission scheme (Jira has no bulk for that one), best-effort.
@@ -147,6 +152,8 @@ export const QUICK_SCAN_STAGES = [
   // for issue types or their schemes either, so quick scan runs it in full like the other
   // four. Ordered after the delta crawl for the same reason it sits late in the full list.
   { key: "issue-types", label: "Issue type inventory (full)", needs: [], mode: "inline" },
+  // No changed-since signal for field schemes or configurations either.
+  { key: "field-configs", label: "Field scheme / configuration inventory (full)", needs: [], mode: "inline" },
   // Same full-refetch structural stage as a full scan -- Jira exposes no changed-since
   // signal for permission / security / notification schemes either.
   { key: "access", label: "Access scheme inventory (full)", needs: [], mode: "inline" },

@@ -5990,6 +5990,17 @@ a.macro-pillar__name:hover { color: var(--cool); text-decoration: underline; }
 .ui-barlist__bar--warn { background: var(--tone-warning); }
 .ui-barlist__value { font-size: 0.75rem; font-variant-numeric: tabular-nums; opacity: 0.75; white-space: nowrap; }
 
+/* Field schemes tab: an expandable scheme/configuration row and its field list. */
+.fc-row { flex-direction: column; align-items: stretch; }
+.fc-row__toggle {
+  display: flex; justify-content: space-between; align-items: center; gap: 0.75rem;
+  width: 100%; background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer;
+}
+.fc-row__toggle:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; border-radius: 4px; }
+.fc-items { margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px solid var(--ds-border, var(--wash-7)); display: flex; flex-direction: column; gap: 0.5rem; }
+.fc-items__bar { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.fc-items__toggle { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; }
+
 /* Workflow rule usage: where a transition goes, and the rule on it. */
 .ui-srlabel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .ui-transition { display: inline-flex; flex-direction: column; gap: 0.05rem; min-width: 0; }

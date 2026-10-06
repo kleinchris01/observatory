@@ -228,6 +228,9 @@ const DEFAULT_TOLERANCES = {
   unreachableStatuses: 0.20,
   brokenWorkflowRefs: 0.02,
   inactiveWorkflows: 0.25,
+  unusedFieldConfigs: 0.30,
+  requiredHiddenConfigs: 0.02,
+  duplicateFieldConfigs: 0.20,
   flaggedSchemes: 0.40,
   irregularProjects: 0.25,
   credentialRules: 0.02,
@@ -950,6 +953,12 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent, targetPct, setTa
             tail="of workflow rules naming a field, group or role that no longer exists." />
           <ToleranceRule tone="cleanup" badge="Workflow" name="Inactive workflows" pct={pct} set={setTolerancePercent} k="inactiveWorkflows"
             tail="of company-managed workflows no project's scheme uses." />
+          <ToleranceRule tone="cleanup" badge="Fields" name="Unused field schemes" pct={pct} set={setTolerancePercent} k="unusedFieldConfigs"
+            tail="of non-default field schemes or configurations no project uses." />
+          <ToleranceRule tone="cleanup" badge="Fields" name="Required but hidden" pct={pct} set={setTolerancePercent} k="requiredHiddenConfigs"
+            tail="of field configurations requiring a field they also hide (legacy only)." />
+          <ToleranceRule tone="standardize" badge="Fields" name="Duplicate field schemes" pct={pct} set={setTolerancePercent} k="duplicateFieldConfigs"
+            tail="of field schemes or configurations identical to another." />
           <ToleranceRule tone="standardize" badge="Workflow" name="Scheme balance" pct={pct} set={setTolerancePercent} k="flaggedSchemes"
             tail="of workflow schemes carrying a structural finding." />
         </div>

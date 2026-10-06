@@ -168,6 +168,9 @@ describe("risk, churn and the attention score", () => {
     expect(changeEntityKey({ entityType: "permission-grant", entityId: "7:BROWSE:group:jira-users" })).toBe("access|permission|7");
     expect(changeEntityKey({ entityType: "project-role-grant", entityId: "10002:x:user:abc" })).toBe("access|project-role|10002");
     expect(changeEntityKey({ entityType: "security-level", entityId: "5:100" })).toBe("access|security|5");
+    expect(changeEntityKey({ entityType: "field-scheme", entityId: "fs:2" })).toBe("fieldConfigs|fs:2");
+    expect(changeEntityKey({ entityType: "field-configuration", entityId: "fc:3" })).toBe("fieldConfigs|fc:3");
+    expect(changeEntityKey({ entityType: "field-scheme-assignment", entityId: "10" })).toBeNull();
     expect(changeEntityKey({ entityType: "status", entityId: "1" })).toBeNull();
   });
 

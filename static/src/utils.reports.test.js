@@ -1,3 +1,5 @@
+import { HEALTH_PILLARS } from "../../src/lib/health-score.js";
+import { PILLAR_REPORTS } from "../../src/lib/pillar-reports.js";
 import { describe, test, expect, vi } from "vitest";
 import {
   PILLAR_REPORT_NAV,
@@ -13,10 +15,10 @@ import {
 } from "./utils";
 
 describe("PILLAR_REPORT_NAV", () => {
-  test("covers the fourteen pillars once each", () => {
+  test("covers every pillar report once each", () => {
     const keys = PILLAR_REPORT_NAV.map((p) => p.key);
     expect(new Set(keys).size).toBe(keys.length);
-    expect(keys).toHaveLength(14);
+    expect(keys.slice().sort()).toEqual(PILLAR_REPORTS.map((r) => r.key).sort());
   });
 
   test("every named agent is a registered Rovo agent", () => {
@@ -184,7 +186,7 @@ describe("pillarNavStatus", () => {
   });
 
   test("every pillar's health keys are real HEALTH_PILLARS keys", () => {
-    const known = new Set(["fields", "filters", "dashboards", "workflows", "screens", "issueTypes", "users", "assets", "permissions", "security", "notifications", "roles", "estate", "boards", "automation", "projects", "drift"]);
+    const known = new Set(HEALTH_PILLARS.map((p) => p.key));
     for (const p of PILLAR_REPORT_NAV) for (const k of p.health) expect(known.has(k), `${p.key} -> ${k}`).toBe(true);
   });
 });

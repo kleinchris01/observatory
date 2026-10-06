@@ -57,6 +57,9 @@ const AccessTab = React.lazy(() =>
 const ChangesTab = React.lazy(() =>
   import("./tabs/ChangesTab").then((m) => ({ default: m.ChangesTab }))
 );
+const FieldConfigsTab = React.lazy(() =>
+  import("./tabs/FieldConfigsTab").then((m) => ({ default: m.FieldConfigsTab }))
+);
 const PrioritiesTab = React.lazy(() =>
   import("./tabs/PrioritiesTab").then((m) => ({ default: m.PrioritiesTab }))
 );
@@ -127,6 +130,7 @@ export const ADMIN_NAV_TABS = [
   { key: "projects", label: "Project Usage", icon: "folder", group: "Pillars" },
   { key: "workflows", label: "Workflows", icon: "activity", group: "Pillars" },
   { key: "issueTypes", label: "Issue Types", icon: "tag", group: "Pillars" },
+  { key: "fieldConfigs", label: "Field Schemes", icon: "listChecks", group: "Pillars" },
   { key: "priorities", label: "Priorities", icon: "flag", group: "Pillars" },
   { key: "people", label: "People", icon: "user", group: "Pillars" },
   { key: "assets", label: "Assets", icon: "database", group: "Pillars" },
@@ -424,6 +428,8 @@ export function AdminApp() {
             <WorkflowTab intent={navIntent} siteOrigin={siteOrigin} />
           ) : activeTab === "issueTypes" ? (
             <IssueTypesTab intent={navIntent} siteOrigin={siteOrigin} />
+          ) : activeTab === "fieldConfigs" ? (
+            <FieldConfigsTab intent={navIntent} siteOrigin={siteOrigin} />
           ) : activeTab === "priorities" ? (
             <PrioritiesTab intent={navIntent} siteOrigin={siteOrigin} />
           ) : activeTab === "boards" ? (

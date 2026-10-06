@@ -137,6 +137,9 @@ export const METRIC_NAMES = {
   estateSnapshotStarted: "estate-snapshot-started",
   estateSnapshotCompleted: "estate-snapshot-completed",
   estateSnapshotFailed: "estate-snapshot-failed",
+  fieldConfigSnapshotStarted: "fieldconfig-snapshot-started",
+  fieldConfigSnapshotCompleted: "fieldconfig-snapshot-completed",
+  fieldConfigSnapshotFailed: "fieldconfig-snapshot-failed",
   boardSnapshotStarted: "board-snapshot-started",
   boardSnapshotCompleted: "board-snapshot-completed",
   boardSnapshotFailed: "board-snapshot-failed",
@@ -1254,6 +1257,78 @@ export async function getIssueTypeSchemeProjects(projectIds = []) {
       route([`/rest/api/3/issuetypescheme/project?maxResults=100&startAt=${Number(startAt) || 0}&${query}`])
     );
     rows.push(...page);
+  }
+  return rows;
+}
+
+// ── Field behaviour: field schemes (current) and field configurations (legacy) ──────────
+//
+// Jira is replacing field configurations + field configuration schemes with one tier,
+// field schemes (GA, progressive rollout from June 2026). A field scheme holds which fields
+// exist in the projects it is assigned to, optionally restricted to some work types, plus
+// required / description / renderer, each overridable per work type. Hidden no longer
+// exists: a field is either associated or it is not.
+//
+// Every /config/fieldschemes endpoint is marked experimental and every legacy endpoint
+// deprecated, so neither is assumed. fieldconfig-engine.js asks the current one first and
+// falls back to the legacy pair; which one answered is recorded on the snapshot.
+//
+// Scopes (from the published spec): the field-scheme LIST and project calls take
+// read:field-configuration-scheme:jira; a scheme's fields and projects take
+// read:field-configuration:jira. Both alternatively accept manage:jira-configuration.
+
+// Every field scheme. A site that has not been migrated answers 404 or an empty page.
+export async function getAllFieldSchemes() {
+  return paginate((startAt) => route`/rest/api/3/config/fieldschemes?startAt=${startAt}&maxResults=100`);
+}
+
+// project id -> field scheme id, for every project. "Temporary" per Atlassian, kept for the
+// transition period -- which is exactly the period this pillar has to work across.
+export async function getFieldSchemeProjectAssignments() {
+  return paginate((startAt) => route`/rest/api/3/config/fieldschemes/projects?startAt=${startAt}&maxResults=100`);
+}
+
+// Every field associated with one field scheme, with its parameters and per-work-type
+// overrides: { fieldId, parameters: { isRequired, description, rendererType },
+// restrictedToWorkTypes: [], workTypeParameters: [{ workTypeId, isRequired, ... }] }.
+export async function getFieldSchemeFields(schemeId) {
+  return paginate((startAt) => route`/rest/api/3/config/fieldschemes/${schemeId}/fields?startAt=${startAt}&maxResults=100`);
+}
+
+// Legacy: every field configuration ({ id, name, description, isDefault }).
+export async function getAllFieldConfigurations() {
+  return paginate((startAt) => route`/rest/api/3/fieldconfiguration?startAt=${startAt}&maxResults=100`);
+}
+
+// Legacy: every field in one configuration ({ id, isHidden, isRequired, description, renderer }).
+export async function getFieldConfigurationItems(configurationId) {
+  return paginate((startAt) => route`/rest/api/3/fieldconfiguration/${configurationId}/fields?startAt=${startAt}&maxResults=100`);
+}
+
+// Legacy: every field configuration scheme ({ id, name, description }).
+export async function getAllFieldConfigurationSchemes() {
+  return paginate((startAt) => route`/rest/api/3/fieldconfigurationscheme?startAt=${startAt}&maxResults=100`);
+}
+
+// Legacy: scheme -> work type -> configuration ({ fieldConfigurationSchemeId, issueTypeId,
+// fieldConfigurationId }); issueTypeId "default" is the catch-all row.
+export async function getFieldConfigurationSchemeMappings() {
+  return paginate((startAt) => route`/rest/api/3/fieldconfigurationscheme/mapping?startAt=${startAt}&maxResults=100`);
+}
+
+// Legacy: which projects use which scheme. Requires projectIds, batched like the issue type
+// scheme call. A project on the system default arrives under a row with no scheme.
+export async function getFieldConfigurationSchemeProjects(projectIds = []) {
+  const ids = [...new Set((projectIds || []).map((id) => String(id).trim()).filter(Boolean))];
+  const rows = [];
+  for (let i = 0; i < ids.length; i += ITSS_PROJECT_QUERY_BATCH) {
+    const query = ids
+      .slice(i, i + ITSS_PROJECT_QUERY_BATCH)
+      .map((id) => `projectId=${encodeURIComponent(id)}`)
+      .join("&");
+    rows.push(...await paginate((startAt) =>
+      route([`/rest/api/3/fieldconfigurationscheme/project?maxResults=100&startAt=${Number(startAt) || 0}&${query}`])
+    ));
   }
   return rows;
 }

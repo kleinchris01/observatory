@@ -20,6 +20,7 @@ import {
 } from "./workflow-insights.js";
 import { fallbackOn } from "./logger.js";
 import { summarizeRuleInsights } from "./workflow-rules.js";
+import { summarizeFieldConfigHealth, SOURCE_LABEL as FIELD_BEHAVIOUR_SOURCE_LABEL } from "./fieldconfig-insights.js";
 import {
   loadIssueScanProjectTotals,
   loadProjectActivity,
@@ -40,6 +41,7 @@ import {
   transitionAwareWorkflowVersion,
   loadWorkflowsCatalog,
   loadWorkflowRefsByType,
+  readFieldConfigSnapshotMeta,
   readIssueTypeSnapshotMeta,
   loadIssueTypes,
   readAssetSnapshotMeta,
@@ -817,6 +819,29 @@ export async function buildEstateOverview(installationKey) {
   }
 }
 
+// The field behaviour pillar's input: field schemes or legacy field configurations. The
+// findings were computed and stored at build time, so this is one meta read.
+export async function buildFieldConfigOverview(installationKey) {
+  try {
+    const meta = await readFieldConfigSnapshotMeta(installationKey);
+    if (!meta?.version) return { available: false, state: meta?.state || "idle", lastError: meta?.lastError || null };
+    return {
+      available: true,
+      state: meta.state || "idle",
+      refreshedAt: meta.refreshedAt || null,
+      lastError: meta.lastError || null,
+      source: meta.source,
+      sourceLabel: FIELD_BEHAVIOUR_SOURCE_LABEL[meta.source] || meta.source,
+      fallbackReason: meta.fallbackReason || null,
+      summary: meta.summary,
+      health: summarizeFieldConfigHealth(meta, meta.summary),
+    };
+  } catch (error) {
+    console.warn("buildFieldConfigOverview failed:", error?.message || error);
+    return { available: false, state: "error" };
+  }
+}
+
 // The drift pillar's input to the score: not a rate of anything broken, but a rate of
 // motion. Structural change is neither good nor bad on its own -- the finding is that an
 // admin reviewing the estate right now would be reviewing a moving target, and the size of
@@ -925,7 +950,7 @@ export async function captureSiteHealth(installationKey, deps) {
   }
 
   try {
-    const [meta, config, workflow, screens, issueTypeOverview, userOverview, assetOverview, accessOverview, estateOverview, boardOverview, driftHealth, automationAnalysis] = await Promise.all([
+    const [meta, config, workflow, screens, issueTypeOverview, userOverview, assetOverview, accessOverview, estateOverview, boardOverview, driftHealth, automationAnalysis, fieldConfigOverview] = await Promise.all([
       readSnapshotMeta(installationKey),
       readAdminConfig(),
       buildWorkflowOverview(installationKey),
@@ -938,6 +963,7 @@ export async function captureSiteHealth(installationKey, deps) {
       buildBoardOverview(installationKey),
       buildDriftHealthOverview(installationKey),
       readAutomationAnalysis(installationKey).catch(() => null),
+      buildFieldConfigOverview(installationKey),
     ]);
     let filters = null;
     let dashboards = null;
@@ -1017,6 +1043,7 @@ export async function captureSiteHealth(installationKey, deps) {
       estate: estateOverview?.health ?? null,
       boards: boardOverview?.health ?? null,
       drift: driftHealth,
+      fieldConfigs: fieldConfigOverview?.health ?? null,
       tolerances: config?.healthTolerances,
       targets: config?.healthTargets,
       priorValues,

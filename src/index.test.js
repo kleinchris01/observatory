@@ -47,6 +47,9 @@ vi.mock("./lib/access-engine.js", () => ({
 vi.mock("./lib/drift-engine.js", () => ({
   buildDriftSnapshot: vi.fn().mockResolvedValue({ version: "v1", changes: 3, seeded: [] }),
 }));
+vi.mock("./lib/fieldconfig-engine.js", () => ({
+  buildFieldConfigSnapshot: vi.fn().mockResolvedValue({ version: "v1", source: "field-schemes", schemes: 4, configs: 0, unread: 0 }),
+}));
 vi.mock("./lib/estate-engine.js", () => ({
   buildEstateSnapshot: vi.fn().mockResolvedValue({ version: "v1", resolutions: 7, priorities: 5 }),
 }));
@@ -222,6 +225,7 @@ import { buildAssetSnapshot, buildAssetTypeCounts } from "./lib/asset-engine.js"
 import { buildAccessSnapshot } from "./lib/access-engine.js";
 import { buildDriftSnapshot } from "./lib/drift-engine.js";
 import { buildEstateSnapshot } from "./lib/estate-engine.js";
+import { buildFieldConfigSnapshot } from "./lib/fieldconfig-engine.js";
 import { buildBoardSnapshot } from "./lib/board-engine.js";
 import { runFullScanStep, runQuickScanStep, startQuickScan, recoverStalledScan } from "./lib/full-scan-runner.js";
 import { buildFilterSnapshot } from "./lib/filter-engine.js";
@@ -753,6 +757,16 @@ describe("consumeSnapshot job routing", () => {
   test("routes build-estate-snapshot to the estate engine", async () => {
     await consumeSnapshot(event({ jobType: "build-estate-snapshot" }));
     expect(buildEstateSnapshot).toHaveBeenCalledWith("scope-1");
+  });
+
+  test("routes build-fieldconfig-snapshot to the field scheme engine", async () => {
+    await consumeSnapshot(event({ jobType: "build-fieldconfig-snapshot" }));
+    expect(buildFieldConfigSnapshot).toHaveBeenCalledWith("scope-1");
+  });
+
+  test("logs a build-fieldconfig-snapshot that returned nothing without throwing", async () => {
+    buildFieldConfigSnapshot.mockResolvedValueOnce(undefined);
+    await expect(consumeSnapshot(event({ jobType: "build-fieldconfig-snapshot" }))).resolves.toBeUndefined();
   });
 
   test("routes sync-remediation (Sync now) to the remediation sync", async () => {
