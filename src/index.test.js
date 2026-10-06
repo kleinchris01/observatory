@@ -1221,3 +1221,35 @@ describe("manifest wiring", () => {
     expect(manifest).not.toContain("scheduleSnapshot");
   });
 });
+
+// One Forge function per Rovo agent, routed by each action's single required input. The
+// descriptor size limit is why; these pin that no action is routed to the wrong handler.
+describe("Rovo action routing", () => {
+  test("routes by the one required input each action declares", async () => {
+    const { routeAgentAction } = await import("./index.js");
+    const search = vi.fn(async () => "search");
+    const inspect = vi.fn(async () => "inspect");
+    const impact = vi.fn(async () => "impact");
+    const route = routeAgentAction({ search, inspect, impact });
+    expect(await route({ query: "x", maxResults: 3 }, {})).toBe("search");
+    expect(await route({ identifier: "In Review" }, {})).toBe("inspect");
+    expect(await route({ name: "In Review" }, {})).toBe("impact");
+    // Nothing usable falls through to search, which reports its own missing query.
+    expect(await route({ identifier: "  " }, {})).toBe("search");
+    expect(await routeAgentAction({ search, inspect, impact, impactInput: "field" })({ field: "Cost" }, {})).toBe("impact");
+  });
+
+  test("every handler the manifest names is exported by index.js", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const index = await import("./index.js");
+    const manifest = readFileSync(resolve(process.cwd(), "manifest.yml"), "utf8");
+    const handlers = [...manifest.matchAll(/handler: index\.(\w+)/g)].map((m) => m[1]);
+    expect(handlers.length).toBeGreaterThan(10);
+    // Resolver handlers are resolver definitions; everything else is a plain function.
+    for (const name of handlers) expect(index[name], name).toBeDefined();
+    // And every action names a function the manifest declares.
+    const functions = new Set([...manifest.matchAll(/- key: ([\w-]+)\n\s+handler:/g)].map((m) => m[1]));
+    for (const [, fn] of manifest.matchAll(/function: ([\w-]+)/g)) expect(functions.has(fn), fn).toBe(true);
+  });
+});
