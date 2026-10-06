@@ -117,7 +117,7 @@ function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, pro
   function create() {
     if (needsConfirm && !confirming) { setConfirming(true); return; }
     setConfirming(false);
-    onCreate(entry.key, candidates.items);
+    onCreate(entry.key, candidates.items, untracked.length);
   }
 
   return (
@@ -356,10 +356,12 @@ export function RemediationTab({ siteOrigin, intent = null }) {
   // continues, never re-creates. Progress updates and a ticket-list refresh happen after
   // every batch, not just at the end, so 455 items reads as visible motion rather than one
   // long silence followed by "done" or a truncated "20 of 455" with no way to tell why.
-  async function handleCreate(findingKey, items) {
+  // `toCreate` is how many of `items` are not yet ticketed -- the progress total. The server
+  // re-derives that set itself; this is only the count shown.
+  async function handleCreate(findingKey, items, toCreate = items.length) {
     setCreatingKey(findingKey);
     setErrors((e) => ({ ...e, [findingKey]: null }));
-    setProgress((p) => ({ ...p, [findingKey]: { done: 0, total: items.length } }));
+    setProgress((p) => ({ ...p, [findingKey]: { done: 0, total: toCreate } }));
 
     let totalCreated = 0;
     const allFailures = [];
@@ -376,7 +378,7 @@ export function RemediationTab({ siteOrigin, intent = null }) {
         }
         totalCreated += result.tasksCreated || 0;
         if (result.failures?.length) allFailures.push(...result.failures);
-        setProgress((p) => ({ ...p, [findingKey]: { done: totalCreated, total: items.length } }));
+        setProgress((p) => ({ ...p, [findingKey]: { done: totalCreated, total: toCreate } }));
         // eslint-disable-next-line no-await-in-loop
         await fetchTickets();
         if (!result.itemsRemaining) break;
@@ -395,6 +397,8 @@ export function RemediationTab({ siteOrigin, intent = null }) {
       }
     } catch (err) {
       setErrors((e) => ({ ...e, [findingKey]: err?.message || "Failed to create the remediation ticket." }));
+      // Some tasks may have landed before the failure; show them rather than a stale list.
+      fetchTickets().catch(() => {});
     } finally {
       setCreatingKey(null);
       setProgress((p) => ({ ...p, [findingKey]: null }));

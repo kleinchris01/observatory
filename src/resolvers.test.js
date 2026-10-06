@@ -7094,6 +7094,43 @@ describe("createRemediationEpic", () => {
     expect(r.itemsRemaining).toBe(10);
   });
 
+  test("stops starting tasks past the time budget and hands the rest back as itemsRemaining", async () => {
+    // Each Jira create takes 4s of wall clock: a 20-task batch would blow the ~25s resolver
+    // ceiling. Past 15s no new task starts, so the invocation returns instead of being killed.
+    let clock = 1_000_000;
+    const nowSpy = vi.spyOn(Date, "now").mockImplementation(() => clock);
+    mocks.createJiraIssue.mockImplementation(async (fields) => {
+      clock += 4000;
+      return { id: String(clock), key: fields.parent ? `ADMIN-T${clock}` : "ADMIN-1" };
+    });
+    try {
+      const many = Array.from({ length: 24 }, (_, i) => ({ id: `f${i}`, name: `Filter ${i}` }));
+      const r = await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: many }, context: ctxWithAccount() });
+      // Epic at 4s, tasks finish at 8, 12, 16 -- the fourth would start past 15s.
+      expect(r.tasksCreated).toBe(3);
+      expect(r.itemsRemaining).toBe(21);
+      expect(r.failures).toEqual([]);
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  test("always attempts at least one task, however long the epic took", async () => {
+    let clock = 1_000_000;
+    const nowSpy = vi.spyOn(Date, "now").mockImplementation(() => clock);
+    mocks.createJiraIssue.mockImplementation(async (fields) => {
+      clock += fields.parent ? 1000 : 20000;
+      return { id: String(clock), key: fields.parent ? `ADMIN-T${clock}` : "ADMIN-1" };
+    });
+    try {
+      const r = await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount() });
+      expect(r.tasksCreated).toBe(1);
+      expect(r.itemsRemaining).toBe(1);
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
   test("a failure creating the epic itself aborts with an error and no tasks", async () => {
     mocks.createJiraIssue.mockRejectedValueOnce(Object.assign(new Error("project ADMIN not found"), { status: 404 }));
     const r = await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount() });
