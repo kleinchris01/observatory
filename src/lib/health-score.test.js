@@ -211,6 +211,8 @@ const dashboards = (over = {}) => ({
   available: true,
   total: 212,
   orphanedCount: 0,
+  filterGadgetDashboards: 120,
+  brokenGadgetCount: 0,
   editableByEveryoneCount: 0,
   publishedUnusedCount: 0,
   // Zero, not absent. Absent means the gadget walk did not finish, and "no empty dashboards"
@@ -1406,8 +1408,24 @@ describe("dashboard rules", () => {
     const pillar = health.pillars.find((p) => p.key === "dashboards");
 
     expect(pillar.dimensions.map((d) => d.key).sort()).toEqual([
-      "dashboard-adoption", "dashboard-content", "dashboard-exposure", "dashboard-ownership", "dashboard-public",
+      "dashboard-adoption", "dashboard-content", "dashboard-exposure", "dashboard-gadget-filters", "dashboard-ownership", "dashboard-public",
     ]);
+  });
+});
+
+describe("gadget filters", () => {
+  const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+
+  test("scores dashboards with a broken gadget against those whose gadget filters were probed", () => {
+    const d = dim(computeSiteHealth({ dashboards: dashboards({ filterGadgetDashboards: 40, brokenGadgetCount: 2 }) }), "dashboard-gadget-filters");
+    expect(d).toMatchObject({ available: true, score: 0 });
+    expect(d.detail).toMatch(/2 of 40 dashboards with filter gadgets/);
+  });
+
+  test("a snapshot from before the probe is unavailable, not clean", () => {
+    const d = dim(computeSiteHealth({ dashboards: dashboards({ filterGadgetDashboards: 0 }) }), "dashboard-gadget-filters");
+    expect(d).toMatchObject({ available: false, score: null });
+    expect(d.reason).toMatch(/Rebuild the dashboard inventory/);
   });
 });
 
@@ -1475,7 +1493,7 @@ describe("pillar weighting", () => {
     const bad = computeSiteHealth({
       fieldUsage: fieldUsage(), workflow: workflow(), projects: projects(), automation: automation(),
       screens: screens(), adoption: adoption(), filters: filters(),
-      dashboards: dashboards({ total: 100, orphanedCount: 100, editableByEveryoneCount: 100, sharedPubliclyCount: 100, publishedUnusedCount: 100, emptyCount: 100 }),
+      dashboards: dashboards({ total: 100, orphanedCount: 100, editableByEveryoneCount: 100, sharedPubliclyCount: 100, brokenGadgetCount: 100, filterGadgetDashboards: 100, publishedUnusedCount: 100, emptyCount: 100 }),
     });
 
     // Dashboards is one of seven pillars carrying weight 1 out of 9 total, so a pillar scoring

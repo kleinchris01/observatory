@@ -91,6 +91,9 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   // allows public access. A data-exposure fact, not untidiness, so the bound is tight: one in
   // fifty is already a bad day.
   publicShares: 0.02,
+  // Dashboards with a gadget reading a deleted or unreachable filter. A visible break, not
+  // untidiness -- everyone who opens it sees an error -- so the bound is tight.
+  brokenGadgets: 0.05,
   zombieSubscriptions: 0.10,
   brokenFilterScope: 0.05,
   // Dashboards that are orphaned, editable by anyone, or empty. Looser than the filter bound:
@@ -694,6 +697,28 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
         : null,
     });
 
+    // Only over dashboards whose gadget filters were actually probed: a snapshot from before
+    // the probe has none, and "no broken gadgets" there would be a claim nobody checked.
+    const probed = Number(dashboards.filterGadgetDashboards) || 0;
+    if (probed > 0) {
+      const broken = Number(dashboards.brokenGadgetCount) || 0;
+      dimensions.push({
+        key: "dashboard-gadget-filters",
+        label: "Gadget filters",
+        pillar: "dashboards",
+        available: true,
+        weight: 1,
+        score: scoreFromRate(broken / probed, TOLERANCE.brokenGadgets),
+        detail: broken === 0
+          ? `Every filter behind a gadget, on ${probed} dashboards, can be read.`
+          : `${broken} of ${probed} dashboards with filter gadgets show an error to most viewers: the filter is deleted, or private to its owner.`,
+        action: broken > 0 ? "Point each broken gadget at a filter its viewers can read, or remove it." : null,
+      });
+    } else {
+      dimensions.push(unavailable("dashboard-gadget-filters", "Gadget filters", "dashboards",
+        "Rebuild the dashboard inventory to check whether each gadget's filter can still be read."));
+    }
+
     dimensions.push({
       key: "dashboard-adoption",
       label: "Dashboard adoption",
@@ -737,6 +762,7 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       ["dashboard-ownership", "Dashboard ownership"],
       ["dashboard-exposure", "Dashboard exposure"],
       ["dashboard-public", "Public dashboards"],
+      ["dashboard-gadget-filters", "Gadget filters"],
       ["dashboard-adoption", "Dashboard adoption"],
       ["dashboard-content", "Dashboard content"],
     ]) {

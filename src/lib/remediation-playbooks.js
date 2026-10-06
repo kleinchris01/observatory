@@ -863,6 +863,34 @@ Object.assign(REMEDIATION_PLAYBOOKS, {
     links: (it, o) => [[`Filter: ${it.name || it.id}`, L.filter(o, it.id)]],
   }),
 
+  // One task per dashboard: its owner fixes every broken gadget on it in one sitting.
+  "dashboards-broken-gadgets": definePlaybook({
+    pillar: "dashboards",
+    label: "Dashboards with gadgets reading a missing or private filter",
+    findings: ["dashboards-broken-gadgets"],
+    epic: {
+      summary: (n) => `Repair broken gadgets on ${n} ${plural(n, "dashboard")}`,
+      why: (n) => `${n} ${plural(n, "dashboard has", "dashboards have")} a gadget reading a filter that is deleted, or private to its owner. Everyone else opening ${plural(n, "it", "them")} sees an error where the chart should be -- and nothing tells the dashboard's owner.`,
+      strategy: `For each gadget, point it at a filter its viewers can read (share the existing one, or pick a replacement), or remove the gadget.`,
+      done: `Every child task is closed and the next scan reports no dashboard with a broken gadget.`,
+    },
+    task: {
+      heading: "The dashboard",
+      summary: (it) => `Repair ${it.brokenGadgets?.length || "the"} broken ${plural(it.brokenGadgets?.length || 0, "gadget")} on "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [
+        ["Dashboard", it.name || it.id],
+        ["Owner", it.ownerName],
+        ["Broken gadgets", (it.brokenGadgets || []).map((g) => `${g.title || g.id} (filter ${g.filterId}: ${g.filterState === "private" ? "private" : "missing"})`).join("; ")],
+      ],
+      steps: () => [
+        "Open the dashboard (link below) as someone other than the filter's owner, and find each gadget showing an error.",
+        "If the filter is private, share it with the dashboard's audience; if it is gone, choose a replacement filter or remove the gadget.",
+      ],
+      done: "Every gadget renders for the dashboard's viewers, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[`Dashboard: ${it.name || it.id}`, L.dashboard(o, it.id)]],
+  }),
+
   "dashboards-public": definePlaybook({
     pillar: "dashboards",
     label: "Dashboards shared publicly",

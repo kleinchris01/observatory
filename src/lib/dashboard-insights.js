@@ -109,6 +109,25 @@ export function analyzeDashboard(dashboard) {
     });
   }
 
+  // Gadgets reading a filter nobody but (possibly) its owner can read. Missing is flagged
+  // on any dashboard -- even the owner sees the error. Private only breaks the gadget for
+  // OTHER viewers, so it counts only when the dashboard is shared with anyone at all.
+  const gadgets = dashboard?.gadgets || [];
+  const shared = (dashboard?.shares || []).length > 0;
+  const missing = gadgets.filter((g) => g.filterState === "missing");
+  const privateFilters = shared ? gadgets.filter((g) => g.filterState === "private") : [];
+  if (missing.length || privateFilters.length) {
+    const parts = [];
+    if (missing.length) parts.push(`${missing.length} gadget${missing.length === 1 ? " reads a filter" : "s read filters"} that no longer exist${missing.length === 1 ? "s" : ""} or that this app cannot see at all`);
+    if (privateFilters.length) parts.push(`${privateFilters.length} read${privateFilters.length === 1 ? "s a" : ""} private filter${privateFilters.length === 1 ? "" : "s"} only ${privateFilters.length === 1 ? "its owner" : "their owners"} can open`);
+    findings.push({
+      code: "broken-gadget",
+      severity: missing.length ? "high" : "medium",
+      detail: `${parts.join("; ")}. Everyone else opening this dashboard sees an error in place of ${missing.length + privateFilters.length === 1 ? "that gadget" : "those gadgets"}.`,
+      gadgets: [...missing, ...privateFilters].map((g) => ({ id: g.id, title: g.title, filterId: g.filterId, filterState: g.filterState })),
+    });
+  }
+
   if (gadgetsKnown && gadgetCount === EMPTY_DASHBOARD_GADGETS) {
     findings.push({
       code: "empty",
@@ -152,6 +171,11 @@ export function summarizeDashboards(dashboards = []) {
     orphanedCount: analyzed.filter((d) => has(d, "orphaned-owner")).length,
     editableByEveryoneCount: analyzed.filter((d) => has(d, "editable-by-everyone")).length,
     sharedPubliclyCount: analyzed.filter((d) => has(d, "shared-publicly")).length,
+    brokenGadgetCount: analyzed.filter((d) => has(d, "broken-gadget")).length,
+    // The denominator: dashboards with at least one filter gadget whose filter was probed.
+    // Zero on a snapshot built before the probe, which makes the dimension unavailable
+    // rather than a clean pass nobody measured.
+    filterGadgetDashboards: dashboards.filter((d) => (d.gadgets || []).some((g) => g.filterId && g.filterState && g.filterState !== "unknown")).length,
     publishedUnusedCount: analyzed.filter((d) => has(d, "published-unused")).length,
     emptyCount: gadgetsKnown ? analyzed.filter((d) => has(d, "empty")).length : null,
     gadgetsKnown,
@@ -179,6 +203,8 @@ export function summarizeDashboardHealth(summary) {
     orphanedCount: summary.orphanedCount,
     editableByEveryoneCount: summary.editableByEveryoneCount,
     sharedPubliclyCount: summary.sharedPubliclyCount,
+    brokenGadgetCount: summary.brokenGadgetCount,
+    filterGadgetDashboards: summary.filterGadgetDashboards,
     emptyCount: summary.emptyCount,
     publishedUnusedCount: summary.publishedUnusedCount,
   };

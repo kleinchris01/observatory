@@ -99,6 +99,7 @@ const EXPECTED = [
   ["Deactivated accounts still holding a licence", "people", { view: "roster", filter: "inactive" }],
   ["Filters shared with every logged-in user", "filters", { view: "filters", finding: "shared-with-everyone" }],
   ["Dashboards shared publicly", "dashboards", { finding: "shared-publicly" }],
+  ["Dashboards with a gadget reading a missing filter", "dashboards", { finding: "broken-gadget" }],
   ["Duplicate saved filters", "filters", { view: "duplicates" }],
 
   ["Projects people have stopped using", "projects", { filter: "fell-off" }],
@@ -119,7 +120,7 @@ function renderAll(onNavigate) {
     dashboard={dashboard()}
     filters={filters()}
     users={{ available: true, totalUsers: 80, deactivatedUsers: 3, activityMeasured: true, dormantAccounts: 6, dormantAfterDays: 365 }}
-    dashboards={{ available: true, total: 90, orphanedCount: 0, editableByEveryoneCount: 0, sharedPubliclyCount: 3, emptyCount: 0, publishedUnusedCount: 0 }}
+    dashboards={{ available: true, total: 90, orphanedCount: 0, editableByEveryoneCount: 0, sharedPubliclyCount: 3, brokenGadgetCount: 2, emptyCount: 0, publishedUnusedCount: 0 }}
     findingsSummary={{ adminAttention: 123, risky: 88, cleanup: 364, standardize: 129 }}
     findingsByCode={{
       "global-context-low-usage": 4, "dead-configuration": 9,

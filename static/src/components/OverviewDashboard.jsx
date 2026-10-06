@@ -425,6 +425,20 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
     });
   }
 
+  if (dashboards?.available && dashboards.brokenGadgetCount > 0) {
+    findings.push({
+      key: "dashboards-broken-gadgets",
+      dimension: "dashboard-gadget-filters",
+      pillar: "dashboards",
+      tone: "warning",
+      count: dashboards.brokenGadgetCount,
+      title: "Dashboards with a gadget reading a missing filter",
+      detail: "The filter is deleted, or private to its owner, so everyone else sees an error in place of the gadget.",
+      onOpen: () => onNavigate("dashboards", { finding: "broken-gadget" }),
+      openLabel: "Dashboards",
+    });
+  }
+
   if (dashboards?.available && dashboards.sharedPubliclyCount > 0) {
     findings.push({
       key: "dashboards-public",

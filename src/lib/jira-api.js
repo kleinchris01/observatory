@@ -1007,6 +1007,36 @@ export async function getGadgetFilterId(dashboardId, gadgetId) {
   return null;
 }
 
+// Can the filter behind a gadget actually be read -- and if not, does it exist at all?
+//
+// Jira answers 400 for both "not found" and "not allowed", so one call cannot tell a deleted
+// filter from a private one. A second call with overrideSharePermissions=true (honoured for
+// callers with Administer Jira) can: a filter it returns exists but is private to someone;
+// one it still refuses is gone, or beyond what the app can see. Both break the gadget for
+// every viewer except possibly the filter's owner, which is the claim that matters.
+//
+//   readable  the app can read it as shared
+//   private   exists, readable only with the admin override
+//   missing   refused even with the override -- deleted, or outside the app's reach
+//   unknown   anything else (auth, rate limit, 5xx): no claim either way
+export async function probeFilter(filterId) {
+  const status = async (path) => {
+    try {
+      await jiraRequest(path);
+      return 200;
+    } catch (error) {
+      return Number(error?.status) || 0;
+    }
+  };
+  const plain = await status(route`/rest/api/3/filter/${filterId}`);
+  if (plain === 200) return "readable";
+  if (plain !== 400 && plain !== 404) return "unknown";
+  const override = await status(route`/rest/api/3/filter/${filterId}?overrideSharePermissions=true`);
+  if (override === 200) return "private";
+  if (override === 400 || override === 404) return "missing";
+  return "unknown";
+}
+
 // A filter id out of a gadget config blob.
 //
 // Jira gadgets record this inconsistently: some store a bare id, some an object with

@@ -243,3 +243,11 @@ describe("a build that is no longer running", () => {
     expect(screen.getByRole("button", { name: /building/i })).toBeDisabled();
   });
 });
+
+describe("gadgetTooltip -- unreadable filters", () => {
+  test("says a missing or private filter first, whatever else is known", () => {
+    expect(gadgetTooltip({ filterId: "500", filterState: "missing", filterName: null, fieldRefs: [] })).toMatch(/no longer exists, or this app cannot see it/);
+    expect(gadgetTooltip({ filterId: "500", filterState: "private" })).toMatch(/private to its owner/);
+    expect(gadgetTooltip({ filterId: "500", filterState: "readable", filterName: "Open bugs", fieldRefs: [] })).toMatch(/^Filter: Open bugs/);
+  });
+});

@@ -32,6 +32,12 @@ export const DASHBOARD_FINDINGS = [
     match: (d) => d.findings.some((f) => f.code === "orphaned-owner"),
   },
   {
+    key: "broken-gadget",
+    label: "Broken gadgets",
+    hint: "A gadget reads a filter that is deleted, or private to its owner -- everyone else sees an error.",
+    match: (d) => d.findings.some((f) => f.code === "broken-gadget"),
+  },
+  {
     key: "shared-publicly",
     label: "Shared publicly",
     hint: "Shared globally. On a site that allows anonymous access, anyone with the link can open these.",
@@ -94,6 +100,9 @@ export function filterDashboards(dashboards, { search = "", finding = "all" } = 
 // resolved yet because no saved-filter inventory has been built.
 export function gadgetTooltip(gadget) {
   if (!gadget.filterId) return undefined;
+  // Said first: a filter nobody can read is the fact that matters, whatever else is known.
+  if (gadget.filterState === "missing") return `Filter ${gadget.filterId} no longer exists, or this app cannot see it -- viewers see an error here.`;
+  if (gadget.filterState === "private") return `Filter ${gadget.filterId} is private to its owner -- everyone else sees an error here.`;
   if (gadget.filterName === null || gadget.fieldRefs === null) {
     return "Uses a saved filter — build a saved filter inventory to see which one and what it depends on.";
   }
@@ -145,7 +154,13 @@ function DashboardRow({ dashboard, siteOrigin }) {
       {dashboard.gadgets?.length > 0 && (
         <div className="dash-row__gadgets">
           {dashboard.gadgets.slice(0, 8).map((gadget) => (
-            <Chip key={gadget.id} title={gadgetTooltip(gadget)}>{gadget.title || gadget.moduleKey || "Untitled gadget"}</Chip>
+            <Chip
+              key={gadget.id}
+              tone={gadget.filterState === "missing" ? "critical" : gadget.filterState === "private" ? "warning" : "neutral"}
+              title={gadgetTooltip(gadget)}
+            >
+              {gadget.title || gadget.moduleKey || "Untitled gadget"}
+            </Chip>
           ))}
           {dashboard.gadgets.length > 8 && (
             <span className="dash-row__more">+{dashboard.gadgets.length - 8} more</span>
