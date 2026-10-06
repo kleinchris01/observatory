@@ -32,6 +32,12 @@ export const DASHBOARD_FINDINGS = [
     match: (d) => d.findings.some((f) => f.code === "orphaned-owner"),
   },
   {
+    key: "shared-publicly",
+    label: "Shared publicly",
+    hint: "Shared globally. On a site that allows anonymous access, anyone with the link can open these.",
+    match: (d) => d.findings.some((f) => f.code === "shared-publicly"),
+  },
+  {
     key: "editable-by-everyone",
     label: "Anyone can edit",
     hint: "Any logged-in user can rearrange these for everybody who uses them, and the owner is not told.",
@@ -125,7 +131,9 @@ function DashboardRow({ dashboard, siteOrigin }) {
         )}
         <OwnerChip dashboard={dashboard} />
         {dashboard.editableByEveryone && <Chip tone="warning">anyone can edit</Chip>}
-        {dashboard.sharedWithEveryone && <Chip tone="neutral">everyone can view</Chip>}
+        {dashboard.findings?.some((f) => f.code === "shared-publicly")
+          ? <Chip tone="critical" title="Shared globally: anonymous visitors can open it on a site that allows public access">public</Chip>
+          : dashboard.sharedWithEveryone && <Chip tone="neutral">everyone can view</Chip>}
         <span className="dash-row__meta">
           {/* A dash, never a zero, when the gadget walk did not reach this one. */}
           {dashboard.gadgetCount === null ? "gadgets not read" : `${formatNumber(dashboard.gadgetCount)} gadget${dashboard.gadgetCount === 1 ? "" : "s"}`}

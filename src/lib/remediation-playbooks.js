@@ -720,12 +720,12 @@ Object.assign(REMEDIATION_PLAYBOOKS, {
 
   "notification-fragile": definePlaybook({
     pillar: "notifications",
-    label: "Notification schemes naming individuals",
+    label: "Notification schemes naming individuals or raw email addresses",
     findings: ["notification-fragile"],
     epic: {
-      summary: (n) => `Replace named individuals in ${n} notification ${plural(n, "scheme")}`,
-      why: (n) => `${n} notification ${plural(n, "scheme sends", "schemes send")} mail to a named person rather than a role or group. When that person leaves, the notification goes nowhere -- or keeps going to an address that no longer should receive it.`,
-      strategy: `Replace each named user with the role, group or issue field (assignee, reporter, watchers) the notification was really meant for.`,
+      summary: (n) => `Replace hard-coded recipients in ${n} notification ${plural(n, "scheme")}`,
+      why: (n) => `${n} notification ${plural(n, "scheme sends", "schemes send")} mail to a named person or a raw email address rather than a role or group. When that person leaves, the notification goes nowhere; a raw address keeps receiving issue content wherever that mailbox now goes.`,
+      strategy: `Replace each named user or email address with the role, group or issue field (assignee, reporter, watchers) the notification was really meant for.`,
       done: `Every child task is closed and the next scan reports no notification scheme naming an individual.`,
     },
     task: {
@@ -735,10 +735,11 @@ Object.assign(REMEDIATION_PLAYBOOKS, {
         ["Scheme", it.name || "(unnamed)"],
         ["Scheme id", it.id],
         ["Named individuals", it.namedUserCount],
+        ["Raw email addresses", it.emailAddressCount],
       ],
       steps: () => [
-        "Open the scheme (link below) and find each event that notifies a single user.",
-        "Replace the user with a project role, group or issue field (assignee, reporter, watchers).",
+        "Open the scheme (link below) and find each event that notifies a single user or an email address.",
+        "Replace it with a project role, group or issue field (assignee, reporter, watchers).",
       ],
       done: "The scheme notifies no named individual, and the next Observatory scan no longer flags it.",
     },
@@ -837,6 +838,52 @@ Object.assign(REMEDIATION_PLAYBOOKS, {
       done: "The filter has no subscription nobody reads, and the next Observatory scan no longer flags it.",
     },
     links: (it, o) => [[`Filter: ${it.name || it.id}`, L.filter(o, it.id)]],
+  }),
+
+  "filters-public": definePlaybook({
+    pillar: "filters",
+    label: "Saved filters shared publicly",
+    findings: ["filters-public"],
+    epic: {
+      summary: (n) => `Take ${n} saved ${plural(n, "filter")} off public sharing`,
+      why: (n) => `${n} saved ${plural(n, "filter is", "filters are")} shared globally. On a site that allows anonymous access, anyone on the internet with the link can run ${plural(n, "it", "them")} and read every issue ${plural(n, "it returns", "they return")}.`,
+      strategy: `Share each filter with the group, project or role that uses it. If the site does not allow anonymous access, the exposure is to every logged-in user instead -- still narrower is better.`,
+      done: `Every child task is closed and the next scan reports no publicly shared filter.`,
+    },
+    task: {
+      heading: "The filter",
+      summary: (it) => `Remove public sharing from filter "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [["Filter", it.name || it.id], ["Owner", it.ownerName], ["Subscriptions", it.subscriptionCount]],
+      steps: () => [
+        "Open the filter (link below) and edit its share permissions.",
+        "Remove the public (global) share; add the group, project or role that needs it.",
+      ],
+      done: "The filter is no longer shared publicly, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[`Filter: ${it.name || it.id}`, L.filter(o, it.id)]],
+  }),
+
+  "dashboards-public": definePlaybook({
+    pillar: "dashboards",
+    label: "Dashboards shared publicly",
+    findings: ["dashboards-public"],
+    epic: {
+      summary: (n) => `Take ${n} ${plural(n, "dashboard")} off public sharing`,
+      why: (n) => `${n} ${plural(n, "dashboard is", "dashboards are")} shared globally. On a site that allows anonymous access, anyone with the link can open ${plural(n, "it", "them")}, and every gadget renders for them.`,
+      strategy: `Share each dashboard with the group or project that uses it.`,
+      done: `Every child task is closed and the next scan reports no publicly shared dashboard.`,
+    },
+    task: {
+      heading: "The dashboard",
+      summary: (it) => `Remove public sharing from dashboard "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [["Dashboard", it.name || it.id], ["Owner", it.ownerName], ["Favourited by", it.popularity]],
+      steps: () => [
+        "Open the dashboard (link below) and edit its share permissions.",
+        "Remove the public (global) share; add the group or project that uses it.",
+      ],
+      done: "The dashboard is no longer shared publicly, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[`Dashboard: ${it.name || it.id}`, L.dashboard(o, it.id)]],
   }),
 
   "filters-shared-everyone": definePlaybook({

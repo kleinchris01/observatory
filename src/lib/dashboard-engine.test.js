@@ -44,7 +44,7 @@ describe("shapeDashboard", () => {
 
   test("separates view permissions from edit permissions", () => {
     const shaped = shapeDashboard(raw({
-      sharePermissions: [{ type: "global" }],
+      sharePermissions: [{ type: "loggedin" }],
       editPermissions: [{ type: "group", group: { groupId: "g1", name: "admins" } }],
     }));
 

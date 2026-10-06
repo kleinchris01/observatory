@@ -229,6 +229,7 @@ const DEFAULT_TOLERANCES = {
   flaggedSchemes: 0.40,
   irregularProjects: 0.25,
   credentialRules: 0.02,
+  publicShares: 0.02,
   selfTriggeringRules: 0.10,
   disabledRules: 0.50,
   externalHttpRules: 0.15,
@@ -960,6 +961,8 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent, targetPct, setTa
             tail="of filters with no live owner. Jira deletes a filter along with its owner, so these are on a timer." />
           <ToleranceRule tone="cleanup" badge="Filter" name="Shared with everyone" pct={pct} set={setTolerancePercent} k="overSharedFilters"
             tail="of filters visible to every logged-in user." />
+          <ToleranceRule tone="cleanup" badge="Filter" name="Shared publicly" pct={pct} set={setTolerancePercent} k="publicShares"
+            tail="of filters, and separately of dashboards, shared globally -- readable by anonymous visitors on a site that allows public access." />
           <ToleranceRule tone="cleanup" badge="Filter" name="Subscribed but unread" pct={pct} set={setTolerancePercent} k="zombieSubscriptions"
             tail="of filters emailing a search nobody opens." />
           <ToleranceRule tone="risk" badge="Filter" name="Broken scope" pct={pct} set={setTolerancePercent} k="brokenFilterScope"

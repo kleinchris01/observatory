@@ -432,3 +432,16 @@ describe("clearer labels and honest last-used", () => {
     expect(screen.getByRole("button", { name: /Not opened in a year/i })).toBeInTheDocument();
   });
 });
+
+describe("FiltersTab -- public sharing", () => {
+  test("a publicly shared filter carries a critical 'public' chip, not 'everyone'", async () => {
+    const internet = { ...filter({ id: "4", name: "Internet", jql: "project = SECRET" }), findings: [{ code: "shared-publicly", severity: "high" }] };
+    route({ getFilterInventory: inventory({ sharedPubliclyCount: 1, filters: [internet], matchedTotal: 1, total: 1 }) });
+    render(<FiltersTab />);
+    const row = (await screen.findByText("Internet")).closest(".filter-row");
+    expect(within(row).getByText("public")).toHaveClass("ui-chip--critical");
+    expect(within(row).queryByText("everyone")).not.toBeInTheDocument();
+    const tile = screen.getAllByText("Shared publicly").map((el) => el.closest(".ui-stat")).find(Boolean);
+    expect(tile).toHaveClass("ui-stat--critical");
+  });
+});

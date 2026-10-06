@@ -5,6 +5,22 @@
 const BROWSE = "BROWSE_PROJECTS";
 const ADMIN = "ADMINISTER_PROJECTS";
 
+// Holder kinds, from Jira's published spec: `anyone` is a grant for ANONYMOUS users -- the
+// public, on a site that allows anonymous access -- and an `applicationRole` grant with no
+// application named is "any logged-in user" in Jira's own UI.
+const isPublicHolder = (h) => h.holderType === "anyone";
+const isAnyLoggedInHolder = (h) => h.holderType === "applicationRole" && !h.holderValue;
+
+// Permissions where "every logged-in user" is a decision someone should be able to defend:
+// administration, deleting or rewriting other people's work, moving issues, and setting
+// security. Browse, create, comment and the like granted to everyone is normal on an open site
+// and is counted, not flagged.
+const SENSITIVE_FOR_EVERYONE = new Set([
+  "ADMINISTER_PROJECTS", "DELETE_ISSUES", "DELETE_ALL_COMMENTS", "DELETE_ALL_ATTACHMENTS",
+  "DELETE_ALL_WORKLOGS", "EDIT_ALL_COMMENTS", "EDIT_ALL_WORKLOGS", "MODIFY_REPORTER",
+  "SET_ISSUE_SECURITY", "MOVE_ISSUES", "MANAGE_SPRINTS_PERMISSION",
+]);
+
 function bySchemeId(rows) {
   const map = new Map();
   for (const r of rows) {
@@ -31,6 +47,9 @@ export function summarizePermissionInsights({ schemes = [], holders = [], scheme
   const risky = [];
   let directUserGrants = 0;
   let offRosterUserGrants = 0;
+  let publicSchemes = 0;
+  let loggedInSensitiveSchemes = 0;
+  let loggedInGrants = 0;
 
   for (const scheme of schemes) {
     const g = holdersBy.get(scheme.id) || [];
@@ -41,6 +60,19 @@ export function summarizePermissionInsights({ schemes = [], holders = [], scheme
 
     const reasons = [];
     if (g.some((h) => h.context === BROWSE && h.holderType === "anyone")) reasons.push("browse open to anyone (public)");
+    // Any OTHER permission open to anonymous users -- create, comment, attach. Each is the
+    // public acting on the projects this scheme governs, not just reading them.
+    const otherPublic = [...new Set(g.filter((h) => isPublicHolder(h) && h.context !== BROWSE).map((h) => h.context))];
+    if (otherPublic.length) reasons.push(`${otherPublic.length} other permission${otherPublic.length === 1 ? "" : "s"} open to anonymous users (public): ${otherPublic.slice(0, 4).join(", ")}`);
+    if (g.some(isPublicHolder)) publicSchemes += 1;
+
+    const loggedIn = g.filter(isAnyLoggedInHolder);
+    loggedInGrants += loggedIn.length;
+    const sensitive = [...new Set(loggedIn.map((h) => h.context).filter((c) => SENSITIVE_FOR_EVERYONE.has(c)))];
+    if (sensitive.length) {
+      reasons.push(`${sensitive.length} sensitive permission${sensitive.length === 1 ? "" : "s"} granted to every logged-in user: ${sensitive.slice(0, 4).join(", ")}`);
+      loggedInSensitiveSchemes += 1;
+    }
     if (g.some((h) => h.context === ADMIN && (h.holderType === "anyone" || h.holderType === "group"))) reasons.push("project admin granted to a group or to anyone");
     const userGrants = g.filter((h) => h.holderType === "user" && h.holderValue);
     if (userGrants.length) reasons.push(`${userGrants.length} grant${userGrants.length === 1 ? "" : "s"} to a named individual`);
@@ -57,6 +89,11 @@ export function summarizePermissionInsights({ schemes = [], holders = [], scheme
     riskySchemeCount: risky.length,
     directUserGrantCount: directUserGrants,
     offRosterUserGrantCount: offRosterUserGrants,
+    // Schemes granting anything to anonymous users, and schemes granting a sensitive
+    // permission to every logged-in user. Both also land in riskySchemes, with the reason.
+    publicSchemeCount: publicSchemes,
+    loggedInSensitiveSchemeCount: loggedInSensitiveSchemes,
+    loggedInGrantCount: loggedInGrants,
     unusedSchemes: unused.slice(0, listLimit),
     riskySchemes: risky.slice(0, listLimit),
   };
@@ -133,14 +170,29 @@ export function summarizeNotificationInsights({ schemes = [], holders = [], sche
   const unused = [];
   const fragile = [];
   let offRosterRecipients = 0;
+  let emailRecipients = 0;
+  let groupRecipients = 0;
 
   for (const scheme of schemes) {
     const h = holdersBy.get(scheme.id) || [];
     if ((projCount.get(scheme.id) || 0) === 0 && !scheme.isDefault) unused.push({ id: scheme.id, name: scheme.name });
 
     const namedUsers = h.filter((r) => r.holderType === "user" && r.holderValue);
-    if (namedUsers.length) {
-      fragile.push({ id: scheme.id, name: scheme.name, namedUserCount: namedUsers.length });
+    // A raw email address is a hard-coded recipient too, and a worse one: it is outside the
+    // user directory entirely, so nothing about it changes when someone leaves -- and issue
+    // content goes to wherever that mailbox now forwards.
+    const emailAddresses = h.filter((r) => r.holderType === "emailAddress");
+    const groups = h.filter((r) => r.holderType === "group");
+    groupRecipients += groups.length;
+    emailRecipients += emailAddresses.length;
+    if (namedUsers.length || emailAddresses.length) {
+      fragile.push({
+        id: scheme.id,
+        name: scheme.name,
+        namedUserCount: namedUsers.length,
+        emailAddressCount: emailAddresses.length,
+        groupRecipientCount: groups.length,
+      });
     }
     offRosterRecipients += namedUsers.filter((r) => !rosterAccountIds.has(r.holderValue)).length;
   }
@@ -151,6 +203,9 @@ export function summarizeNotificationInsights({ schemes = [], holders = [], sche
     unusedSchemeCount: unused.length,
     fragileSchemeCount: fragile.length,
     offRosterRecipientCount: offRosterRecipients,
+    // Raw email addresses (outside the directory) and whole groups, across every scheme.
+    emailRecipientCount: emailRecipients,
+    groupRecipientCount: groupRecipients,
     unusedSchemes: unused.slice(0, listLimit),
     fragileSchemes: fragile.slice(0, listLimit),
   };
