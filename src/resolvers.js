@@ -186,6 +186,7 @@ import {
   loadRemediationTickets,
   getRemediationEpic,
   loadTicketedItemIds,
+  loadTicketedItems,
   currentPeriod,
 } from "./lib/project-store.js";
 import { getPlaybook, groupBounded, listPlaybookCatalog, REMEDIATION_FINDING_INDEX } from "./lib/remediation-playbooks.js";
@@ -3971,7 +3972,30 @@ async function createRemediationEpic({ payload, context }) {
 // loads (getUserInventory's roster, getBoardInventory's insights, getWorkflowInsights'
 // orphans, getFieldInventory's governance findings) rather than re-deriving the join, so a
 // finding and its remediation candidates can never disagree about what is currently flagged.
+//
+// Each item comes back marked with the open ticket that already holds it, if any -- decided by
+// loadTicketedItems, the same rule createRemediationEpic skips by. The tab used to work that
+// out itself from the current quarter's tasks only, so after a quarter rolled over it offered
+// to ticket items still open under last quarter's epic, and the button "ran" and created
+// nothing: the server skipped every one.
 async function getRemediationCandidates({ payload, context }) {
+  const result = await loadRemediationCandidates({ payload, context });
+  if (!result?.items?.length) return result;
+  const installationKey = getInstallationKey(context);
+  const findingKey = String(payload?.findingKey || "");
+  const ticketed = await loadTicketedItems(installationKey, findingKey, currentPeriod())
+    .catch(fallbackOn("remediation.candidates_ticketed_failed", () => null, { installationKey, findingKey }));
+  if (!ticketed) return result;
+  return {
+    ...result,
+    items: result.items.map((it) => {
+      const t = ticketed.get(String(it.id ?? it.name));
+      return t ? { ...it, ticketed: t } : it;
+    }),
+  };
+}
+
+async function loadRemediationCandidates({ payload, context }) {
   incrMetric(METRIC_NAMES.resolver);
   const installationKey = getInstallationKey(context);
   const findingKey = String(payload?.findingKey || "");

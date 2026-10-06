@@ -330,6 +330,59 @@ describe("RemediationTab", () => {
 
     expect(await screen.findByRole("button", { name: /Everything is already ticketed/i })).toBeDisabled();
   });
+
+  // The live bug after the quarter rolled over: 31 flagged, 7 ticketed this quarter, 24 still
+  // open under last quarter's epic. The button offered "Add 24 tasks" and the server created
+  // none. The server now marks those items, and the card counts and names them.
+  test("items still open under an earlier quarter's epic are not offered again, and the card says where they are", async () => {
+    const createRemediationEpic = vi.fn();
+    mockInvoke({
+      getRemediationTickets: {
+        available: true, total: 2,
+        groups: [{
+          findingKey: "filter-ownership", pillar: "filters",
+          epic: { issueKey: "ADMIN-9" },
+          tasks: [{ issueKey: "ADMIN-10", itemId: "4001", summary: "x", lastStatusCategory: "new" }],
+          taskCount: 1, openCount: 1,
+        }],
+      },
+      getRemediationCandidates: {
+        available: true,
+        items: [
+          { id: "4001", name: "A", ticketed: { issueKey: "ADMIN-10", epicKey: "ADMIN-9", period: "2026-Q3" } },
+          { id: "4002", name: "B", ticketed: { issueKey: "ADMIN-3", epicKey: "ADMIN-1", period: "2026-Q2" } },
+          { id: "4003", name: "C", ticketed: { issueKey: "ADMIN-4", epicKey: "ADMIN-1", period: "2026-Q2" } },
+          { id: "4004", name: "D" },
+        ],
+      },
+      createRemediationEpic,
+    });
+
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    await checkItems(user);
+
+    expect(await screen.findByRole("button", { name: /Add 1 task to ADMIN-9/i })).toBeEnabled();
+    expect(screen.getByText(/1 not yet ticketed/)).toBeInTheDocument();
+    const note = screen.getByRole("note");
+    expect(note).toHaveTextContent(/2 are still open under an earlier quarter's epic/);
+    expect(within(note).getByRole("link", { name: "ADMIN-1" })).toBeInTheDocument();
+  });
+
+  test("a run that creates nothing says so instead of just stopping", async () => {
+    mockInvoke({
+      getRemediationTickets: { available: false, total: 0, groups: [] },
+      getRemediationCandidates: { available: true, items: [{ id: "1", name: "X" }] },
+      createRemediationEpic: { ok: true, epicKey: "ADMIN-1", tasksCreated: 0, itemsRemaining: 0, failures: [] },
+    });
+
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    await checkItems(user);
+    await user.click(await screen.findByRole("button", { name: /Create (\d{4}-Q\d )?remediation epic/i }));
+
+    expect(await screen.findByText(/Nothing was created: every item is already held/)).toBeInTheDocument();
+  });
 });
 
 describe("RemediationTab — quarters, confirmation, deep links", () => {

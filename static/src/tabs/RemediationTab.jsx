@@ -106,12 +106,15 @@ function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, pro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expanded]);
 
-  // Mirrors loadTicketedItemIds: this quarter's tasks block re-ticketing outright; an earlier
-  // quarter's tasks block it only while still open. (The server re-checks; this is the count
-  // the button shows.)
+  // What is already ticketed comes from the server: each candidate carries `ticketed` when an
+  // open task holds it, by the same rule the create call skips by -- including tasks still open
+  // under an earlier quarter's epic, which this card cannot see (group.tasks is the latest
+  // quarter only). The local set covers tasks created since the candidates were loaded.
   const isCurrent = Boolean(group?.isCurrent);
   const alreadyTicketed = new Set(tasks.filter((t) => isCurrent || t.lastStatusCategory !== "done").map((t) => t.itemId));
-  const untracked = (candidates?.items || []).filter((it) => !alreadyTicketed.has(it.id));
+  const untracked = (candidates?.items || []).filter((it) => !it.ticketed && !alreadyTicketed.has(it.id));
+  const heldEarlier = (candidates?.items || []).filter((it) => it.ticketed && it.ticketed.period !== period && !alreadyTicketed.has(it.id));
+  const earlierEpics = [...new Set(heldEarlier.map((it) => it.ticketed.epicKey).filter(Boolean))];
   const needsConfirm = untracked.length > CONFIRM_ABOVE;
 
   function create() {
@@ -192,6 +195,15 @@ function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, pro
                     ? `, ${untracked.length} not yet ticketed`
                     : ""}.
                 </p>
+                {heldEarlier.length > 0 && (
+                  <p className="remediation-candidates__summary" role="note">
+                    {heldEarlier.length} {heldEarlier.length === 1 ? "is" : "are"} still open under an earlier quarter's epic
+                    {earlierEpics.length > 0 && <> ({earlierEpics.map((key, i) => (
+                      <span key={key}>{i > 0 ? ", " : ""}<IssueLink issueKey={key} siteOrigin={siteOrigin}>{key}</IssueLink></span>
+                    ))})</>}
+                    {" "}and stay{heldEarlier.length === 1 ? "s" : ""} there until closed. Close or finish those tasks and anything still flagged comes into this quarter's epic.
+                  </p>
+                )}
                 {candidates.partial && (
                   // The stored automation analysis keeps a preview of the highest-severity
                   // rules, not all of them. Said outright, so the epic is not mistaken for the
@@ -388,6 +400,14 @@ export function RemediationTab({ siteOrigin, intent = null }) {
             [findingKey]: `Stopped after ${MAX_REMEDIATION_BATCHES} batches with ${result.itemsRemaining} items still remaining. Click "Add tasks" again to continue.`,
           }));
         }
+      }
+      // A run that created nothing and failed nothing means the server found every item already
+      // held by an open ticket. Said, so the button never just starts and stops.
+      if (totalCreated === 0 && !allFailures.length) {
+        setErrors((e) => (e[findingKey] ? e : {
+          ...e,
+          [findingKey]: "Nothing was created: every item is already held by an open remediation task, this quarter's or an earlier one's. Reload the tab to see where.",
+        }));
       }
       if (allFailures.length) {
         setErrors((e) => ({

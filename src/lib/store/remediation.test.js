@@ -20,6 +20,7 @@ const {
   loadRemediationTicketsToSync,
   getRemediationEpic,
   loadTicketedItemIds,
+  loadTicketedItems,
   updateRemediationSync,
   recordRemediationTickets,
   currentPeriod,
@@ -114,6 +115,14 @@ describe("loadTicketedItemIds", () => {
     await loadTicketedItemIds("scope", "filter-ownership", "2026-Q4");
     expect(calls[0].params).toEqual(["scope", "filter-ownership", "2026-Q4"]);
     expect(calls[0].text).toMatch(/period = \? OR last_status_category IS NULL OR last_status_category != 'done'/);
+  });
+});
+
+describe("loadTicketedItems", () => {
+  it("maps each held item id to the ticket and quarter holding it", async () => {
+    stubSql([[{ item_id: "4001", issue_key: "ADMIN-7", epic_key: "ADMIN-5", period: "2026-Q3" }]]);
+    const map = await loadTicketedItems("scope", "filter-ownership", "2026-Q4");
+    expect(map.get("4001")).toEqual({ issueKey: "ADMIN-7", epicKey: "ADMIN-5", period: "2026-Q3" });
   });
 });
 

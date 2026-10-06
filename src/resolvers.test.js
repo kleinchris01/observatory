@@ -61,6 +61,7 @@ const mocks = vi.hoisted(() => ({
   currentPeriod: vi.fn(() => "2026-Q3"),
   getSiteBaseUrl: vi.fn(async () => "https://test.atlassian.net"),
   loadTicketedItemIds: vi.fn(async () => new Set()),
+  loadTicketedItems: vi.fn(async () => new Map()),
   readRecentFullScanRuns: vi.fn(async () => []),
   recoverStalledScan: vi.fn(async () => ({ recovered: false, reason: "healthy" })),
   resumeScanRun: vi.fn(async () => ({ resumed: true, retrying: ["dashboards"] })),
@@ -502,6 +503,7 @@ vi.mock("./lib/project-store.js", () => ({
   loadRemediationTickets: mocks.loadRemediationTickets,
   getRemediationEpic: mocks.getRemediationEpic,
   loadTicketedItemIds: mocks.loadTicketedItemIds,
+  loadTicketedItems: mocks.loadTicketedItems,
   currentPeriod: mocks.currentPeriod,
 }));
 
@@ -7287,6 +7289,36 @@ describe("getRemediationTickets", () => {
 });
 
 describe("getRemediationCandidates", () => {
+  // The quarter rolled over with tasks still open under last quarter's epic. The server skips
+  // those items (loadTicketedItems); the candidates must say so, or the tab offers to ticket
+  // them and the create call quietly does nothing.
+  test("marks each item already held by an open ticket, using the same rule the create skips by", async () => {
+    mocks.getFieldConfigInventory.mockResolvedValue({
+      neverBuilt: false,
+      schemes: [
+        { id: "fcs:1", sourceId: "1", name: "Old", codes: ["unused"] },
+        { id: "fcs:2", sourceId: "2", name: "Older", codes: ["unused"] },
+      ],
+      configs: [],
+    });
+    mocks.loadTicketedItems.mockResolvedValueOnce(new Map([["fcs:1", { issueKey: "ADMIN-7", epicKey: "ADMIN-5", period: "2026-Q2" }]]));
+
+    const r = await getRemediationCandidates({ payload: { findingKey: "fieldconfig-unused" }, context: ctxWithAccount() });
+
+    expect(mocks.loadTicketedItems).toHaveBeenCalledWith("test-install", "fieldconfig-unused", "2026-Q3");
+    expect(r.items).toEqual([
+      { id: "fcs:1", sourceId: "1", name: "Old", kind: "scheme", ticketed: { issueKey: "ADMIN-7", epicKey: "ADMIN-5", period: "2026-Q2" } },
+      { id: "fcs:2", sourceId: "2", name: "Older", kind: "scheme" },
+    ]);
+  });
+
+  test("a failed ticket lookup leaves the items unmarked rather than failing the read", async () => {
+    mocks.getFieldConfigInventory.mockResolvedValue({ neverBuilt: false, schemes: [{ id: "fcs:1", sourceId: "1", name: "Old", codes: ["unused"] }], configs: [] });
+    mocks.loadTicketedItems.mockRejectedValueOnce(new Error("sql down"));
+    const r = await getRemediationCandidates({ payload: { findingKey: "fieldconfig-unused" }, context: ctxWithAccount() });
+    expect(r.items).toEqual([{ id: "fcs:1", sourceId: "1", name: "Old", kind: "scheme" }]);
+  });
+
   test("people-dormant-licences: the accounts the dormant dimension counted, with what they own", async () => {
     mocks.readAutomationPart.mockResolvedValue(null);
     mocks.readUserSnapshotMeta.mockResolvedValue({ version: "u1", state: "ready" });
