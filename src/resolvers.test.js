@@ -7266,8 +7266,11 @@ describe("getRemediationTickets", () => {
     expect(filters).toMatchObject({ period: "2026-Q3", isCurrent: true, taskCount: 1, openCount: 1 });
     expect(filters.epic.issueKey).toBe("ADMIN-9");
     expect(filters.previousPeriods).toEqual([
-      { period: "2026-Q2", epicKey: "ADMIN-1", epicStatusCategory: "done", taskCount: 2, openCount: 1 },
+      expect.objectContaining({ period: "2026-Q2", epicKey: "ADMIN-1", epicStatusCategory: "done", taskCount: 2, openCount: 1 }),
     ]);
+    // Earlier quarters' tasks travel with the summary, and the all-quarter counts include them.
+    expect(filters.previousPeriods[0].tasks.map((t) => t.issueKey)).toEqual(["ADMIN-2", "ADMIN-3"]);
+    expect(filters).toMatchObject({ allTaskCount: 3, allOpenCount: 2 });
     // Only an earlier quarter's epic: not current, so the next create opens this quarter's.
     expect(r.groups.find((g) => g.findingKey === "board-backing")).toMatchObject({ period: "2026-Q2", isCurrent: false });
   });

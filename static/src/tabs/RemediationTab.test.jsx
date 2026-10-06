@@ -405,8 +405,9 @@ describe("RemediationTab — quarters, confirmation, deep links", () => {
     const user = userEvent.setup();
     render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
 
-    expect(await screen.findByText(/Earlier quarters:/)).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Show 1 2026-Q2 task" })).toBeInTheDocument();
     expect(screen.getByText(/2026-Q2 epic/)).toBeInTheDocument();
+    expect(screen.getByText(/0 open, 3 of 3 closed/)).toBeInTheDocument();
     await checkItems(user);
     expect(await screen.findByRole("button", { name: "Create 2026-Q3 remediation epic (1 task)" })).toBeEnabled();
   });
@@ -765,5 +766,78 @@ describe("RemediationTab — which findings need tickets", () => {
     render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
     await checkItems(user);
     expect(await screen.findByText(/Could not read this finding's items: Function timed out/)).toBeInTheDocument();
+  });
+});
+
+// Earlier quarters' work, counted and listed alongside this quarter's: on the totals, on each
+// finding's tiles and status line, in the task list, the search, the State filter and the sort.
+describe("RemediationTab — earlier quarters", () => {
+  const T = (issueKey, done = false) => ({ issueKey, itemId: issueKey, summary: `Fix ${issueKey}`, lastStatusCategory: done ? "done" : "new", lastStatus: done ? "Done" : "To Do" });
+  const GROUPS = [
+    {
+      findingKey: "filter-ownership", pillar: "filters", period: "2026-Q3", isCurrent: true,
+      epic: { issueKey: "OPS-40" }, tasks: [T("OPS-41"), T("OPS-42", true)], taskCount: 2, openCount: 1,
+      allTaskCount: 5, allOpenCount: 3,
+      previousPeriods: [{ period: "2026-Q2", epicKey: "OPS-30", taskCount: 3, openCount: 2, tasks: [T("OPS-31"), T("OPS-32"), T("OPS-33", true)] }],
+    },
+    {
+      // Only last quarter's epic, still open: "this quarter not started", but open work.
+      findingKey: "field-cleanup", pillar: "fields", period: "2026-Q2", isCurrent: false,
+      epic: { issueKey: "OPS-50" }, tasks: [T("OPS-51")], taskCount: 1, openCount: 1,
+      allTaskCount: 1, allOpenCount: 1, previousPeriods: [],
+    },
+  ];
+
+  async function renderIt() {
+    mockInvoke({ getRemediationTickets: { available: true, total: 9, groups: GROUPS } });
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    await screen.findByText("Filter ownership");
+    return user;
+  }
+  const panelFor = (title) => screen.getByRole("button", { name: new RegExp(`^${title}`, "i") }).closest(".ui-panel");
+
+  test("the totals count every quarter and say how much is from earlier ones", async () => {
+    await renderIt();
+    // Open: 3 + 1. Closed: 2 (OPS-42, OPS-33).
+    const open = screen.getByText("Open tasks").closest(".ui-stat");
+    expect(within(open).getByText("4")).toBeInTheDocument();
+    expect(within(open).getByText("3 from earlier quarters")).toBeInTheDocument();
+    expect(within(screen.getByText("Closed tasks").closest(".ui-stat")).getByText("1 from earlier quarters")).toBeInTheDocument();
+  });
+
+  test("each finding's tiles and status line include earlier quarters, and their tasks are one click away", async () => {
+    const user = await renderIt();
+    const panel = panelFor("Filter ownership");
+    expect(within(panel).getByText("2 this quarter · 3 from earlier quarters")).toBeInTheDocument();
+    expect(within(panel).getByText(/1 of 2 tasks open · 2 more open from earlier quarters/)).toBeInTheDocument();
+    expect(within(panel).queryByText("OPS-31")).not.toBeInTheDocument();
+
+    await user.click(within(panel).getByRole("button", { name: "Show 3 2026-Q2 tasks" }));
+    expect(within(panel).getByText("OPS-31")).toBeInTheDocument();
+    expect(within(panel).getByText("OPS-33")).toBeInTheDocument();
+  });
+
+  test("a finding whose only epic is last quarter's still shows its tiles and tasks", async () => {
+    const user = await renderIt();
+    const panel = panelFor("Fields with no populated issues");
+    expect(within(panel).getByText("Tasks").closest(".ui-stat")).toHaveTextContent("1");
+    await user.click(within(panel).getByRole("button", { name: "Show 1 2026-Q2 task" }));
+    expect(within(panel).getByText("OPS-51")).toBeInTheDocument();
+  });
+
+  test("search reaches earlier quarters' tasks and opens their quarter", async () => {
+    const user = await renderIt();
+    await user.type(screen.getByRole("searchbox"), "ops-32");
+    const panel = panelFor("Filter ownership");
+    expect(within(panel).getByText("OPS-32")).toBeInTheDocument();
+    expect(within(panel).queryByText("OPS-31")).not.toBeInTheDocument();
+    expect(screen.queryByText("Fields with no populated issues")).not.toBeInTheDocument();
+  });
+
+  test("open work under an earlier quarter counts as open for the State filter", async () => {
+    await renderIt();
+    const state = screen.getByRole("combobox", { name: /State/ });
+    expect(within(state).getByRole("option", { name: "Has open tasks (2)" })).toBeInTheDocument();
   });
 });

@@ -345,14 +345,19 @@ export function RemediationStatus({ group, period, siteOrigin, onOpen, compact =
   const open = group?.openCount ?? 0;
   const total = group?.taskCount ?? 0;
   const epicLink = epicKey ? <JiraLink href={buildIssueUrl(siteOrigin, epicKey)} title={`Open ${epicKey} in Jira`}>{epicKey}</JiraLink> : null;
+  const progress = total === 0 ? "no tasks yet" : open === 0 ? `all ${total} tasks closed` : `${open} of ${total} tasks open`;
+  // Tasks still open under earlier quarters' epics are open work on this finding too.
+  const earlierOpen = (group?.previousPeriods || []).reduce((n, p) => n + (p.openCount || 0), 0);
+  const earlier = earlierOpen > 0 ? ` · ${earlierOpen} more open from earlier quarters` : "";
 
   let tone = "neutral";
   let body;
   if (group && group.isCurrent) {
-    tone = open === 0 && total > 0 ? "success" : "active";
-    body = <>{epicLink} · {total === 0 ? "no tasks yet" : open === 0 ? `all ${total} tasks closed` : `${open} of ${total} tasks open`}</>;
+    tone = open + earlierOpen === 0 && total > 0 ? "success" : "active";
+    body = <>{epicLink} · {progress}{earlier}</>;
   } else if (group) {
-    body = <>{group.period} epic {epicLink}{period ? ` · ${period} not started` : ""}</>;
+    if (open + earlierOpen > 0) tone = "active";
+    body = <>{group.period} epic {epicLink} · {progress}{earlier}{period ? ` · ${period} not started` : ""}</>;
   } else {
     body = <>No remediation epic{period ? ` for ${period}` : ""}</>;
   }

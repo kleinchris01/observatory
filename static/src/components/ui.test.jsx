@@ -527,6 +527,19 @@ describe("RemediationStatus", () => {
     expect(screen.getByText(/2026-Q3 not started/)).toBeInTheDocument();
   });
 
+  test("an earlier quarter's epic also says how much of it is still open", () => {
+    render(<RemediationStatus group={{ isCurrent: false, period: "2026-Q3", epic: { issueKey: "ADMIN-1" }, taskCount: 195, openCount: 195 }} period="2026-Q4" siteOrigin={origin} />);
+    expect(screen.getByText(/195 of 195 tasks open/)).toBeInTheDocument();
+  });
+
+  test("tasks still open under earlier quarters are counted alongside this quarter's", () => {
+    render(<RemediationStatus
+      group={{ isCurrent: true, epic: { issueKey: "ADMIN-7" }, taskCount: 40, openCount: 0, previousPeriods: [{ period: "2026-Q3", openCount: 195 }] }}
+      period="2026-Q4" siteOrigin={origin}
+    />);
+    expect(screen.getByText(/all 40 tasks closed · 195 more open from earlier quarters/)).toBeInTheDocument();
+  });
+
   test("no epic at all, and the way in", async () => {
     const onOpen = vi.fn();
     render(<RemediationStatus group={null} period="2026-Q3" siteOrigin={origin} onOpen={onOpen} />);
