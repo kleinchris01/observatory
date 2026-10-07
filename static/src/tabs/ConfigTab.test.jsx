@@ -391,3 +391,24 @@ describe("ScreenCostProbePanel endpoint table", () => {
     expect(screen.getByText(/404 is a pass/i)).toBeInTheDocument();
   });
 });
+
+describe("ConfigTab — remediation hierarchy", () => {
+  const cfg = () => ({
+    readOnlyMode: false, apiConcurrency: 4, autoSnapshotEnabled: false, autoSnapshotFrequency: "daily",
+    governanceThresholds: { ...DEFAULT_THRESHOLDS }, macroAccess: { ...DEFAULT_MACRO_ACCESS },
+    remediation: { projectKey: "ATLASDEV", epicIssueType: "Epic", taskIssueType: "Task", hierarchyEnabled: false, rootIssueType: "Product", initiativeIssueType: "Initiative" },
+  });
+
+  test("the two issue types appear only once the hierarchy is switched on, and save with it", async () => {
+    const onSave = vi.fn();
+    const user = userEvent.setup();
+    render(<ConfigTab config={cfg()} onSave={onSave} saving={false} />);
+    const toggle = await screen.findByRole("switch", { name: "Place epics under quarterly initiatives" });
+    expect(screen.queryByText("Top-level issue type")).not.toBeInTheDocument();
+
+    await user.click(toggle);
+    expect(screen.getByText("Top-level issue type")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Product")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Initiative")).toBeInTheDocument();
+  });
+});

@@ -705,6 +705,42 @@ function AccessArea({ local, set, setMacroAccess, setRemediation }) {
           />
         </ConfigRow>
         <ConfigRow
+          label="Place epics under quarterly initiatives"
+          hint="Each quarter gets a top-level item and one initiative per pillar, and every remediation epic is filed under its pillar's initiative. Created as you on the quarter's first remediation action; items you already made with matching names are used, not duplicated."
+        >
+          <Toggle
+            checked={Boolean(local.remediation?.hierarchyEnabled)}
+            onChange={(v) => setRemediation("hierarchyEnabled", v)}
+            label="Place epics under quarterly initiatives"
+          />
+        </ConfigRow>
+        {local.remediation?.hierarchyEnabled && (
+          <>
+            <ConfigRow label="Top-level issue type" hint={'One per quarter, e.g. "2026-Q4 Observatory Findings and Remediations". Must sit above Initiative in your hierarchy.'}>
+              <input
+                type="text"
+                className="ui-input"
+                value={local.remediation?.rootIssueType || ""}
+                onChange={(e) => setRemediation("rootIssueType", e.target.value)}
+                placeholder="Product"
+                spellCheck={false}
+                style={{ maxWidth: "12rem" }}
+              />
+            </ConfigRow>
+            <ConfigRow label="Initiative issue type" hint={'One per pillar per quarter, e.g. "2026-Q4 - Fields Remediation". Must sit above Epic.'}>
+              <input
+                type="text"
+                className="ui-input"
+                value={local.remediation?.initiativeIssueType || ""}
+                onChange={(e) => setRemediation("initiativeIssueType", e.target.value)}
+                placeholder="Initiative"
+                spellCheck={false}
+                style={{ maxWidth: "12rem" }}
+              />
+            </ConfigRow>
+          </>
+        )}
+        <ConfigRow
           label="Default task assignee"
           hint="Optional. An Atlassian accountId every created task is assigned to. Leave blank to create them unassigned."
         >

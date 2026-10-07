@@ -27,6 +27,9 @@ export const DEFAULT_REMEDIATION = {
   epicIssueType: "Epic",
   taskIssueType: "Task",
   defaultAssigneeAccountId: "",
+  hierarchyEnabled: false,
+  rootIssueType: "Product",
+  initiativeIssueType: "Initiative",
 };
 
 // Mirrors DEFAULT_ANALYSIS_STALE_AFTER_DAYS in src/lib/automation-analysis.js. Kept as a

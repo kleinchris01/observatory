@@ -54,6 +54,10 @@ const mocks = vi.hoisted(() => ({
   readFullScanMeta: vi.fn(async () => null),
   writeFullScanMeta: vi.fn(async () => ({})),
   createJiraIssue: vi.fn(async () => ({ id: "10001", key: "OPS-1", self: "https://x/OPS-1" })),
+  updateJiraIssue: vi.fn(async () => {}),
+  searchIssuesPage: vi.fn(async () => []),
+  loadHierarchyNodes: vi.fn(async () => new Map()),
+  recordHierarchyNode: vi.fn(async () => {}),
   recordRemediationTicket: vi.fn(async () => undefined),
   loadRemediationTickets: vi.fn(async () => []),
   getRemediationEpic: vi.fn(async () => null),
@@ -508,6 +512,8 @@ vi.mock("./lib/project-store.js", () => ({
   loadTicketedItems: mocks.loadTicketedItems,
   currentPeriod: mocks.currentPeriod,
   readUsageMeta: mocks.readUsageMeta,
+  loadHierarchyNodes: mocks.loadHierarchyNodes,
+  recordHierarchyNode: mocks.recordHierarchyNode,
   loadUsageTally: mocks.loadUsageTally,
   USAGE_PILLARS: { field: { basis: "updated" }, issuetype: { basis: "created" }, resolution: { basis: "resolved" } },
   USAGE_WINDOW_DAYS: 90,
@@ -606,6 +612,8 @@ vi.mock("./lib/jira-api.js", () => ({
   loadFieldOptionsFromJira: mocks.loadFieldOptionsFromJira,
   getBrowsableProjectIds: mocks.getBrowsableProjectIds,
   createJiraIssue: mocks.createJiraIssue,
+  updateJiraIssue: mocks.updateJiraIssue,
+  searchIssuesPage: mocks.searchIssuesPage,
   getAllJiraProjects: mocks.getAllJiraProjects,
   probeEndpoint: mocks.probeEndpoint,
   getPermissionCatalog: mocks.getPermissionCatalog,
@@ -732,6 +740,7 @@ const {
   getRemediationTickets,
   getRemediationMetrics,
   getPillarUsage,
+  organiseRemediationHierarchy,
   getRemediationCandidates,
   getStatusAutomationUsage,
   getAutomationFieldUsage,
@@ -11575,5 +11584,113 @@ describe("getPillarUsage", () => {
   test("is admin-only: the tally is site-wide, so the macro never reads it", () => {
     expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toContain("getPillarUsage");
     expect(Object.keys(SHARED_RESOLVER_FUNCTIONS)).not.toContain("getPillarUsage");
+  });
+});
+
+// The quarter's hierarchy above the epics (lib/remediation-hierarchy.js has the naming and
+// adopt-or-create rules; these cover the resolvers that use it).
+describe("remediation hierarchy", () => {
+  const ITEMS = [{ id: "4001", name: "Open Bugs" }];
+  const config = (over = {}) => ({
+    readOnlyMode: false,
+    remediation: { projectKey: "ATLASDEV", epicIssueType: "Epic", taskIssueType: "Task", hierarchyEnabled: true, rootIssueType: "Product", initiativeIssueType: "Initiative", ...over },
+  });
+
+  beforeEach(() => {
+    mocks.getRemediationEpic.mockResolvedValue(null);
+    mocks.loadTicketedItemIds.mockResolvedValue(new Set());
+    mocks.loadHierarchyNodes.mockResolvedValue(new Map());
+    mocks.searchIssuesPage.mockResolvedValue([]);
+    let n = 0;
+    mocks.createJiraIssue.mockImplementation(async () => { n += 1; return { id: String(n), key: `ATLASDEV-${n}` }; });
+  });
+
+  test("the quarter's first epic brings its Product and Initiative, and is filed under the initiative", async () => {
+    mocks.kvsGet.mockResolvedValue(config());
+    const r = await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount("admin-1") });
+    expect(r.ok).toBe(true);
+    const [root, initiative, epic] = mocks.createJiraIssue.mock.calls.map(([f]) => f);
+    expect(root).toMatchObject({ issuetype: { name: "Product" }, summary: expect.stringMatching(/Observatory Findings and Remediations$/) });
+    expect(initiative).toMatchObject({ issuetype: { name: "Initiative" }, summary: expect.stringMatching(/ - Filters Remediation$/), parent: { key: "ATLASDEV-1" } });
+    expect(epic).toMatchObject({ issuetype: { name: "Epic" }, parent: { key: "ATLASDEV-2" } });
+  });
+
+  test("an initiative already in Jira is adopted, not duplicated", async () => {
+    mocks.kvsGet.mockResolvedValue(config());
+    mocks.loadHierarchyNodes.mockResolvedValue(new Map([["root", { issueKey: "ATLASDEV-5627" }]]));
+    mocks.searchIssuesPage.mockResolvedValue([{ key: "ATLASDEV-5616", id: "5616", fields: { summary: "2026-Q3 - Filters Remediation" } }]);
+    await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount() });
+    const epic = mocks.createJiraIssue.mock.calls.map(([f]) => f).find((f) => f.issuetype.name === "Epic");
+    expect(epic.parent).toEqual({ key: "ATLASDEV-5616" });
+    expect(mocks.createJiraIssue.mock.calls.some(([f]) => f.issuetype.name === "Initiative")).toBe(false);
+  });
+
+  test("with the hierarchy off, epics are created exactly as before", async () => {
+    mocks.kvsGet.mockResolvedValue(config({ hierarchyEnabled: false }));
+    await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount() });
+    expect(mocks.createJiraIssue.mock.calls[0][0].issuetype.name).toBe("Epic");
+    expect(mocks.createJiraIssue.mock.calls[0][0].parent).toBeUndefined();
+    expect(mocks.searchIssuesPage).not.toHaveBeenCalled();
+  });
+
+  test("if the hierarchy cannot be built, nothing is created and the error says what to check", async () => {
+    mocks.kvsGet.mockResolvedValue(config());
+    mocks.createJiraIssue.mockRejectedValueOnce(Object.assign(new Error("issue type Product not found"), { status: 400 }));
+    const r = await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount() });
+    expect(r.error).toMatch(/Placing the epic under its initiative failed: issue type Product not found.*Configuration/);
+    expect(mocks.recordRemediationTicket).not.toHaveBeenCalled();
+  });
+
+  test("organise moves only epics not already under their initiative", async () => {
+    mocks.kvsGet.mockResolvedValue(config());
+    mocks.loadHierarchyNodes.mockResolvedValue(new Map([
+      ["root", { issueKey: "ATLASDEV-5627" }],
+      ["initiative:Filters", { issueKey: "ATLASDEV-5616" }],
+      ["initiative:Roles", { issueKey: "ATLASDEV-5624" }],
+    ]));
+    mocks.loadRemediationTickets.mockResolvedValueOnce([
+      { isEpic: true, period: "2026-Q3", pillar: "filters", issueKey: "ATLASDEV-100" },
+      { isEpic: true, period: "2026-Q3", pillar: "roles", issueKey: "ATLASDEV-200" },
+      { isEpic: false, period: "2026-Q3", pillar: "roles", issueKey: "ATLASDEV-201" },
+      { isEpic: true, period: "2026-Q2", pillar: "roles", issueKey: "ATLASDEV-50" },
+    ]);
+    mocks.searchIssuesPage.mockResolvedValueOnce([
+      { key: "ATLASDEV-100", fields: { parent: { key: "ATLASDEV-5616" } } },
+      { key: "ATLASDEV-200", fields: { parent: null } },
+    ]);
+    const r = await organiseRemediationHierarchy({ context: ctxWithAccount() });
+    expect(r).toMatchObject({ ok: true, organised: 1, alreadyPlaced: 1, remaining: 0, failures: [], rootKey: "ATLASDEV-5627" });
+    expect(mocks.updateJiraIssue).toHaveBeenCalledTimes(1);
+    expect(mocks.updateJiraIssue).toHaveBeenCalledWith("ATLASDEV-200", { parent: { key: "ATLASDEV-5624" } }, { asUser: true });
+  });
+
+  test("organise refuses in read-only mode and when the hierarchy is off", async () => {
+    mocks.kvsGet.mockResolvedValueOnce({ ...config(), readOnlyMode: true });
+    expect((await organiseRemediationHierarchy({ context: ctxWithAccount() })).error).toMatch(/Read-only/);
+    mocks.kvsGet.mockResolvedValueOnce(config({ hierarchyEnabled: false }));
+    expect((await organiseRemediationHierarchy({ context: ctxWithAccount() })).error).toMatch(/hierarchy is off/);
+    expect(mocks.updateJiraIssue).not.toHaveBeenCalled();
+  });
+
+  test("a failed move is reported per epic, and the rest still move", async () => {
+    mocks.kvsGet.mockResolvedValue(config());
+    mocks.loadHierarchyNodes.mockResolvedValue(new Map([["root", { issueKey: "R" }], ["initiative:Filters", { issueKey: "F" }]]));
+    mocks.loadRemediationTickets.mockResolvedValueOnce([
+      { isEpic: true, period: "2026-Q3", pillar: "filters", issueKey: "E1" },
+      { isEpic: true, period: "2026-Q3", pillar: "filters", issueKey: "E2" },
+    ]);
+    mocks.updateJiraIssue.mockRejectedValueOnce(new Error("parent not allowed"));
+    const r = await organiseRemediationHierarchy({ context: ctxWithAccount() });
+    expect(r.organised).toBe(1);
+    expect(r.failures).toEqual([{ epicKey: "E1", error: "parent not allowed" }]);
+  });
+
+  test("is admin-only", () => {
+    expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toContain("organiseRemediationHierarchy");
+    expect(Object.keys(SHARED_RESOLVER_FUNCTIONS)).not.toContain("organiseRemediationHierarchy");
+  });
+
+  test("config validation rejects a non-boolean hierarchy switch", async () => {
+    await expect(saveAdminConfigResolver({ payload: { remediation: { hierarchyEnabled: "yes" } } })).rejects.toThrow(/hierarchyEnabled/);
   });
 });
