@@ -755,6 +755,21 @@ describe("RemediationTab — which findings need tickets", () => {
     expect(await within(panelFor("Fields with no populated issues")).findByText("all ticketed")).toBeInTheDocument();
   });
 
+  test("unprobed gadget filters say to rebuild, never Clean", async () => {
+    mockInvoke({
+      getRemediationTickets: { available: false, total: 0, groups: [] },
+      getRemediationCandidates: (payload) => (payload.findingKey === "filter-ownership"
+        ? { available: false, reason: "not-probed", items: [] }
+        : { available: true, items: [] }),
+    });
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    await checkItems(user);
+    expect(await screen.findByText(/Rebuild the dashboard inventory/)).toBeInTheDocument();
+    expect(within(panelFor("Filter ownership")).queryByText(/Clean/)).not.toBeInTheDocument();
+    expect(within(panelFor("Filter ownership")).getByText("no data")).toBeInTheDocument();
+  });
+
   test("a finding whose read fails says why when opened", async () => {
     invoke.mockImplementation((fn, payload) => {
       if (fn === "getRemediationTickets") return Promise.resolve(withDefaults({ available: false, total: 0, groups: [] }));
