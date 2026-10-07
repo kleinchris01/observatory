@@ -61,13 +61,14 @@ import {
   loadAssetSchemas,
   loadAssetObjectTypes,
   loadAssetAttributes,
-  readAutomationPart,
   loadWorkflowsCatalog,
   loadWorkflowStructure,
   loadProjectWorkflowSchemeMap,
   loadIssueTypeSchemeProjects,
   loadSchemeProjects,
 } from "./project-store.js";
+// Not re-exported by project-store.js; every other caller imports it from here too.
+import { readAutomationPart } from "./store/automation.js";
 
 export const DRIFT_BUILD_STALE_MS = 16 * 60 * 1000;
 

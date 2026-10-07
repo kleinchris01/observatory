@@ -52,13 +52,16 @@ vi.mock("./project-store.js", () => ({
   loadAssetSchemas: vi.fn(async () => []),
   loadAssetObjectTypes: vi.fn(async () => []),
   loadAssetAttributes: vi.fn(async () => []),
-  readAutomationPart: vi.fn(async () => null),
   loadWorkflowsCatalog: vi.fn(async () => []),
   loadWorkflowStructure: vi.fn(async () => ({ transitions: [], rules: [] })),
   loadProjectWorkflowSchemeMap: vi.fn(async () => new Map()),
   loadIssueTypeSchemeProjects: vi.fn(async () => []),
   loadSchemeProjects: vi.fn(async () => []),
 }));
+
+// Mocked at its real module: drift-engine.js must import it from store/automation.js, and a
+// mock on project-store.js once hid that it did not (the 7 Oct dev deploy failed to bundle).
+vi.mock("./store/automation.js", () => ({ readAutomationPart: vi.fn(async () => null) }));
 
 import { DRIFT_PILLARS } from "./drift-engine.js";
 import {
@@ -70,6 +73,7 @@ import {
   buildDriftSnapshot,
 } from "./drift-engine.js";
 import * as store from "./project-store.js";
+import * as automationStore from "./store/automation.js";
 import { inventorySnapshotQueue } from "./queues.js";
 
 beforeEach(() => {
@@ -89,9 +93,10 @@ beforeEach(() => {
     "loadBoards", "loadBoardColumns", "loadUsers", "loadAssetSchemas", "loadAssetObjectTypes",
     "loadAssetAttributes", "loadWorkflowsCatalog", "loadIssueTypeSchemeProjects", "loadSchemeProjects",
   ]) store[fn].mockResolvedValue([]);
-  for (const fn of ["readScreenSnapshotMeta", "readBoardSnapshotMeta", "readUserSnapshotMeta", "readAssetSnapshotMeta", "readAutomationPart"]) {
+  for (const fn of ["readScreenSnapshotMeta", "readBoardSnapshotMeta", "readUserSnapshotMeta", "readAssetSnapshotMeta"]) {
     store[fn].mockResolvedValue(null);
   }
+  automationStore.readAutomationPart.mockResolvedValue(null);
   store.loadScreensPage.mockResolvedValue({ total: 0, rows: [] });
   store.loadScreenFieldLayout.mockResolvedValue(new Map());
   store.loadWorkflowStructure.mockResolvedValue({ transitions: [], rules: [] });
@@ -340,7 +345,7 @@ describe("every pillar has a change source", () => {
   });
 
   test("automation reads the imported rule directory, versioned by the import", async () => {
-    store.readAutomationPart.mockImplementation(async (_k, part) => (part === "analysis"
+    automationStore.readAutomationPart.mockImplementation(async (_k, part) => (part === "analysis"
       ? { refreshedAt: "2026-10-01T00:00:00Z" }
       : { rules: [["55", "Close stale", 1, "jira:issue_updated", 3, "acc-9"]] }));
     expect(await spec("automation").readMeta("inst")).toEqual({ version: "2026-10-01T00:00:00Z" });
@@ -349,7 +354,7 @@ describe("every pillar has a change source", () => {
       entityType: "automation-rule", entityId: "55", label: "Close stale",
       fields: { name: "Close stale", enabled: true, trigger: "jira:issue_updated", projectCount: 3, author: "acc-9" },
     });
-    store.readAutomationPart.mockResolvedValue(null);
+    automationStore.readAutomationPart.mockResolvedValue(null);
     expect(await spec("automation").readMeta("inst")).toBeNull();
   });
 
