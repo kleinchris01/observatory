@@ -898,3 +898,42 @@ describe("RemediationTab — open tasks the finding no longer flags", () => {
     expect(screen.queryByTestId("stale-tasks")).not.toBeInTheDocument();
   });
 });
+
+describe("RemediationTab — quarterly hierarchy", () => {
+  test("names the quarter's top item and organises epics under initiatives, round by round", async () => {
+    const organise = vi.fn()
+      .mockResolvedValueOnce({ ok: true, organised: 30, alreadyPlaced: 2, remaining: 11, failures: [] })
+      .mockResolvedValueOnce({ ok: true, organised: 10, alreadyPlaced: 1, remaining: 0, failures: [] });
+    mockInvoke({
+      getRemediationTickets: { available: true, total: 1, groups: [], hierarchy: { enabled: true, rootKey: "ATLASDEV-5627", initiativeCount: 14 } },
+      organiseRemediationHierarchy: organise,
+    });
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+
+    expect(await screen.findByRole("link", { name: "ATLASDEV-5627" })).toBeInTheDocument();
+    expect(screen.getByText(/and its 14 initiatives/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Organise under initiatives" }));
+    expect(await screen.findByText(/40 epics moved, 3 already in place/)).toBeInTheDocument();
+    expect(organise).toHaveBeenCalledTimes(2);
+  });
+
+  test("says why organising was refused", async () => {
+    mockInvoke({
+      getRemediationTickets: { available: true, total: 1, groups: [], hierarchy: { enabled: true, rootKey: null, initiativeCount: 0 } },
+      organiseRemediationHierarchy: { error: "Read-only mode is enabled. Disable it before changing remediation tickets." },
+    });
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    expect(await screen.findByText(/created \(or found\) with the quarter's first epic/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Organise under initiatives" }));
+    expect(await screen.findByText(/Read-only mode is enabled/)).toBeInTheDocument();
+  });
+
+  test("shows nothing about a hierarchy when it is off", async () => {
+    mockInvoke({ getRemediationTickets: { available: true, total: 1, groups: [], hierarchy: null } });
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    await screen.findByText("Filter ownership");
+    expect(screen.queryByRole("button", { name: "Organise under initiatives" })).not.toBeInTheDocument();
+  });
+});

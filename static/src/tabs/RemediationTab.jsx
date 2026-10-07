@@ -436,6 +436,9 @@ export function RemediationTab({ siteOrigin, intent = null }) {
   // lastSyncedAt to move past where it was when the button was pressed, then stops.
   const [syncingSince, setSyncingSince] = React.useState(null); // { baseline } while a sync is out
   const [syncError, setSyncError] = React.useState(null);
+  // "Organise under initiatives": runs in time-budgeted rounds until nothing is left.
+  const [organising, setOrganising] = React.useState(false);
+  const [organiseResult, setOrganiseResult] = React.useState(null);
 
   const fetchTickets = React.useCallback(async () => {
     try {
@@ -489,6 +492,29 @@ export function RemediationTab({ siteOrigin, intent = null }) {
     sweptRef.current = true;
     checkAll(catalogKeys);
   }, [view, catalogKeys, checkAll]);
+
+  async function organiseHierarchy() {
+    setOrganising(true);
+    setOrganiseResult(null);
+    const total = { organised: 0, alreadyPlaced: 0, failures: [] };
+    try {
+      for (let round = 0; round < 20; round++) {
+        // eslint-disable-next-line no-await-in-loop -- each round must land before the next
+        const r = await invoke("organiseRemediationHierarchy", {});
+        if (r?.error) { setOrganiseResult({ error: r.error }); return; }
+        total.organised += r.organised || 0;
+        total.alreadyPlaced += r.alreadyPlaced || 0;
+        total.failures.push(...(r.failures || []));
+        if (!r.remaining) break;
+      }
+      setOrganiseResult(total);
+      await fetchTickets();
+    } catch (err) {
+      setOrganiseResult({ error: err?.message || "Could not organise the epics." });
+    } finally {
+      setOrganising(false);
+    }
+  }
 
   async function syncNow() {
     setSyncError(null);
@@ -716,6 +742,24 @@ export function RemediationTab({ siteOrigin, intent = null }) {
         )}
       />
       {syncError && <div className="danger-zone__error" role="alert">{syncError}</div>}
+      {tickets?.hierarchy?.enabled && (
+        <p className="remediation-hierarchy">
+          {tickets.hierarchy.rootKey
+            ? <>{tickets.period} epics are filed under <IssueLink issueKey={tickets.hierarchy.rootKey} siteOrigin={siteOrigin}>{tickets.hierarchy.rootKey}</IssueLink> and its {tickets.hierarchy.initiativeCount} initiative{tickets.hierarchy.initiativeCount === 1 ? "" : "s"}.</>
+            : <>{tickets.period}'s top-level item and initiatives are created (or found) with the quarter's first epic.</>}
+          {" "}
+          <button type="button" className="secondary-button secondary-button--small" onClick={organiseHierarchy} disabled={organising}>
+            {organising ? "Organising…" : "Organise under initiatives"}
+          </button>
+          {organiseResult && !organiseResult.error && (
+            <span className="remediation-history" role="status">
+              {" "}{organiseResult.organised} epic{organiseResult.organised === 1 ? "" : "s"} moved, {organiseResult.alreadyPlaced} already in place
+              {organiseResult.failures.length ? `, ${organiseResult.failures.length} failed: ${organiseResult.failures.slice(0, 2).map((f) => `${f.epicKey} (${f.error})`).join("; ")}` : ""}.
+            </span>
+          )}
+        </p>
+      )}
+      {organiseResult?.error && <div className="danger-zone__error" role="alert">{organiseResult.error}</div>}
 
       <SubNavLayout items={VIEWS} activeKey={view} onSelect={setView}>
         {view === "progress" ? (

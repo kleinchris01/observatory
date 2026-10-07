@@ -64,6 +64,15 @@ once in the tab header (pillar-scoped) and once per entity row / detail drawer
 (entity-scoped). The label always reads `Ask Rovo about <scope>` and the tooltip always
 names the agent and ends with the read-only reassurance.
 
+## Pillars: every one is wired into everything
+
+A pillar is not done when its tab works. `src/lib/pillar-completeness.test.js` fails CI unless
+every scored pillar has a score weight, a report, search measures, a change-history source, a
+remediation playbook and a quarterly initiative label, and nothing points at a pillar that does
+not exist. When it fails, wire the missing piece rather than exempting the pillar. Usage per
+item (`store/usage.js`) and a Rovo agent are expected too; where a pillar genuinely cannot have
+one, it says "not measured" with the reason, never zero.
+
 ## Testing
 
 Every new feature or change needs frontend *and* backend tests. Coverage floors are

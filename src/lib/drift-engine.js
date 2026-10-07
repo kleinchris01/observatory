@@ -543,24 +543,25 @@ async function collectProjects(installationKey) {
   }));
 }
 
-// The registry. `readMeta` returns the pillar's snapshot meta -- a falsy `version` means the
+// The registry. `health` names the scored pillars each source covers (checked by
+// pillar-completeness.test.js: every scored pillar must have one). `readMeta` returns the pillar's snapshot meta -- a falsy `version` means the
 // inventory has never been built, so the pillar is skipped rather than reported as emptied.
 export const DRIFT_PILLARS = [
-  { pillar: "fields", label: "Fields", readMeta: readSnapshotMeta, collect: collectFields },
-  { pillar: "workflow", label: "Workflows", readMeta: readWorkflowSnapshotMeta, collect: collectWorkflow },
-  { pillar: "issueTypes", label: "Issue types", readMeta: readIssueTypeSnapshotMeta, collect: collectIssueTypes },
-  { pillar: "access", label: "Access", readMeta: readAccessSnapshotMeta, collect: collectAccess },
-  { pillar: "estate", label: "Priorities & resolutions", readMeta: readEstateSnapshotMeta, collect: collectEstate },
-  { pillar: "fieldConfigs", label: "Field schemes", readMeta: readFieldConfigSnapshotMeta, collect: collectFieldConfigs },
-  { pillar: "filters", label: "Saved filters", readMeta: readFilterSnapshotMeta, collect: collectFilters },
-  { pillar: "dashboards", label: "Dashboards", readMeta: readDashboardSnapshotMeta, collect: collectDashboards },
-  { pillar: "workflowRules", label: "Workflows & transition rules", readMeta: readWorkflowSnapshotMeta, collect: collectWorkflowDetail },
-  { pillar: "screens", label: "Screens", readMeta: readScreenSnapshotMeta, collect: collectScreens },
-  { pillar: "projects", label: "Projects", readMeta: readProjectSourcesMeta, collect: collectProjects },
-  { pillar: "boards", label: "Boards", readMeta: readBoardSnapshotMeta, collect: collectBoards },
-  { pillar: "people", label: "People", readMeta: readUserSnapshotMeta, collect: collectPeople },
-  { pillar: "assets", label: "Assets", readMeta: readAssetSnapshotMeta, collect: collectAssets },
-  { pillar: "automation", label: "Automation", readMeta: readAutomationMeta, collect: collectAutomation },
+  { pillar: "fields", health: ["fields"], label: "Fields", readMeta: readSnapshotMeta, collect: collectFields },
+  { pillar: "workflow", health: ["workflows"], label: "Workflows", readMeta: readWorkflowSnapshotMeta, collect: collectWorkflow },
+  { pillar: "issueTypes", health: ["issueTypes"], label: "Issue types", readMeta: readIssueTypeSnapshotMeta, collect: collectIssueTypes },
+  { pillar: "access", health: ["permissions", "security", "notifications", "roles"], label: "Access", readMeta: readAccessSnapshotMeta, collect: collectAccess },
+  { pillar: "estate", health: ["estate"], label: "Priorities & resolutions", readMeta: readEstateSnapshotMeta, collect: collectEstate },
+  { pillar: "fieldConfigs", health: ["fieldConfigs"], label: "Field schemes", readMeta: readFieldConfigSnapshotMeta, collect: collectFieldConfigs },
+  { pillar: "filters", health: ["filters"], label: "Saved filters", readMeta: readFilterSnapshotMeta, collect: collectFilters },
+  { pillar: "dashboards", health: ["dashboards"], label: "Dashboards", readMeta: readDashboardSnapshotMeta, collect: collectDashboards },
+  { pillar: "workflowRules", health: ["workflows"], label: "Workflows & transition rules", readMeta: readWorkflowSnapshotMeta, collect: collectWorkflowDetail },
+  { pillar: "screens", health: ["screens"], label: "Screens", readMeta: readScreenSnapshotMeta, collect: collectScreens },
+  { pillar: "projects", health: ["projects"], label: "Projects", readMeta: readProjectSourcesMeta, collect: collectProjects },
+  { pillar: "boards", health: ["boards"], label: "Boards", readMeta: readBoardSnapshotMeta, collect: collectBoards },
+  { pillar: "people", health: ["users"], label: "People", readMeta: readUserSnapshotMeta, collect: collectPeople },
+  { pillar: "assets", health: ["assets"], label: "Assets", readMeta: readAssetSnapshotMeta, collect: collectAssets },
+  { pillar: "automation", health: ["automation"], label: "Automation", readMeta: readAutomationMeta, collect: collectAutomation },
 ];
 
 // ── Diff ────────────────────────────────────────────────────────────────────

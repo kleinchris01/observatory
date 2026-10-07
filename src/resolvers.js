@@ -23,6 +23,8 @@ import {
   loadFieldOptionsFromJira,
   getBrowsableProjectIds,
   createJiraIssue,
+  updateJiraIssue,
+  searchIssuesPage,
 } from "./lib/jira-api.js";
 import { queueIssueScanWorker, completeIssueScanFinalization } from "./lib/scan-engine.js";
 import { pillarUnavailable, agentOk, agentNotFound, rankMatches, clampResults } from "./lib/rovo-agents.js";
@@ -187,6 +189,8 @@ import {
   getRemediationEpic,
   loadTicketedItemIds,
   loadTicketedItems,
+  loadHierarchyNodes,
+  recordHierarchyNode,
   currentPeriod,
   readUsageMeta,
   loadUsageTally,
@@ -194,6 +198,7 @@ import {
   USAGE_WINDOW_DAYS,
 } from "./lib/project-store.js";
 import { getPlaybook, groupBounded, listPlaybookCatalog, REMEDIATION_FINDING_INDEX } from "./lib/remediation-playbooks.js";
+import { ensureInitiativeFor, ROOT_NODE } from "./lib/remediation-hierarchy.js";
 import { computeRemediationMetrics } from "./lib/remediation-metrics.js";
 import { queueRemediationSync } from "./lib/remediation-sync.js";
 import { renderADF } from "./lib/adf.js";
@@ -404,6 +409,12 @@ const DEFAULT_REMEDIATION_CONFIG = {
   taskIssueType: "Task",
   // Optional: an accountId every created task is assigned to. Empty means unassigned.
   defaultAssigneeAccountId: "",
+  // The quarter's hierarchy above the epics (lib/remediation-hierarchy.js): a top-level item
+  // and one initiative per pillar. Off by default -- it needs those issue types to exist in
+  // the remediation project, above Epic in the site's hierarchy.
+  hierarchyEnabled: false,
+  rootIssueType: "Product",
+  initiativeIssueType: "Initiative",
 };
 
 const DEFAULT_ADMIN_CONFIG = {
@@ -526,7 +537,10 @@ export async function saveAdminConfigResolver({ payload }) {
         throw new Error("remediation.projectKey must be a Jira project key (letters, digits and underscores, starting with a letter).");
       }
     }
-    for (const key of ["epicIssueType", "taskIssueType"]) {
+    if (rem.hierarchyEnabled !== undefined && typeof rem.hierarchyEnabled !== "boolean") {
+      throw new Error("remediation.hierarchyEnabled must be true or false.");
+    }
+    for (const key of ["epicIssueType", "taskIssueType", "rootIssueType", "initiativeIssueType"]) {
       if (rem[key] !== undefined && rem[key] !== null && rem[key] !== "") {
         if (typeof rem[key] !== "string" || rem[key].length > 100) {
           throw new Error(`remediation.${key} must be an issue type name.`);
@@ -3827,11 +3841,25 @@ async function getRemediationTickets({ payload, context }) {
 
   // The catalog and the finding index travel with the tickets, so neither the Remediation tab
   // nor the Overview keeps its own copy of which playbooks exist or which finding each covers.
+  // The quarter's hierarchy, when it is on: whether it is set up and where its top item is.
+  const rc = (await readAdminConfig().catch(() => ({})))?.remediation || {};
+  let hierarchy = null;
+  if (rc.hierarchyEnabled) {
+    const nodes = await loadHierarchyNodes(installationKey, period)
+      .catch(fallbackOn("remediation.hierarchy_read_failed", () => new Map(), { installationKey }));
+    hierarchy = {
+      enabled: true,
+      rootKey: nodes.get(ROOT_NODE)?.issueKey || null,
+      initiativeCount: [...nodes.keys()].filter((k) => k.startsWith("initiative:")).length,
+    };
+  }
+
   return {
     available: tickets.length > 0,
     total: tickets.length,
     lastSyncedAt,
     period,
+    hierarchy,
     groups,
     catalog: listPlaybookCatalog(),
     findingIndex: REMEDIATION_FINDING_INDEX,
@@ -3884,6 +3912,73 @@ async function syncRemediationNow({ context }) {
   return queueRemediationSync(getInstallationKey(context));
 }
 
+// What ensureInitiativeFor needs, bound to this site and quarter.
+async function hierarchyDeps(installationKey, period) {
+  return {
+    nodes: await loadHierarchyNodes(installationKey, period),
+    existing: new Map(),
+    searchIssuesPage,
+    createJiraIssue,
+    recordHierarchyNode,
+  };
+}
+
+// "Organise under initiatives": puts this quarter's epics under their pillar's initiative,
+// creating or adopting the quarter's Product and Initiatives as needed. Only epics whose parent
+// is not already the right initiative are edited. Time-budgeted like the task create, with the
+// rest handed back as `remaining` for the tab to ask for again.
+async function organiseRemediationHierarchy({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  const startedAt = Date.now();
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+  const adminConfig = await readAdminConfig();
+  if (adminConfig.readOnlyMode) return { error: "Read-only mode is enabled. Disable it before changing remediation tickets." };
+  const rc = adminConfig.remediation || {};
+  if (!rc.projectKey) return { error: "No remediation project is configured. Set one in Configuration → Remediation first." };
+  if (!rc.hierarchyEnabled) return { error: "The remediation hierarchy is off. Turn it on in Configuration → Remediation first." };
+  const accountId = callerAccountId(context);
+  if (!accountId) return { error: "Could not identify the calling user." };
+
+  const period = currentPeriod();
+  const epics = (await loadRemediationTickets(installationKey)).filter((t) => t.isEpic && t.period === period);
+  if (!epics.length) return { ok: true, period, organised: 0, alreadyPlaced: 0, remaining: 0, failures: [] };
+
+  // Each epic's current parent, in one search.
+  const keys = epics.map((e) => e.issueKey);
+  const current = await searchIssuesPage(`issuekey in (${keys.join(", ")})`, ["parent"], Math.min(keys.length, 100));
+  const parentOf = new Map(current.map((i) => [i.key, i.fields?.parent?.key || null]));
+
+  const deps = await hierarchyDeps(installationKey, period);
+  let organised = 0;
+  let alreadyPlaced = 0;
+  let attempted = 0;
+  const failures = [];
+  for (const epic of epics) {
+    if (attempted > 0 && Date.now() - startedAt > REMEDIATION_TIME_BUDGET_MS) break;
+    attempted += 1;
+    try {
+      // eslint-disable-next-line no-await-in-loop -- sequential: nodes are created once and reused
+      const { initiativeKey } = await ensureInitiativeFor(
+        { scopeKey: installationKey, period, pillar: epic.pillar, config: rc, projectKey: rc.projectKey, accountId }, deps,
+      );
+      if (parentOf.get(epic.issueKey) === initiativeKey) { alreadyPlaced += 1; continue; }
+      // eslint-disable-next-line no-await-in-loop
+      await updateJiraIssue(epic.issueKey, { parent: { key: initiativeKey } }, { asUser: true });
+      organised += 1;
+    } catch (error) {
+      failures.push({ epicKey: epic.issueKey, error: String(error?.message || error) });
+    }
+  }
+  logger.info("remediation.hierarchy_organised", { installationKey, period, organised, alreadyPlaced, failures: failures.length });
+  return {
+    ok: true, period, organised, alreadyPlaced,
+    rootKey: deps.nodes.get(ROOT_NODE)?.issueKey || null,
+    remaining: Math.max(0, epics.length - attempted),
+    failures,
+  };
+}
+
 async function createRemediationEpic({ payload, context }) {
   incrMetric(METRIC_NAMES.resolver);
   const startedAt = Date.now();
@@ -3924,6 +4019,19 @@ async function createRemediationEpic({ payload, context }) {
   let epic = await getRemediationEpic(installationKey, findingKey, period);
   let epicCreated = false;
   if (!epic) {
+    // The quarter's Product and this pillar's Initiative first, when the hierarchy is on: the
+    // first epic of a quarter brings them with it (found and adopted if they already exist).
+    let initiativeKey = null;
+    if (rc.hierarchyEnabled) {
+      try {
+        ({ initiativeKey } = await ensureInitiativeFor(
+          { scopeKey: installationKey, period, pillar, config: rc, projectKey: rc.projectKey, accountId },
+          await hierarchyDeps(installationKey, period),
+        ));
+      } catch (error) {
+        return { error: `Placing the epic under its initiative failed: ${error?.message || error}. Check the Product and Initiative issue types in Configuration → Remediation, or turn the hierarchy off.` };
+      }
+    }
     try {
       const fields = {
         project: { key: rc.projectKey },
@@ -3932,6 +4040,7 @@ async function createRemediationEpic({ payload, context }) {
         description: renderADF(playbook.epicDescription({ count: items.length, origin })),
         labels: playbook.labels,
         reporter: { id: accountId },
+        ...(initiativeKey ? { parent: { key: initiativeKey } } : {}),
       };
       const created = await createJiraIssue(fields, { asUser: true });
       await recordRemediationTicket(installationKey, {
@@ -10939,6 +11048,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getRemediationMetrics,   // Admin read: remediation burn-down, throughput and ageing
   getPillarUsage,          // Admin read: issues, last 90 days and last used, per item of one pillar
   createRemediationEpic,   // Mutating: creates a Jira epic + tasks for a governance finding
+  organiseRemediationHierarchy, // Mutating: puts this quarter's epics under their pillar initiatives
   syncRemediationNow,      // Mutating: queues a remediation status sync from Jira
   getRemediationCandidates,// Admin read: current items behind one finding, ready to ticket
   getStatusAutomationUsage,// Admin read: which rules reference one status, by direction

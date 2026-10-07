@@ -1789,6 +1789,23 @@ export const CREATE_REMEDIATION_TICKETS_TABLE = `
 // second epic for the same finding would have overwritten the first one's row, and a
 // re-ticketed item its old task. A primary key cannot be changed in place, hence a new
 // table; v159 copies every existing row across under the quarter its epic was created in.
+// The quarter's Jira hierarchy above the remediation epics: one top-level item (a "Product")
+// per quarter and one initiative per pillar label under it. `node` is "root" or
+// "initiative:<label>". Recorded once created or adopted, so later epics find their parent
+// without searching Jira again.
+export const CREATE_REMEDIATION_HIERARCHY_TABLE = `
+  CREATE TABLE IF NOT EXISTS remediation_hierarchy (
+    scope_key VARCHAR(191) NOT NULL,
+    period VARCHAR(16) NOT NULL,
+    node VARCHAR(191) NOT NULL,
+    issue_key VARCHAR(64) NOT NULL,
+    issue_id VARCHAR(64) NULL,
+    adopted TINYINT NOT NULL DEFAULT 0,
+    recorded_at VARCHAR(40) NOT NULL,
+    PRIMARY KEY (scope_key, period, node)
+  )
+`;
+
 export const CREATE_REMEDIATION_TICKETS_V2_TABLE = `
   CREATE TABLE IF NOT EXISTS remediation_tickets_v2 (
     scope_key VARCHAR(191) NOT NULL,
@@ -2372,7 +2389,9 @@ const projectStoreMigrations = migrationRunner
   // Usage per item, counted by the issue crawl: buffer, promoted tally, and its meta row.
   .enqueue("v177_create_issue_scan_usage_buffer_table", CREATE_ISSUE_SCAN_USAGE_BUFFER_TABLE)
   .enqueue("v178_create_usage_tally_table", CREATE_USAGE_TALLY_TABLE)
-  .enqueue("v179_create_usage_tally_meta_table", CREATE_USAGE_TALLY_META_TABLE);
+  .enqueue("v179_create_usage_tally_meta_table", CREATE_USAGE_TALLY_META_TABLE)
+  // The quarter's Product / Initiative items above the remediation epics.
+  .enqueue("v180_create_remediation_hierarchy_table", CREATE_REMEDIATION_HIERARCHY_TABLE);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

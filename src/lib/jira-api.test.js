@@ -98,6 +98,8 @@ import {
   getBoardPage,
   getBoardConfiguration,
   createJiraIssue,
+  updateJiraIssue,
+  searchIssuesPage,
   getIssuesStatus,
   getGadgetFilterId,
   extractFilterId,
@@ -1661,5 +1663,26 @@ describe("site base URL", () => {
   test("resolves null, never throws, when serverInfo fails", async () => {
     mockRequestJira.mockRejectedValueOnce(new Error("boom"));
     expect(await getSiteBaseUrl()).toBeNull();
+  });
+});
+
+describe("updateJiraIssue / searchIssuesPage (remediation hierarchy)", () => {
+  test("updateJiraIssue PUTs the fields as the caller and throws with the status on failure", async () => {
+    mockRequestJiraAsUser.mockResolvedValueOnce(jiraResponse({ status: 204, body: "" }));
+    await updateJiraIssue("OPS-5", { parent: { key: "OPS-1" } }, { asUser: true });
+    const [path, opts] = mockRequestJiraAsUser.mock.calls[0];
+    expect(String(path)).toContain("/rest/api/3/issue/OPS-5");
+    expect(opts.method).toBe("PUT");
+    expect(JSON.parse(opts.body)).toEqual({ fields: { parent: { key: "OPS-1" } } });
+
+    mockRequestJiraAsUser.mockResolvedValueOnce(jiraResponse({ status: 400, ok: false, body: "parent not allowed" }));
+    await expect(updateJiraIssue("OPS-5", {}, { asUser: true })).rejects.toMatchObject({ status: 400 });
+  });
+
+  test("searchIssuesPage returns key, id and the requested fields", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { issues: [{ key: "OPS-9", id: "9", fields: { summary: "S" } }] } }));
+    const out = await searchIssuesPage('project = "OPS"', ["summary"], 50);
+    expect(out).toEqual([{ key: "OPS-9", id: "9", fields: { summary: "S" } }]);
+    expect(JSON.parse(mockRequestJira.mock.calls[0][1].body)).toEqual({ jql: 'project = "OPS"', fields: ["summary"], maxResults: 50 });
   });
 });

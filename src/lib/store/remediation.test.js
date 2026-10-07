@@ -21,6 +21,8 @@ const {
   getRemediationEpic,
   loadTicketedItemIds,
   loadTicketedItems,
+  loadHierarchyNodes,
+  recordHierarchyNode,
   updateRemediationSync,
   recordRemediationTickets,
   currentPeriod,
@@ -202,5 +204,22 @@ describe("recordRemediationTickets", () => {
     expect(calls).toHaveLength(2);
     expect(calls[0].params[4]).toBe("1");
     expect(calls[1].params[4]).toBe("2");
+  });
+});
+
+describe("remediation hierarchy nodes", () => {
+  it("loads one quarter's nodes for this site", async () => {
+    const calls = stubSql([[{ node: "root", issue_key: "OPS-1", issue_id: "1", adopted: 1 }]]);
+    const nodes = await loadHierarchyNodes("scope", "2026-Q4");
+    expect(calls[0].params).toEqual(["scope", "2026-Q4"]);
+    expect(calls[0].text).toMatch(/WHERE scope_key = \? AND period = \?/);
+    expect(nodes.get("root")).toEqual({ issueKey: "OPS-1", issueId: "1", adopted: true });
+  });
+
+  it("records a node, replacing any earlier record of it", async () => {
+    const calls = stubSql([[]]);
+    await recordHierarchyNode("scope", "2026-Q4", "initiative:Roles", { issueKey: "OPS-7", issueId: "7", adopted: true });
+    expect(calls[0].text).toMatch(/ON DUPLICATE KEY UPDATE/);
+    expect(calls[0].params.slice(0, 6)).toEqual(["scope", "2026-Q4", "initiative:Roles", "OPS-7", "7", 1]);
   });
 });

@@ -204,3 +204,33 @@ export async function recordRemediationTickets(scopeKey, rows = []) {
     }
   }
 }
+
+// ── The quarter's hierarchy above the epics ─────────────────────────────────────
+//
+// Map<node, { issueKey, issueId, adopted }> for one quarter: "root" and "initiative:<label>".
+export async function loadHierarchyNodes(scopeKey, period = currentPeriod()) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT node, issue_key, issue_id, adopted FROM remediation_hierarchy
+      WHERE scope_key = ? AND period = ?
+    `).bindParams(scopeKey, String(period)).execute()
+  );
+  return new Map((result.rows || []).map((r) => [
+    r.node,
+    { issueKey: r.issue_key, issueId: r.issue_id || null, adopted: Boolean(toNumber(r.adopted)) },
+  ]));
+}
+
+export async function recordHierarchyNode(scopeKey, period, node, { issueKey, issueId = null, adopted = false } = {}) {
+  await ensureProjectStoreReady();
+  await withSqlRetry(() =>
+    sql.prepare(`
+      INSERT INTO remediation_hierarchy (scope_key, period, node, issue_key, issue_id, adopted, recorded_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE issue_key = VALUES(issue_key), issue_id = VALUES(issue_id),
+        adopted = VALUES(adopted), recorded_at = VALUES(recorded_at)
+    `).bindParams(scopeKey, String(period), String(node), String(issueKey), issueId != null ? String(issueId) : null,
+      adopted ? 1 : 0, new Date().toISOString()).execute()
+  );
+}

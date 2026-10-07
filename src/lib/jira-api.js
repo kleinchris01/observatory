@@ -1563,6 +1563,33 @@ export async function createJiraIssue(fields, { asUser = false } = {}) {
   return response.json(); // { id, key, self }
 }
 
+// Edit one issue's fields, e.g. re-parenting an epic under its initiative. As the caller when
+// asked, so the edit is attributed to the admin who pressed the button.
+export async function updateJiraIssue(issueKey, fields, { asUser = false } = {}) {
+  const requester = asUser ? api.asUser() : api.asApp();
+  const response = await requester.requestJira(route`/rest/api/3/issue/${issueKey}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ fields }),
+  });
+  if (!response.ok) {
+    const message = await response.text();
+    const error = new Error(`Update issue ${issueKey} failed (${response.status}): ${message}`);
+    error.status = response.status;
+    throw error;
+  }
+}
+
+// One page of issues matching a JQL query, with only the requested fields. For small lookups
+// (the quarter's hierarchy items, an epic's current parent), not for crawls.
+export async function searchIssuesPage(jql, fields = ["summary"], maxResults = 100) {
+  const data = await jiraRequest(route`/rest/api/3/search/jql`, {
+    method: "POST",
+    body: JSON.stringify({ jql, fields, maxResults }),
+  });
+  return (data?.issues || []).map((issue) => ({ key: issue.key, id: issue.id, fields: issue.fields || {} }));
+}
+
 // The site's base URL, for the links in remediation tickets. Cached per container: it cannot
 // change for an installation. Resolves null rather than throwing -- a ticket without links is
 // still a ticket, and the create path must never fail over a missing hyperlink.
