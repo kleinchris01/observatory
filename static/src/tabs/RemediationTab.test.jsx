@@ -896,6 +896,9 @@ describe("RemediationTab — open tasks the finding no longer flags", () => {
     render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
     await screen.findByText(/Checked every finding/, {}, { timeout: 10000 });
     expect(screen.queryByTestId("stale-tasks")).not.toBeInTheDocument();
+  });
+});
+
 describe("RemediationTab — quarterly hierarchy", () => {
   test("names the quarter's top item and organises epics under initiatives, round by round", async () => {
     const organise = vi.fn()
