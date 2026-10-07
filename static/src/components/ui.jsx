@@ -873,3 +873,70 @@ export function StageRail({ stages = [], currentStage = null, selectedKey = null
     </div>
   );
 }
+
+// ── Usage: three numbers per item ─────────────────────────────────────────────
+//
+// Every issue-level pillar shows the same three numbers for each item, counted by the issue
+// crawl: how many issues, how many in the last 90 days, and when last. `usage` is the whole
+// getPillarUsage response (usePillarUsage), so the date basis and window travel with the
+// numbers and the labels can't drift from what was counted.
+//
+// Three states, each said: still loading (nothing), not measured (with the reason), or
+// measured. An item missing from a measured response is a real zero -- the crawl covered every
+// issue and found none -- so it reads "0 issues · never", not "not measured".
+const USAGE_BASIS_WORDS = {
+  created: { recent: "created", last: "last created" },
+  updated: { recent: "active", last: "last activity" },
+  resolved: { recent: "resolved", last: "last resolved" },
+};
+
+export function formatUsageWhen(iso, now = Date.now()) {
+  if (!iso) return "never";
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return "unknown";
+  const days = Math.floor((now - t) / 86400000);
+  if (days < 1) return "today";
+  if (days < 60) return `${days}d ago`;
+  return new Date(t).toLocaleDateString(undefined, { month: "short", year: "numeric" });
+}
+
+// Several items' usage as one, for a thing that is made of them -- a security scheme of its
+// levels, later a scheme of its projects. Totals add, the last date is the latest.
+export function combineUsageItems(usage, entityIds = []) {
+  const out = { total: 0, recent: 0, lastAt: null, projectCount: 0 };
+  for (const id of entityIds) {
+    const it = usage?.items?.[String(id)];
+    if (!it) continue;
+    out.total += it.total || 0;
+    out.recent += it.recent || 0;
+    if (it.lastAt && (!out.lastAt || it.lastAt > out.lastAt)) out.lastAt = it.lastAt;
+  }
+  return out;
+}
+
+// `item` overrides the lookup by entityId, for a combined figure (combineUsageItems).
+export function UsageTriple({ usage, entityId, item: itemOverride = null, totalLabel = "issues", compact = false }) {
+  if (!usage) return null;
+  if (!usage.available) {
+    const why = usage.reason === "no-crawl"
+      ? "No complete issue crawl yet. Run a full scan to measure usage."
+      : usage.reason === "error" ? `Usage could not be read${usage.error ? `: ${usage.error}` : ""}.` : "Usage is not measured for this item.";
+    return <span className="ui-usage ui-usage--unmeasured" title={why}>usage not measured</span>;
+  }
+  const item = itemOverride || usage.items?.[String(entityId)] || { total: 0, recent: 0, lastAt: null, projectCount: 0 };
+  const words = USAGE_BASIS_WORDS[usage.basis] || USAGE_BASIS_WORDS.updated;
+  const days = usage.windowDays || 90;
+  const idle = item.recent === 0;
+  const when = formatUsageWhen(item.lastAt);
+  const title = `${item.total.toLocaleString()} ${totalLabel}` +
+    (item.projectCount ? ` across ${item.projectCount} project${item.projectCount === 1 ? "" : "s"}` : "") +
+    `; ${item.recent.toLocaleString()} ${words.recent} in the last ${days} days; ${words.last} ${when}.` +
+    (usage.measuredAt ? ` Counted by the issue crawl, ${formatUsageWhen(usage.measuredAt)}.` : "");
+  return (
+    <span className={`ui-usage${compact ? " ui-usage--compact" : ""}${idle ? " ui-usage--idle" : ""}`} title={title}>
+      <span className="ui-usage__n"><b>{item.total.toLocaleString()}</b> {totalLabel}</span>
+      <span className="ui-usage__n"><b>{item.recent.toLocaleString()}</b> {words.recent} {days}d</span>
+      <span className="ui-usage__n">{words.last} <b>{when}</b></span>
+    </span>
+  );
+}

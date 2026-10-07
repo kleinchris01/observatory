@@ -12,6 +12,8 @@ import {
   binPackProjects,
   sliceProjectKeys,
   normalizeWorkerSlices,
+  tallyIssueUsage,
+  usageDateMs,
 } from "./scan-engine.js";
 
 // ── Module mocks ─────────────────────────────────────────────────────────────
@@ -86,6 +88,9 @@ vi.mock("./project-store.js", () => ({
   promoteIssueScanToSnapshotProjectUsage: vi.fn().mockResolvedValue({ fieldsPromoted: 0, rowsInserted: 0 }),
   promoteIssueScanFieldTypeUsage: vi.fn().mockResolvedValue({ fieldsPromoted: 0, rowsInserted: 0 }),
   promoteIssueScanFieldUserUsage: vi.fn().mockResolvedValue({ fieldsPromoted: 0, rowsInserted: 0 }),
+  flushUsageBuffer: vi.fn().mockResolvedValue(undefined),
+  promoteUsageTally: vi.fn().mockResolvedValue({ promoted: true, entities: 0 }),
+  USAGE_WINDOW_DAYS: 90,
   loadSnapshotFields: vi.fn().mockResolvedValue([]),
 }));
 
@@ -622,6 +627,18 @@ describe("completeIssueScanFinalization", () => {
       "v1",
       { syncTotalIssueCount: true }
     );
+  });
+
+  it("promotes usage per item only when every worker finished", async () => {
+    const store = await getProjectStoreMock();
+    store.readIssueScanMeta.mockResolvedValue({ processedIssues: 1, progressLog: [], scanHistory: [] });
+    await completeIssueScanFinalization(INSTALLATION_KEY, "test-tag");
+    expect(store.promoteUsageTally).toHaveBeenLastCalledWith(INSTALLATION_KEY, { coverageComplete: true });
+
+    store.readIssueScanWorker.mockImplementation((_key, workerId) =>
+      Promise.resolve(workerId === 0 ? { status: "failed" } : { status: "done" }));
+    await completeIssueScanFinalization(INSTALLATION_KEY, "test-tag");
+    expect(store.promoteUsageTally).toHaveBeenLastCalledWith(INSTALLATION_KEY, { coverageComplete: false });
   });
 
   it("does not sync total issue counts when any worker did not finish", async () => {
@@ -1574,5 +1591,79 @@ describe("reviveStalledIssueScanWorkers", () => {
     const result = await reviveStalledIssueScanWorkers(INSTALLATION_KEY);
 
     expect(result).toEqual({ revived: 0, checked: 0 });
+  });
+});
+
+describe("tallyIssueUsage", () => {
+  // The suite mocks analysis.js so every value reads as populated; these tests need the real rule.
+  beforeEach(async () => {
+    const analysis = await import("./analysis.js");
+    analysis.isFieldValueNonEmpty.mockImplementation((v) => v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0));
+  });
+  const NOW = Date.parse("2026-10-07T00:00:00.000Z");
+  const CUTOFF = NOW - 90 * 24 * 60 * 60 * 1000;
+  const issue = (fields) => ({ fields: { project: { id: "10", key: "ABC" }, ...fields } });
+  const get = (buf, key) => buf.get(key);
+
+  it("counts every item the issue touches, on each pillar's own date", () => {
+    const buf = new Map();
+    tallyIssueUsage(issue({
+      created: "2026-01-02T10:00:00.000+0000",   // old
+      updated: "2026-10-01T10:00:00.000+0000",   // recent
+      resolutiondate: "2026-09-20T10:00:00.000+0000",
+      status: { id: "3" }, issuetype: { id: "1" }, priority: { id: "2" }, resolution: { id: "4" },
+      security: { id: "77" },
+      assignee: { accountId: "u1" }, reporter: { accountId: "u2" },
+      customfield_1: "x", customfield_2: null,
+    }), buf, CUTOFF, new Set());
+
+    // created-based: counted, but outside the window
+    expect(get(buf, "issuetype|1|10")).toMatchObject({ total: 1, recent: 0, lastAt: "2026-01-02T10:00:00.000Z" });
+    expect(get(buf, "priority|2|10")).toMatchObject({ total: 1, recent: 0 });
+    // updated-based: inside the window
+    expect(get(buf, "status|3|10")).toMatchObject({ total: 1, recent: 1, lastAt: "2026-10-01T10:00:00.000Z" });
+    expect(get(buf, "securitylevel|77|10")).toMatchObject({ recent: 1 });
+    expect(get(buf, "field|customfield_1|10")).toMatchObject({ total: 1, recent: 1, projectKey: "ABC" });
+    expect(buf.has("field|customfield_2|10")).toBe(false);
+    // resolved-based
+    expect(get(buf, "resolution|4|10")).toMatchObject({ recent: 1, lastAt: "2026-09-20T10:00:00.000Z" });
+    expect(get(buf, "user|u1|10")).toMatchObject({ total: 1, recent: 1 });
+    expect(get(buf, "user|u2|10")).toMatchObject({ total: 1 });
+    // The project counts created issues in its window but its last date is the latest update.
+    expect(get(buf, "project|10|10")).toMatchObject({ total: 1, recent: 0, lastAt: "2026-10-01T10:00:00.000Z" });
+  });
+
+  it("counts a person once per issue when they are both assignee and reporter", () => {
+    const buf = new Map();
+    tallyIssueUsage(issue({ updated: "2026-10-01T00:00:00.000Z", assignee: { accountId: "u1" }, reporter: { accountId: "u1" } }), buf, CUTOFF, new Set());
+    expect(get(buf, "user|u1|10").total).toBe(1);
+  });
+
+  it("an unresolved issue adds nothing to resolutions, and a missing date counts toward the total only", () => {
+    const buf = new Map();
+    tallyIssueUsage(issue({ status: { id: "3" } }), buf, CUTOFF, new Set());
+    expect([...buf.keys()].some((k) => k.startsWith("resolution|"))).toBe(false);
+    expect(get(buf, "status|3|10")).toMatchObject({ total: 1, recent: 0, lastAt: null });
+  });
+
+  it("accumulates across issues and keeps the newest date", () => {
+    const buf = new Map();
+    tallyIssueUsage(issue({ updated: "2026-10-01T00:00:00.000Z", status: { id: "3" } }), buf, CUTOFF, new Set());
+    tallyIssueUsage(issue({ updated: "2026-03-01T00:00:00.000Z", status: { id: "3" } }), buf, CUTOFF, new Set());
+    expect(get(buf, "status|3|10")).toMatchObject({ total: 2, recent: 1, lastAt: "2026-10-01T00:00:00.000Z" });
+  });
+
+  it("skips structural fields and issues with no project", () => {
+    const buf = new Map();
+    tallyIssueUsage(issue({ summary: "s" }), buf, CUTOFF, new Set(["summary"]));
+    expect(buf.has("field|summary|10")).toBe(false);
+    tallyIssueUsage({ fields: { status: { id: "3" } } }, buf, CUTOFF, new Set());
+    expect(buf.has("status|3|")).toBe(false);
+  });
+
+  it("reads Jira's colon-less offsets and rejects junk", () => {
+    expect(usageDateMs("2026-10-07T12:00:00.000+0100")).toBe(Date.parse("2026-10-07T11:00:00.000Z"));
+    expect(Number.isNaN(usageDateMs("nope"))).toBe(true);
+    expect(Number.isNaN(usageDateMs(null))).toBe(true);
   });
 });

@@ -1665,6 +1665,55 @@ export const CREATE_SCREEN_CROSS_SUMMARY_TABLE = `
 // Issues currently OF each type, per project. The sibling of issue_scan_status_totals, and
 // distinct from issue_scan_type_buffer, which counts field x type pairs: summing that across
 // fields would count an issue once per populated field on it.
+// ── Usage: three numbers per item, counted by the issue crawl ────────────────
+//
+// Every issue-level pillar answers the same three questions about each of its items: how many
+// issues, how many in the last 90 days, and when last. The crawl already reads every issue, so
+// these are accumulators over data it has in hand -- no extra Jira traffic.
+//
+// The buffer is kept per project so a crawl slice that restarts can subtract exactly what it
+// contributed (clearIssueScanBufferForProjects), the same reason issue_scan_buffer is.
+// `recent` is counted on the pillar's own date basis (created, updated or resolved) and
+// `last_at` is the latest such date, as an ISO string so GREATEST() compares correctly.
+export const CREATE_ISSUE_SCAN_USAGE_BUFFER_TABLE = `
+  CREATE TABLE IF NOT EXISTS issue_scan_usage_buffer (
+    scope_key VARCHAR(191) NOT NULL,
+    pillar VARCHAR(32) NOT NULL,
+    entity_id VARCHAR(191) NOT NULL,
+    project_id VARCHAR(64) NOT NULL,
+    project_key VARCHAR(191) NULL,
+    total BIGINT NOT NULL DEFAULT 0,
+    recent BIGINT NOT NULL DEFAULT 0,
+    last_at VARCHAR(40) NULL,
+    PRIMARY KEY (scope_key, pillar, entity_id, project_id)
+  )
+`;
+
+// The promoted figures, replaced only after a crawl in which every worker finished, so a
+// partial crawl never overwrites the last good numbers.
+export const CREATE_USAGE_TALLY_TABLE = `
+  CREATE TABLE IF NOT EXISTS usage_tally (
+    scope_key VARCHAR(191) NOT NULL,
+    pillar VARCHAR(32) NOT NULL,
+    entity_id VARCHAR(191) NOT NULL,
+    total BIGINT NOT NULL DEFAULT 0,
+    recent BIGINT NOT NULL DEFAULT 0,
+    last_at VARCHAR(40) NULL,
+    project_count INT NOT NULL DEFAULT 0,
+    measured_at VARCHAR(40) NOT NULL,
+    PRIMARY KEY (scope_key, pillar, entity_id)
+  )
+`;
+
+export const CREATE_USAGE_TALLY_META_TABLE = `
+  CREATE TABLE IF NOT EXISTS usage_tally_meta (
+    scope_key VARCHAR(191) NOT NULL,
+    measured_at VARCHAR(40) NOT NULL,
+    window_days INT NOT NULL,
+    PRIMARY KEY (scope_key)
+  )
+`;
+
 export const CREATE_ISSUE_SCAN_TYPE_TOTALS_TABLE = `
   CREATE TABLE IF NOT EXISTS issue_scan_type_totals (
     scope_key VARCHAR(191) NOT NULL,
@@ -2319,7 +2368,11 @@ const projectStoreMigrations = migrationRunner
   // probeFilter during the dashboard build. NULL = not probed (a snapshot that predates it,
   // or a gadget with no filter), which the dimension treats as unmeasured.
   .enqueue("v176_alter_dashboard_gadgets_add_filter_state",
-    "ALTER TABLE snapshot_dashboard_gadgets ADD COLUMN IF NOT EXISTS filter_state VARCHAR(16) NULL");
+    "ALTER TABLE snapshot_dashboard_gadgets ADD COLUMN IF NOT EXISTS filter_state VARCHAR(16) NULL")
+  // Usage per item, counted by the issue crawl: buffer, promoted tally, and its meta row.
+  .enqueue("v177_create_issue_scan_usage_buffer_table", CREATE_ISSUE_SCAN_USAGE_BUFFER_TABLE)
+  .enqueue("v178_create_usage_tally_table", CREATE_USAGE_TALLY_TABLE)
+  .enqueue("v179_create_usage_tally_meta_table", CREATE_USAGE_TALLY_META_TABLE);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

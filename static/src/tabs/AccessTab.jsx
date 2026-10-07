@@ -5,10 +5,11 @@ import { Icon } from "../components/Icons";
 import {
   StatTile, StatRow, Panel, EmptyState, Chip, PageHeader,
   PanelGrid, GridSpan, PillarHealthPanel, BarList, FindingRow, SortFilterBar, AskRovo, JiraLink,
+  UsageTriple, combineUsageItems,
 } from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
-import { useNavIntent, useVisiblePolling, usePersistentState } from "../hooks";
+import { useNavIntent, useVisiblePolling, usePersistentState, usePillarUsage } from "../hooks";
 
 // The access pillar: permission schemes, issue-security schemes and notification schemes.
 //
@@ -60,7 +61,7 @@ const SCHEME_SORTS = [
 // members / recipients behind it. `flags` are already-computed booleans from the parent.
 // `jiraHref`/`jiraLabel`: the Jira back-link lives in the expanded body, not the header --
 // the header is the expand <button>, and an anchor cannot legally nest inside one.
-function SchemeRow({ scheme, holders, flags, contextNoun, holderNoun, jiraHref = null, jiraLabel = "Open in Jira" }) {
+function SchemeRow({ scheme, holders, flags, contextNoun, holderNoun, jiraHref = null, jiraLabel = "Open in Jira", usage = null, usageIds = null, usageLabel = "issues" }) {
   const [open, setOpen] = React.useState(false);
   const rows = holders.filter((h) => String(h.schemeId) === String(scheme.id));
 
@@ -71,6 +72,9 @@ function SchemeRow({ scheme, holders, flags, contextNoun, holderNoun, jiraHref =
         <span className="access-row__identity">
           <span className="access-row__name">{scheme.name}</span>
           {scheme.description && <span className="access-row__desc">{scheme.description}</span>}
+          {usage && usageIds && (
+            <UsageTriple usage={usage} item={usage.available ? combineUsageItems(usage, usageIds) : null} totalLabel={usageLabel} compact />
+          )}
         </span>
         <span className="access-row__meta">
           {scheme.isDefault && <Chip tone="neutral" title="The site-wide default scheme">default</Chip>}
@@ -204,7 +208,7 @@ function permissionFlags(scheme, governance) {
   return flags;
 }
 
-function AccessTabInner({ data, view, setView, search, setSearch, schemeSort, setSchemeSort, pillars, siteOrigin }) {
+function AccessTabInner({ data, view, setView, search, setSearch, schemeSort, setSchemeSort, pillars, siteOrigin, levelUsage = null }) {
   const term = search.trim().toLowerCase();
 
   const filterSchemes = (schemes, governance, flagFn) => {
@@ -313,6 +317,9 @@ function AccessTabInner({ data, view, setView, search, setSearch, schemeSort, se
                     flags={flags} contextNoun="level" holderNoun="members"
                     jiraHref={buildIssueSecuritySchemeAdminUrl(siteOrigin)}
                     jiraLabel="Open issue security schemes in Jira"
+                    usage={levelUsage}
+                    usageIds={levels.map((l) => l.id ?? l.levelId)}
+                    usageLabel="issues at its levels"
                   />
                 );
               })}
@@ -407,6 +414,7 @@ export function AccessTab({ intent, siteOrigin }) {
   const [building, setBuilding] = React.useState(false);
   const [search, setSearch] = React.useState("");
   const [schemeSort, setSchemeSort] = React.useState("name-asc");
+  const levelUsage = usePillarUsage("securitylevel");
 
   useNavIntent(intent, (nav) => {
     if (nav.view) setView(nav.view);
@@ -605,6 +613,7 @@ export function AccessTab({ intent, siteOrigin }) {
       )}
 
       <AccessTabInner
+        levelUsage={levelUsage}
         data={data}
         view={view}
         setView={setView}

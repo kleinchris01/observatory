@@ -1,7 +1,7 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
 import { EmptyState } from "../components/ui";
-import { useNavIntent } from "../hooks";
+import { useNavIntent, usePillarUsage } from "../hooks";
 
 // Per-project field usage view.
 
@@ -23,6 +23,7 @@ export function ProjectUsageTab({ siteOrigin, intent = null, onBuildFieldReport 
   // the rail already holds every project the reader may browse, and the thresholds are a
   // function of that list.
   const [projectFilter, setProjectFilter] = React.useState("all");
+  const usage = usePillarUsage("project");
 
   useNavIntent(intent, (nav) => {
     setProjectFilter(nav.filter ?? "all");
@@ -97,6 +98,7 @@ export function ProjectUsageTab({ siteOrigin, intent = null, onBuildFieldReport 
       {loadError && <div className="error-banner">{loadError}</div>}
       <React.Suspense fallback={<EmptyState>Loading…</EmptyState>}>
         <ProjectsTabView
+          usage={usage}
           data={data}
           loading={loading}
           siteOrigin={siteOrigin}

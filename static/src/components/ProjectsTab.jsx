@@ -18,7 +18,7 @@ import { invoke } from "@forge/bridge";
 import { Icon, useChartPalette } from "./Icons";
 import { SkeletonFieldCard, FindingsStrip, MetricChip } from "./FieldCard";
 import { SubNavLayout } from "./admin/primitives";
-import { Panel, StatRow, StatTile, BarList, PanelGrid, GridSpan, EmptyState, Chip, PageHeader, AskRovo, SortFilterBar, CollapsiblePanels, JiraLink } from "./ui";
+import { Panel, StatRow, StatTile, BarList, PanelGrid, GridSpan, EmptyState, Chip, PageHeader, AskRovo, SortFilterBar, CollapsiblePanels, JiraLink, UsageTriple } from "./ui";
 import { buildRovoPrompt } from "../utils";
 
 function ChartTooltip({ active, payload }) {
@@ -1132,6 +1132,7 @@ export function ProjectCard({
   selectedAdoption, adoptionContext, workflowScheme, peerProjects, onBuildFieldReport,
   fields, availableTypes, totalFields, fieldPage, fieldTotalPages, fieldPageSize,
   fieldQuery, onFieldQueryChange, fieldType, onFieldTypeChange, fieldSort, onFieldSortChange, onChangePage,
+  usage = null,
 }) {
   const [view, setView] = React.useState("overview");
 
@@ -1164,6 +1165,7 @@ export function ProjectCard({
               ? `${formatNumber(issues)} issues · ${formatNumber(fills)} field values`
               : `${formatNumber(Number.isFinite(fills) ? fills : 0)} field values — run a universe scan for issue counts`}
           </p>
+          <UsageTriple usage={usage} entityId={project.projectId} compact />
           <FindingsStrip findings={findings} />
         </div>
         <div className="field-card__meta">
@@ -1386,6 +1388,9 @@ export function ProjectsTabView({
   projectFilter = "all",
   onProjectFilterChange,
   onBuildFieldReport,
+  // Admin only: the usage tally is site-wide, so the macro (which filters to what a viewer
+  // can browse) never passes it.
+  usage = null,
 }) {
   const allProjects = data?.projects || [];
   const projectFilters = React.useMemo(() => buildProjectFilters(allProjects), [allProjects]);
@@ -1605,6 +1610,7 @@ export function ProjectsTabView({
             const isOpen = project.projectId === selectedProjectId;
             return (
               <ProjectCard
+                usage={usage}
                 key={project.projectId}
                 project={project}
                 floor={floor}

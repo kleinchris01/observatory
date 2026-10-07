@@ -4,11 +4,11 @@ import { formatNumber, formatRelativeTime, buildPriorityAdminUrl, buildResolutio
 import { Icon } from "../components/Icons";
 import {
   StatTile, StatRow, Panel, EmptyState, Chip, PageHeader,
-  PanelGrid, GridSpan, PillarHealthPanel, FindingRow, SortFilterBar, AskRovo, JiraLink,
+  PanelGrid, GridSpan, PillarHealthPanel, FindingRow, SortFilterBar, AskRovo, JiraLink, UsageTriple,
 } from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
-import { useNavIntent, useVisiblePolling, usePersistentState } from "../hooks";
+import { useNavIntent, useVisiblePolling, usePersistentState, usePillarUsage } from "../hooks";
 
 // The two global value lists in Jira's "Issues" admin section that don't have their own
 // pillar yet: resolutions and priorities. Statuses and issue types are covered elsewhere.
@@ -26,12 +26,13 @@ function daysSince(iso) {
   return (Date.now() - at) / (24 * 60 * 60 * 1000);
 }
 
-function ValueRow({ item, duplicate }) {
+function ValueRow({ item, duplicate, usage = null }) {
   return (
     <div className="issue-type-row">
       <div className="issue-type-row__identity">
         <span className="issue-type-row__name">{item.name}</span>
         {item.description && <span className="issue-type-row__desc">{item.description}</span>}
+        <UsageTriple usage={usage} entityId={item.id} compact />
       </div>
       <div className="issue-type-row__meta">
         {/* Usage, which is what turns a near-duplicate pair from an observation into a merge
@@ -107,6 +108,8 @@ export function PrioritiesTab({ intent, siteOrigin }) {
   const [notice, setNotice] = React.useState("");
   const [building, setBuilding] = React.useState(false);
   const [search, setSearch] = React.useState("");
+  const priorityUsage = usePillarUsage("priority");
+  const resolutionUsage = usePillarUsage("resolution");
 
   useNavIntent(intent, (nav) => {
     if (nav.view) setView(nav.view);
@@ -289,7 +292,7 @@ export function PrioritiesTab({ intent, siteOrigin }) {
             ) : (
               <div className="issue-type-list">
                 {filterList(resolutions).map((r) => (
-                  <ValueRow key={r.id} item={r} duplicate={resolutionDupes.get(r.name)} />
+                  <ValueRow key={r.id} item={r} duplicate={resolutionDupes.get(r.name)} usage={resolutionUsage} />
                 ))}
               </div>
             )}
@@ -309,7 +312,7 @@ export function PrioritiesTab({ intent, siteOrigin }) {
             ) : (
               <div className="issue-type-list">
                 {filterList(priorities).map((p) => (
-                  <ValueRow key={p.id} item={p} duplicate={priorityDupes.get(p.name)} />
+                  <ValueRow key={p.id} item={p} duplicate={priorityDupes.get(p.name)} usage={priorityUsage} />
                 ))}
               </div>
             )}

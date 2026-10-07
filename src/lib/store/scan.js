@@ -168,6 +168,13 @@ export async function clearIssueScanBuffer(scopeKey) {
       sql.prepare(`DELETE FROM ${table} WHERE scope_key = ?`).bindParams(scopeKey).execute()
     );
   }
+
+  // The per-item usage buffer (store/usage.js): additive per project, so the same reason.
+  // Only the buffer -- usage_tally keeps the last good figures until a complete crawl
+  // replaces them.
+  await withSqlRetry(() =>
+    sql.prepare("DELETE FROM issue_scan_usage_buffer WHERE scope_key = ?").bindParams(scopeKey).execute()
+  );
 }
 
 export async function resetIssueScanWorkers(scopeKey) {
@@ -1103,6 +1110,11 @@ export async function clearIssueScanBufferForProjects(scopeKey, projectKeys = []
     const placeholders = batch.map(() => "?").join(", ");
     await withSqlRetry(() =>
       sql.prepare(`DELETE FROM issue_scan_buffer WHERE scope_key = ? AND project_key IN (${placeholders})`)
+        .bindParams(scopeKey, ...batch).execute()
+    );
+    // The usage buffer is additive per project too; a restarted slice re-counts its pages.
+    await withSqlRetry(() =>
+      sql.prepare(`DELETE FROM issue_scan_usage_buffer WHERE scope_key = ? AND project_key IN (${placeholders})`)
         .bindParams(scopeKey, ...batch).execute()
     );
   }

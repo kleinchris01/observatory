@@ -2,10 +2,10 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatTimestamp, formatRelativeTime, formatNumber, buildWorkflowSchemeUrl, buildStatusAdminUrl, buildWorkflowUrl } from "../utils";
 import { Icon } from "../components/Icons";
-import { StatTile, StatRow, Panel, EmptyState, PageHeader, SortFilterBar, Chip, RuleLink, AskRovo, JiraLink, FindingRow, PillarHealthPanel, WorkflowUsageList } from "../components/ui";
+import { StatTile, StatRow, Panel, EmptyState, PageHeader, SortFilterBar, Chip, RuleLink, AskRovo, JiraLink, FindingRow, PillarHealthPanel, WorkflowUsageList, UsageTriple } from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
-import { useNavIntent, usePersistentState } from "../hooks";
+import { useNavIntent, usePersistentState, usePillarUsage } from "../hooks";
 import { WorkflowRulesView, WorkflowRestrictionsView, WorkflowCatalogView } from "./WorkflowRulesView";
 
 // Workflow scheme + status inventory.
@@ -268,7 +268,7 @@ function StatusDetail({ detail, siteOrigin }) {
   );
 }
 
-function StatusRulesPanel({ status, siteOrigin, onClose, load = invoke }) {
+function StatusRulesPanel({ status, siteOrigin, onClose, load = invoke, issueUsage = null }) {
   const [usage, setUsage] = React.useState(null);
   const [filters, setFilters] = React.useState(null);
   const [detail, setDetail] = React.useState(null);
@@ -308,7 +308,10 @@ function StatusRulesPanel({ status, siteOrigin, onClose, load = invoke }) {
   return (
     <div className="wf-statusrules">
       <div className="wf-statusrules__head">
-        <h4 className="wf-statusrules__title">{status.name}</h4>
+        <span>
+          <h4 className="wf-statusrules__title">{status.name}</h4>
+          <UsageTriple usage={issueUsage} entityId={status.statusId ?? status.id} totalLabel="issues in it now" compact />
+        </span>
         <span className="wf-statusrules__actions">
           <JiraLink className="ui-linkbutton" href={buildStatusAdminUrl(siteOrigin)} title="Open the status list in Jira">Statuses in Jira</JiraLink>
           <AskRovo
@@ -731,6 +734,7 @@ export function WorkflowTab({ intent = null, siteOrigin = "" }) {
   });
   const [insights, setInsights] = React.useState(null);
   const [insightsLoading, setInsightsLoading] = React.useState(false);
+  const statusIssueUsage = usePillarUsage("status");
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(false);
   const [building, setBuilding] = React.useState(false);
@@ -1184,7 +1188,7 @@ export function WorkflowTab({ intent = null, siteOrigin = "" }) {
                     ))}
                   </div>
                   {openStatus && items.some((s) => s.id === openStatus.id) && (
-                    <StatusRulesPanel status={openStatus} siteOrigin={siteOrigin} onClose={() => setOpenStatus(null)} />
+                    <StatusRulesPanel status={openStatus} siteOrigin={siteOrigin} onClose={() => setOpenStatus(null)} issueUsage={statusIssueUsage} />
                   )}
                 </section>
               ))}

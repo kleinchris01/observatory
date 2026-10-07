@@ -58,6 +58,9 @@ import {
   promoteIssueScanToSnapshotProjectUsage,
   promoteIssueScanFieldTypeUsage,
   promoteIssueScanFieldUserUsage,
+  flushUsageBuffer,
+  promoteUsageTally,
+  USAGE_WINDOW_DAYS,
 } from "./project-store.js";
 import {
   STRUCTURAL_SYSTEM_FIELDS,
@@ -316,6 +319,11 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
           + `(${unfinished.map(({ workerId, worker }) => `worker ${workerId}: ${worker.lastError || worker.status}`).join("; ")}). `
           + `Their projects keep their previous issue counts — re-run the scan to complete them.`
         : null);
+
+    // Usage per item, gated the same way: a partial crawl keeps the last good figures.
+    const usagePromoted = await promoteUsageTally(installationKey, { coverageComplete: scanCoverageComplete })
+      .catch(fallbackOn("scan.usage_promote_failed", { promoted: false, entities: 0 }, { installationKey }));
+    console.log(`${tag}: usage ${usagePromoted.promoted ? `promoted for ${usagePromoted.entities} items` : "kept from the last complete crawl"}`);
 
     const snapshotMeta = await readSnapshotMeta(installationKey);
     if (snapshotMeta?.version) {
@@ -732,6 +740,70 @@ export function sliceProjectKeys(keys, issueCountByKey, sliceCount) {
     }));
 }
 
+// ── Usage per item ───────────────────────────────────────────────────────────
+//
+// One issue's contribution to the three usage numbers (store/usage.js) of everything it
+// touches: its project, status, issue type, priority, resolution, security level, assignee
+// and reporter, and every field carrying a value. Pure, so the counting rules are tested
+// without a crawl. `recent` uses each pillar's own date basis (USAGE_PILLARS), and an issue
+// with no such date (an unresolved issue for `resolution`) counts toward the total only.
+
+// Jira writes "2026-10-07T12:34:56.000+0000"; a colon-less offset is not ISO 8601, so it is
+// normalised before parsing rather than trusting the engine to accept it.
+export function usageDateMs(value) {
+  if (typeof value !== "string" || value.length < 10) return NaN;
+  const direct = Date.parse(value);
+  if (Number.isFinite(direct)) return direct;
+  return Date.parse(value.replace(/([+-]\d\d)(\d\d)$/, "$1:$2"));
+}
+
+export function tallyIssueUsage(issue, buffer, recentCutoffMs, structuralFields = STRUCTURAL_SYSTEM_FIELDS) {
+  const fields = issue?.fields || {};
+  const projectId = fields.project?.id ? String(fields.project.id) : "";
+  if (!projectId) return;
+  const projectKey = fields.project?.key ? String(fields.project.key) : null;
+  const dates = {
+    created: usageDateMs(fields.created),
+    updated: usageDateMs(fields.updated),
+    resolved: usageDateMs(fields.resolutiondate),
+  };
+
+  const add = (pillar, entityId, basis) => {
+    if (!entityId) return;
+    const key = `${pillar}|${entityId}|${projectId}`;
+    const entry = buffer.get(key) || { pillar, entityId: String(entityId), projectId, projectKey, total: 0, recent: 0, lastAt: null };
+    entry.total++;
+    const at = dates[basis];
+    if (Number.isFinite(at)) {
+      if (at >= recentCutoffMs) entry.recent++;
+      const iso = new Date(at).toISOString();
+      if (!entry.lastAt || iso > entry.lastAt) entry.lastAt = iso;
+    }
+    buffer.set(key, entry);
+  };
+
+  // The project counts created issues in its window but its "last" is the latest update:
+  // a project nobody files into but everybody works in is not idle.
+  add("project", projectId, "created");
+  if (Number.isFinite(dates.updated)) {
+    const entry = buffer.get(`project|${projectId}|${projectId}`);
+    const iso = new Date(dates.updated).toISOString();
+    if (!entry.lastAt || iso > entry.lastAt) entry.lastAt = iso;
+  }
+  add("status", fields.status?.id, "updated");
+  add("issuetype", fields.issuetype?.id, "created");
+  add("priority", fields.priority?.id, "created");
+  add("resolution", fields.resolution?.id, "resolved");
+  add("securitylevel", fields.security?.id, "updated");
+  const people = new Set([fields.assignee?.accountId, fields.reporter?.accountId].filter(Boolean));
+  for (const accountId of people) add("user", accountId, "updated");
+  for (const [fieldId, value] of Object.entries(fields)) {
+    if (structuralFields.has(fieldId)) continue;
+    if (!isFieldValueNonEmpty(value)) continue;
+    add("field", fieldId, "updated");
+  }
+}
+
 export async function runIssueScanWorkerV2(installationKey, workerId) {
   const tag = `runIssueScanWorker[${workerId}]`;
   // The rate-limit counters are module state, and module state in Forge is per invocation.
@@ -764,6 +836,9 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
   const estateTotals = new Map();
   // accountId -> { accountId, displayName, lastActivityAt, count }
   const userActivity = new Map();
+  // `${pillar}|${entityId}|${projectId}` -> usage accumulator (tallyIssueUsage)
+  const usageBuffer = new Map();
+  const usageCutoffMs = Date.now() - USAGE_WINDOW_DAYS * 24 * 60 * 60 * 1000;
   const rqtFieldHits = new Map();
   const rqtIssueBuffer = [];
   const rqtValueBuffer = []; // { rqtValue, issueKey }
@@ -847,6 +922,7 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
       const types = new Map(typeTotals);
       const estate = new Map(estateTotals);
       const activity = new Map(userActivity);
+      const usage = new Map(usageBuffer);
       const rqtHits = new Map(rqtFieldHits);
       const rqtIssues = rqtIssueBuffer.splice(0);
       const rqtValues = rqtValueBuffer.splice(0);
@@ -860,6 +936,7 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
       typeTotals.clear();
       estateTotals.clear();
       userActivity.clear();
+      usageBuffer.clear();
       rqtFieldHits.clear();
 
       if (counts.size > 0 || totals.size > 0) {
@@ -883,6 +960,9 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
       }
       if (activity.size > 0) {
         await flushIssueScanUserActivity(installationKey, activity).catch(ignoreWith("scan.user_activity_flush_failed", { workerId }));
+      }
+      if (usage.size > 0) {
+        await flushUsageBuffer(installationKey, usage).catch(ignoreWith("scan.usage_flush_failed", { workerId }));
       }
       if (rqtHits.size > 0) await upsertRqtFieldHits(installationKey, rqtHits).catch(ignoreWith("scan.rqt_field_flush_failed", { workerId }));
       if (rqtIssues.length > 0) await upsertRqtIssueKeys(installationKey, rqtIssues).catch(ignoreWith("scan.rqt_issue_flush_failed", { workerId }));
@@ -1148,6 +1228,8 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
             }
           }
         }
+
+        tallyIssueUsage(issue, usageBuffer, usageCutoffMs);
 
         const issueRqt = collectIssueRqtValues(issue.fields, issue.fields?.summary);
         for (const [fieldId, values] of issueRqt) {

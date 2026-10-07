@@ -3,7 +3,7 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { router, rovo } from "@forge/bridge";
-import { StatTile, StatRow, Panel, CollapsiblePanels, Chip, EmptyState, BarList, FindingRow, LinkButton, PageHeader, RuleLink, JiraLink, SortFilterBar, StageRail, formatDurationMs, AskRovo, RemediationStatus, TransitionPath, WorkflowUsageList } from "./ui";
+import { StatTile, StatRow, Panel, CollapsiblePanels, Chip, EmptyState, BarList, FindingRow, LinkButton, PageHeader, RuleLink, JiraLink, SortFilterBar, StageRail, formatDurationMs, AskRovo, RemediationStatus, TransitionPath, WorkflowUsageList, UsageTriple, combineUsageItems, formatUsageWhen } from "./ui";
 
 // These are the shared vocabulary that replaced four separate stat-card idioms. They are
 // small, but they now render on every tab, so a regression here is a regression
@@ -595,5 +595,61 @@ describe("WorkflowUsageList", () => {
     expect(screen.getByText("g-gone (missing)")).toHaveClass("ui-chip--critical");
     expect(screen.getByRole("link", { name: "Build WF" })).toBeInTheDocument();
     expect(screen.getByText(/Showing the first 1/)).toBeInTheDocument();
+  });
+});
+
+describe("UsageTriple", () => {
+  const measured = {
+    available: true, basis: "created", windowDays: 90, measuredAt: new Date().toISOString(),
+    items: { 7: { total: 1200, recent: 35, lastAt: new Date(Date.now() - 3 * 86400000).toISOString(), projectCount: 4 } },
+  };
+
+  test("renders nothing while loading", () => {
+    const { container } = render(<UsageTriple usage={null} entityId="7" />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  test("says not measured, with the reason, before any complete crawl -- never zeros", () => {
+    render(<UsageTriple usage={{ available: false, reason: "no-crawl", items: {} }} entityId="7" />);
+    const el = screen.getByText("usage not measured");
+    expect(el).toHaveAttribute("title", expect.stringMatching(/Run a full scan/));
+    expect(screen.queryByText("0")).not.toBeInTheDocument();
+  });
+
+  test("shows the three numbers labelled from the counting basis", () => {
+    render(<UsageTriple usage={measured} entityId="7" />);
+    expect(screen.getByText("1,200")).toBeInTheDocument();
+    expect(screen.getByText(/created 90d/)).toBeInTheDocument();
+    expect(screen.getByText(/last created/)).toBeInTheDocument();
+    expect(screen.getByText("3d ago")).toBeInTheDocument();
+    expect(screen.getByText("1,200").closest(".ui-usage")).toHaveAttribute("title", expect.stringMatching(/across 4 projects/));
+  });
+
+  test("an item missing from a measured crawl is a real zero", () => {
+    render(<UsageTriple usage={measured} entityId="nope" />);
+    expect(screen.getByText("never")).toBeInTheDocument();
+    expect(screen.getByText("never").closest(".ui-usage")).toHaveClass("ui-usage--idle");
+  });
+
+  test("labels activity for updated-based pillars", () => {
+    render(<UsageTriple usage={{ ...measured, basis: "updated" }} entityId="7" totalLabel="issues with a value" />);
+    expect(screen.getByText(/active 90d/)).toBeInTheDocument();
+    expect(screen.getByText(/issues with a value/)).toBeInTheDocument();
+  });
+
+  test("combineUsageItems adds totals and keeps the latest date", () => {
+    const usage = { items: {
+      a: { total: 2, recent: 1, lastAt: "2026-01-01T00:00:00.000Z" },
+      b: { total: 3, recent: 0, lastAt: "2026-05-01T00:00:00.000Z" },
+    } };
+    expect(combineUsageItems(usage, ["a", "b", "missing"])).toEqual({ total: 5, recent: 1, lastAt: "2026-05-01T00:00:00.000Z", projectCount: 0 });
+  });
+
+  test("formatUsageWhen: recent as days, older as a month", () => {
+    const now = Date.parse("2026-10-07T00:00:00.000Z");
+    expect(formatUsageWhen(null, now)).toBe("never");
+    expect(formatUsageWhen("2026-10-06T12:00:00.000Z", now)).toBe("today");
+    expect(formatUsageWhen("2026-09-27T00:00:00.000Z", now)).toBe("10d ago");
+    expect(formatUsageWhen("2025-01-15T00:00:00.000Z", now)).toMatch(/2025/);
   });
 });

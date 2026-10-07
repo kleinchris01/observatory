@@ -188,6 +188,10 @@ import {
   loadTicketedItemIds,
   loadTicketedItems,
   currentPeriod,
+  readUsageMeta,
+  loadUsageTally,
+  USAGE_PILLARS,
+  USAGE_WINDOW_DAYS,
 } from "./lib/project-store.js";
 import { getPlaybook, groupBounded, listPlaybookCatalog, REMEDIATION_FINDING_INDEX } from "./lib/remediation-playbooks.js";
 import { computeRemediationMetrics } from "./lib/remediation-metrics.js";
@@ -3845,6 +3849,30 @@ async function getRemediationMetrics({ payload, context }) {
   const tickets = await loadRemediationTickets(installationKey);
   const labels = Object.fromEntries(listPlaybookCatalog().map((entry) => [entry.key, entry.label]));
   return computeRemediationMetrics({ tickets, now: new Date(), period: currentPeriod(), scope, labels });
+}
+
+// Usage per item for one pillar: how many issues, how many in the last 90 days, and when last,
+// counted by the issue crawl (store/usage.js). Tri-state like everything else -- no complete
+// crawl yet is "not measured", never a table of zeros -- and `basis` travels with the numbers
+// so the tab labels them from the same rule that counted them.
+async function getPillarUsage({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  const installationKey = getInstallationKey(context);
+  const pillar = String(payload?.pillar || "");
+  const spec = USAGE_PILLARS[pillar];
+  if (!spec) return { available: false, reason: "unknown-pillar", pillar, items: {} };
+  const base = { pillar, basis: spec.basis, windowDays: USAGE_WINDOW_DAYS };
+  const meta = await readUsageMeta(installationKey)
+    .catch(fallbackOn("usage.meta_read_failed", () => null, { installationKey }));
+  if (!meta) return { ...base, available: false, reason: "no-crawl", items: {} };
+  const tally = await loadUsageTally(installationKey, pillar);
+  return {
+    ...base,
+    available: true,
+    windowDays: meta.windowDays || USAGE_WINDOW_DAYS,
+    measuredAt: meta.measuredAt,
+    items: Object.fromEntries(tally),
+  };
 }
 
 // "Sync now": queues the same job the scheduled trigger queues, run by the queue consumer,
@@ -10909,6 +10937,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getAutomationBlast,      // Admin read: one page of rules ordered by blast radius
   getRemediationTickets,   // Admin read: remediation epics and tasks, grouped by finding
   getRemediationMetrics,   // Admin read: remediation burn-down, throughput and ageing
+  getPillarUsage,          // Admin read: issues, last 90 days and last used, per item of one pillar
   createRemediationEpic,   // Mutating: creates a Jira epic + tasks for a governance finding
   syncRemediationNow,      // Mutating: queues a remediation status sync from Jira
   getRemediationCandidates,// Admin read: current items behind one finding, ready to ticket
