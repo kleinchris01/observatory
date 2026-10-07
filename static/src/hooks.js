@@ -1,4 +1,5 @@
 import React from "react";
+import { invoke } from "@forge/bridge";
 import { readStored, writeStored } from "./utils";
 
 // Poll only while there is something to poll for AND the tab is being looked at.
@@ -102,4 +103,20 @@ export function usePersistentState(storageKey, fallback, override = null) {
   const [value, setValue] = React.useState(() => override || readStored(storageKey, null) || fallback);
   React.useEffect(() => { writeStored(storageKey, value); }, [storageKey, value]);
   return [value, setValue];
+}
+
+// One pillar's usage numbers (getPillarUsage): issues, last 90 days and last used, per item.
+// Fetched once per tab; a failed read becomes "not measured" with its reason, never zeros.
+// `pillar` is a USAGE_PILLARS key ("field", "status", "issuetype", ...). Pass null to skip.
+export function usePillarUsage(pillar) {
+  const [usage, setUsage] = React.useState(null);
+  React.useEffect(() => {
+    if (!pillar) return undefined;
+    let live = true;
+    invoke("getPillarUsage", { pillar })
+      .then((result) => { if (live) setUsage(result || { available: false, reason: "error", items: {} }); })
+      .catch((error) => { if (live) setUsage({ available: false, reason: "error", error: error?.message || null, items: {} }); });
+    return () => { live = false; };
+  }, [pillar]);
+  return usage;
 }

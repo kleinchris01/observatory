@@ -66,6 +66,9 @@ describe("clearIssueScanBuffer", () => {
     expect(targets.some((s) => /DELETE FROM issue_scan_buffer WHERE scope_key = \?/.test(s))).toBe(true);
     expect(targets.some((s) => /DELETE FROM issue_scan_activity_buffer WHERE scope_key = \?/.test(s))).toBe(true);
     expect(targets.some((s) => /DELETE FROM issue_scan_type_buffer WHERE scope_key = \?/.test(s))).toBe(true);
+    // The per-item usage buffer is additive too; usage_tally (the last good figures) stays.
+    expect(targets.some((s) => /DELETE FROM issue_scan_usage_buffer WHERE scope_key = \?/.test(s))).toBe(true);
+    expect(targets.some((s) => /DELETE FROM usage_tally/.test(s))).toBe(false);
     // The live series is the last good snapshot -- clearing it up front is exactly the bug.
     expect(targets.some((s) => /DELETE FROM issue_scan_project_activity/.test(s))).toBe(false);
   });

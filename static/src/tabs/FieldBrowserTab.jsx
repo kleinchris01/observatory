@@ -3,7 +3,7 @@ import { invoke, view } from "@forge/bridge";
 import { openFieldExpertRovo, buildFieldRovoPrompt, buildProjectRovoPrompt, buildReportRovoPrompt } from "../utils";
 import { Icon } from "../components/Icons";
 import { Chip, EmptyState, SortFilterBar } from "../components/ui";
-import { useNavIntent } from "../hooks";
+import { useNavIntent, usePillarUsage } from "../hooks";
 import { FieldCard } from "../components/FieldCard";
 
 // The custom field inventory: filters, findings and per-field detail.
@@ -52,6 +52,7 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
   const [findingsFilter, setFindingsFilter] = React.useState("all");
   const [sortBy, setSortBy] = React.useState("usage-desc");
   const [page, setPage] = React.useState(1);
+  const usage = usePillarUsage("field");
 
   // Advanced filters
   const [projectUsageFilter, setProjectUsageFilter] = React.useState("all");
@@ -697,6 +698,7 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
             const detail = fieldDetails[field.id] || null;
             return (
               <FieldCard
+                usage={usage}
                 key={field.id}
                 field={field}
                 details={isOpen ? detail : null}

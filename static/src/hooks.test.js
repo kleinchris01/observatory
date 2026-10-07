@@ -1,7 +1,8 @@
 import React from "react";
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import { useVisiblePolling, useRefreshOnVisible, useNavIntent, usePersistentState } from "./hooks";
+import { useVisiblePolling, useRefreshOnVisible, useNavIntent, usePersistentState, usePillarUsage } from "./hooks";
+import { invoke } from "@forge/bridge";
 
 const setVisibility = (state) => {
   Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
@@ -132,5 +133,29 @@ describe("usePersistentState", () => {
     expect(result.current[0]).toBe("rqt");
     unmount();
     expect(window.localStorage.getItem("observatory.section.test")).toBe("rqt");
+  });
+});
+
+describe("usePillarUsage", () => {
+  test("fetches one pillar once and returns the response", async () => {
+    invoke.mockResolvedValueOnce({ available: true, basis: "created", items: { 1: { total: 1, recent: 0, lastAt: null } } });
+    const { result } = renderHook(() => usePillarUsage("issuetype"));
+    await act(async () => {});
+    expect(invoke).toHaveBeenCalledWith("getPillarUsage", { pillar: "issuetype" });
+    expect(result.current.available).toBe(true);
+  });
+
+  test("a failed read becomes not measured with its reason, never zeros", async () => {
+    invoke.mockRejectedValueOnce(new Error("timed out"));
+    const { result } = renderHook(() => usePillarUsage("field"));
+    await act(async () => {});
+    expect(result.current).toEqual({ available: false, reason: "error", error: "timed out", items: {} });
+  });
+
+  test("a null pillar fetches nothing", async () => {
+    invoke.mockClear();
+    renderHook(() => usePillarUsage(null));
+    await act(async () => {});
+    expect(invoke).not.toHaveBeenCalled();
   });
 });

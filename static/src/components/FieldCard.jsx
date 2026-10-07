@@ -15,7 +15,7 @@ import {
   copyToClipboard,
 } from "../utils";
 import { Icon } from "./Icons";
-import { AskRovo, Chip, WorkflowUsageList } from "./ui";
+import { AskRovo, Chip, WorkflowUsageList, UsageTriple } from "./ui";
 import { FieldOptionsModal } from "./FieldOptionsModal";
 
 // The Rovo affordance is now the shared <AskRovo> from ./ui -- one label shape, one
@@ -966,6 +966,8 @@ export function FieldCard({
   filterCount,
   dashboardGadgetCount,
   screenSnapshot,
+  // Admin only (getPillarUsage("field")); the macro never passes it.
+  usage = null,
 }) {
   const displayField = React.useMemo(() => mergeFieldMetrics(field, details), [field, details]);
   // Falls back through the details payload rather than trusting it to carry the key.
@@ -1040,6 +1042,7 @@ export function FieldCard({
           <h3>{field.name}</h3>
           <p>{field.description || "No admin description is set for this field."}</p>
           <ProjectUsageBuildBadge field={displayField} />
+          <UsageTriple usage={usage} entityId={field.id} totalLabel="issues with a value" compact />
           {showGovernance && <FindingsStrip findings={fieldFindings} />}
         </div>
         <div className="field-card__meta">

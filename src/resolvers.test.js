@@ -62,6 +62,8 @@ const mocks = vi.hoisted(() => ({
   getSiteBaseUrl: vi.fn(async () => "https://test.atlassian.net"),
   loadTicketedItemIds: vi.fn(async () => new Set()),
   loadTicketedItems: vi.fn(async () => new Map()),
+  readUsageMeta: vi.fn(async () => null),
+  loadUsageTally: vi.fn(async () => new Map()),
   readRecentFullScanRuns: vi.fn(async () => []),
   recoverStalledScan: vi.fn(async () => ({ recovered: false, reason: "healthy" })),
   resumeScanRun: vi.fn(async () => ({ resumed: true, retrying: ["dashboards"] })),
@@ -505,6 +507,10 @@ vi.mock("./lib/project-store.js", () => ({
   loadTicketedItemIds: mocks.loadTicketedItemIds,
   loadTicketedItems: mocks.loadTicketedItems,
   currentPeriod: mocks.currentPeriod,
+  readUsageMeta: mocks.readUsageMeta,
+  loadUsageTally: mocks.loadUsageTally,
+  USAGE_PILLARS: { field: { basis: "updated" }, issuetype: { basis: "created" }, resolution: { basis: "resolved" } },
+  USAGE_WINDOW_DAYS: 90,
 }));
 
 vi.mock("./lib/screen-engine.js", () => ({
@@ -725,6 +731,7 @@ const {
   syncRemediationNow,
   getRemediationTickets,
   getRemediationMetrics,
+  getPillarUsage,
   getRemediationCandidates,
   getStatusAutomationUsage,
   getAutomationFieldUsage,
@@ -11532,5 +11539,36 @@ describe("getRemediationCandidates -- every new loader is explicitly unavailable
     ]);
     mocks.loadProjectActivity.mockResolvedValueOnce(new Map());
     expect((await run("stale-projects")).items.map((p) => p.projectKey)).toEqual(["OLD"]);
+  });
+});
+
+describe("getPillarUsage", () => {
+  test("an unknown pillar is refused by name, not answered with zeros", async () => {
+    const r = await getPillarUsage({ payload: { pillar: "nope" }, context: ctxWithAccount() });
+    expect(r).toMatchObject({ available: false, reason: "unknown-pillar", items: {} });
+    expect(mocks.loadUsageTally).not.toHaveBeenCalled();
+  });
+
+  test("before any complete crawl it says so, with the basis the tab labels from", async () => {
+    mocks.readUsageMeta.mockResolvedValueOnce(null);
+    const r = await getPillarUsage({ payload: { pillar: "resolution" }, context: ctxWithAccount() });
+    expect(r).toEqual({ pillar: "resolution", basis: "resolved", windowDays: 90, available: false, reason: "no-crawl", items: {} });
+  });
+
+  test("returns every item's three numbers with when they were counted", async () => {
+    mocks.readUsageMeta.mockResolvedValueOnce({ measuredAt: "2026-10-07T00:00:00.000Z", windowDays: 90 });
+    mocks.loadUsageTally.mockResolvedValueOnce(new Map([["10001", { total: 5, recent: 2, lastAt: "2026-10-01T00:00:00.000Z", projectCount: 1 }]]));
+    const r = await getPillarUsage({ payload: { pillar: "issuetype" }, context: ctxWithAccount() });
+    expect(mocks.loadUsageTally).toHaveBeenCalledWith("test-install", "issuetype");
+    expect(r).toEqual({
+      pillar: "issuetype", basis: "created", windowDays: 90, available: true,
+      measuredAt: "2026-10-07T00:00:00.000Z",
+      items: { 10001: { total: 5, recent: 2, lastAt: "2026-10-01T00:00:00.000Z", projectCount: 1 } },
+    });
+  });
+
+  test("is admin-only: the tally is site-wide, so the macro never reads it", () => {
+    expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toContain("getPillarUsage");
+    expect(Object.keys(SHARED_RESOLVER_FUNCTIONS)).not.toContain("getPillarUsage");
   });
 });

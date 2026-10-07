@@ -2,10 +2,10 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatNumber, formatRelativeTime, buildIssueTypeAdminUrl } from "../utils";
 import { Icon } from "../components/Icons";
-import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PanelGrid, GridSpan, BarList, PillarHealthPanel, FindingRow, SortFilterBar, AskRovo, JiraLink } from "../components/ui";
+import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PanelGrid, GridSpan, BarList, PillarHealthPanel, FindingRow, SortFilterBar, AskRovo, JiraLink, UsageTriple } from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
-import { useNavIntent, useVisiblePolling, usePersistentState } from "../hooks";
+import { useNavIntent, useVisiblePolling, usePersistentState, usePillarUsage } from "../hooks";
 
 // Issue type inventory.
 //
@@ -93,7 +93,7 @@ function TypeChips({ type, measurement }) {
   );
 }
 
-export function HierarchyLevelPanel({ level, search, measurement = "not-measured" }) {
+export function HierarchyLevelPanel({ level, search, measurement = "not-measured", usage = null }) {
   const term = search.trim().toLowerCase();
   const types = term
     ? level.types.filter((t) => t.name.toLowerCase().includes(term) || String(t.id) === term)
@@ -113,6 +113,7 @@ export function HierarchyLevelPanel({ level, search, measurement = "not-measured
             <div className="issue-type-row__identity">
               <span className="issue-type-row__name">{type.name}</span>
               {type.description && <span className="issue-type-row__desc">{type.description}</span>}
+              <UsageTriple usage={usage} entityId={type.id} compact />
             </div>
             <div className="issue-type-row__meta">
               <TypeChips type={type} measurement={measurement} />
@@ -244,6 +245,7 @@ export function IssueTypesTab({ intent, siteOrigin }) {
   const [notice, setNotice] = React.useState("");
   const [building, setBuilding] = React.useState(false);
   const [search, setSearch] = React.useState("");
+  const usage = usePillarUsage("issuetype");
 
   useNavIntent(intent, (nav) => {
     if (nav.view) setView(nav.view);
@@ -514,7 +516,7 @@ export function IssueTypesTab({ intent, siteOrigin }) {
               <EmptyState inline>No issue types in this snapshot.</EmptyState>
             ) : (
               (data.hierarchy).map((level) => (
-                <HierarchyLevelPanel key={level.level} level={level} search={search} measurement={data?.usage?.measurement || "not-measured"} />
+                <HierarchyLevelPanel key={level.level} level={level} search={search} measurement={data?.usage?.measurement || "not-measured"} usage={usage} />
               ))
             )}
           </div>

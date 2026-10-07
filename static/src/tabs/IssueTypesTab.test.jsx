@@ -237,3 +237,26 @@ describe("TypeUsageChip", () => {
     expect(screen.getByText("Count unavailable")).toBeInTheDocument();
   });
 });
+
+describe("IssueTypesTab usage", () => {
+  test("each type shows how many issues, how many created in 90 days, and when last", () => {
+    const usage = {
+      available: true, basis: "created", windowDays: 90, measuredAt: "2026-10-07T00:00:00.000Z",
+      items: { 2: { total: 4200, recent: 130, lastAt: new Date().toISOString(), projectCount: 12 } },
+    };
+    render(<HierarchyLevelPanel level={inventory().hierarchy[1]} search="" measurement="measured" usage={usage} />);
+    expect(screen.getByText("4,200")).toBeInTheDocument();
+    expect(screen.getByText(/created 90d/)).toBeInTheDocument();
+    expect(screen.getByText("today")).toBeInTheDocument();
+  });
+
+  test("the tab asks for issue type usage once", async () => {
+    invoke.mockImplementation((fn) => {
+      if (fn === "getIssueTypeInventory") return Promise.resolve(inventory());
+      return Promise.resolve({});
+    });
+    render(<IssueTypesTab />);
+    await screen.findByText("Issue types");
+    expect(invoke.mock.calls.filter(([fn]) => fn === "getPillarUsage")).toEqual([["getPillarUsage", { pillar: "issuetype" }]]);
+  });
+});

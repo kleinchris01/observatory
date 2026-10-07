@@ -2,10 +2,10 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatNumber, formatRelativeTime } from "../utils";
 import { Icon } from "../components/Icons";
-import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PanelGrid, GridSpan, PillarHealthPanel, BarList, SortFilterBar, AskRovo } from "../components/ui";
+import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PanelGrid, GridSpan, PillarHealthPanel, BarList, SortFilterBar, AskRovo, UsageTriple } from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
-import { useVisiblePolling, usePersistentState, useNavIntent } from "../hooks";
+import { useVisiblePolling, usePersistentState, useNavIntent, usePillarUsage } from "../hooks";
 
 // The People pillar: the who, not just the what.
 //
@@ -66,7 +66,7 @@ function OwnedList({ title, items, empty }) {
   );
 }
 
-function UserRow({ user, expanded, detail, detailLoading, onToggle }) {
+function UserRow({ user, expanded, detail, detailLoading, onToggle, usage = null }) {
   const owns = ownsSummary(user);
   return (
     <div className={`people-row${expanded ? " people-row--open" : ""}`}>
@@ -84,6 +84,7 @@ function UserRow({ user, expanded, detail, detailLoading, onToggle }) {
               ? `via ${user.groups.map((g) => g.name).join(", ")}`
               : "no access group recorded"}
           </span>
+          <UsageTriple usage={usage} entityId={user.accountId} totalLabel="issues assigned or reported" compact />
         </span>
         <span className="people-row__meta">
           {owns && <Chip tone="neutral" title="Filters, dashboards and automation rules this user owns">owns {owns}</Chip>}
@@ -279,6 +280,7 @@ export function PeopleTab({ intent = null } = {}) {
   const [search, setSearch] = React.useState("");
   const [sort, setSort] = React.useState("name-asc");
   const [rosterFilter, setRosterFilter] = React.useState("all");
+  const usage = usePillarUsage("user");
   // Arrived from an Overview finding: land on the view it names, filtered to what it counted.
   // The admin app always passed this; the tab never read it, so every People finding opened
   // whichever view the reader had last left open.
@@ -625,6 +627,7 @@ export function PeopleTab({ intent = null } = {}) {
               <div className="people-list">
                 {roster.map((user) => (
                   <UserRow
+                    usage={usage}
                     key={user.accountId}
                     user={user}
                     expanded={openUser === user.accountId}
