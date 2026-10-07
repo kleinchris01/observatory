@@ -1835,7 +1835,7 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       prior: prior("role-admin-coverage"),
       detail: missing === 0
         ? `Every project with roles has a group or user in its administrator role.`
-        : `${missing} of ${withRoles} projects have an empty administrator role — only a site admin can administer them.`,
+        : `${missing} of ${withRoles} projects have nobody in any role that can administer them — only a site admin can.`,
       action: missing > 0 ? "Add a group to the project's administrator role; a project only a site admin can manage is a project nobody manages." : null,
     }));
     const off = Number(roles.offRosterActorCount) || 0;

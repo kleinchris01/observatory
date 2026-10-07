@@ -226,9 +226,40 @@ export function summarizeNotificationHealth(s) {
 // contextLabel (projectKey), holderType (user|group|empty), holderValue, holderLabel }.
 const ADMIN_ROLE = /admin/i;
 
-export function summarizeRoleInsights({ roles = [], holders = [], rosterAccountIds = new Set(), listLimit = 25 } = {}) {
+// Holder types that put a real party in the Administer Projects grant without going through a
+// project role: a project with one of these always has someone who can administer it.
+const DIRECT_ADMIN_HOLDERS = new Set(["user", "group", "projectLead", "applicationRole", "anyone"]);
+
+// Which roles can administer each project, from the permission scheme the project runs on.
+// Returns Map<projectId, { roleIds: Set, direct: boolean }> for every project a permission
+// scheme covers; projects absent from it (team-managed, or no access build) are not in the map.
+export function adminCapabilityByProject(permHolders = [], permProjects = []) {
+  const bySchema = new Map();
+  for (const h of permHolders) {
+    if (h.context !== ADMIN) continue;
+    const s = String(h.schemeId);
+    if (!bySchema.has(s)) bySchema.set(s, { roleIds: new Set(), direct: false });
+    const entry = bySchema.get(s);
+    if (h.holderType === "projectRole" && h.holderValue) entry.roleIds.add(String(h.holderValue));
+    else if (DIRECT_ADMIN_HOLDERS.has(h.holderType)) entry.direct = true;
+  }
+  const byProject = new Map();
+  for (const p of permProjects) {
+    byProject.set(String(p.projectId), bySchema.get(String(p.schemeId)) || { roleIds: new Set(), direct: false });
+  }
+  return byProject;
+}
+
+// `permHolders` / `permProjects` are the permission-scheme grants and scheme-to-project rows.
+// With them, a project lacks an administrator only when its scheme grants Administer Projects
+// to no one directly AND every role it grants it to is empty in that project -- a project with
+// people in "Administrators" is administered even if "Administrators-EXTERNAL" is empty.
+// Without them (or for a project no permission scheme covers) the role NAME stands in, with the
+// same any-role rule.
+export function summarizeRoleInsights({ roles = [], holders = [], rosterAccountIds = new Set(), listLimit = 25, permHolders = null, permProjects = null } = {}) {
   const roleName = new Map(roles.map((r) => [String(r.id), r.name || String(r.id)]));
   const adminRoleIds = new Set(roles.filter((r) => ADMIN_ROLE.test(r.name || "")).map((r) => String(r.id)));
+  const capability = permHolders && permProjects ? adminCapabilityByProject(permHolders, permProjects) : new Map();
 
   // Per (role, project): does it have a real actor, or only the "empty" sentinel?
   const filledByRoleProject = new Set();
@@ -256,23 +287,35 @@ export function summarizeRoleInsights({ roles = [], holders = [], rosterAccountI
     }
   }
 
-  // Projects whose admin-named role has no group or user actor -- only a site admin can
-  // administer them.
-  const projectsMissingAdminActor = new Set();
+  // Projects nobody but a site admin can administer: every role that could administer the
+  // project is empty there, and nothing grants it directly. Any ONE filled admin role is enough.
+  // With permission data, the scheme's grants decide -- including a scheme that grants
+  // Administer Projects to nobody, which is the same outcome. Without it, an admin-NAMED role
+  // stands in, and a project with no such role is left alone (not known, so not flagged).
+  const seenRolesByProject = new Map();
   for (const rp of seenRoleProject) {
     const [roleId, projectId] = rp.split("|");
-    if (adminRoleIds.has(roleId) && !filledByRoleProject.has(rp)) projectsMissingAdminActor.add(projectId);
+    if (!seenRolesByProject.has(projectId)) seenRolesByProject.set(projectId, new Set());
+    seenRolesByProject.get(projectId).add(roleId);
   }
-  // Label the worst offenders for the finding detail.
+  const projectKey = new Map(holders.map((h) => [String(h.context), h.contextLabel || h.context]));
   const missingAdminSamples = [];
-  const sampled = new Set();
-  for (const h of holders) {
-    if (missingAdminSamples.length >= listLimit) break;
-    if (adminRoleIds.has(h.schemeId) && h.holderType === "empty"
-      && !filledByRoleProject.has(`${h.schemeId}|${h.context}`) && !sampled.has(h.context)) {
-      // One entry per project: a project with two admin-named roles both empty is one fix.
-      sampled.add(h.context);
-      missingAdminSamples.push({ projectId: h.context, projectKey: h.contextLabel, role: roleName.get(h.schemeId) });
+  let missingAdminCount = 0;
+  for (const [projectId, seen] of seenRolesByProject) {
+    const cap = capability.get(String(projectId));
+    if (cap?.direct) continue;
+    const roleIds = cap ? [...cap.roleIds] : [...seen].filter((id) => adminRoleIds.has(id));
+    if (!cap && roleIds.length === 0) continue;
+    if (roleIds.some((roleId) => filledByRoleProject.has(`${roleId}|${projectId}`))) continue;
+    missingAdminCount += 1;
+    if (missingAdminSamples.length < listLimit) {
+      // One entry per project, naming every administering role (all empty there).
+      const names = roleIds.map((id) => roleName.get(id) || id).sort();
+      missingAdminSamples.push({
+        projectId, projectKey: projectKey.get(String(projectId)),
+        role: names.length ? names.join(", ") : "no role is granted Administer Projects",
+        roles: names,
+      });
     }
   }
 
@@ -280,7 +323,7 @@ export function summarizeRoleInsights({ roles = [], holders = [], rosterAccountI
     available: roles.length > 0,
     totalRoles: roles.length,
     projectsWithRoles: projectsWithRoles.size,
-    projectsMissingAdminActorCount: projectsMissingAdminActor.size,
+    projectsMissingAdminActorCount: missingAdminCount,
     offRosterActorCount: offRosterActors,
     directUserActorCount: userActorCount,
     projectsMissingAdminActor: missingAdminSamples,

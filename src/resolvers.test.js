@@ -11128,7 +11128,11 @@ describe("getRemediationCandidates -- access playbooks", () => {
       "project-role": [{ id: "10002", name: "Administrators" }, { id: "10003", name: "Developers" }],
     };
     const holders = {
-      permission: perm.map((sc) => ({ schemeId: sc.id, context: "BROWSE_PROJECTS", holderType: "anyone", holderValue: "" })),
+      permission: [
+        ...perm.map((sc) => ({ schemeId: sc.id, context: "BROWSE_PROJECTS", holderType: "anyone", holderValue: "" })),
+        // p0 (OPS's scheme) lets the Administrators role administer the project.
+        { schemeId: "p0", context: "ADMINISTER_PROJECTS", holderType: "projectRole", holderValue: "10002" },
+      ],
       security: [],
       notification: [{ schemeId: "n1", context: "1", holderType: "user", holderValue: "someone" }],
       "project-role": [
@@ -11183,6 +11187,7 @@ describe("getRemediationCandidates -- access playbooks", () => {
   test("role-empty-admin: one item per project", async () => {
     accessFixture();
     expect((await run("role-empty-admin")).items).toEqual([{ id: "1", projectKey: "OPS", role: "Administrators" }]);
+    // DEV is on no permission scheme in the fixture, has no admin-named role, so is not judged.
   });
 
   test("role-offroster-actors: grouped per project, not one per actor and not one for everything", async () => {

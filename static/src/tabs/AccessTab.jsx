@@ -167,7 +167,7 @@ function AccessFindings({ permissions, security, notifications, roles }) {
   if (r.projectsMissingAdminActorCount > 0) {
     rows.push({
       tone: "critical", count: r.projectsMissingAdminActorCount,
-      title: "Projects with an empty administrator role",
+      title: "Projects nobody can administer",
       detail: "No group or user is in the project's admin role — only a site admin can administer it. "
         + (r.projectsMissingAdminActor || []).slice(0, 6).map((x) => x.projectKey).join(", "),
     });
@@ -365,7 +365,7 @@ function AccessTabInner({ data, view, setView, search, setSearch, schemeSort, se
       )}
 
       {view === "roles" && (
-        <Panel title="Project roles" icon="user" description="Each project role and who is in it, per project. Permission and notification schemes grant to these roles — an empty administrator role means only a site admin can manage that project.">
+        <Panel title="Project roles" icon="user" description="Each project role and who is in it, per project. Permission and notification schemes grant to these roles — a project with nobody in any administering role can only be managed by a site admin.">
           <SortFilterBar
             search={search} onSearchChange={setSearch}
             searchLabel="Search project roles" searchPlaceholder="Search roles by name…"

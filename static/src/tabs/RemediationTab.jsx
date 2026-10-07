@@ -1,6 +1,6 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
-import { buildIssueUrl, handleJiraLinkClick, formatRelativeTime } from "../utils";
+import { buildIssueUrl, buildJiraSearchUrl, handleJiraLinkClick, formatRelativeTime } from "../utils";
 import { Icon } from "../components/Icons";
 import { PageHeader, Panel, StatRow, StatTile, EmptyState, RemediationStatus, SortFilterBar, Chip } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
@@ -69,6 +69,17 @@ function TaskRow({ task, siteOrigin }) {
 // One finding: the epic (if raised), its tasks, and the create/update action. The epic sits
 // visually above its tasks -- the same "epic on top, one task per item below" shape asked for,
 // because that is also just how Jira itself nests them.
+// Open tasks, from any quarter, for items the finding no longer flags: fixed since, or never
+// should have been (as when the roles rule was corrected on 7 Oct 2026 and dozens of
+// "add an administrator" tasks turned out to be for projects that had one). Someone acting
+// on one of these is acting on stale advice, so the card says so.
+export function openTasksNoLongerFlagged(group, items = []) {
+  if (!group) return [];
+  const flagged = new Set(items.map((it) => String(it.id ?? it.name)));
+  const all = [...(group.tasks || []), ...(group.previousPeriods || []).flatMap((p) => p.tasks || [])];
+  return all.filter((t) => t.lastStatusCategory !== "done" && t.itemId != null && t.itemId !== "" && !flagged.has(String(t.itemId)));
+}
+
 // Every quarter's task counts on a finding. Older servers sent only the latest quarter's.
 export function allTaskCountOf(group) {
   return group?.allTaskCount ?? (group?.taskCount || 0);
@@ -172,6 +183,13 @@ function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, pro
   const untracked = ticketing?.untracked || [];
   const heldEarlier = ticketing?.heldEarlier || [];
   const earlierEpics = [...new Set(heldEarlier.map((it) => it.ticketed.epicKey).filter(Boolean))];
+  // Only once the finding's items were actually read: an unreadable finding must not make
+  // every task look stale.
+  const staleTasks = candidates && candidates.available !== false && Array.isArray(candidates.items)
+    ? openTasksNoLongerFlagged(group, candidates.items) : [];
+  const staleUrl = staleTasks.length
+    ? buildJiraSearchUrl(siteOrigin, `issuekey in (${staleTasks.map((t) => t.issueKey).join(", ")}) ORDER BY key`)
+    : null;
   const needsConfirm = untracked.length > CONFIRM_ABOVE;
 
   function create() {
@@ -194,6 +212,13 @@ function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, pro
     >
       {(
         <>
+          {staleTasks.length > 0 && (
+            <p className="remediation-stale" data-testid="stale-tasks">
+              <strong>{staleTasks.length} open task{staleTasks.length === 1 ? " is" : "s are"} for items this finding no longer flags</strong>
+              {" "}— fixed since, or the finding no longer applies. Check {staleTasks.length === 1 ? "it" : "them"} before anyone acts on stale advice.
+              {staleUrl && <>{" "}<a href={staleUrl} target="_blank" rel="noreferrer" onClick={(e) => handleJiraLinkClick(e, staleUrl)}>Open {staleTasks.length === 1 ? "it" : `all ${staleTasks.length}`} in Jira</a></>}
+            </p>
+          )}
           {allTasks > 0 && (
             <StatRow>
               <StatTile

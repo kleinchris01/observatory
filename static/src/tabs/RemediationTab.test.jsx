@@ -3,7 +3,7 @@ import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, within, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@forge/bridge";
-import { RemediationTab, SYNC_POLL_MS } from "./RemediationTab";
+import { RemediationTab, SYNC_POLL_MS, openTasksNoLongerFlagged } from "./RemediationTab";
 
 vi.mock("@forge/bridge", () => ({
   invoke: vi.fn(),
@@ -854,5 +854,47 @@ describe("RemediationTab — earlier quarters", () => {
     await renderIt();
     const state = screen.getByRole("combobox", { name: /State/ });
     expect(within(state).getByRole("option", { name: "Has open tasks (2)" })).toBeInTheDocument();
+  });
+});
+
+// After the roles rule was corrected (7 Oct 2026), dozens of open "add an administrator" tasks
+// were for projects that already had one. The card says how many open tasks the finding no
+// longer stands behind, and links them in Jira, so nobody acts on stale advice.
+describe("RemediationTab — open tasks the finding no longer flags", () => {
+  const T = (issueKey, itemId, done = false) => ({ issueKey, itemId, summary: issueKey, lastStatusCategory: done ? "done" : "new" });
+  const group = {
+    findingKey: "filter-ownership", pillar: "filters", epic: { issueKey: "OPS-1" },
+    tasks: [T("OPS-2", "p1"), T("OPS-3", "p2"), T("OPS-4", "p3", true)],
+    taskCount: 3, openCount: 2, allTaskCount: 4, allOpenCount: 3,
+    previousPeriods: [{ period: "2026-Q2", epicKey: "OPS-0", taskCount: 1, openCount: 1, tasks: [T("OPS-9", "p9")] }],
+  };
+
+  test("openTasksNoLongerFlagged: open tasks from any quarter whose item is gone; done tasks never", () => {
+    expect(openTasksNoLongerFlagged(group, [{ id: "p1" }]).map((t) => t.issueKey)).toEqual(["OPS-3", "OPS-9"]);
+    expect(openTasksNoLongerFlagged(group, [{ id: "p1" }, { id: "p2" }, { id: "p9" }])).toEqual([]);
+    expect(openTasksNoLongerFlagged(null, [])).toEqual([]);
+  });
+
+  test("the card names them and links exactly those issues in Jira", async () => {
+    mockInvoke({
+      getRemediationTickets: { available: true, total: 5, groups: [group] },
+      getRemediationCandidates: (payload) => (payload.findingKey === "filter-ownership"
+        ? { available: true, items: [{ id: "p1" }] } : { available: true, items: [] }),
+    });
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    const note = await screen.findByTestId("stale-tasks");
+    expect(note).toHaveTextContent("2 open tasks are for items this finding no longer flags");
+    const link = within(note).getByRole("link", { name: "Open all 2 in Jira" });
+    expect(decodeURIComponent(link.getAttribute("href"))).toContain("issuekey in (OPS-3, OPS-9)");
+  });
+
+  test("an unreadable finding never makes its tasks look stale", async () => {
+    mockInvoke({
+      getRemediationTickets: { available: true, total: 5, groups: [group] },
+      getRemediationCandidates: { available: false, reason: "no-snapshot", items: [] },
+    });
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    await screen.findByText(/Checked every finding/, {}, { timeout: 10000 });
+    expect(screen.queryByTestId("stale-tasks")).not.toBeInTheDocument();
   });
 });

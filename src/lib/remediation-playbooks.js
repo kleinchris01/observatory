@@ -748,26 +748,26 @@ Object.assign(REMEDIATION_PLAYBOOKS, {
 
   "role-empty-admin": definePlaybook({
     pillar: "roles",
-    label: "Projects with an empty administrator role",
+    label: "Projects nobody can administer",
     findings: ["role-empty-admin"],
     epic: {
       summary: (n) => `Give ${n} ${plural(n, "project")} a project administrator`,
-      why: (n) => `${n} ${plural(n, "project has", "projects have")} no user or group in the administrator role, so only a site admin can change the project's settings, components, versions or people. Every small change becomes a request to the Jira admins.`,
+      why: (n) => `${n} ${plural(n, "project has", "projects have")} no user or group in any role that can administer the project, and no direct Administer Projects grant, so only a site admin can change the project's settings, components, versions or people. Every small change becomes a request to the Jira admins. A project with someone in any one administering role (for example Administrators or Administrators-EXTERNAL) is not counted.`,
       strategy: `For each project, add the project lead (or a group owned by the team) to the administrator role.`,
-      done: `Every child task is closed and the next scan reports no project with an empty administrator role.`,
+      done: `Every child task is closed and the next scan reports no project without an administrator.`,
     },
     task: {
       heading: "The project",
       summary: (it) => `Add a project administrator to ${it.projectKey || it.id || "(unknown)"}`,
       facts: (it) => [
         ["Project", it.projectName ? `${it.projectName} (${it.projectKey})` : it.projectKey],
-        ["Role", it.role],
+        [it.roles?.length > 1 ? "Administering roles (all empty)" : "Administering role (empty)", it.role],
       ],
       steps: () => [
         "Open the project's People / roles settings (link below).",
-        "Add the project lead, or a group the team owns, to the administrator role.",
+        "Add the project lead, or a group the team owns, to any one of the roles above. One filled role is enough.",
       ],
-      done: "The administrator role has at least one user or group, and the next Observatory scan no longer flags the project.",
+      done: "At least one role that can administer the project has a user or group, and the next Observatory scan no longer flags the project.",
     },
     links: (it, o) => [
       [`${it.projectKey} roles`, L.projectRoles(o, it.projectKey)],

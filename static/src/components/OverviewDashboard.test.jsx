@@ -340,7 +340,7 @@ describe("OverviewDashboard — automation and screen findings", () => {
     const onNavigate = vi.fn();
     renderAll({ access: access(), onNavigate });
 
-    expect(screen.getByText("Projects with an empty administrator role")).toBeInTheDocument();
+    expect(screen.getByText("Projects nobody can administer")).toBeInTheDocument();
     expect(screen.getByText("Project-role actors off the licensed roster")).toBeInTheDocument();
 
     await userEvent.click(screen.getAllByRole("button", { name: /^Access$/ })[0]);
@@ -349,7 +349,7 @@ describe("OverviewDashboard — automation and screen findings", () => {
 
   test("omits the role findings when access.roles is unavailable", () => {
     renderAll({ access: { ...access(), roles: { available: false } } });
-    expect(screen.queryByText("Projects with an empty administrator role")).not.toBeInTheDocument();
+    expect(screen.queryByText("Projects nobody can administer")).not.toBeInTheDocument();
   });
 
   test("surfaces the priorities & resolutions findings and routes them to the Priorities tab", async () => {

@@ -2516,7 +2516,7 @@ async function getAccessInventory({ context }, { listLimit = 25 } = {}) {
         return roleSchemes.map((s) => ({ ...s, projectCount: withActor.get(s.id)?.size || 0 }));
       })(),
       holders: roleHolders,
-      governance: summarizeRoleInsights({ roles: roleSchemes, holders: roleHolders, rosterAccountIds, listLimit }),
+      governance: summarizeRoleInsights({ roles: roleSchemes, holders: roleHolders, rosterAccountIds, listLimit, permHolders, permProjects }),
     },
   };
 }
