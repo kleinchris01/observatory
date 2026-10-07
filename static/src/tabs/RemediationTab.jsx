@@ -2,7 +2,7 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { buildIssueUrl, handleJiraLinkClick, formatRelativeTime } from "../utils";
 import { Icon } from "../components/Icons";
-import { PageHeader, Panel, StatRow, StatTile, EmptyState, RemediationStatus, SortFilterBar } from "../components/ui";
+import { PageHeader, Panel, StatRow, StatTile, EmptyState, RemediationStatus, SortFilterBar, Chip } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useNavIntent, usePersistentState } from "../hooks";
 import { RemediationProgress } from "./RemediationProgress";
@@ -69,7 +69,22 @@ function TaskRow({ task, siteOrigin }) {
 // One finding: the epic (if raised), its tasks, and the create/update action. The epic sits
 // visually above its tasks -- the same "epic on top, one task per item below" shape asked for,
 // because that is also just how Jira itself nests them.
-function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, progress, error, focused = false, taskQuery = "" }) {
+// The chip on each finding's header: how many of its flagged items still need a task, readable
+// with the card folded away. This is what lets an admin see which findings to generate tickets
+// for without opening each one.
+function TicketChip({ ticketing, checking }) {
+  if (!ticketing) return checking ? <Chip>checking…</Chip> : null;
+  const { bucket, untracked, heldEarlier, flagged } = ticketing;
+  if (bucket === "to-ticket") {
+    const held = heldEarlier.length ? `; ${heldEarlier.length} more still open under an earlier quarter's epic` : "";
+    return <Chip tone="warning" title={`${untracked.length} of ${flagged} flagged items have no task yet${held}.`}>{untracked.length} to ticket</Chip>;
+  }
+  if (bucket === "ticketed") return <Chip tone="success" title={`Every one of the ${flagged} flagged items has a task.`}>all ticketed</Chip>;
+  if (bucket === "clean") return <Chip title="Nothing is flagged for this finding right now.">nothing flagged</Chip>;
+  return <Chip title="This finding's items could not be read. Open it for the reason.">no data</Chip>;
+}
+
+function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, progress, error, focused = false, taskQuery = "", candidates, ticketing, checking, onLoadCandidates }) {
   const [expanded, setExpanded] = React.useState(focused);
   const [confirming, setConfirming] = React.useState(false);
   const cardRef = React.useRef(null);
@@ -80,8 +95,6 @@ function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, pro
     setExpanded(true);
     try { cardRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }); } catch { /* jsdom */ }
   }, [focused]);
-  const [candidates, setCandidates] = React.useState(null);
-  const [loadingCandidates, setLoadingCandidates] = React.useState(false);
 
   const epic = group?.epic || null;
   const tasks = group?.tasks || [];
@@ -90,30 +103,16 @@ function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, pro
   const shownTasks = taskQuery ? tasks.filter((t) => taskMatches(t, taskQuery)) : tasks;
   const openCount = group?.openCount ?? 0;
 
-  async function loadCandidates() {
-    if (candidates || loadingCandidates) return;
-    setLoadingCandidates(true);
-    try {
-      const result = await invoke("getRemediationCandidates", { findingKey: entry.key });
-      setCandidates(result);
-    } finally {
-      setLoadingCandidates(false);
-    }
-  }
-
+  // The tab checks every finding in the background; opening one before its turn asks now.
+  const loadingCandidates = !candidates;
   React.useEffect(() => {
-    if (expanded) loadCandidates();
+    if (expanded && !candidates && !checking) onLoadCandidates(entry.key);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expanded]);
 
-  // What is already ticketed comes from the server: each candidate carries `ticketed` when an
-  // open task holds it, by the same rule the create call skips by -- including tasks still open
-  // under an earlier quarter's epic, which this card cannot see (group.tasks is the latest
-  // quarter only). The local set covers tasks created since the candidates were loaded.
   const isCurrent = Boolean(group?.isCurrent);
-  const alreadyTicketed = new Set(tasks.filter((t) => isCurrent || t.lastStatusCategory !== "done").map((t) => t.itemId));
-  const untracked = (candidates?.items || []).filter((it) => !it.ticketed && !alreadyTicketed.has(it.id));
-  const heldEarlier = (candidates?.items || []).filter((it) => it.ticketed && it.ticketed.period !== period && !alreadyTicketed.has(it.id));
+  const untracked = ticketing?.untracked || [];
+  const heldEarlier = ticketing?.heldEarlier || [];
   const earlierEpics = [...new Set(heldEarlier.map((it) => it.ticketed.epicKey).filter(Boolean))];
   const needsConfirm = untracked.length > CONFIRM_ABOVE;
 
@@ -129,6 +128,7 @@ function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, pro
       title={entry.label}
       icon="checkCircle"
       description={<RemediationStatus group={group} period={period} siteOrigin={siteOrigin} compact />}
+      action={<TicketChip ticketing={ticketing} checking={checking} />}
       // Every finding is independently collapsible -- the epic chip above stays visible in
       // the collapsed header, so a tracked finding is never mistaken for an untouched one
       // just because it is folded away.
@@ -183,7 +183,9 @@ function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, pro
                   ? "No snapshot yet for this pillar — build one before remediating it."
                   : candidates.reason === "transitions-unknown"
                     ? "The last workflow build could not read transitions, so a screen a transition opens would look unreached. Rebuild the workflow inventory before remediating this."
-                    : "No data available for this finding right now."}
+                    : candidates.reason === "error"
+                      ? `Could not read this finding's items: ${candidates.error || "unknown error"}. Open it again to retry.`
+                      : "No data available for this finding right now."}
               </EmptyState>
             ) : (candidates?.items?.length ?? 0) === 0 ? (
               <EmptyState inline>Nothing currently flagged for this finding. Clean.</EmptyState>
@@ -285,8 +287,35 @@ const STATE_OPTIONS = [
   ["all", "All"], ["open", "Has open tasks"], ["closed", "All tasks closed"], ["untracked", "Not started"],
 ];
 
+// Which of a finding's flagged items still need a task. What is already ticketed comes from the
+// server: each candidate carries `ticketed` when an open task holds it, by the same rule the
+// create call skips by -- including tasks still open under an earlier quarter's epic, which the
+// group cannot show (group.tasks is the latest quarter only). The local set covers tasks
+// created since the candidates were read. Null until the finding has been checked.
+export function ticketingState(candidates, group, period) {
+  if (!candidates) return null;
+  if (candidates.available === false) return { bucket: "unavailable", flagged: 0, untracked: [], heldEarlier: [] };
+  const tasks = group?.tasks || [];
+  const isCurrent = Boolean(group?.isCurrent);
+  const alreadyTicketed = new Set(tasks.filter((t) => isCurrent || t.lastStatusCategory !== "done").map((t) => t.itemId));
+  const items = candidates.items || [];
+  const untracked = items.filter((it) => !it.ticketed && !alreadyTicketed.has(it.id));
+  const heldEarlier = items.filter((it) => it.ticketed && it.ticketed.period !== period && !alreadyTicketed.has(it.id));
+  const bucket = !items.length ? "clean" : untracked.length ? "to-ticket" : "ticketed";
+  return { bucket, flagged: items.length, untracked, heldEarlier };
+}
+
+const TICKET_OPTIONS = [
+  ["all", "All"], ["to-ticket", "Needs tickets"], ["ticketed", "All ticketed"], ["clean", "Nothing flagged"], ["unavailable", "No data"],
+];
+
+// Findings checked at once. Each check is its own resolver call with its own time limit, so
+// the tab fans out rather than asking one call to read every pillar's snapshot.
+export const CHECK_CONCURRENCY = 4;
+
 const SORT_OPTIONS = [
   { value: "pillar", label: "Pillar" },
+  { value: "to-ticket", label: "Most to ticket" },
   { value: "open", label: "Most open tasks" },
   { value: "name", label: "Name (A–Z)" },
 ];
@@ -308,7 +337,14 @@ export function RemediationTab({ siteOrigin, intent = null }) {
   const [search, setSearch] = React.useState("");
   const [pillarFilter, setPillarFilter] = React.useState("all");
   const [stateFilter, setStateFilter] = React.useState("all");
+  const [ticketFilter, setTicketFilter] = React.useState("all");
   const [sort, setSort] = React.useState("pillar");
+  // Every finding's current items, keyed by finding: read in the background when Findings
+  // opens so each header can say how much is left to ticket. `checkingKeys` is what is in
+  // flight; `checkRun` is the progress of the whole sweep.
+  const [candidatesByKey, setCandidatesByKey] = React.useState({});
+  const [checkingKeys, setCheckingKeys] = React.useState(() => new Set());
+  const [checkRun, setCheckRun] = React.useState(null); // { done, total, finishedAt }
   const [tickets, setTickets] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [creatingKey, setCreatingKey] = React.useState(null);
@@ -331,6 +367,47 @@ export function RemediationTab({ siteOrigin, intent = null }) {
   }, []);
 
   React.useEffect(() => { fetchTickets(); }, [fetchTickets]);
+
+  // One finding's current items. A failed read is stored as unavailable with the reason, so
+  // the card says what went wrong instead of spinning.
+  const loadCandidates = React.useCallback(async (findingKey) => {
+    setCheckingKeys((s) => new Set(s).add(findingKey));
+    let result;
+    try {
+      result = await invoke("getRemediationCandidates", { findingKey });
+    } catch (err) {
+      result = { available: false, reason: "error", error: err?.message || null, items: [] };
+    }
+    setCandidatesByKey((m) => ({ ...m, [findingKey]: result || { available: false, items: [] } }));
+    setCheckingKeys((s) => { const next = new Set(s); next.delete(findingKey); return next; });
+    return result;
+  }, []);
+
+  // Check every finding, a few at a time.
+  const checkAll = React.useCallback(async (keys) => {
+    let done = 0;
+    setCheckRun({ done: 0, total: keys.length, finishedAt: null });
+    const queue = [...keys];
+    const worker = async () => {
+      while (queue.length) {
+        const key = queue.shift();
+        // eslint-disable-next-line no-await-in-loop -- bounded fan-out, one call per worker at a time
+        await loadCandidates(key);
+        done += 1;
+        setCheckRun((r) => (r ? { ...r, done } : r));
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(CHECK_CONCURRENCY, keys.length) }, worker));
+    setCheckRun({ done: keys.length, total: keys.length, finishedAt: new Date().toISOString() });
+  }, [loadCandidates]);
+
+  const catalogKeys = React.useMemo(() => (tickets?.catalog || []).map((e) => e.key), [tickets?.catalog]);
+  const sweptRef = React.useRef(false);
+  React.useEffect(() => {
+    if (view !== "findings" || sweptRef.current || !catalogKeys.length) return;
+    sweptRef.current = true;
+    checkAll(catalogKeys);
+  }, [view, catalogKeys, checkAll]);
 
   async function syncNow() {
     setSyncError(null);
@@ -422,6 +499,8 @@ export function RemediationTab({ siteOrigin, intent = null }) {
     } finally {
       setCreatingKey(null);
       setProgress((p) => ({ ...p, [findingKey]: null }));
+      // Re-read the finding so its "to ticket" count reflects what was just created.
+      loadCandidates(findingKey);
     }
   }
 
@@ -438,11 +517,23 @@ export function RemediationTab({ siteOrigin, intent = null }) {
 
   // Each filter's option counts are what that choice would show given the other filters, so
   // "(0)" is never a surprise after picking it.
-  const passes = React.useCallback((entry, { skipPillar = false, skipState = false } = {}) => {
+  // Each finding's "to ticket" state, once its items have been read.
+  const ticketingByKey = React.useMemo(() => {
+    const map = new Map();
+    for (const entry of catalog) {
+      map.set(entry.key, ticketingState(candidatesByKey[entry.key], groupsByFinding.get(entry.key), tickets?.period || null));
+    }
+    return map;
+  }, [catalog, candidatesByKey, groupsByFinding, tickets?.period]);
+  const ticketBucketOf = React.useCallback((entry) => ticketingByKey.get(entry.key)?.bucket ?? null, [ticketingByKey]);
+  const toTicketOf = React.useCallback((entry) => ticketingByKey.get(entry.key)?.untracked.length || 0, [ticketingByKey]);
+
+  const passes = React.useCallback((entry, { skipPillar = false, skipState = false, skipTicket = false } = {}) => {
     if (!skipPillar && pillarFilter !== "all" && (PILLAR_LABEL[entry.pillar] || entry.pillar) !== pillarFilter) return false;
     if (!skipState && stateFilter !== "all" && findingState(groupsByFinding.get(entry.key)) !== stateFilter) return false;
+    if (!skipTicket && ticketFilter !== "all" && ticketBucketOf(entry) !== ticketFilter) return false;
     return Boolean(matchOf(entry));
-  }, [pillarFilter, stateFilter, groupsByFinding, matchOf]);
+  }, [pillarFilter, stateFilter, ticketFilter, groupsByFinding, matchOf, ticketBucketOf]);
 
   const visible = React.useMemo(() => catalog.filter((entry) => passes(entry)), [catalog, passes]);
 
@@ -467,6 +558,16 @@ export function RemediationTab({ siteOrigin, intent = null }) {
     }));
   }, [catalog, passes, groupsByFinding]);
 
+  // Counts per bucket among the findings checked so far; a finding not yet checked is in none.
+  const ticketOptions = React.useMemo(() => {
+    const pool = catalog.filter((e) => passes(e, { skipTicket: true }));
+    return TICKET_OPTIONS.map(([value, label]) => ({
+      value,
+      label,
+      count: value === "all" ? undefined : pool.filter((e) => ticketBucketOf(e) === value).length,
+    }));
+  }, [catalog, passes, ticketBucketOf]);
+
   // The visible findings, grouped under the pillar each playbook is filed under, in nav order.
   // Any other sort drops the grouping: a "most open" list split by pillar would not be
   // most-open-first.
@@ -475,7 +576,9 @@ export function RemediationTab({ siteOrigin, intent = null }) {
       const openOf = (e) => groupsByFinding.get(e.key)?.openCount || 0;
       const sorted = [...visible].sort(sort === "open"
         ? (a, b) => openOf(b) - openOf(a) || a.label.localeCompare(b.label)
-        : (a, b) => a.label.localeCompare(b.label));
+        : sort === "to-ticket"
+          ? (a, b) => toTicketOf(b) - toTicketOf(a) || a.label.localeCompare(b.label)
+          : (a, b) => a.label.localeCompare(b.label));
       return sorted.length ? [[null, sorted]] : [];
     }
     const byLabel = new Map();
@@ -486,13 +589,18 @@ export function RemediationTab({ siteOrigin, intent = null }) {
       byLabel.get(label).push(entry);
     }
     return [...byLabel.entries()];
-  }, [visible, sort, groupsByFinding]);
+  }, [visible, sort, groupsByFinding, toTicketOf]);
 
   function clearFilters() {
     setSearch("");
     setPillarFilter("all");
     setStateFilter("all");
+    setTicketFilter("all");
   }
+
+  const needTickets = catalog.filter((e) => ticketBucketOf(e) === "to-ticket");
+  const itemsToTicket = needTickets.reduce((sum, e) => sum + toTicketOf(e), 0);
+  const sweeping = checkRun && !checkRun.finishedAt;
 
   const totalOpen = (tickets?.groups || []).reduce((sum, g) => sum + (g.openCount || 0), 0);
   const totalClosed = (tickets?.groups || []).reduce((sum, g) => sum + ((g.taskCount || 0) - (g.openCount || 0)), 0);
@@ -534,7 +642,36 @@ export function RemediationTab({ siteOrigin, intent = null }) {
               <StatTile label="Findings tracked" value={(tickets?.groups || []).length} icon="layers" />
               <StatTile label="Open tasks" value={totalOpen} tone={totalOpen > 0 ? "active" : "success"} icon="clock" />
               <StatTile label="Closed tasks" value={totalClosed} tone="success" icon="checkCircle" />
+              <StatTile
+                label="Need tickets"
+                value={needTickets.length}
+                tone={needTickets.length > 0 ? "warning" : "neutral"}
+                icon="wrench"
+                hint={sweeping
+                  ? `checking ${checkRun.done} of ${checkRun.total} findings…`
+                  : `${itemsToTicket} item${itemsToTicket === 1 ? "" : "s"} with no task yet`}
+              />
             </StatRow>
+            <p className="remediation-history" aria-live="polite">
+              {sweeping
+                ? `Checking which findings still need tickets: ${checkRun.done} of ${checkRun.total}.`
+                : checkRun?.finishedAt
+                  ? `Checked every finding ${formatRelativeTime(checkRun.finishedAt)}.`
+                  : null}
+              {!sweeping && checkRun?.finishedAt && (
+                <>
+                  {" "}
+                  {needTickets.length > 0 && ticketFilter !== "to-ticket" && (
+                    <button type="button" className="secondary-button secondary-button--small" onClick={() => { setTicketFilter("to-ticket"); setSort("to-ticket"); }}>
+                      Show the {needTickets.length} that need tickets
+                    </button>
+                  )}{" "}
+                  <button type="button" className="secondary-button secondary-button--small" onClick={() => checkAll(catalogKeys)}>
+                    Recheck
+                  </button>
+                </>
+              )}
+            </p>
 
             <SortFilterBar
               search={search}
@@ -547,6 +684,7 @@ export function RemediationTab({ siteOrigin, intent = null }) {
               filters={[
                 { key: "pillar", label: "Pillar", value: pillarFilter, onChange: setPillarFilter, options: pillarOptions },
                 { key: "state", label: "State", value: stateFilter, onChange: setStateFilter, options: stateOptions },
+                { key: "tickets", label: "Tickets", value: ticketFilter, onChange: setTicketFilter, options: ticketOptions },
               ]}
               resultCount={visible.length}
               totalCount={catalog.length}
@@ -573,6 +711,10 @@ export function RemediationTab({ siteOrigin, intent = null }) {
                     error={errors[entry.key]}
                     focused={focusKey === entry.key}
                     taskQuery={matchOf(entry)?.taskQuery || ""}
+                    candidates={candidatesByKey[entry.key] || null}
+                    ticketing={ticketingByKey.get(entry.key) || null}
+                    checking={checkingKeys.has(entry.key)}
+                    onLoadCandidates={loadCandidates}
                   />
                 ))}
               </section>

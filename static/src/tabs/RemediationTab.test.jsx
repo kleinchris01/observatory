@@ -669,3 +669,101 @@ describe("RemediationTab — Sync now", () => {
     expect(screen.getByRole("button", { name: "Sync now" })).toBeEnabled();
   });
 });
+
+// Which findings still need tickets, visible without opening each one: the tab reads every
+// finding's items in the background, and each header, the filter, the sort and a tile say it.
+describe("RemediationTab — which findings need tickets", () => {
+  const CANDIDATES = {
+    "filter-ownership": { available: true, items: [{ id: "1" }, { id: "2" }, { id: "3" }] },
+    "dashboard-ownership": { available: true, items: [{ id: "9", ticketed: { issueKey: "OPS-9", epicKey: "OPS-1", period: "2026-Q3" } }] },
+    "field-cleanup": { available: true, items: [{ id: "a" }] },
+    "board-backing": { available: false, reason: "no-snapshot", items: [] },
+  };
+  const candidatesFor = (payload) => CANDIDATES[payload.findingKey] || { available: true, items: [] };
+
+  function panelFor(title) {
+    return screen.getByRole("button", { name: new RegExp(`^${title}`, "i") }).closest(".ui-panel");
+  }
+
+  test("checks every finding in the background and shows each one's count on its header", async () => {
+    const getRemediationCandidates = vi.fn(candidatesFor);
+    mockInvoke({ getRemediationTickets: { available: false, total: 0, groups: [] }, getRemediationCandidates });
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+
+    await waitFor(() => expect(getRemediationCandidates).toHaveBeenCalledTimes(CATALOG.length));
+    expect(await within(panelFor("Filter ownership")).findByText("3 to ticket")).toBeInTheDocument();
+    expect(within(panelFor("Fields with no populated issues")).getByText("1 to ticket")).toBeInTheDocument();
+    expect(within(panelFor("Dashboard ownership")).getByText("all ticketed")).toBeInTheDocument();
+    expect(within(panelFor("Board backing filters")).getByText("no data")).toBeInTheDocument();
+    expect(within(panelFor("Duplicate filters")).getByText("nothing flagged")).toBeInTheDocument();
+
+    // The tile: two findings, four items.
+    expect(await screen.findByText("4 items with no task yet")).toBeInTheDocument();
+  });
+
+  test("never asks for more than a few findings at once", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    invoke.mockImplementation(async (fn, payload) => {
+      if (fn === "getRemediationTickets") return withDefaults({ available: false, total: 0, groups: [] });
+      if (fn !== "getRemediationCandidates") return {};
+      inFlight += 1; peak = Math.max(peak, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight -= 1;
+      return candidatesFor(payload);
+    });
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    expect(await screen.findByText(/Checked every finding/, {}, { timeout: 10000 })).toBeInTheDocument();
+    expect(peak).toBeLessThanOrEqual(4);
+  });
+
+  test("the Needs tickets shortcut filters to them and sorts the most first", async () => {
+    mockInvoke({ getRemediationTickets: { available: false, total: 0, groups: [] }, getRemediationCandidates: candidatesFor });
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+
+    await user.click(await screen.findByRole("button", { name: "Show the 2 that need tickets" }));
+
+    const titles = screen.getAllByRole("button", { name: /Filter ownership|Fields with no populated issues|Dashboard ownership/ })
+      .map((b) => b.textContent);
+    expect(titles[0]).toMatch(/Filter ownership/);
+    expect(titles[1]).toMatch(/Fields with no populated issues/);
+    expect(screen.queryByText("Dashboard ownership")).not.toBeInTheDocument();
+    const tickets = screen.getByRole("combobox", { name: /Tickets/ });
+    expect(within(tickets).getByRole("option", { name: "Needs tickets (2)" })).toBeInTheDocument();
+    expect(within(tickets).getByRole("option", { name: "No data (1)" })).toBeInTheDocument();
+  });
+
+  test("after creating, the finding is re-read so its count drops", async () => {
+    let round = 0;
+    mockInvoke({
+      getRemediationTickets: { available: false, total: 0, groups: [] },
+      getRemediationCandidates: (payload) => (payload.findingKey === "field-cleanup" && round > 0
+        ? { available: true, items: [{ id: "a", ticketed: { issueKey: "OPS-20", epicKey: "OPS-19", period: "2026-Q3" } }] }
+        : candidatesFor(payload)),
+      createRemediationEpic: () => { round += 1; return { ok: true, epicKey: "OPS-19", tasksCreated: 1, itemsRemaining: 0, failures: [] }; },
+    });
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    const panel = await waitFor(() => panelFor("Fields with no populated issues"));
+    await within(panel).findByText("1 to ticket");
+
+    await user.click(within(panel).getByRole("button", { name: /Check current items/i }));
+    await user.click(await within(panel).findByRole("button", { name: /remediation epic \(1 task\)/i }));
+
+    expect(await within(panelFor("Fields with no populated issues")).findByText("all ticketed")).toBeInTheDocument();
+  });
+
+  test("a finding whose read fails says why when opened", async () => {
+    invoke.mockImplementation((fn, payload) => {
+      if (fn === "getRemediationTickets") return Promise.resolve(withDefaults({ available: false, total: 0, groups: [] }));
+      if (fn === "getRemediationCandidates" && payload.findingKey === "filter-ownership") return Promise.reject(new Error("Function timed out"));
+      if (fn === "getRemediationCandidates") return Promise.resolve({ available: true, items: [] });
+      return Promise.resolve({});
+    });
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    await checkItems(user);
+    expect(await screen.findByText(/Could not read this finding's items: Function timed out/)).toBeInTheDocument();
+  });
+});
