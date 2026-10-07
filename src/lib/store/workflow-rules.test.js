@@ -25,6 +25,7 @@ import {
   loadRefsForRules,
   loadRestrictingProperties,
   loadWorkflowsCatalog,
+  loadWorkflowStructure,
   loadTransitionsTouchingStatus,
   readWorkflowSnapshotMeta,
   writeWorkflowSnapshotMeta,
@@ -220,5 +221,23 @@ describe("loadTransitionsTouchingStatus", () => {
     expect(read.params).toEqual(["site", "v1", "1", '%"1"%']);
     expect(rows.map((r) => r.transitionName)).toEqual(["In", "Out"]);
     expect(rows[0]).toMatchObject({ ruleCount: 2, fromStatusIds: ["3"], toStatusId: "1" });
+  });
+});
+
+describe("loadWorkflowStructure", () => {
+  test("transitions and rules, both scoped, with sorted from-statuses and no summary text", async () => {
+    rowsFor = (st) => (st.includes("FROM snapshot_workflow_transitions")
+      ? [{ workflow_name: "WF", transition_id: 11, transition_name: "Start", transition_type: "DIRECTED", from_status_ids: "3,1", to_status_id: "5" }]
+      : [{ workflow_name: "WF", transition_id: 11, rule_seq: 0, rule_kind: "validator", rule_key: "FieldRequired" }]);
+    const out = await loadWorkflowStructure("site", "v1");
+    for (const e of issued) {
+      expect(e.statement).toContain("WHERE scope_key = ? AND version = ?");
+      expect(e.params).toEqual(["site", "v1"]);
+    }
+    expect(issued.some((e) => /summary/.test(e.statement))).toBe(false);
+    expect(out).toEqual({
+      transitions: [{ workflowName: "WF", transitionId: "11", name: "Start", type: "DIRECTED", from: ["1", "3"], to: "5" }],
+      rules: [{ workflowName: "WF", transitionId: "11", kind: "validator", key: "FieldRequired" }],
+    });
   });
 });

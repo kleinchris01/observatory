@@ -38,6 +38,7 @@ import {
   SCREEN_SORT_KEYS,
   readScreenSnapshotMeta,
   writeScreenSnapshotMeta,
+  loadScreenFieldLayout,
 } from "./screen.js";
 
 // Each prepare() gets its own stub so a statement stays paired with the params bound to
@@ -629,5 +630,22 @@ describe("loadScreensPage — filtering to a finding", () => {
     for (const key of ["empty", "unresolved", "unreached", "transition-only"]) {
       expect(SCREEN_FILTERS[key]?.label).toBeTruthy();
     }
+  });
+});
+
+describe("loadScreenFieldLayout", () => {
+  test("one scoped read, grouped per screen in tab and field order", async () => {
+    nextRows = [
+      { screen_id: "1", tab_id: "t1", field_id: "summary" },
+      { screen_id: "1", tab_id: "t2", field_id: "customfield_1" },
+      { screen_id: "2", tab_id: "t1", field_id: "description" },
+    ];
+    const layout = await loadScreenFieldLayout("inst", "v1");
+    const q = issued.find((e) => e.statement.includes("FROM snapshot_screen_fields"));
+    expect(q.statement).toContain("WHERE scope_key = ? AND version = ?");
+    expect(q.statement).toContain("ORDER BY screen_id ASC, tab_index ASC, field_index ASC");
+    expect(q.params).toEqual(["inst", "v1"]);
+    expect(layout.get("1")).toEqual(["t1:summary", "t2:customfield_1"]);
+    expect(layout.get("2")).toEqual(["t1:description"]);
   });
 });

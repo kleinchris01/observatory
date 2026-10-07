@@ -142,7 +142,10 @@ export function churnLevel(count) {
 
 // The pillars the drift engine digests. The rest have no change history, so their churn is
 // unmeasured -- not zero.
-export const CHURN_TRACKED_PILLARS = ["fields", "workflows", "issueTypes", "access", "priorities", "filters", "dashboards", "fieldConfigs"];
+export const CHURN_TRACKED_PILLARS = [
+  "fields", "workflows", "issueTypes", "access", "priorities", "filters", "dashboards", "fieldConfigs",
+  "screens", "boards", "projects", "people", "assets", "automation",
+];
 
 const ACCESS_TYPE_BY_LABEL = {
   "Permission scheme": "permission",
@@ -157,8 +160,16 @@ const ACCESS_TYPE_BY_LABEL = {
 export function changeEntityKey(change) {
   const type = String(change?.entityType || "");
   const id = String(change?.entityId ?? "");
-  const simple = { field: "fields", "workflow-scheme": "workflows", "issue-type": "issueTypes", filter: "filters", dashboard: "dashboards", "field-scheme": "fieldConfigs", "field-configuration": "fieldConfigs" };
+  const simple = {
+    field: "fields", "workflow-scheme": "workflows", "issue-type": "issueTypes", filter: "filters", dashboard: "dashboards",
+    "field-scheme": "fieldConfigs", "field-configuration": "fieldConfigs",
+    screen: "screens", board: "boards", user: "people", "asset-object-type": "assets", "automation-rule": "automation",
+  };
   if (simple[type]) return `${simple[type]}|${id}`;
+  // Projects are listed by key, and the change log names each one by its key.
+  if (type === "project") return change?.label ? `projects|${change.label}` : null;
+  // An attribute counts against its object type, as a grant counts against its scheme.
+  if (type === "asset-attribute") return `assets|${id.split(":")[0]}`;
   if (type === "priority" || type === "resolution") return `priorities|${type}|${id}`;
   if (type === "security-level") return `access|security|${id.split(":")[0]}`;
   const access = /^(permission|security|notification|project-role)-(scheme|grant)$/.exec(type);

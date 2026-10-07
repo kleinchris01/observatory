@@ -829,3 +829,44 @@ export async function loadTransitionsTouchingStatus(scopeKey, version, statusId)
     // excluded here, where the parsed list can be checked exactly.
     .filter((t) => t.toStatusId === id || t.fromStatusIds.map(String).includes(id));
 }
+
+// Each workflow's transitions and rules in two reads, for the change log. Rules are the
+// structured kind and key only (never the summary text, which is presentation): a validator
+// swapped for another is a change, a reworded summary is not.
+export async function loadWorkflowStructure(scopeKey, version) {
+  await ensureProjectStoreReady();
+  const [transitions, rules] = await Promise.all([
+    withSqlRetry(() =>
+      sql.prepare(`
+        SELECT workflow_name, transition_id, transition_name, transition_type, from_status_ids, to_status_id
+        FROM snapshot_workflow_transitions
+        WHERE scope_key = ? AND version = ?
+        ORDER BY workflow_name ASC, transition_id ASC
+      `).bindParams(scopeKey, version).execute()
+    ),
+    withSqlRetry(() =>
+      sql.prepare(`
+        SELECT workflow_name, transition_id, rule_seq, rule_kind, rule_key
+        FROM snapshot_workflow_rules
+        WHERE scope_key = ? AND version = ?
+        ORDER BY workflow_name ASC, transition_id ASC, rule_seq ASC
+      `).bindParams(scopeKey, version).execute()
+    ),
+  ]);
+  return {
+    transitions: (transitions.rows || []).map((r) => ({
+      workflowName: r.workflow_name,
+      transitionId: String(r.transition_id),
+      name: r.transition_name || null,
+      type: r.transition_type || null,
+      from: r.from_status_ids ? String(r.from_status_ids).split(",").filter(Boolean).sort() : [],
+      to: r.to_status_id || null,
+    })),
+    rules: (rules.rows || []).map((r) => ({
+      workflowName: r.workflow_name,
+      transitionId: String(r.transition_id),
+      kind: r.rule_kind,
+      key: r.rule_key || null,
+    })),
+  };
+}

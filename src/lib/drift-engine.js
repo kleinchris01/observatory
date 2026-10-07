@@ -45,6 +45,28 @@ import {
   loadFieldConfigSchemes,
   loadFieldConfigConfigs,
   loadFieldConfigSchemeProjects,
+  readScreenSnapshotMeta,
+  loadScreensPage,
+  loadScreenSchemes,
+  loadIssueTypeScreenSchemes,
+  loadItssMappings,
+  loadItssProjects,
+  loadScreenFieldLayout,
+  readBoardSnapshotMeta,
+  loadBoards,
+  loadBoardColumns,
+  readUserSnapshotMeta,
+  loadUsers,
+  readAssetSnapshotMeta,
+  loadAssetSchemas,
+  loadAssetObjectTypes,
+  loadAssetAttributes,
+  readAutomationPart,
+  loadWorkflowsCatalog,
+  loadWorkflowStructure,
+  loadProjectWorkflowSchemeMap,
+  loadIssueTypeSchemeProjects,
+  loadSchemeProjects,
 } from "./project-store.js";
 
 export const DRIFT_BUILD_STALE_MS = 16 * 60 * 1000;
@@ -276,6 +298,250 @@ async function collectFieldConfigs(installationKey, version) {
   ];
 }
 
+// ── The rest of the estate ───────────────────────────────────────────────────
+//
+// Each of these is its own drift pillar rather than more entities in an existing one, so a
+// site upgrading to this build seeds them silently instead of reporting every screen, board
+// and workflow as "added" on the first pass.
+
+// Workflows themselves, with their transitions and the rules on them. Rules are digested only
+// when the snapshot read them (workflowRules non-null), so a build that skipped rule capture
+// is not reported as every rule being removed.
+async function collectWorkflowDetail(installationKey, version) {
+  const [meta, workflows, structure] = await Promise.all([
+    readWorkflowSnapshotMeta(installationKey),
+    loadWorkflowsCatalog(installationKey, version),
+    loadWorkflowStructure(installationKey, version),
+  ]);
+  const rulesRead = meta?.workflowRules != null;
+  const transitionsBy = new Map();
+  for (const t of structure.transitions) {
+    if (!transitionsBy.has(t.workflowName)) transitionsBy.set(t.workflowName, []);
+    transitionsBy.get(t.workflowName).push(`${t.transitionId}:${t.name || ""}:${t.type || ""}:${t.from.join("+")}>${t.to || ""}`);
+  }
+  const rulesBy = new Map();
+  for (const r of structure.rules) {
+    if (!rulesBy.has(r.workflowName)) rulesBy.set(r.workflowName, []);
+    rulesBy.get(r.workflowName).push(`${r.transitionId}:${r.kind}:${r.key || ""}`);
+  }
+  return workflows.map((w) => ({
+    entityType: "workflow",
+    entityId: w.name,
+    label: w.name,
+    fields: {
+      scope: w.scopeType,
+      scopeProjectId: w.scopeProjectId,
+      transitions: transitionsBy.get(w.name) || [],
+      ...(rulesRead ? { rules: rulesBy.get(w.name) || [] } : {}),
+    },
+  }));
+}
+
+// Screens with their tab-and-field layout, screen schemes with what each operation opens, and
+// issue type screen schemes with their work-type mapping. A screen whose tabs could not be read
+// carries no layout, so a failed read is not a "change".
+async function collectScreens(installationKey, version) {
+  const screens = [];
+  for (let offset = 0; ; offset += 200) {
+    // eslint-disable-next-line no-await-in-loop -- paged read, each page needs the last
+    const page = await loadScreensPage(installationKey, version, { limit: 200, offset });
+    screens.push(...page.rows);
+    if (page.rows.length < 200 || screens.length >= page.total) break;
+  }
+  const [layout, schemes, itss, mappings] = await Promise.all([
+    loadScreenFieldLayout(installationKey, version),
+    loadScreenSchemes(installationKey, version),
+    loadIssueTypeScreenSchemes(installationKey, version),
+    loadItssMappings(installationKey, version),
+  ]);
+  const mappingBy = new Map();
+  for (const m of mappings) {
+    if (!mappingBy.has(m.itssId)) mappingBy.set(m.itssId, []);
+    mappingBy.get(m.itssId).push(`${m.isDefault ? "default" : m.issueTypeId}=${m.screenSchemeId || ""}`);
+  }
+  return [
+    ...screens.map((sc) => ({
+      entityType: "screen",
+      entityId: String(sc.screenId),
+      label: sc.name,
+      fields: {
+        name: sc.name,
+        description: sc.description,
+        ...(sc.tabsResolved === "resolved" ? { layout: layout.get(String(sc.screenId)) || [] } : {}),
+      },
+    })),
+    ...schemes.map((sc) => ({
+      entityType: "screen-scheme",
+      entityId: String(sc.schemeId),
+      label: sc.name,
+      fields: { name: sc.name, description: sc.description, screens: sc.screens || null },
+    })),
+    ...itss.map((it) => ({
+      entityType: "issue-type-screen-scheme",
+      entityId: String(it.itssId),
+      label: it.name,
+      fields: { name: it.name, description: it.description, mapping: (mappingBy.get(it.itssId) || []).sort() },
+    })),
+  ];
+}
+
+// Boards: what they show (filter, location, type) and how (columns and their statuses).
+// Columns are digested only for boards whose configuration could be read.
+async function collectBoards(installationKey, version) {
+  const [boards, columns] = await Promise.all([
+    loadBoards(installationKey, version),
+    loadBoardColumns(installationKey, version),
+  ]);
+  const columnsBy = new Map();
+  for (const c of columns) {
+    if (!columnsBy.has(c.boardId)) columnsBy.set(c.boardId, []);
+    columnsBy.get(c.boardId).push(`${c.name || ""}:${c.statusIds.join("+")}`);
+  }
+  return boards.map((b) => ({
+    entityType: "board",
+    entityId: String(b.boardId),
+    label: b.name,
+    fields: {
+      name: b.name,
+      type: b.type,
+      location: b.locationKey || b.locationId,
+      filterId: b.filterId,
+      subQuery: b.subQuery,
+      estimationField: b.estimationField,
+      rankingField: b.rankingField,
+      ...(b.configReadable ? { columns: columnsBy.get(b.boardId) || [] } : {}),
+    },
+  }));
+}
+
+// People: licence and access-group membership only -- never activity, which moves every day
+// and is personal data the change log has no business keeping.
+async function collectPeople(installationKey, version) {
+  const users = await loadUsers(installationKey, version);
+  return users.map((u) => ({
+    entityType: "user",
+    entityId: u.accountId,
+    label: u.displayName,
+    fields: {
+      active: u.active,
+      accountType: u.accountType,
+      products: u.applications.map((a) => a.key).sort(),
+      groups: u.groups.map((g) => g.id).sort(),
+    },
+  }));
+}
+
+// Assets structure: schemas, object types and attributes. Never objects, which are data.
+async function collectAssets(installationKey, version) {
+  const [schemas, types, attributes] = await Promise.all([
+    loadAssetSchemas(installationKey, version),
+    loadAssetObjectTypes(installationKey, version),
+    loadAssetAttributes(installationKey, version),
+  ]);
+  return [
+    ...schemas.map((sc) => ({
+      entityType: "asset-schema",
+      entityId: String(sc.id),
+      label: sc.name,
+      fields: { name: sc.name, key: sc.schemaKey, description: sc.description },
+    })),
+    ...types.map((t) => ({
+      entityType: "asset-object-type",
+      entityId: String(t.id),
+      label: t.name,
+      fields: { name: t.name, description: t.description, schemaId: t.schemaId, parentId: t.parentId, abstract: t.abstract },
+    })),
+    ...attributes.map((a) => ({
+      entityType: "asset-attribute",
+      entityId: `${a.objectTypeId || a.schemaId}:${a.id}`,
+      label: a.name,
+      fields: { name: a.name, dataType: a.dataType, references: a.referenceObjectTypeId },
+    })),
+  ];
+}
+
+// Automation, from the imported rule export. It only moves when a new export is imported, so
+// a change here is dated to the import, not to when the rule was edited in Jira.
+async function readAutomationMeta(installationKey) {
+  const analysis = await readAutomationPart(installationKey, "analysis");
+  return analysis?.refreshedAt ? { version: String(analysis.refreshedAt) } : null;
+}
+
+async function collectAutomation(installationKey) {
+  const directory = await readAutomationPart(installationKey, "directory");
+  if (!Array.isArray(directory?.rules)) return null;
+  return directory.rules.map(([id, name, enabled, trigger, projectCount, author]) => ({
+    entityType: "automation-rule",
+    entityId: String(id),
+    label: name,
+    fields: { name, enabled: Boolean(enabled), trigger: trigger || null, projectCount: projectCount ?? null, author: author || null },
+  }));
+}
+
+// Projects, as the schemes each one runs on: workflow, issue type, screen, permission,
+// notification and issue security (field schemes are tracked by their own pillar). A project
+// moved to another scheme changes how it behaves as surely as editing the scheme does. Only
+// sources whose inventory exists contribute, so an unbuilt pillar is not reported as a change.
+const PROJECT_SOURCE_METAS = [readWorkflowSnapshotMeta, readIssueTypeSnapshotMeta, readScreenSnapshotMeta, readAccessSnapshotMeta];
+
+async function readProjectSourcesMeta(installationKey) {
+  const metas = await Promise.all(PROJECT_SOURCE_METAS.map((read) => read(installationKey).catch(() => null)));
+  return metas.some((m) => m?.version) ? { version: "composite" } : null;
+}
+
+async function collectProjects(installationKey) {
+  const [wfMeta, itMeta, scMeta, acMeta] = await Promise.all(
+    PROJECT_SOURCE_METAS.map((read) => read(installationKey).catch(() => null))
+  );
+  const projects = new Map();
+  const set = (projectId, key, name, slot, value) => {
+    const id = String(projectId);
+    if (!projects.has(id)) projects.set(id, { key: id, name: null, fields: {} });
+    const p = projects.get(id);
+    if (key) p.key = key;
+    if (name) p.name = name;
+    p.fields[slot] = value;
+  };
+
+  if (wfMeta?.version) {
+    const map = await loadProjectWorkflowSchemeMap(installationKey, wfMeta.version);
+    for (const [projectId, sc] of map) set(projectId, null, null, "workflowScheme", sc.name || sc.schemeId);
+  }
+  if (itMeta?.version) {
+    const [rows, schemes] = await Promise.all([
+      loadIssueTypeSchemeProjects(installationKey, itMeta.version),
+      loadIssueTypeSchemes(installationKey, itMeta.version),
+    ]);
+    const name = new Map(schemes.map((sc) => [String(sc.schemeId), sc.name]));
+    for (const r of rows) set(r.projectId, r.projectKey, r.projectName, "issueTypeScheme", name.get(String(r.schemeId)) || r.schemeId);
+  }
+  if (scMeta?.version) {
+    const [rows, itss] = await Promise.all([
+      loadItssProjects(installationKey, scMeta.version),
+      loadIssueTypeScreenSchemes(installationKey, scMeta.version),
+    ]);
+    const name = new Map(itss.map((it) => [String(it.itssId), it.name]));
+    for (const r of rows) set(r.projectId, r.projectKey, r.projectName, "screenScheme", name.get(String(r.itssId)) || r.itssId);
+  }
+  if (acMeta?.version) {
+    for (const [type, slot] of [["permission", "permissionScheme"], ["notification", "notificationScheme"], ["security", "securityScheme"]]) {
+      // eslint-disable-next-line no-await-in-loop -- three small reads
+      const [rows, schemes] = await Promise.all([
+        loadSchemeProjects(installationKey, acMeta.version, type),
+        loadSchemes(installationKey, acMeta.version, type),
+      ]);
+      const name = new Map(schemes.map((sc) => [String(sc.id), sc.name]));
+      for (const r of rows) set(r.projectId, r.projectKey, r.projectName, slot, name.get(String(r.schemeId)) || r.schemeId);
+    }
+  }
+  return [...projects.entries()].map(([id, p]) => ({
+    entityType: "project",
+    entityId: id,
+    label: p.key,
+    fields: { name: p.name, ...p.fields },
+  }));
+}
+
 // The registry. `readMeta` returns the pillar's snapshot meta -- a falsy `version` means the
 // inventory has never been built, so the pillar is skipped rather than reported as emptied.
 export const DRIFT_PILLARS = [
@@ -287,6 +553,13 @@ export const DRIFT_PILLARS = [
   { pillar: "fieldConfigs", label: "Field schemes", readMeta: readFieldConfigSnapshotMeta, collect: collectFieldConfigs },
   { pillar: "filters", label: "Saved filters", readMeta: readFilterSnapshotMeta, collect: collectFilters },
   { pillar: "dashboards", label: "Dashboards", readMeta: readDashboardSnapshotMeta, collect: collectDashboards },
+  { pillar: "workflowRules", label: "Workflows & transition rules", readMeta: readWorkflowSnapshotMeta, collect: collectWorkflowDetail },
+  { pillar: "screens", label: "Screens", readMeta: readScreenSnapshotMeta, collect: collectScreens },
+  { pillar: "projects", label: "Projects", readMeta: readProjectSourcesMeta, collect: collectProjects },
+  { pillar: "boards", label: "Boards", readMeta: readBoardSnapshotMeta, collect: collectBoards },
+  { pillar: "people", label: "People", readMeta: readUserSnapshotMeta, collect: collectPeople },
+  { pillar: "assets", label: "Assets", readMeta: readAssetSnapshotMeta, collect: collectAssets },
+  { pillar: "automation", label: "Automation", readMeta: readAutomationMeta, collect: collectAutomation },
 ];
 
 // ── Diff ────────────────────────────────────────────────────────────────────
@@ -313,6 +586,17 @@ const TYPE_NOUNS = {
   "field-scheme": "Field scheme",
   "field-configuration": "Field configuration",
   "field-scheme-assignment": "Project field scheme",
+  workflow: "Workflow",
+  screen: "Screen",
+  "screen-scheme": "Screen scheme",
+  "issue-type-screen-scheme": "Issue type screen scheme",
+  project: "Project",
+  board: "Board",
+  user: "Licensed user",
+  "asset-schema": "Assets schema",
+  "asset-object-type": "Assets object type",
+  "asset-attribute": "Assets attribute",
+  "automation-rule": "Automation rule",
 };
 
 function noun(entityType) {

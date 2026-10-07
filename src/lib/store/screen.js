@@ -1090,3 +1090,24 @@ export async function loadScreensForProjects(scopeKey, version, projectIds = [])
   }
   return out;
 }
+
+// Every screen's fields in one read, for the change log: Map<screenId, ["tabId:fieldId", ...]>
+// in tab and field order. One query instead of one per screen -- a site has hundreds.
+export async function loadScreenFieldLayout(scopeKey, version) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT screen_id, tab_id, field_id
+      FROM snapshot_screen_fields
+      WHERE scope_key = ? AND version = ?
+      ORDER BY screen_id ASC, tab_index ASC, field_index ASC
+    `).bindParams(scopeKey, version).execute()
+  );
+  const layout = new Map();
+  for (const row of result.rows || []) {
+    const id = String(row.screen_id);
+    if (!layout.has(id)) layout.set(id, []);
+    layout.get(id).push(`${row.tab_id}:${row.field_id}`);
+  }
+  return layout;
+}

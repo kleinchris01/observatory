@@ -174,7 +174,7 @@ describe("risk, churn and the attention score", () => {
     expect(changeEntityKey({ entityType: "status", entityId: "1" })).toBeNull();
   });
 
-  it("counts churn over the window for tracked pillars, and none for the rest", () => {
+  it("counts churn over the window for every tracked pillar", () => {
     const now = new Date("2026-09-28T00:00:00.000Z");
     const fields = buildPillarReport("fields", {
       fields: ["a", "b", "c", "d"].map((id) => ({ id, name: id, totalIssueCount: 1, configuredProjectCount: 1 })),
@@ -189,6 +189,7 @@ describe("risk, churn and the attention score", () => {
       { entityType: "field", entityId: "a", detectedAt: "2026-09-22T00:00:00Z" },
       { entityType: "field", entityId: "b", detectedAt: "2026-07-01T00:00:00Z" }, // outside 30 days
       { entityType: "permission-grant", entityId: "7:BROWSE:group:g", detectedAt: "2026-09-25T00:00:00Z" },
+      { entityType: "screen", entityId: "1", detectedAt: "2026-09-26T00:00:00Z" },
     ];
     const { entities } = buildEntityIndex([fields, access, screens], { changes, now });
     const by = (uid) => entities.find((e) => e.uid === uid);
@@ -197,12 +198,29 @@ describe("risk, churn and the attention score", () => {
     // Same id, different kind of scheme: only the permission scheme changed.
     expect(by("access:Permission scheme:7")).toMatchObject({ churn: "medium", churnValue: 1 });
     expect(by("access:Project role:7")).toMatchObject({ churn: "low", churnValue: 0 });
-    expect(by("screens:1")).toMatchObject({ churn: "unmeasured", churnValue: null });
-    expect(CHURN_TRACKED_PILLARS).not.toContain("screens");
+    // Screens are tracked since every pillar got a change source.
+    expect(by("screens:1")).toMatchObject({ churn: "medium", churnValue: 1 });
+    expect(CHURN_TRACKED_PILLARS).toEqual(expect.arrayContaining(["screens", "boards", "projects", "people", "assets", "automation"]));
   });
 
   it("calls churn unmeasured everywhere when no drift pass has run", () => {
     const fields = buildPillarReport("fields", { fields: [{ id: "a", name: "a" }] });
     expect(buildEntityIndex([fields]).entities[0]).toMatchObject({ churn: "unmeasured", churnValue: null });
+  });
+});
+
+describe("changeEntityKey for the newer change sources", () => {
+  it("maps each to the item search lists", () => {
+    expect(changeEntityKey({ entityType: "screen", entityId: "9" })).toBe("screens|9");
+    expect(changeEntityKey({ entityType: "board", entityId: "12" })).toBe("boards|12");
+    expect(changeEntityKey({ entityType: "user", entityId: "acc-1" })).toBe("people|acc-1");
+    expect(changeEntityKey({ entityType: "automation-rule", entityId: "55" })).toBe("automation|55");
+    expect(changeEntityKey({ entityType: "asset-object-type", entityId: "3" })).toBe("assets|3");
+    // An attribute counts against its object type; a project is listed by key.
+    expect(changeEntityKey({ entityType: "asset-attribute", entityId: "3:88" })).toBe("assets|3");
+    expect(changeEntityKey({ entityType: "project", entityId: "10000", label: "ABC" })).toBe("projects|ABC");
+    // Not search items: recorded in the timeline, but no item's churn.
+    expect(changeEntityKey({ entityType: "workflow", entityId: "WF" })).toBeNull();
+    expect(changeEntityKey({ entityType: "screen-scheme", entityId: "1" })).toBeNull();
   });
 });

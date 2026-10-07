@@ -195,8 +195,8 @@ describe("SearchTab", () => {
     const grid = screen.getByRole("table", { name: "What each pillar measures for each dimension" });
     const screensRow = within(grid).getByRole("rowheader", { name: "Screens" }).closest("tr");
     expect(screensRow).toHaveTextContent(/through screen schemes/);
-    // Screens have no change history.
-    expect(within(screensRow).getAllByText("Not measured")).toHaveLength(1);
+    // Screens have change history since every pillar got a change source.
+    expect(within(screensRow).queryAllByText("Not measured")).toHaveLength(0);
     const prioritiesRow = within(grid).getByRole("rowheader", { name: "Priorities & resolutions" }).closest("tr");
     // Usage is the crawl's issue count now; only impact is still unmeasured.
     expect(within(prioritiesRow).getAllByText("Not measured")).toHaveLength(1);
