@@ -5,6 +5,7 @@ import {
   summarizeSecurityInsights, summarizeSecurityHealth,
   summarizeNotificationInsights, summarizeNotificationHealth,
   summarizeRoleInsights, summarizeRoleHealth,
+  adminCapabilityByProject,
 } from "./access-insights.js";
 
 const roster = new Set(["acc-1", "acc-2"]);
@@ -203,5 +204,70 @@ describe("public and logged-in grants", () => {
     });
     expect(s.fragileSchemes).toEqual([{ id: "n1", name: "Mailer", namedUserCount: 0, emailAddressCount: 1, groupRecipientCount: 1 }]);
     expect(s).toMatchObject({ fragileSchemeCount: 1, emailRecipientCount: 1, groupRecipientCount: 1 });
+  });
+});
+
+// Reported 7 Oct 2026: projects with several people in "Administrators" were flagged because
+// "Administrators-EXTERNAL" was empty. Both roles hold Administer Projects; one filled is enough.
+describe("projects nobody can administer", () => {
+  const roles = [
+    { id: "10002", name: "Administrators" },
+    { id: "10010", name: "Administrators-EXTERNAL" },
+    { id: "10003", name: "Members" },
+  ];
+  const holder = (roleId, projectId, key, type, value = "") => ({ schemeId: roleId, context: projectId, contextLabel: key, holderType: type, holderValue: value });
+  const holders = [
+    // OPS: Administrators full, EXTERNAL empty -> administered
+    holder("10002", "1", "OPS", "user", "acc-1"), holder("10002", "1", "OPS", "user", "acc-2"),
+    holder("10010", "1", "OPS", "empty"), holder("10003", "1", "OPS", "user", "acc-3"),
+    // EXT: only EXTERNAL filled -> administered
+    holder("10002", "2", "EXT", "empty"), holder("10010", "2", "EXT", "group", "g-vendor"),
+    // DEV: both empty -> nobody can administer
+    holder("10002", "3", "DEV", "empty"), holder("10010", "3", "DEV", "empty"), holder("10003", "3", "DEV", "user", "acc-4"),
+  ];
+  const grant = (schemeId, type, value = "") => ({ schemeId, context: "ADMINISTER_PROJECTS", holderType: type, holderValue: value });
+
+  test("by role name, any one filled admin role is enough", () => {
+    const s = summarizeRoleInsights({ roles, holders, rosterAccountIds: new Set(["acc-1", "acc-2", "acc-3", "acc-4"]) });
+    expect(s.projectsMissingAdminActorCount).toBe(1);
+    expect(s.projectsMissingAdminActor).toEqual([
+      { projectId: "3", projectKey: "DEV", role: "Administrators, Administrators-EXTERNAL", roles: ["Administrators", "Administrators-EXTERNAL"] },
+    ]);
+  });
+
+  test("with permission data, the roles granted Administer Projects decide, whatever their name", () => {
+    const permHolders = [grant("P1", "projectRole", "10010"), grant("P1", "projectRole", "10003")];
+    const permProjects = [{ schemeId: "P1", projectId: "1" }, { schemeId: "P1", projectId: "2" }, { schemeId: "P1", projectId: "3" }];
+    const s = summarizeRoleInsights({ roles, holders, permHolders, permProjects });
+    // Scheme P1 grants admin to EXTERNAL and Members, not to "Administrators". OPS has a Member,
+    // EXT has an EXTERNAL group, DEV has a Member -- all administered.
+    expect(s.projectsMissingAdminActorCount).toBe(0);
+  });
+
+  test("a direct grant (group, lead) means the project is administered even with every role empty", () => {
+    const permHolders = [grant("P1", "projectRole", "10002"), grant("P2", "projectRole", "10002"), grant("P2", "projectLead")];
+    const permProjects = [{ schemeId: "P1", projectId: "3" }, { schemeId: "P2", projectId: "2" }];
+    const s = summarizeRoleInsights({ roles, holders, permHolders, permProjects });
+    // DEV (P1): only Administrators can administer and it is empty. EXT (P2): the lead can.
+    expect(s.projectsMissingAdminActor.map((p) => p.projectKey)).toEqual(["DEV"]);
+    expect(s.projectsMissingAdminActor[0].role).toBe("Administrators");
+  });
+
+  test("a scheme that grants Administer Projects to nobody leaves the project unadministered", () => {
+    const permHolders = [{ schemeId: "P1", context: "BROWSE_PROJECTS", holderType: "anyone", holderValue: "" }];
+    const s = summarizeRoleInsights({ roles, holders, permHolders, permProjects: [{ schemeId: "P1", projectId: "1" }] });
+    // OPS (on P1) despite its full Administrators role; DEV still by name (no permission data).
+    expect(s.projectsMissingAdminActor.map((p) => p.projectKey)).toEqual(["OPS", "DEV"]);
+    expect(s.projectsMissingAdminActor[0]).toEqual({ projectId: "1", projectKey: "OPS", role: "no role is granted Administer Projects", roles: [] });
+  });
+
+  test("adminCapabilityByProject reads roles and direct grants per scheme", () => {
+    const cap = adminCapabilityByProject(
+      [grant("P1", "projectRole", "10002"), grant("P1", "group", "g1"), { schemeId: "P1", context: "BROWSE_PROJECTS", holderType: "projectRole", holderValue: "10003" }],
+      [{ schemeId: "P1", projectId: "7" }, { schemeId: "P9", projectId: "8" }],
+    );
+    expect([...cap.get("7").roleIds]).toEqual(["10002"]);
+    expect(cap.get("7").direct).toBe(true);
+    expect(cap.get("8")).toEqual({ roleIds: new Set(), direct: false });
   });
 });

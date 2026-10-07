@@ -739,7 +739,7 @@ export async function buildAccessOverview(installationKey) {
     const permissions = summarizePermissionInsights({ schemes: permSchemes, holders: permHolders, schemeProjects: permProjects, rosterAccountIds });
     const security = summarizeSecurityInsights({ schemes: secSchemes, levels, holders: secHolders, schemeProjects: secProjects, rosterAccountIds });
     const notifications = summarizeNotificationInsights({ schemes: notifSchemes, holders: notifHolders, schemeProjects: notifProjects, rosterAccountIds });
-    const roles = summarizeRoleInsights({ roles: roleSchemes, holders: roleHolders, rosterAccountIds });
+    const roles = summarizeRoleInsights({ roles: roleSchemes, holders: roleHolders, rosterAccountIds, permHolders, permProjects });
 
     return {
       available: true,

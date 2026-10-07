@@ -936,7 +936,7 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       pillar: "roles",
       tone: "critical",
       count: roleGov.projectsMissingAdminActorCount,
-      title: "Projects with an empty administrator role",
+      title: "Projects nobody can administer",
       detail: "No group or user is in the project's admin role — only a site admin can administer it.",
       onOpen: () => onNavigate("access", { view: "roles" }),
       openLabel: "Access",

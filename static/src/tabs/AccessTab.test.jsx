@@ -128,7 +128,7 @@ describe("AccessTab", () => {
     expect(screen.getByText("Permission schemes that break least privilege")).toBeInTheDocument();
     expect(screen.getByText("Issue security levels nobody can see through")).toBeInTheDocument();
     expect(screen.getByText("Notification schemes routing to a named individual")).toBeInTheDocument();
-    expect(screen.getByText("Projects with an empty administrator role")).toBeInTheDocument();
+    expect(screen.getByText("Projects nobody can administer")).toBeInTheDocument();
   });
 
   test("the Project roles view lists each role and flags the empty admin role", async () => {
