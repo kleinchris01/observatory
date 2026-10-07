@@ -2659,6 +2659,8 @@ a.macro-pillar__name:hover { color: var(--cool); text-decoration: underline; }
 
 .admin-remediation-tab { display: flex; flex-direction: column; gap: 16px; }
 .remediation-tasks { display: flex; flex-direction: column; gap: 2px; margin: 10px 0; }
+.remediation-quarter { margin: 8px 0 0; }
+.remediation-quarter__title { margin: 0 0 4px; font-size: 0.78rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .remediation-task {
   display: grid;
   grid-template-columns: minmax(70px, auto) 1fr auto minmax(90px, auto) minmax(110px, auto);

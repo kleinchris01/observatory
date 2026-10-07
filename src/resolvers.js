@@ -3802,12 +3802,17 @@ async function getRemediationTickets({ payload, context }) {
       tasks: latest.tasks,
       taskCount: latest.tasks.length,
       openCount: openOf(latest.tasks),
+      // Every quarter's work, not just the latest: a task still open under last quarter's
+      // epic is open work on this finding, and the tab lists and counts it.
+      allTaskCount: periods.reduce((n, p) => n + p.tasks.length, 0),
+      allOpenCount: periods.reduce((n, p) => n + openOf(p.tasks), 0),
       previousPeriods: periods.slice(1).map((p) => ({
         period: p.period,
         epicKey: p.epic?.issueKey ?? null,
         epicStatusCategory: p.epic?.lastStatusCategory ?? null,
         taskCount: p.tasks.length,
         openCount: openOf(p.tasks),
+        tasks: p.tasks,
       })),
     };
   });

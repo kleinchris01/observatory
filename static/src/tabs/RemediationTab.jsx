@@ -69,6 +69,58 @@ function TaskRow({ task, siteOrigin }) {
 // One finding: the epic (if raised), its tasks, and the create/update action. The epic sits
 // visually above its tasks -- the same "epic on top, one task per item below" shape asked for,
 // because that is also just how Jira itself nests them.
+// Every quarter's task counts on a finding. Older servers sent only the latest quarter's.
+export function allTaskCountOf(group) {
+  return group?.allTaskCount ?? (group?.taskCount || 0);
+}
+export function allOpenCountOf(group) {
+  return group?.allOpenCount ?? (group?.openCount || 0);
+}
+
+// The quarters before this one, newest first, each with its epic and tasks. When the latest
+// epic is itself an earlier quarter's (this quarter not started), it leads the list.
+export function earlierQuartersOf(group) {
+  if (!group) return [];
+  const latest = group.isCurrent ? [] : [{
+    period: group.period, epicKey: group.epic?.issueKey ?? null,
+    tasks: group.tasks || [], taskCount: group.taskCount ?? (group.tasks || []).length, openCount: group.openCount || 0,
+  }];
+  return [...latest, ...(group.previousPeriods || []).map((p) => ({ ...p, tasks: p.tasks || [] }))];
+}
+
+// One earlier quarter on a finding card: its epic, how far it got, and its tasks behind a
+// toggle -- a quarter can hold hundreds, and they are history next to this quarter's list.
+// Opens by itself when a search matched one of its tasks.
+function EarlierQuarter({ quarter, siteOrigin, taskQuery }) {
+  const shown = taskQuery ? quarter.tasks.filter((t) => taskMatches(t, taskQuery)) : quarter.tasks;
+  const [open, setOpen] = React.useState(false);
+  const visible = open || (taskQuery && shown.length > 0);
+  const closed = quarter.taskCount - quarter.openCount;
+  if (taskQuery && shown.length === 0) return null;
+  return (
+    <div className="remediation-quarter">
+      <p className="remediation-history">
+        {quarter.period}{" "}
+        {quarter.epicKey ? <IssueLink issueKey={quarter.epicKey} siteOrigin={siteOrigin}>{quarter.epicKey}</IssueLink> : "(no epic)"}
+        {` · ${quarter.openCount} open, ${closed} of ${quarter.taskCount} closed`}
+        {quarter.tasks.length > 0 && !(taskQuery && shown.length > 0) && (
+          <>
+            {" "}
+            <button type="button" className="secondary-button secondary-button--small" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+              {open ? `Hide ${quarter.period} tasks` : `Show ${quarter.tasks.length} ${quarter.period} task${quarter.tasks.length === 1 ? "" : "s"}`}
+            </button>
+          </>
+        )}
+      </p>
+      {visible && shown.length > 0 && (
+        <div className="remediation-tasks">
+          {shown.map((task) => <TaskRow key={task.issueKey} task={task} siteOrigin={siteOrigin} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // The chip on each finding's header: how many of its flagged items still need a task, readable
 // with the card folded away. This is what lets an admin see which findings to generate tickets
 // for without opening each one.
@@ -97,11 +149,18 @@ function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, pro
   }, [focused]);
 
   const epic = group?.epic || null;
-  const tasks = group?.tasks || [];
+  const isCurrent = Boolean(group?.isCurrent);
+  // This quarter's tasks are listed inline. When the latest epic is an earlier quarter's, its
+  // tasks join the earlier quarters below instead -- they are not this quarter's work.
+  const tasks = isCurrent ? group?.tasks || [] : [];
+  const earlierQuarters = earlierQuartersOf(group);
   // A search that matched this finding by one of its tasks, not by its name, lists only the
   // matching tasks -- the counts above them still describe the whole finding.
   const shownTasks = taskQuery ? tasks.filter((t) => taskMatches(t, taskQuery)) : tasks;
-  const openCount = group?.openCount ?? 0;
+  // Counts across every quarter: a task still open under last quarter's epic is open work.
+  const allTasks = group ? allTaskCountOf(group) : 0;
+  const allOpen = group ? allOpenCountOf(group) : 0;
+  const earlierTaskCount = earlierQuarters.reduce((n, q) => n + (q.taskCount ?? q.tasks.length), 0);
 
   // The tab checks every finding in the background; opening one before its turn asks now.
   const loadingCandidates = !candidates;
@@ -110,7 +169,6 @@ function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, pro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expanded]);
 
-  const isCurrent = Boolean(group?.isCurrent);
   const untracked = ticketing?.untracked || [];
   const heldEarlier = ticketing?.heldEarlier || [];
   const earlierEpics = [...new Set(heldEarlier.map((it) => it.ticketed.epicKey).filter(Boolean))];
@@ -136,24 +194,16 @@ function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, pro
     >
       {(
         <>
-          {(group?.previousPeriods || []).length > 0 && (
-            <p className="remediation-history">
-              Earlier quarters:{" "}
-              {group.previousPeriods.map((p, i) => (
-                <span key={p.period}>
-                  {i > 0 ? ", " : ""}
-                  {p.period}{" "}
-                  {p.epicKey ? <IssueLink issueKey={p.epicKey} siteOrigin={siteOrigin}>{p.epicKey}</IssueLink> : "(no epic)"}
-                  {` (${p.taskCount - p.openCount} of ${p.taskCount} closed)`}
-                </span>
-              ))}
-            </p>
-          )}
-          {epic && isCurrent && (
+          {allTasks > 0 && (
             <StatRow>
-              <StatTile label="Tasks" value={tasks.length} icon="layers" />
-              <StatTile label="Open" value={openCount} tone={openCount > 0 ? "active" : "success"} icon="clock" />
-              <StatTile label="Closed" value={tasks.length - openCount} tone="success" icon="checkCircle" />
+              <StatTile
+                label="Tasks"
+                value={allTasks}
+                icon="layers"
+                hint={earlierTaskCount > 0 ? `${tasks.length} this quarter · ${earlierTaskCount} from earlier quarters` : null}
+              />
+              <StatTile label="Open" value={allOpen} tone={allOpen > 0 ? "active" : "success"} icon="clock" />
+              <StatTile label="Closed" value={allTasks - allOpen} tone="success" icon="checkCircle" />
             </StatRow>
           )}
 
@@ -162,9 +212,13 @@ function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, pro
           )}
           {shownTasks.length > 0 && (
             <div className="remediation-tasks">
+              {earlierQuarters.length > 0 && <h4 className="remediation-quarter__title">{period} {epic && <IssueLink issueKey={epic.issueKey} siteOrigin={siteOrigin}>{epic.issueKey}</IssueLink>}</h4>}
               {shownTasks.map((task) => <TaskRow key={task.issueKey} task={task} siteOrigin={siteOrigin} />)}
             </div>
           )}
+          {earlierQuarters.map((q) => (
+            <EarlierQuarter key={q.period} quarter={q} siteOrigin={siteOrigin} taskQuery={taskQuery} />
+          ))}
 
           <button
             type="button"
@@ -279,8 +333,8 @@ function taskMatches(task, q) {
 
 // Where a finding stands this quarter, for the State filter.
 export function findingState(group) {
-  if (!group || !(group.taskCount ?? group.tasks?.length)) return "untracked";
-  return (group.openCount || 0) > 0 ? "open" : "closed";
+  if (!group || !allTaskCountOf(group)) return "untracked";
+  return allOpenCountOf(group) > 0 ? "open" : "closed";
 }
 
 const STATE_OPTIONS = [
@@ -511,7 +565,8 @@ export function RemediationTab({ siteOrigin, intent = null }) {
   // its tasks (show just those). Null when it did not match at all.
   const matchOf = React.useCallback((entry) => {
     if (!query || entry.label.toLowerCase().includes(query)) return { taskQuery: "" };
-    const tasks = groupsByFinding.get(entry.key)?.tasks || [];
+    const group = groupsByFinding.get(entry.key);
+    const tasks = [...(group?.tasks || []), ...(group?.previousPeriods || []).flatMap((p) => p.tasks || [])];
     return tasks.some((t) => taskMatches(t, query)) ? { taskQuery: query } : null;
   }, [query, groupsByFinding]);
 
@@ -573,7 +628,7 @@ export function RemediationTab({ siteOrigin, intent = null }) {
   // most-open-first.
   const sections = React.useMemo(() => {
     if (sort !== "pillar") {
-      const openOf = (e) => groupsByFinding.get(e.key)?.openCount || 0;
+      const openOf = (e) => allOpenCountOf(groupsByFinding.get(e.key));
       const sorted = [...visible].sort(sort === "open"
         ? (a, b) => openOf(b) - openOf(a) || a.label.localeCompare(b.label)
         : sort === "to-ticket"
@@ -602,8 +657,12 @@ export function RemediationTab({ siteOrigin, intent = null }) {
   const itemsToTicket = needTickets.reduce((sum, e) => sum + toTicketOf(e), 0);
   const sweeping = checkRun && !checkRun.finishedAt;
 
-  const totalOpen = (tickets?.groups || []).reduce((sum, g) => sum + (g.openCount || 0), 0);
-  const totalClosed = (tickets?.groups || []).reduce((sum, g) => sum + ((g.taskCount || 0) - (g.openCount || 0)), 0);
+  // Every quarter's tasks, with how many of the open ones sit under an earlier quarter's epic.
+  const groupsList = tickets?.groups || [];
+  const totalOpen = groupsList.reduce((sum, g) => sum + allOpenCountOf(g), 0);
+  const totalClosed = groupsList.reduce((sum, g) => sum + (allTaskCountOf(g) - allOpenCountOf(g)), 0);
+  const earlierOpen = groupsList.reduce((sum, g) => sum + earlierQuartersOf(g).reduce((n, q) => n + (q.openCount || 0), 0), 0);
+  const earlierClosed = groupsList.reduce((sum, g) => sum + earlierQuartersOf(g).reduce((n, q) => n + ((q.taskCount || 0) - (q.openCount || 0)), 0), 0);
 
   return (
     <div className="admin-remediation-tab">
@@ -640,8 +699,10 @@ export function RemediationTab({ siteOrigin, intent = null }) {
           <>
             <StatRow>
               <StatTile label="Findings tracked" value={(tickets?.groups || []).length} icon="layers" />
-              <StatTile label="Open tasks" value={totalOpen} tone={totalOpen > 0 ? "active" : "success"} icon="clock" />
-              <StatTile label="Closed tasks" value={totalClosed} tone="success" icon="checkCircle" />
+              <StatTile label="Open tasks" value={totalOpen} tone={totalOpen > 0 ? "active" : "success"} icon="clock"
+                hint={earlierOpen > 0 ? `${earlierOpen} from earlier quarters` : null} />
+              <StatTile label="Closed tasks" value={totalClosed} tone="success" icon="checkCircle"
+                hint={earlierClosed > 0 ? `${earlierClosed} from earlier quarters` : null} />
               <StatTile
                 label="Need tickets"
                 value={needTickets.length}
