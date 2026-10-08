@@ -1806,6 +1806,43 @@ export const CREATE_REMEDIATION_HIERARCHY_TABLE = `
   )
 `;
 
+// Archived projects (store/archived.js): which projects are archived now, whether the list
+// could be read, and the last field counts seen for each before it was archived.
+export const CREATE_ARCHIVED_PROJECTS_TABLE = `
+  CREATE TABLE IF NOT EXISTS archived_projects (
+    scope_key VARCHAR(191) NOT NULL,
+    project_id VARCHAR(64) NOT NULL,
+    project_key VARCHAR(191) NULL,
+    project_name VARCHAR(255) NULL,
+    archived_at VARCHAR(40) NULL,
+    issue_count BIGINT NULL,
+    checked_at VARCHAR(40) NOT NULL,
+    PRIMARY KEY (scope_key, project_id)
+  )
+`;
+
+export const CREATE_ARCHIVED_PROJECTS_META_TABLE = `
+  CREATE TABLE IF NOT EXISTS archived_projects_meta (
+    scope_key VARCHAR(191) NOT NULL,
+    checked_at VARCHAR(40) NOT NULL,
+    available TINYINT NOT NULL DEFAULT 0,
+    last_error VARCHAR(500) NULL,
+    PRIMARY KEY (scope_key)
+  )
+`;
+
+export const CREATE_FIELD_ARCHIVED_USAGE_TABLE = `
+  CREATE TABLE IF NOT EXISTS field_archived_usage (
+    scope_key VARCHAR(191) NOT NULL,
+    field_id VARCHAR(191) NOT NULL,
+    project_id VARCHAR(64) NOT NULL,
+    project_key VARCHAR(191) NULL,
+    issue_count BIGINT NOT NULL DEFAULT 0,
+    last_seen_at VARCHAR(40) NULL,
+    PRIMARY KEY (scope_key, field_id, project_id)
+  )
+`;
+
 export const CREATE_REMEDIATION_TICKETS_V2_TABLE = `
   CREATE TABLE IF NOT EXISTS remediation_tickets_v2 (
     scope_key VARCHAR(191) NOT NULL,
@@ -2391,7 +2428,11 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v178_create_usage_tally_table", CREATE_USAGE_TALLY_TABLE)
   .enqueue("v179_create_usage_tally_meta_table", CREATE_USAGE_TALLY_META_TABLE)
   // The quarter's Product / Initiative items above the remediation epics.
-  .enqueue("v180_create_remediation_hierarchy_table", CREATE_REMEDIATION_HIERARCHY_TABLE);
+  .enqueue("v180_create_remediation_hierarchy_table", CREATE_REMEDIATION_HIERARCHY_TABLE)
+  // Archived projects: the list, whether it could be read, and last-known field counts.
+  .enqueue("v181_create_archived_projects_table", CREATE_ARCHIVED_PROJECTS_TABLE)
+  .enqueue("v182_create_archived_projects_meta_table", CREATE_ARCHIVED_PROJECTS_META_TABLE)
+  .enqueue("v183_create_field_archived_usage_table", CREATE_FIELD_ARCHIVED_USAGE_TABLE);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

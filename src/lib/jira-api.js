@@ -926,6 +926,23 @@ export async function getAllJiraProjects() {
   );
 }
 
+// Every archived project, with its issue count where Jira gives one. Archived projects are
+// left out of the default project list and their issues out of search, which is why they need
+// their own read. Needs Administer Jira; a refusal throws, and the caller records the list as
+// "could not be read" -- never as "nothing archived".
+export async function getArchivedJiraProjects() {
+  const rows = await paginate(
+    (startAt) => route`/rest/api/3/project/search?status=archived&expand=insight&maxResults=50&startAt=${startAt}`
+  );
+  return rows.map((p) => ({
+    id: String(p.id),
+    key: p.key || null,
+    name: p.name || null,
+    archivedAt: p.archivedDate || null,
+    issueCount: p.insight?.totalIssueCount ?? null,
+  }));
+}
+
 // ----- Screens -----
 //
 // The three reads at the bottom of the screen chain. Fields-per-tab is the expensive one:
