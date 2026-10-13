@@ -54,11 +54,9 @@ import {
   loadAllSnapshotProjectUsage,
   loadAnySnapshotProjectUsage,
   listSnapshotProjects,
-  loadIssueScanProjectTotals,
   loadProjectActivity,
   loadFilters,
   readFilterSnapshotMeta,
-  writeFilterSnapshotMeta,
   loadFilterReferencesFor,
   loadDashboardsForFilters,
   loadFieldNamesForFilterIds,
@@ -69,7 +67,6 @@ import {
   loadFilterReferenceCounts,
   loadDashboards,
   readDashboardSnapshotMeta,
-  writeDashboardSnapshotMeta,
   loadSnapshotProjectFields,
   countSnapshotProjectUsage,
   loadFieldSummary,
@@ -148,7 +145,6 @@ import {
   loadIssueTypeSchemes,
   loadIssueTypeSchemeItems,
   loadIssueTypeSchemeProjects,
-  loadIssueTypeSchemeForProject,
   loadIssueTypeGovernanceSummary,
   loadIssueTypeTotals,
   readUserSnapshotMeta,
@@ -251,7 +247,7 @@ import {
   attachUniqueIssueCounts,
   captureSiteHealth,
 } from "./lib/site-health.js";
-import { summarizeAdoption, computeProjectAdoption } from "./lib/project-adoption.js";
+import { summarizeAdoption } from "./lib/project-adoption.js";
 import { summarizeFilters, summarizeFilterHealth } from "./lib/filter-insights.js";
 import { summarizeDashboards, summarizeDashboardHealth } from "./lib/dashboard-insights.js";
 import { isFilterBuildStale, queueFilterSnapshotBuild } from "./lib/filter-engine.js";
@@ -288,7 +284,6 @@ import {
   replaceAutomationFindings,
   replaceAutomationCascades,
   replaceAutomationBlast,
-  loadBlastSummary,
   loadBlastRules,
   loadCascadeSummary,
   loadCascades,
@@ -309,7 +304,6 @@ import {
   normalizeFieldName,
   buildDuplicateNameCountMap,
   isJiraBuiltinField,
-  isLikelyAppProvidedField,
   DEFAULT_GOVERNANCE_THRESHOLDS,
   filterInventoryFields,
   applyFindingsFilter,
