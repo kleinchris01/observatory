@@ -3,7 +3,7 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@forge/bridge";
-import { AutomationProbePanel, AssetsProbePanel, GlobalPermissionsProbePanel, ConfigTab, ScreenCostProbePanel } from "./ConfigTab";
+import { AutomationProbePanel, AssetsProbePanel, GlobalPermissionsProbePanel, ConfigTab, ScreenCostProbePanel, ServiceManagementProbePanel } from "./ConfigTab";
 import { DEFAULT_THRESHOLDS, DEFAULT_MACRO_ACCESS, DEFAULT_AUTOMATION_STALE_AFTER_DAYS } from "../admin-defaults";
 
 // ConfigTab had no test file, which is how a panel calling an unimported `invoke` reached
@@ -67,6 +67,64 @@ describe("AssetsProbePanel", () => {
     await userEvent.click(screen.getByRole("button", { name: /Probe Assets endpoints/i }));
     expect(await screen.findByText("boom")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Probe Assets endpoints/i })).toBeEnabled();
+  });
+});
+
+const tier = (state, detail = null) => ({ state, detail });
+const jsmResult = (over = {}) => ({
+  jsmAvailable: true,
+  reason: null,
+  version: "10.4.0",
+  serviceDeskCount: 3,
+  moreServiceDesks: false,
+  sampledDesk: { id: "1", projectKey: "SD", projectId: "10000" },
+  slaFields: [],
+  areas: [
+    { key: "requestTypes", label: "Request types, portal and forms", structure: tier("ready"), usage: tier("ready") },
+    { key: "queues", label: "Queues", structure: tier("ready"), usage: tier("ready") },
+    { key: "slas", label: "SLAs", structure: tier("ready"), usage: tier("missing-scope", "Scope not granted for: slaBreached.") },
+    { key: "customers", label: "Customers and organizations", structure: tier("blocked", "deskCustomers: forbidden (403)"), usage: tier("untested") },
+  ],
+  results: [
+    { step: "serviceDesks", note: "Every service desk, with its project", path: "/rest/servicedeskapi/servicedesk?limit=50", status: 200, ok: true, verdict: "ok", count: 3, sample: "{}" },
+    { step: "slaBreached", note: "Issues whose first SLA is breached()", jql: 'project = "SD" AND cf[10030] = breached()', status: 401, ok: false, verdict: "missing-scope", sample: "scope does not match" },
+  ],
+  ...over,
+});
+
+describe("ServiceManagementProbePanel", () => {
+  test("shows each pillar's readiness at both stages, and every probed step", async () => {
+    invoke.mockResolvedValueOnce(jsmResult());
+    render(<ServiceManagementProbePanel />);
+    await userEvent.click(screen.getByRole("button", { name: /Probe Service Management endpoints/i }));
+
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("probeServiceManagementApi", {}));
+    expect(await screen.findByText(/3 service desks on JSM 10.4.0/)).toBeInTheDocument();
+    expect(screen.getByText("SD")).toBeInTheDocument();
+    expect(screen.getAllByText("Ready")).toHaveLength(5);
+    expect(screen.getByText("Scope missing")).toBeInTheDocument();
+    expect(screen.getByText("Blocked")).toBeInTheDocument();
+    expect(screen.getByText("Not tested")).toBeInTheDocument();
+    expect(screen.getByText(/deskCustomers: forbidden \(403\)/)).toBeInTheDocument();
+    expect(screen.getByText('project = "SD" AND cf[10030] = breached()')).toBeInTheDocument();
+    expect(screen.getByText(/401 · missing-scope/)).toBeInTheDocument();
+  });
+
+  test("says why when Service Management is not reachable", async () => {
+    invoke.mockResolvedValueOnce(jsmResult({ jsmAvailable: false, reason: "Jira Service Management is not on this site.", sampledDesk: null }));
+    render(<ServiceManagementProbePanel />);
+    await userEvent.click(screen.getByRole("button", { name: /Probe Service Management endpoints/i }));
+
+    expect(await screen.findByText("Jira Service Management is not on this site.")).toBeInTheDocument();
+  });
+
+  test("surfaces a resolver failure without breaking the panel", async () => {
+    invoke.mockRejectedValueOnce(new Error("boom"));
+    render(<ServiceManagementProbePanel />);
+    await userEvent.click(screen.getByRole("button", { name: /Probe Service Management endpoints/i }));
+
+    expect(await screen.findByText("boom")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Probe Service Management endpoints/i })).toBeEnabled();
   });
 });
 

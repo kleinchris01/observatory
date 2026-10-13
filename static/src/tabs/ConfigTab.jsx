@@ -4,7 +4,7 @@ import { invoke, view } from "@forge/bridge";
 import { Icon } from "../components/Icons";
 import { DEFAULT_THRESHOLDS, DEFAULT_MACRO_ACCESS, DEFAULT_REMEDIATION, DEFAULT_CONFIG, DEFAULT_AUTOMATION_STALE_AFTER_DAYS } from "../admin-defaults";
 import { Toggle, ConfigSection, ConfigRow, InlineThresholdInput, SubNavLayout } from "../components/admin/primitives";
-import { PageHeader, StickyActions } from "../components/ui";
+import { PageHeader, StickyActions, Chip } from "../components/ui";
 import { usePersistentState } from "../hooks";
 
 // Governance thresholds, macro access and snapshot scheduling.
@@ -206,6 +206,104 @@ export function GlobalPermissionsProbePanel() {
                   <td className="probe-results__path">{row.path}</td>
                   <td>{row.status === null ? "—" : row.status}</td>
                   <td>{row.note}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </ConfigSection>
+  );
+}
+
+// Jira Service Management: what the API answers for each of the four JSM pillars, before
+// they are built. Stage 1 is structure (what is configured); stage 2 is usage and outcomes,
+// read through JQL counts.
+const JSM_STATE = {
+  ready: { tone: "success", label: "Ready" },
+  "missing-scope": { tone: "warning", label: "Scope missing" },
+  blocked: { tone: "warning", label: "Blocked" },
+  untested: { tone: "neutral", label: "Not tested" },
+};
+
+function JsmStateChip({ tier }) {
+  const state = JSM_STATE[tier.state] || JSM_STATE.untested;
+  return <Chip tone={state.tone} title={tier.detail || undefined}>{state.label}</Chip>;
+}
+
+export function ServiceManagementProbePanel() {
+  const [result, setResult] = React.useState(null);
+  const [running, setRunning] = React.useState(false);
+  const [error, setError] = React.useState(null);
+
+  async function run() {
+    setRunning(true);
+    setError(null);
+    try {
+      setResult(await invoke("probeServiceManagementApi", {}));
+    } catch (err) {
+      setError(err?.message || "Probe failed.");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <ConfigSection title="Jira Service Management API" icon="clipboardText">
+      <p className="admin-config-row__hint" style={{ marginBottom: 10 }}>
+        Checks what the Service Management API answers for request types, queues, SLAs, and
+        customers and organizations, by sampling one service desk. Read-only. Customer and
+        organization rows show counts only, never names or email addresses.
+      </p>
+
+      <button type="button" className="secondary-button" onClick={run} disabled={running}>
+        <Icon name="clipboardText" size={13} />
+        {running ? "Probing…" : "Probe Service Management endpoints"}
+      </button>
+
+      {error && <div className="danger-zone__error" role="alert">{error}</div>}
+
+      {result && (
+        <div className="probe-results">
+          {result.jsmAvailable ? (
+            <p className="probe-results__summary probe-results__summary--ok">
+              {result.serviceDeskCount}{result.moreServiceDesks ? "+" : ""} service desk
+              {result.serviceDeskCount === 1 ? "" : "s"}
+              {result.version ? ` on JSM ${result.version}` : ""}. Sampled{" "}
+              <code>{result.sampledDesk?.projectKey || result.sampledDesk?.id}</code>.
+            </p>
+          ) : (
+            <p className="probe-results__summary">{result.reason}</p>
+          )}
+
+          <table className="probe-results__table">
+            <thead><tr><th>Pillar</th><th>Structure</th><th>Usage</th><th>Detail</th></tr></thead>
+            <tbody>
+              {result.areas.map((area) => (
+                <tr key={area.key}>
+                  <td>{area.label}</td>
+                  <td><JsmStateChip tier={area.structure} /></td>
+                  <td><JsmStateChip tier={area.usage} /></td>
+                  <td>{[area.structure.detail, area.usage.detail].filter(Boolean).join(" ") || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <table className="probe-results__table">
+            <thead>
+              <tr><th>Step</th><th>Checks</th><th>Endpoint or JQL</th><th>Status</th><th>Response</th></tr>
+            </thead>
+            <tbody>
+              {result.results.map((row) => (
+                <tr key={row.step} className={row.verdict === "ok" ? "probe-results__row--ok" : ""}>
+                  <td>{row.step}</td>
+                  <td>{row.note || "—"}</td>
+                  <td className="probe-results__path">{row.jql || row.path || "—"}</td>
+                  <td>{row.status === null ? "—" : row.status}{row.verdict !== "ok" ? ` · ${row.verdict}` : ""}</td>
+                  <td className="probe-results__sample">
+                    {typeof row.count === "number" ? `${row.count}${row.more ? "+" : ""} · ` : ""}{row.sample || "(empty)"}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -482,6 +580,7 @@ function ConfigAreas({ area, local, t, set, setThreshold, setMacroAccess, setRem
       <ScreenCostProbePanel />
       <AutomationProbePanel />
       <AssetsProbePanel />
+      <ServiceManagementProbePanel />
       <GlobalPermissionsProbePanel />
       <AuditLogPanel />
     </>
