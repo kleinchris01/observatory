@@ -1,11 +1,10 @@
-import api, { route } from "@forge/api";
+import { route } from "@forge/api";
 import { kvs } from "@forge/kvs";
 import {
   incrMetric,
   METRIC_NAMES,
   makeJobToken,
   getInstallationKey,
-  callerHasJiraAdmin,
   mapWithConcurrency,
   getFieldProjectAssociations,
   jiraRequest,
@@ -20,7 +19,6 @@ import {
   MAX_AUTOQUEUED_REPORT_ISSUE_BUDGET,
   ISSUE_SCAN_PAGE_SIZE,
   ISSUE_SCAN_WORKERS,
-  BASE_JIRA_CONCURRENCY,
   loadFieldOptionsFromJira,
   getBrowsableProjectIds,
   createJiraIssue,
@@ -45,7 +43,6 @@ import {
   readSnapshotMeta,
   writeSnapshotMeta,
   clearAllSnapshotData,
-  recordAuditEvent,
   listAuditEvents,
   loadSnapshotFields,
   loadSnapshotField,
@@ -226,7 +223,7 @@ import {
   summarizePermissionInsights, summarizeSecurityInsights, summarizeNotificationInsights,
   summarizeRoleInsights,
 } from "./lib/access-insights.js";
-import { computeSiteHealth, DEFAULT_HEALTH_TOLERANCES, DEFAULT_HEALTH_TARGETS } from "./lib/health-score.js";
+import { computeSiteHealth } from "./lib/health-score.js";
 // Moved out of this file so a scan can record a measurement without importing the
 // resolver layer. Same implementation, both callers.
 import {
@@ -304,7 +301,6 @@ import {
   normalizeFieldName,
   buildDuplicateNameCountMap,
   isJiraBuiltinField,
-  DEFAULT_GOVERNANCE_THRESHOLDS,
   filterInventoryFields,
   applyFindingsFilter,
   sortInventoryFields,
@@ -326,8 +322,26 @@ import {
   optionalPositiveInt,
   requireArray,
   optionalString,
-  optionalEnum,
 } from "./lib/validate.js";
+import {
+  ADMIN_CONFIG_KEY,
+  DEFAULT_FIRST_RUN,
+  readAdminConfig,
+  getAdminConfigResolver,
+  saveAdminConfigResolver,
+} from "./resolvers/admin-config.js";
+import {
+  MACRO_PILLAR_PAGE_SIZE,
+  macroPaginate,
+  callerAccountId,
+  browsableOrAll,
+  viewerProjects,
+} from "./resolvers/viewer.js";
+import { withAdminGuard, withAuditTrail } from "./resolvers/admin-guard.js";
+import { checkMacroAccess } from "./resolvers/macro-access.js";
+export { __clearMacroAccessCache, MacroAccessError, withMacroAccessGuard } from "./resolvers/macro-access.js";
+export { __resetAdminCheckCache, AdminPermissionError } from "./resolvers/admin-guard.js";
+export { readAdminConfig, getAdminConfigResolver, saveAdminConfigResolver } from "./resolvers/admin-config.js";
 
 // ---------------------------------------------------------------------------
 // PII / data-retention audit note
@@ -360,376 +374,6 @@ import {
 //   request arrives. The KVS key ADMIN_CONFIG_KEY and all installation-scoped
 //   keys can be enumerated via the project-store helpers for targeted erasure.
 // ---------------------------------------------------------------------------
-
-// ----- Admin config -----
-
-const ADMIN_CONFIG_KEY = "atlasiq-admin-config";
-
-const DEFAULT_MACRO_ACCESS = {
-  restrictAccess: false,
-  allowedGroups: [],
-};
-
-// Quick scan's schedule. dayOfWeek only matters when frequency is "weekly" -- 0 is Sunday, to
-// match Date#getUTCDay() and the way most people say a day of the week.
-//
-// windowHours defaults to matching the interval (weekly -> 168h, daily -> 24h) but can be set
-// wider than the interval on purpose: a schedule that is sometimes late for reasons outside
-// this app's control (Forge's own scheduling looseness, a site down for maintenance) should
-// still catch everything that changed, not lose the gap in between. Narrower than the
-// interval would be the opposite mistake -- a quiet hole between two quick scans that nothing
-// ever re-checks.
-// What the admin has explicitly acknowledged during first run, and whether they have put
-// the panel away. Only ACKNOWLEDGEMENTS live here -- a human confirming they have read
-// something is a real fact with nowhere else to live. Every step that describes the state of
-// the estate is derived from that estate on read, never stored: a stored flag drifts, lies
-// after a data wipe, and survives a reinstall it should not.
-const DEFAULT_FIRST_RUN = {
-  acknowledged: [],
-  dismissed: false,
-};
-
-const DEFAULT_QUICK_SCAN_SCHEDULE = {
-  enabled: false,
-  frequency: "weekly",
-  dayOfWeek: 0,
-  hourUtc: 0,
-  windowHours: 168,
-  lastScheduledRunAt: null,
-};
-
-const DEFAULT_REMEDIATION_CONFIG = {
-  // The project remediation epics and tasks are created in. Empty means "not set up yet" --
-  // every create action refuses until an admin picks one.
-  projectKey: "",
-  epicIssueType: "Epic",
-  taskIssueType: "Task",
-  // Optional: an accountId every created task is assigned to. Empty means unassigned.
-  defaultAssigneeAccountId: "",
-  // The quarter's hierarchy above the epics (lib/remediation-hierarchy.js): a top-level item
-  // and one initiative per pillar. Off by default -- it needs those issue types to exist in
-  // the remediation project, above Epic in the site's hierarchy.
-  hierarchyEnabled: false,
-  rootIssueType: "Product",
-  initiativeIssueType: "Initiative",
-};
-
-const DEFAULT_ADMIN_CONFIG = {
-  readOnlyMode: false,
-  apiConcurrency: BASE_JIRA_CONCURRENCY,
-  // How old an imported automation analysis may be before its answers stop being treated as
-  // current. 7 days matches the macro's existing snapshot warning and the Quick Scan panel's
-  // full-scan age, so an admin meets one staleness rule across the product rather than three.
-  automationStaleAfterDays: DEFAULT_ANALYSIS_STALE_AFTER_DAYS,
-  autoSnapshotEnabled: false,
-  autoSnapshotFrequency: "weekly",
-  governanceThresholds: DEFAULT_GOVERNANCE_THRESHOLDS,
-  macroAccess: DEFAULT_MACRO_ACCESS,
-  quickScanSchedule: DEFAULT_QUICK_SCAN_SCHEDULE,
-  remediation: DEFAULT_REMEDIATION_CONFIG,
-  firstRun: DEFAULT_FIRST_RUN,
-};
-
-export async function readAdminConfig() {
-  try {
-    const stored = await kvs.get(ADMIN_CONFIG_KEY);
-    if (!stored) return DEFAULT_ADMIN_CONFIG;
-    return {
-      ...DEFAULT_ADMIN_CONFIG,
-      ...stored,
-      governanceThresholds: {
-        ...DEFAULT_GOVERNANCE_THRESHOLDS,
-        ...(stored.governanceThresholds || {}),
-      },
-      macroAccess: {
-        ...DEFAULT_MACRO_ACCESS,
-        ...(stored.macroAccess || {}),
-      },
-      quickScanSchedule: {
-        ...DEFAULT_QUICK_SCAN_SCHEDULE,
-        ...(stored.quickScanSchedule || {}),
-      },
-      remediation: {
-        ...DEFAULT_REMEDIATION_CONFIG,
-        ...(stored.remediation || {}),
-      },
-      firstRun: {
-        ...DEFAULT_FIRST_RUN,
-        ...(stored.firstRun || {}),
-      },
-    };
-  } catch {
-    return DEFAULT_ADMIN_CONFIG;
-  }
-}
-
-export async function getAdminConfigResolver(_payload, _context) {
-  return readAdminConfig();
-}
-
-export async function saveAdminConfigResolver({ payload }) {
-  // Input validation for admin config shape
-  const cfg = payload || {};
-  if (cfg.apiConcurrency !== undefined && cfg.apiConcurrency !== null) {
-    requireBoundedInt(cfg.apiConcurrency, "apiConcurrency", 1, 20);
-  }
-  // Bounded at both ends on purpose. Zero or negative would make every analysis stale and
-  // the pillar would answer "unknown" forever; an unbounded upper end would let someone set
-  // it high enough to silence the warning permanently, which is the same as removing it.
-  if (cfg.automationStaleAfterDays !== undefined && cfg.automationStaleAfterDays !== null) {
-    requireBoundedInt(cfg.automationStaleAfterDays, "automationStaleAfterDays", 1, 90);
-  }
-  if (cfg.autoSnapshotFrequency !== undefined && cfg.autoSnapshotFrequency !== null) {
-    optionalEnum(cfg.autoSnapshotFrequency, "autoSnapshotFrequency", ["daily", "weekly", "monthly"], null);
-  }
-  const thresholds = cfg.governanceThresholds || {};
-  const thresholdKeys = [
-    "unusedFieldDaysThreshold",
-    "lowUsageIssueThreshold",
-    "highUsageIssueThreshold",
-    "highProjectCountThreshold",
-  ];
-  for (const key of thresholdKeys) {
-    if (thresholds[key] !== undefined && thresholds[key] !== null) {
-      requirePositiveInt(thresholds[key], `governanceThresholds.${key}`);
-    }
-  }
-  // Health tolerances are rates, not counts: the share of an estate at which a dimension
-  // bottoms out. Validated as a fraction so a value typed as a percentage (15 rather than
-  // 0.15) is rejected here rather than silently zeroing that dimension for everyone.
-  const tolerances = cfg.healthTolerances || {};
-  for (const key of Object.keys(DEFAULT_HEALTH_TOLERANCES)) {
-    const value = tolerances[key];
-    if (value === undefined || value === null) continue;
-    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0 || value > 1) {
-      throw new Error(`healthTolerances.${key} must be a rate greater than 0 and at most 1`);
-    }
-  }
-  // v2 scoring targets: each is { target, floor } as rates in [0,1]. Only the shape is
-  // enforced here -- resolveHealthTargets rejects a degenerate pair for the direction and
-  // keeps the default, so a bad band costs one tuned dimension, not the score.
-  const healthTargets = cfg.healthTargets || {};
-  for (const key of Object.keys(DEFAULT_HEALTH_TARGETS)) {
-    const band = healthTargets[key];
-    if (band === undefined || band === null) continue;
-    if (typeof band !== "object" || Array.isArray(band)) {
-      throw new Error(`healthTargets.${key} must be an object with target and floor rates`);
-    }
-    for (const field of ["target", "floor"]) {
-      const v = band[field];
-      if (v === undefined || v === null) continue;
-      if (typeof v !== "number" || !Number.isFinite(v) || v < 0 || v > 1) {
-        throw new Error(`healthTargets.${key}.${field} must be a rate between 0 and 1`);
-      }
-    }
-  }
-  // Remediation ticketing target. Every field is optional here; a create action does its
-  // own "is this actually set up" check. What is enforced is the shape, so a typo cannot
-  // wedge issue creation for everyone — a project KEY, not a name or an id, and issue-type
-  // names that are non-empty strings.
-  if (cfg.remediation) {
-    const rem = cfg.remediation;
-    if (rem.projectKey !== undefined && rem.projectKey !== null && rem.projectKey !== "") {
-      if (typeof rem.projectKey !== "string" || !/^[A-Za-z][A-Za-z0-9_]{1,49}$/.test(rem.projectKey)) {
-        throw new Error("remediation.projectKey must be a Jira project key (letters, digits and underscores, starting with a letter).");
-      }
-    }
-    if (rem.hierarchyEnabled !== undefined && typeof rem.hierarchyEnabled !== "boolean") {
-      throw new Error("remediation.hierarchyEnabled must be true or false.");
-    }
-    for (const key of ["epicIssueType", "taskIssueType", "rootIssueType", "initiativeIssueType"]) {
-      if (rem[key] !== undefined && rem[key] !== null && rem[key] !== "") {
-        if (typeof rem[key] !== "string" || rem[key].length > 100) {
-          throw new Error(`remediation.${key} must be an issue type name.`);
-        }
-      }
-    }
-    if (rem.defaultAssigneeAccountId !== undefined && rem.defaultAssigneeAccountId !== null && rem.defaultAssigneeAccountId !== "") {
-      if (typeof rem.defaultAssigneeAccountId !== "string" || rem.defaultAssigneeAccountId.length > 128) {
-        throw new Error("remediation.defaultAssigneeAccountId must be an Atlassian accountId.");
-      }
-    }
-  }
-  if (cfg.quickScanSchedule) {
-    const sched = cfg.quickScanSchedule;
-    if (sched.frequency !== undefined && sched.frequency !== null) {
-      optionalEnum(sched.frequency, "quickScanSchedule.frequency", ["daily", "weekly"], null);
-    }
-    if (sched.dayOfWeek !== undefined && sched.dayOfWeek !== null) {
-      requireBoundedInt(sched.dayOfWeek, "quickScanSchedule.dayOfWeek", 0, 6);
-    }
-    if (sched.hourUtc !== undefined && sched.hourUtc !== null) {
-      requireBoundedInt(sched.hourUtc, "quickScanSchedule.hourUtc", 0, 23);
-    }
-    if (sched.windowHours !== undefined && sched.windowHours !== null) {
-      requireBoundedInt(sched.windowHours, "quickScanSchedule.windowHours", 1, 24 * 90);
-    }
-  }
-  const current = await readAdminConfig();
-  const updated = {
-    ...current,
-    ...(payload || {}),
-    governanceThresholds: {
-      ...current.governanceThresholds,
-      ...(payload?.governanceThresholds || {}),
-    },
-    healthTolerances: {
-      ...current.healthTolerances,
-      ...(payload?.healthTolerances || {}),
-    },
-    healthTargets: {
-      ...current.healthTargets,
-      ...(payload?.healthTargets || {}),
-    },
-    macroAccess: {
-      ...current.macroAccess,
-      ...(payload?.macroAccess || {}),
-    },
-    quickScanSchedule: {
-      ...current.quickScanSchedule,
-      ...(payload?.quickScanSchedule || {}),
-    },
-    remediation: {
-      ...current.remediation,
-      ...(payload?.remediation || {}),
-    },
-    firstRun: {
-      ...current.firstRun,
-      ...(payload?.firstRun || {}),
-    },
-  };
-  updated.apiConcurrency = Math.max(1, Math.min(10, Number(updated.apiConcurrency) || BASE_JIRA_CONCURRENCY));
-  // Clamped as well as validated, so a value that reached storage some other way (an older
-  // build, a hand-edited record) still lands inside the band rather than disabling the gate.
-  updated.automationStaleAfterDays = Math.max(1, Math.min(90,
-    Number(updated.automationStaleAfterDays) || DEFAULT_ANALYSIS_STALE_AFTER_DAYS));
-  await kvs.set(ADMIN_CONFIG_KEY, updated);
-  return { ok: true, config: updated };
-}
-
-// How many projects this viewer can Browse, for the macro's scope statement.
-//
-// Best-effort and separate from the access decision: a viewer who is allowed in but whose
-// project count cannot be established sees the generic "scoped to the projects you can
-// browse" rather than being refused. Null means unknown, 0 means genuinely none -- and the
-// macro says something different for each, because "you have no access to anything" is a
-// thing somebody needs to be told plainly rather than left to infer from empty tabs.
-async function viewerProjectCount(context) {
-  try {
-    const installationKey = getInstallationKey(context);
-    const scope = await viewerProjects(installationKey, context);
-    return scope.available ? scope.projects.length : null;
-  } catch {
-    return null;
-  }
-}
-
-// The group-membership answer, cached briefly per account and group list. The macro makes
-// several reads per page load, and every one of them is now gated, so without this each
-// would cost a Jira round trip. Same 60-second window, and the same accepted risk, as the
-// admin check: a viewer removed from the group keeps access for up to a minute.
-const MACRO_ACCESS_TTL_MS = 60 * 1000;
-const macroAccessCache = new Map();
-
-export function __clearMacroAccessCache() {
-  macroAccessCache.clear();
-}
-
-// One decision, used both by checkMacroAccess (which the macro asks before rendering) and by
-// withMacroAccessGuard (which every macro read passes through). Before the guard existed the
-// restriction was only a UI decision: the macro hid itself, but any Confluence user could
-// invoke getMacroFields and the rest directly. `failedOpen` marks the accepted risk in
-// SECURITY_CHECKLIST.md 1.3: a failed group lookup grants access rather than blanking the page.
-async function macroAccessDecision(context) {
-  try {
-    const config = await readAdminConfig();
-    const { restrictAccess, allowedGroups } = config.macroAccess || {};
-
-    if (!restrictAccess) return { allowed: true };
-
-    const groups = (allowedGroups || []).filter(Boolean);
-    if (!groups.length) {
-      return {
-        allowed: false,
-        reason: "Macro access is restricted but no allowed groups have been configured. Contact your Jira administrator.",
-      };
-    }
-
-    const accountId = context?.accountId;
-    if (!accountId) {
-      return { allowed: false, reason: "Please sign in to Jira to view this Observatory." };
-    }
-
-    const cacheKey = `${accountId}|${JSON.stringify(groups)}`;
-    const cached = macroAccessCache.get(cacheKey);
-    if (cached && cached.expires > Date.now()) return cached.decision;
-
-    const resp = await api.asApp().requestJira(
-      route`/rest/api/3/user/groups?accountId=${accountId}`,
-      { headers: { Accept: "application/json" } }
-    );
-
-    if (!resp.ok) {
-      console.error("checkMacroAccess: group lookup failed", resp.status);
-      // Fail open -- do not block on an API error. Not cached, so the next call retries.
-      return { allowed: true, failedOpen: true };
-    }
-
-    const userGroups = await resp.json();
-    const userGroupNames = Array.isArray(userGroups) ? userGroups.map((g) => g.name) : [];
-    const hasAccess = groups.some((g) => userGroupNames.includes(g));
-
-    const decision = hasAccess
-      ? { allowed: true }
-      : {
-          allowed: false,
-          reason: "You don't have permission to view this Observatory. Contact your Jira administrator to request access.",
-        };
-    macroAccessCache.set(cacheKey, { decision, expires: Date.now() + MACRO_ACCESS_TTL_MS });
-    return decision;
-  } catch (err) {
-    console.error("checkMacroAccess error:", err);
-    return { allowed: true, failedOpen: true }; // fail open
-  }
-}
-
-async function checkMacroAccess({ context }) {
-  const decision = await macroAccessDecision(context);
-  if (!decision.allowed) return { allowed: false, reason: decision.reason };
-  // On a failed lookup the count is left unknown rather than guessed at, which the macro
-  // renders as its generic scope line.
-  return { allowed: true, projectCount: decision.failedOpen ? null : await viewerProjectCount(context) };
-}
-
-export class MacroAccessError extends Error {
-  constructor(reason) {
-    super(reason || "You don't have permission to view this Observatory.");
-    this.name = "MacroAccessError";
-  }
-}
-
-// Applied to the macro handler's registry in index.js. Not applied on the admin handler:
-// the admin page is gated by Jira ADMINISTER, and the macro's group list is a setting about
-// Confluence readers, not admins.
-export function withMacroAccessGuard(functions) {
-  return Object.fromEntries(
-    Object.entries(functions).map(([name, fn]) => {
-      // The check itself must stay callable, or a denied viewer could not be told why.
-      if (name === "checkMacroAccess") return [name, fn];
-      return [
-        name,
-        async (req) => {
-          const decision = await macroAccessDecision(req?.context);
-          if (!decision.allowed) {
-            logger.warn("macro.denied", { action: name, actorId: req?.context?.accountId || null });
-            throw new MacroAccessError(decision.reason);
-          }
-          return fn(req);
-        },
-      ];
-    })
-  );
-}
 
 // ----- Inventory UI helpers -----
 
@@ -1247,68 +891,6 @@ async function getWorkflowInsights({ context }) {
     console.error("getWorkflowInsights failed:", error);
     throw error;
   }
-}
-
-// ── Macro viewer pillars ──────────────────────────────────────────────────────────────────
-//
-// The Confluence macro shows a viewer the projects they can Browse and the filters,
-// dashboards and workflows attached to those projects -- nothing about a project they cannot
-// already see in Jira. Every one of these SHARED resolvers starts from the same browsable
-// set, exactly as the macro's Projects tab already does. They carry no governance findings:
-// a macro viewer browses, an admin governs.
-
-const MACRO_PILLAR_PAGE_SIZE = 20;
-
-function macroPaginate(rows, page, pageSize = MACRO_PILLAR_PAGE_SIZE) {
-  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
-  const current = Math.min(Math.max(1, Number(page) || 1), totalPages);
-  const start = (current - 1) * pageSize;
-  return { slice: rows.slice(start, start + pageSize), page: current, pageSize, totalPages };
-}
-
-// The account behind a call, wherever the runtime put it. A resolver invocation carries it
-// on context.accountId; a Rovo agent action's context nests it under principal, or -- for an
-// agent-identity invocation with no end user -- does not carry one at all.
-function callerAccountId(context) {
-  return (
-    context?.accountId ||
-    context?.principal?.accountId ||
-    context?.context?.accountId ||
-    context?.principal?.id ||
-    null
-  );
-}
-
-// Browse-permission filter that degrades to "trust the snapshot" when there is no caller to
-// check against. Observatory is an admin-only app and its snapshots only ever hold what the
-// app itself (asApp, broad read scopes) could see, so a Rovo agent action -- which reaches
-// here with no user principal -- gets the project set the app already has rather than an
-// empty one. Every resolver-driven caller still carries an accountId and stays filtered.
-async function browsableOrAll(context, projectIds) {
-  const ids = (projectIds || []).map(String);
-  const accountId = callerAccountId(context);
-  if (!accountId) return new Set(ids);
-  return getBrowsableProjectIds(accountId, ids);
-}
-
-// The viewer's browsable projects, with both id and key -- filters reference a project by
-// KEY (from JQL), dashboard shares and the workflow map by ID.
-async function viewerProjects(installationKey, context) {
-  const fieldMeta = await readSnapshotMeta(installationKey).catch(() => null);
-  if (!fieldMeta?.version) return { available: false, projectIds: new Set(), projectKeys: new Set(), projects: [] };
-
-  const all = await listSnapshotProjects(installationKey, fieldMeta.version).catch(() => []);
-  const browsable = await browsableOrAll(context, all.map((p) => p.projectId));
-  const projects = all
-    .filter((p) => browsable.has(String(p.projectId)))
-    .map((p) => ({ projectId: String(p.projectId), projectKey: p.projectKey, projectName: p.projectName }));
-
-  return {
-    available: true,
-    projectIds: new Set(projects.map((p) => p.projectId)),
-    projectKeys: new Set(projects.map((p) => String(p.projectKey || "").toLowerCase())),
-    projects,
-  };
 }
 
 async function getMacroFilters({ payload, context }) {
@@ -10851,154 +10433,6 @@ export const SHARED_RESOLVER_FUNCTIONS = {
   getMacroIssueTypes,      // Read-only: issue type schemes governing the viewer's projects
   getMacroBoards,          // Read-only: agile boards living in the viewer's projects
 };
-
-// â”€â”€ Admin authorization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-//
-// The jira:adminPage module controls who can SEE the admin page. It does not control
-// who can reach its resolver: an invoke() is an authenticated app endpoint, and module
-// placement is a UI affordance, not an authorization boundary. Every function below
-// therefore verifies the calling user holds Jira ADMINISTER before running.
-//
-// The check is applied by wrapping the registry rather than by calling a helper inside
-// each function, so a function added to ADMIN_ONLY_FUNCTIONS is guarded by construction.
-// Remembering to add a guard is exactly the kind of thing that gets forgotten once.
-
-const ADMIN_CHECK_TTL_MS = 60 * 1000;
-const adminCheckCache = new Map();
-
-// Forge reuses warm invocations, so this cache survives across calls within one container
-// and spares a Jira round trip per admin read -- getIssueScanStatus is polled every 15s
-// for the length of a scan. The cost is that a revoked admin keeps access for up to 60s.
-// Accepted, and recorded in SECURITY_CHECKLIST.md.
-async function isCallerJiraAdmin(accountId) {
-  if (!accountId) return false;
-  const cached = adminCheckCache.get(accountId);
-  if (cached && cached.expires > Date.now()) return cached.allowed;
-
-  const allowed = await callerHasJiraAdmin(accountId);
-  adminCheckCache.set(accountId, { allowed, expires: Date.now() + ADMIN_CHECK_TTL_MS });
-  return allowed;
-}
-
-export function __resetAdminCheckCache() {
-  adminCheckCache.clear();
-}
-
-// recordAuditEvent already swallows its own failures, but this layer must not depend on
-// that: if writing the audit row ever did throw, an unguarded await here would turn a
-// broken audit table into a total outage of every admin action -- and into a denial-of-
-// service anyone able to break that table could trigger. Availability wins over
-// completeness here; the loss is loud in the structured log rather than silent.
-async function safeAudit(scopeKey, event) {
-  try {
-    await recordAuditEvent(scopeKey, event);
-  } catch (error) {
-    logger.error("audit.write_failed", { action: event?.action, error: error?.message || String(error) });
-  }
-}
-
-export class AdminPermissionError extends Error {
-  constructor() {
-    super("This action requires Jira administrator permission.");
-    this.name = "AdminPermissionError";
-  }
-}
-
-function withAdminGuard(functions) {
-  return Object.fromEntries(
-    Object.entries(functions).map(([name, fn]) => [
-      name,
-      async (req) => {
-        const accountId = req?.context?.accountId || null;
-        if (!(await isCallerJiraAdmin(accountId))) {
-          // Denials are audited: a burst of them is the signal that someone is probing
-          // the resolver directly, which is the whole reason this guard exists.
-          const installationKey = getInstallationKey(req?.context);
-          await safeAudit(installationKey, {
-            actorId: accountId,
-            action: name,
-            outcome: "denied",
-            detail: "Caller does not hold Jira ADMINISTER permission",
-          });
-          logger.warn("auth.denied", { action: name, actorId: accountId });
-          throw new AdminPermissionError();
-        }
-        return fn(req);
-      },
-    ])
-  );
-}
-
-// Actions worth a permanent record: they mutate state, destroy data, or change the rules
-// the governance engine runs by. Admin *reads* are not audited -- they are frequent
-// (polled during scans) and recording them would bury the events that matter.
-const AUDITED_ADMIN_ACTIONS = new Set([
-  "startFullSiteScan",
-  "startQuickSiteScan",
-  "resumeSiteScan",
-  "cancelSiteScan",
-  "startIssueScan",
-  "resumeIssueScan",
-  "cancelIssueScan",
-  "startDeltaIssueScan",
-  "cancelSnapshot",
-  "clearSnapshot",
-  "cancelProjectUsageJob",
-  "restartProjectUsageJob",
-  "resumeProjectUsageJob",
-  "restoreProjectUsageCache",
-  "refreshRecentProjectUsage",
-  "saveReportDefinition",
-  "deleteReportDefinition",
-  "saveAdminConfig",
-  "migrateNamespaceKeys",
-  "buildScreenInventory",
-  "buildIssueTypeInventory",
-  "buildUserInventory",
-  "buildAssetInventory",
-  "buildAccessInventory",
-  "buildChangeHistory",
-  "buildEstateInventory",
-  "buildFieldConfigInventory",
-  "buildBoardInventory",
-  "createRemediationEpic",
-  "syncRemediationNow",
-]);
-
-function withAuditTrail(functions) {
-  return Object.fromEntries(
-    Object.entries(functions).map(([name, fn]) => [
-      name,
-      !AUDITED_ADMIN_ACTIONS.has(name)
-        ? fn
-        : async (req) => {
-            const accountId = req?.context?.accountId || null;
-            const installationKey = getInstallationKey(req?.context);
-            try {
-              const result = await fn(req);
-              await safeAudit(installationKey, {
-                actorId: accountId,
-                action: name,
-                outcome: "allowed",
-                // Resolvers signal a refusal by returning a shape rather than throwing
-                // (clearSnapshot's confirmation mismatch, read-only mode), so carry that
-                // through instead of recording a blocked action as a completed one.
-                detail: result && result.error ? `Refused: ${result.error}` : null,
-              });
-              return result;
-            } catch (error) {
-              await safeAudit(installationKey, {
-                actorId: accountId,
-                action: name,
-                outcome: "failed",
-                detail: error?.message || String(error),
-              });
-              throw error;
-            }
-          },
-    ])
-  );
-}
 
 // Functions registered on adminHandler ONLY.
 // Any function that mutates data, triggers background jobs, modifies config,
