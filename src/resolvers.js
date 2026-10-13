@@ -7,6 +7,7 @@ import {
   getInstallationKey,
   callerHasJiraAdmin,
   mapWithConcurrency,
+  getFieldProjectAssociations,
   jiraRequest,
   getDistinctIssueCountForFields,
   getLiveFieldProjectUsage,
@@ -194,6 +195,8 @@ import {
   currentPeriod,
   readUsageMeta,
   loadUsageTally,
+  loadArchivedProjects,
+  loadArchivedFieldUsage,
   USAGE_PILLARS,
   USAGE_WINDOW_DAYS,
 } from "./lib/project-store.js";
@@ -6360,6 +6363,54 @@ async function screensToProjects(installationKey, version, screenIds) {
 // that quietly takes an hour. The remainder is reported, never silently dropped.
 const MAX_DELETION_SAFETY_FIELDS = 50;
 
+// What archived projects say about each field, for assessFieldDeletion: the values counted in
+// a project before it was archived (`held`), and archived projects the field is configured in
+// whose values were never counted (`unknown`). Archived issues are invisible to Jira's search,
+// so this is the only evidence there is. Reach is read live per field -- a global context
+// reaches every archived project; otherwise the field's project associations decide.
+async function archivedEvidenceForFields(installationKey, fieldIds) {
+  const list = await loadArchivedProjects(installationKey);
+  const out = new Map();
+  if (!list || !list.available) {
+    const reason = !list
+      ? "Archived projects have not been checked yet. They are read at the end of each full scan."
+      : `The list of archived projects could not be read (${list.error || "refused"}), so values hidden in them cannot be ruled out.`;
+    for (const id of fieldIds) out.set(id, { available: false, reason });
+    return out;
+  }
+  if (!list.projects.length) {
+    for (const id of fieldIds) out.set(id, { available: true, held: [], unknown: [] });
+    return out;
+  }
+  const archivedIds = new Map(list.projects.map((p) => [p.id, p]));
+  const usage = await loadArchivedFieldUsage(installationKey, fieldIds);
+  await mapWithConcurrency(fieldIds, 4, async (fieldId) => {
+    const held = (usage.get(fieldId) || []).filter((r) => archivedIds.has(r.projectId));
+    const heldIds = new Set(held.map((r) => r.projectId));
+    let reach = [];
+    let reachUnknown = false;
+    try {
+      // A missing summary only means "global context unknown"; the associations still answer.
+      let summary = null;
+      try { summary = await loadFieldSummary(installationKey, fieldId); } catch { summary = null; }
+      if (summary?.hasGlobalContext) {
+        reach = list.projects;
+      } else {
+        const associated = await getFieldProjectAssociations(fieldId);
+        reach = associated.map((a) => archivedIds.get(String(a.id))).filter(Boolean);
+      }
+    } catch {
+      reachUnknown = true;
+    }
+    // An archived project Jira reports as holding no issues cannot hide any values.
+    const unknown = reach
+      .filter((p) => !heldIds.has(p.id) && p.issueCount !== 0)
+      .map((p) => ({ projectKey: p.key, issueCount: p.issueCount }));
+    out.set(fieldId, { available: true, held, unknown, reachUnknown });
+  });
+  return out;
+}
+
 export async function getDeletionSafety({ payload, context }) {
   incrMetric(METRIC_NAMES.resolver);
   await ensureProjectStoreReady();
@@ -6417,6 +6468,9 @@ export async function getDeletionSafety({ payload, context }) {
         staleAfterDays: automationParts.staleAfterDays,
       })
     : null;
+
+  const archivedById = await archivedEvidenceForFields(installationKey, fieldIds)
+    .catch(fallbackOn("deletion_safety.archived_failed", () => null, { installationKey }));
 
   // Workflow rules naming these fields: one indexed read for the whole batch. Null when no
   // snapshot has captured rules, which the assessor reports as a gap rather than a pass.
@@ -6478,6 +6532,9 @@ export async function getDeletionSafety({ payload, context }) {
         : null,
       invisibleData: invisibleById.get(fieldId) || null,
       workflowRules: workflowEvidence?.get(fieldId) ?? null,
+      archived: archivedById
+        ? archivedById.get(fieldId) || null
+        : { available: false, reason: "Archived projects could not be checked for this field." },
     }));
   }
 

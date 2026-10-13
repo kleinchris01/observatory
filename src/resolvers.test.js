@@ -67,6 +67,10 @@ const mocks = vi.hoisted(() => ({
   loadTicketedItemIds: vi.fn(async () => new Set()),
   loadTicketedItems: vi.fn(async () => new Map()),
   readUsageMeta: vi.fn(async () => null),
+  // Default: archived projects were read and there are none, so existing verdicts stand.
+  loadArchivedProjects: vi.fn(async () => ({ available: true, checkedAt: "2026-10-01T00:00:00Z", error: null, projects: [] })),
+  loadArchivedFieldUsage: vi.fn(async () => new Map()),
+  getFieldProjectAssociations: vi.fn(async () => []),
   loadUsageTally: vi.fn(async () => new Map()),
   readRecentFullScanRuns: vi.fn(async () => []),
   recoverStalledScan: vi.fn(async () => ({ recovered: false, reason: "healthy" })),
@@ -512,6 +516,8 @@ vi.mock("./lib/project-store.js", () => ({
   loadTicketedItems: mocks.loadTicketedItems,
   currentPeriod: mocks.currentPeriod,
   readUsageMeta: mocks.readUsageMeta,
+  loadArchivedProjects: mocks.loadArchivedProjects,
+  loadArchivedFieldUsage: mocks.loadArchivedFieldUsage,
   loadHierarchyNodes: mocks.loadHierarchyNodes,
   recordHierarchyNode: mocks.recordHierarchyNode,
   loadUsageTally: mocks.loadUsageTally,
@@ -613,6 +619,7 @@ vi.mock("./lib/jira-api.js", () => ({
   getBrowsableProjectIds: mocks.getBrowsableProjectIds,
   createJiraIssue: mocks.createJiraIssue,
   updateJiraIssue: mocks.updateJiraIssue,
+  getFieldProjectAssociations: mocks.getFieldProjectAssociations,
   searchIssuesPage: mocks.searchIssuesPage,
   getAllJiraProjects: mocks.getAllJiraProjects,
   probeEndpoint: mocks.probeEndpoint,
@@ -11692,5 +11699,69 @@ describe("remediation hierarchy", () => {
 
   test("config validation rejects a non-boolean hierarchy switch", async () => {
     await expect(saveAdminConfigResolver({ payload: { remediation: { hierarchyEnabled: "yes" } } })).rejects.toThrow(/hierarchyEnabled/);
+  });
+});
+
+// Archived projects are invisible to Jira's search. A field whose data lives there must never
+// read as unused, and deleting it must say what it would destroy (7 Oct 2026: an HR project
+// archived for retention, with a field a remediation task said to delete).
+describe("getDeletionSafety -- archived projects", () => {
+  const TT = { id: "20001", key: "TT", name: "Talent Tracker", archivedAt: "2026-06-01", issueCount: 2340 };
+  const EMPTY = { id: "20002", key: "OLD", name: "Old", archivedAt: "2025-01-01", issueCount: 0 };
+
+  async function assess(fieldId = "customfield_500") {
+    mocks.readSnapshotMeta.mockResolvedValueOnce({ version: "v1", refreshedAt: "2026-10-01" });
+    mocks.loadSnapshotFields.mockResolvedValueOnce([{ id: fieldId, name: "Hiring Manager", totalIssueCount: 0, activeProjectCount: 0 }]);
+    const r = await getDeletionSafety({ payload: { fieldIds: [fieldId] }, context: ctxWithAccount() });
+    return r.fields?.[0] ?? r.assessments?.[0] ?? r.results?.[0] ?? r;
+  }
+
+  const findArchived = (a) => ({
+    blocker: (a.blockers || []).find((b) => b.source === "archived"),
+    gap: (a.gaps || []).find((g) => g.source === "archived projects"),
+  });
+
+  test("values counted before the project was archived are a high blocker naming it", async () => {
+    mocks.loadArchivedProjects.mockResolvedValueOnce({ available: true, projects: [TT] });
+    mocks.loadArchivedFieldUsage.mockResolvedValueOnce(new Map([["customfield_500", [{ projectId: "20001", projectKey: "TT", issueCount: 2340, lastSeenAt: "2026-05-30" }]]]));
+    const a = await assess();
+    expect(a.verdict).toBe("in-use");
+    expect(findArchived(a).blocker).toMatchObject({ severity: "high", summary: expect.stringMatching(/2,340 values in 1 archived project.*TT \(2,340\)/) });
+  });
+
+  test("configured in an archived project never counted: a gap naming it, so never 'no evidence'", async () => {
+    mocks.loadArchivedProjects.mockResolvedValueOnce({ available: true, projects: [TT, EMPTY] });
+    mocks.getFieldProjectAssociations.mockResolvedValueOnce([{ id: "20001" }, { id: "20002" }, { id: "10000" }]);
+    const a = await assess();
+    expect(a.verdict).not.toBe("no-evidence-of-use");
+    // OLD reports no issues at all, so it cannot hide values and is not named.
+    expect(findArchived(a).gap.reason).toMatch(/Configured in 1 archived project whose values were never counted \(TT\)/);
+  });
+
+  test("a global context reaches every archived project", async () => {
+    mocks.loadArchivedProjects.mockResolvedValueOnce({ available: true, projects: [TT] });
+    mocks.loadFieldSummary.mockResolvedValueOnce({ hasGlobalContext: true });
+    const a = await assess();
+    expect(findArchived(a).gap.reason).toMatch(/\(TT\)/);
+    expect(mocks.getFieldProjectAssociations).not.toHaveBeenCalled();
+  });
+
+  test("an unreadable archived list is a gap, never 'nothing archived'", async () => {
+    mocks.loadArchivedProjects.mockResolvedValueOnce({ available: false, error: "403 Forbidden", projects: [] });
+    const a = await assess();
+    expect(findArchived(a).gap.reason).toMatch(/could not be read \(403 Forbidden\)/);
+  });
+
+  test("before any scan has read the list, it says so", async () => {
+    mocks.loadArchivedProjects.mockResolvedValueOnce(null);
+    const a = await assess();
+    expect(findArchived(a).gap.reason).toMatch(/have not been checked yet/);
+  });
+
+  test("a failed association read is 'could not check', not 'not configured'", async () => {
+    mocks.loadArchivedProjects.mockResolvedValueOnce({ available: true, projects: [TT] });
+    mocks.getFieldProjectAssociations.mockRejectedValueOnce(new Error("timeout"));
+    const a = await assess();
+    expect(findArchived(a).gap.reason).toMatch(/could not be checked/);
   });
 });

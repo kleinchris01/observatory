@@ -297,6 +297,10 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
   const totalIssueCount = metrics.totalIssueCount ?? 0;
   const activeProjectCount = metrics.activeProjectCount ?? 0;
   const configuredProjectCount = metrics.configuredProjectCount ?? metrics.usageCount ?? 0;
+  // Values counted in projects since archived (store/archived.js). Jira's search cannot see
+  // them, so totalIssueCount is 0 for a field whose data lives only there -- which is data,
+  // not an unused field, and must never be flagged as one.
+  const holdsArchivedData = (Number(metrics.archivedIssueCount) || 0) > 0;
   const breadthProjectCount = activeProjectCount > 0 ? activeProjectCount : configuredProjectCount;
   const usesConfiguredScope = activeProjectCount <= 0 && configuredProjectCount > 0;
   const usageStatus = metrics.usageStatus ?? USAGE_STATUS_READY;
@@ -362,7 +366,7 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
     }
   }
 
-  if (!notActionable && !appProvided && usageAvailable && configuredProjectCount === 0 && totalIssueCount === 0 && activeProjectCount === 0) {
+  if (!notActionable && !appProvided && usageAvailable && !holdsArchivedData && configuredProjectCount === 0 && totalIssueCount === 0 && activeProjectCount === 0) {
     reasons.push({
       code: "orphaned",
       category: "cleanup", severity: "medium",
@@ -372,7 +376,7 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
     priorityScore += 25;
   }
 
-  if (!notActionable && configuredProjectCount >= t.broadScopeMinProjects && totalIssueCount === 0 && activeProjectCount === 0) {
+  if (!notActionable && !holdsArchivedData && configuredProjectCount >= t.broadScopeMinProjects && totalIssueCount === 0 && activeProjectCount === 0) {
     reasons.push({
       code: "configured-no-issues",
       category: "cleanup", severity: "medium",
@@ -382,7 +386,7 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
     priorityScore += 18;
   }
 
-  if (isSystemField && usageAvailable && totalIssueCount === 0) {
+  if (isSystemField && usageAvailable && !holdsArchivedData && totalIssueCount === 0) {
     reasons.push({
       code: "system-no-usage",
       category: "cleanup", severity: "low",

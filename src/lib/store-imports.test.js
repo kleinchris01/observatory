@@ -37,5 +37,7 @@ describe("project-store imports", () => {
       }
     }
     expect(missing).toEqual([]);
-  });
+  // Loads the real store module and reads every source file: slow under coverage
+  // instrumentation, so it gets a generous timeout rather than the 5s default.
+  }, 60000);
 });

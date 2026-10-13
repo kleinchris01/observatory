@@ -202,8 +202,8 @@ used them. Each one is still in every field picker, every screen admin search, a
 field" dropdown a project admin sees.
 
 ## Strategy
-For each field, confirm the finding is current (a scan can be stale), then delete it from
-Jira. Field deletion is destructive and cannot be undone, so this always creates a
+For each field, confirm the finding is current (a scan can be stale) and that no archived
+project holds data in it (Jira's search cannot see archived issues), then delete it from Jira. Field deletion is destructive and cannot be undone, so this always creates a
 Jira task per field for a human to actually action -- Observatory never deletes a field
 itself.
 
@@ -228,6 +228,11 @@ ${it.reason === "configured-no-issues"
   screen or context change since the scan can un-orphan a field).
 - Search for the field id in any saved filters, dashboards or automation rules before
   deleting -- Observatory's own dependency graph is the fastest way to check this.
+- Check archived projects. Jira hides archived issues from search, so a field can hold data
+  in an archived project (kept for retention, for example) while looking unused everywhere
+  else. Deleting it deletes that data, and a restored project comes back with the field
+  empty. Open the field's Deletion Safety in Observatory: it names any archived project the
+  field is configured in. If one is listed, ask its owner before going further.
 - If it is configured for projects that never use it, remove those contexts; if nothing
   needs it at all, delete the field in Jira -> Issues -> Custom fields.
 

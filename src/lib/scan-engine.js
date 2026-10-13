@@ -18,6 +18,7 @@ import {
   ISSUE_SCAN_INTER_PAGE_DELAY_MS,
   ISSUE_SCAN_FLUSH_EVERY_PAGES,
   ISSUE_SCAN_CANCEL_CHECK_EVERY_PAGES,
+  getArchivedJiraProjects,
 } from "./jira-api.js";
 import {
   ensureProjectStoreReady,
@@ -60,6 +61,10 @@ import {
   promoteIssueScanFieldUserUsage,
   flushUsageBuffer,
   promoteUsageTally,
+  replaceArchivedProjects,
+  preserveArchivedFieldUsage,
+  pruneRestoredArchivedUsage,
+  loadArchivedFieldUsage,
   USAGE_WINDOW_DAYS,
 } from "./project-store.js";
 import {
@@ -286,6 +291,36 @@ export async function cacheFieldOptionsForField(installationKey, fieldId) {
   return { fieldId, ...result };
 }
 
+// Read the archived-project list and keep the last field counts of each archived project.
+// Returns { available, count, copied, error }. Never throws: a failure is recorded as
+// "could not be read" and the crawl's finalization carries on.
+export async function refreshArchivedProjects(installationKey, snapshotVersion) {
+  let projects;
+  try {
+    projects = await getArchivedJiraProjects();
+  } catch (error) {
+    const message = String(error?.message || error).slice(0, 300);
+    await replaceArchivedProjects(installationKey, [], { available: false, error: message })
+      .catch(ignoreWith("scan.archived_meta_write_failed", { installationKey }));
+    logger.warn("scan.archived_projects_unreadable", { installationKey, error: message });
+    return { available: false, count: 0, copied: 0, error: message };
+  }
+  try {
+    await replaceArchivedProjects(installationKey, projects, { available: true });
+    const ids = projects.map((p) => p.id);
+    const { copied } = snapshotVersion && ids.length
+      ? await preserveArchivedFieldUsage(installationKey, snapshotVersion, ids)
+      : { copied: 0 };
+    await pruneRestoredArchivedUsage(installationKey, ids);
+    logger.info("scan.archived_projects_read", { installationKey, archived: ids.length, fieldCountsKept: copied });
+    return { available: true, count: ids.length, copied, error: null };
+  } catch (error) {
+    const message = String(error?.message || error).slice(0, 300);
+    logger.warn("scan.archived_projects_store_failed", { installationKey, error: message });
+    return { available: false, count: projects.length, copied: 0, error: message };
+  }
+}
+
 export async function completeIssueScanFinalization(installationKey, tag, workerError = null) {
   try {
     console.log(`${tag}: finalizing scan...`);
@@ -326,6 +361,14 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
     console.log(`${tag}: usage ${usagePromoted.promoted ? `promoted for ${usagePromoted.entities} items` : "kept from the last complete crawl"}`);
 
     const snapshotMeta = await readSnapshotMeta(installationKey);
+
+    // Archived projects, before the promote below deletes the counts of every project this
+    // crawl did not see. Their last counts are copied out first, so a field whose data now
+    // lives only in an archived project keeps its evidence. A refused read is recorded as such
+    // and changes nothing else -- it must never be taken for "nothing is archived".
+    const archived = await refreshArchivedProjects(installationKey, snapshotMeta?.version || null);
+    console.log(`${tag}: archived projects ${archived.available ? `${archived.count} listed, ${archived.copied} field counts kept` : `not readable (${archived.error})`}`);
+
     if (snapshotMeta?.version) {
       // Only trust the crawl's totals as authoritative (and zero out fields it never saw)
       // when every worker actually finished — a field absent from a partial crawl's buffer
@@ -345,8 +388,14 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
         .catch(fallbackOn("scan.field_user_promote_failed", { fieldsPromoted: 0, rowsInserted: 0 }, { installationKey }));
       console.log(`${tag}: promoted user-picker usage for ${userPromoted.fieldsPromoted} fields (${userPromoted.rowsInserted} rows)`);
 
-      if (promoted.touchedFieldIds?.length) {
-        const refreshed = await refreshGovernanceFindingsForFields(installationKey, snapshotMeta.version, promoted.touchedFieldIds).catch((err) => {
+      // Fields holding archived data are refreshed too: they may be in no crawl buffer at all,
+      // and their findings must stop calling them unused.
+      const archivedFieldIds = archived.available
+        ? [...(await loadArchivedFieldUsage(installationKey).catch(() => new Map())).keys()]
+        : [];
+      const refreshIds = [...new Set([...(promoted.touchedFieldIds || []), ...archivedFieldIds])];
+      if (refreshIds.length) {
+        const refreshed = await refreshGovernanceFindingsForFields(installationKey, snapshotMeta.version, refreshIds).catch((err) => {
           console.warn(`${tag}: refreshGovernanceFindingsForFields failed:`, err?.message || err);
           return { updatedCount: 0 };
         });

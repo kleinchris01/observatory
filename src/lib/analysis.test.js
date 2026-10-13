@@ -1545,3 +1545,16 @@ describe("buildInventoryRecord", () => {
     expect(record.isJiraBuiltin).toBe(true);
   });
 });
+
+// A field whose data lives only in an archived project has no live issues -- Jira's search
+// cannot see archived ones -- but it is not unused, and must never be flagged as such.
+describe("buildGovernanceFindings — archived data", () => {
+  const codes = (metrics) => findings(customField, { usageStatus: "ready", ...metrics }).reasons.map((r) => r.code);
+
+  test("values counted in an archived project stop the no-data findings", () => {
+    expect(codes({ configuredProjectCount: 0, totalIssueCount: 0, activeProjectCount: 0 })).toContain("orphaned");
+    expect(codes({ configuredProjectCount: 0, totalIssueCount: 0, activeProjectCount: 0, archivedIssueCount: 40 })).not.toContain("orphaned");
+    expect(codes({ configuredProjectCount: 20, totalIssueCount: 0, activeProjectCount: 0 })).toContain("configured-no-issues");
+    expect(codes({ configuredProjectCount: 20, totalIssueCount: 0, activeProjectCount: 0, archivedIssueCount: 40 })).not.toContain("configured-no-issues");
+  });
+});

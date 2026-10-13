@@ -44,6 +44,12 @@ export function assessFieldDeletion({
   rqt = null,          // { available, issueCount } | null
   invisibleData = null, // { projects: [], totalIssues } | null -- from the screen cross
   workflowRules = null, // { available, count, workflowCount, examples: [] } | null
+  // { available, reason?, held: [{ projectKey, issueCount, lastSeenAt }],
+  //   unknown: [{ projectKey, issueCount }], reachUnknown?: boolean } | null
+  // Archived projects are invisible to Jira's search, so the usage count above cannot include
+  // them. `held` is what Observatory counted before a project was archived; `unknown` is an
+  // archived project the field is configured in whose values were never counted.
+  archived = null,
 } = {}) {
   const blockers = [];
   const gaps = [];
@@ -71,6 +77,36 @@ export function assessFieldDeletion({
     }
   } else {
     gaps.push(gap("field usage", "No field snapshot has been built, so where values exist is unknown."));
+  }
+
+  // ── Archived projects ─────────────────────────────────────────────────────
+  //
+  // Values in an archived project are real data nobody can see in search. Deleting the field
+  // deletes them, and a project restored later comes back with the field empty -- the exact
+  // case of an HR project archived for retention with a field someone is told to delete.
+  if (archived?.available) {
+    const held = (archived.held || []).filter((p) => Number(p.issueCount) > 0);
+    const unknown = archived.unknown || [];
+    if (held.length) {
+      const total = held.reduce((n, p) => n + Number(p.issueCount), 0);
+      const where = held.slice(0, 3).map((p) => `${p.projectKey} (${Number(p.issueCount).toLocaleString()})`).join(", ");
+      blockers.push({
+        source: "archived",
+        severity: "high",
+        summary: `${total.toLocaleString()} value${total === 1 ? "" : "s"} in ${held.length} archived project${held.length === 1 ? "" : "s"} when last counted: ${where}${held.length > 3 ? ", …" : ""}.`,
+        detail: "Jira's search cannot see archived projects, so these are the counts from before each was archived. Deleting the field deletes these values, and they stay empty if the project is ever restored.",
+      });
+    }
+    if (unknown.length) {
+      const where = unknown.slice(0, 3).map((p) => p.projectKey).join(", ");
+      gaps.push(gap("archived projects", `Configured in ${unknown.length} archived project${unknown.length === 1 ? "" : "s"} whose values were never counted (${where}${unknown.length > 3 ? ", …" : ""}). Jira hides archived issues from search, so any values there cannot be seen. Check with the project's owner, or restore it, before deleting.`));
+    }
+    if (archived.reachUnknown) {
+      gaps.push(gap("archived projects", "Whether this field is configured in an archived project could not be checked."));
+    }
+    if (!held.length && !unknown.length && !archived.reachUnknown) checked.push("archived projects");
+  } else if (archived && archived.available === false) {
+    gaps.push(gap("archived projects", archived.reason || "The list of archived projects could not be read, so values hidden in them cannot be ruled out."));
   }
 
   // ── The cross-signal, which is the one that catches integrations ───────────

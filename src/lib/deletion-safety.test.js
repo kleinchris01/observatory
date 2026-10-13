@@ -330,3 +330,32 @@ describe("assessStatusDeletion -- workflows", () => {
     expect(result.gaps.map((g) => g.source)).toContain("workflows");
   });
 });
+
+describe("assessFieldDeletion — archived projects", () => {
+  const archived = (over) => ({ ...allClean, archived: { available: true, held: [], unknown: [], ...over } });
+
+  test("nothing archived reaches the field: checked, and the clean verdict stands", () => {
+    const a = assessFieldDeletion(archived({}));
+    expect(a.verdict).toBe(VERDICT.NO_EVIDENCE);
+    expect(a.checked).toContain("archived projects");
+  });
+
+  test("values counted before archiving block the deletion", () => {
+    const a = assessFieldDeletion(archived({ held: [{ projectKey: "TT", issueCount: 2340, lastSeenAt: "2026-05-30" }] }));
+    expect(a.verdict).toBe(VERDICT.IN_USE);
+    expect(a.blockers[0]).toMatchObject({ source: "archived", severity: "high" });
+    expect(a.blockers[0].detail).toMatch(/stay empty if the project is ever restored/);
+  });
+
+  test("an archived project never counted is a gap, so the verdict cannot be 'no evidence'", () => {
+    const a = assessFieldDeletion(archived({ unknown: [{ projectKey: "TT", issueCount: 2340 }] }));
+    expect(a.verdict).toBe(VERDICT.UNKNOWN);
+    expect(a.gaps[0].reason).toMatch(/Configured in 1 archived project whose values were never counted \(TT\)/);
+  });
+
+  test("an unreadable list is a gap with its reason", () => {
+    const a = assessFieldDeletion({ ...allClean, archived: { available: false, reason: "refused" } });
+    expect(a.verdict).toBe(VERDICT.UNKNOWN);
+    expect(a.gaps).toEqual([{ source: "archived projects", reason: "refused" }]);
+  });
+});

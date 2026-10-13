@@ -91,6 +91,7 @@ vi.mock("./project-store.js", () => ({
   pruneOldSnapshotVersions: vi.fn().mockResolvedValue({ fieldsDeleted: 0, usageRowsDeleted: 0 }),
   syncActiveProjectCountsFromUsage: vi.fn().mockResolvedValue({ fieldsSynced: 0 }),
   loadFieldLastChangeMap: vi.fn().mockResolvedValue(new Map()),
+  loadArchivedFieldUsage: vi.fn().mockResolvedValue(new Map()),
   readFullScanMeta: vi.fn().mockResolvedValue(null),
 }));
 
@@ -1273,5 +1274,16 @@ describe("queueFieldSummaryContinuationWithRetry", () => {
     );
     expect(result.queued).toBe(false);
     expect(result.reason).toBe("queue-backpressure");
+  });
+});
+
+describe("refreshGovernanceFindingsForFields — archived data", () => {
+  it("passes each field's archived values into its findings, so it is not called unused", async () => {
+    const store = await getProjectStoreMock();
+    store.loadSnapshotFields.mockResolvedValue([{ id: "customfield_9", name: "Hiring Manager", configuredProjectCount: 0, totalIssueCount: 0, activeProjectCount: 0 }]);
+    store.loadArchivedFieldUsage.mockResolvedValueOnce(new Map([["customfield_9", [{ projectId: "20001", issueCount: 40 }]]]));
+    await refreshGovernanceFindingsForFields(INSTALLATION_KEY, "v1", ["customfield_9"]);
+    const [, , updates] = store.updateSnapshotFieldFindings.mock.calls.at(-1);
+    expect(updates[0].findings.reasons.map((r) => r.code)).not.toContain("orphaned");
   });
 });

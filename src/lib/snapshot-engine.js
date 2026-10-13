@@ -57,6 +57,7 @@ import {
   updateSnapshotFieldMetadata,
   updateSnapshotFieldFindings,
   loadFieldLastChangeMap,
+  loadArchivedFieldUsage,
   syncActiveProjectCountsFromUsage,
   readFullScanMeta,
 } from "./project-store.js";
@@ -794,6 +795,12 @@ export async function refreshGovernanceFindingsForFields(installationKey, versio
     console.warn("refreshGovernanceFindingsForFields: last-change rollup failed:", err?.message || err);
     return new Map();
   });
+  // Values counted in projects since archived: data the crawl cannot see, so a field holding
+  // them is never flagged as unused. Best-effort like the rollup above.
+  const archivedUsage = await loadArchivedFieldUsage(installationKey, fieldIds).catch((err) => {
+    console.warn("refreshGovernanceFindingsForFields: archived usage read failed:", err?.message || err);
+    return new Map();
+  });
 
   const updates = allFields
     .filter((field) => idSet.has(field.id))
@@ -810,6 +817,7 @@ export async function refreshGovernanceFindingsForFields(installationKey, versio
         isSystemField,
         isPlatformProvidedField: isPlatformProvidedField(field),
         lastFieldChangeAt: lastChangeMap.get(field.id) ?? null,
+        archivedIssueCount: (archivedUsage.get(String(field.id)) || []).reduce((n, r) => n + (r.issueCount || 0), 0),
       });
       return { id: field.id, findings };
     });

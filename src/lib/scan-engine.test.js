@@ -14,7 +14,10 @@ import {
   normalizeWorkerSlices,
   tallyIssueUsage,
   usageDateMs,
+  refreshArchivedProjects,
 } from "./scan-engine.js";
+import { getArchivedJiraProjects } from "./jira-api.js";
+import { refreshGovernanceFindingsForFields } from "./snapshot-engine.js";
 
 // ── Module mocks ─────────────────────────────────────────────────────────────
 
@@ -23,6 +26,7 @@ vi.mock("./queues.js", () => ({
 }));
 
 vi.mock("./jira-api.js", () => ({
+  getArchivedJiraProjects: vi.fn().mockResolvedValue([]),
   jiraRequest: vi.fn().mockResolvedValue({}),
   sleep: vi.fn().mockResolvedValue(undefined),
   incrMetric: vi.fn(),
@@ -90,6 +94,10 @@ vi.mock("./project-store.js", () => ({
   promoteIssueScanFieldUserUsage: vi.fn().mockResolvedValue({ fieldsPromoted: 0, rowsInserted: 0 }),
   flushUsageBuffer: vi.fn().mockResolvedValue(undefined),
   promoteUsageTally: vi.fn().mockResolvedValue({ promoted: true, entities: 0 }),
+  replaceArchivedProjects: vi.fn().mockResolvedValue(undefined),
+  preserveArchivedFieldUsage: vi.fn().mockResolvedValue({ copied: 0 }),
+  pruneRestoredArchivedUsage: vi.fn().mockResolvedValue(undefined),
+  loadArchivedFieldUsage: vi.fn().mockResolvedValue(new Map()),
   USAGE_WINDOW_DAYS: 90,
   loadSnapshotFields: vi.fn().mockResolvedValue([]),
 }));
@@ -1665,5 +1673,45 @@ describe("tallyIssueUsage", () => {
     expect(usageDateMs("2026-10-07T12:00:00.000+0100")).toBe(Date.parse("2026-10-07T11:00:00.000Z"));
     expect(Number.isNaN(usageDateMs("nope"))).toBe(true);
     expect(Number.isNaN(usageDateMs(null))).toBe(true);
+  });
+});
+
+describe("refreshArchivedProjects", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it("stores the list, keeps archived projects' field counts, and clears restored ones", async () => {
+    const store = await getProjectStoreMock();
+    getArchivedJiraProjects.mockResolvedValueOnce([{ id: "20001", key: "TT", issueCount: 2340 }]);
+    store.preserveArchivedFieldUsage.mockResolvedValueOnce({ copied: 3 });
+    const r = await refreshArchivedProjects("inst", "v1");
+    expect(r).toEqual({ available: true, count: 1, copied: 3, error: null });
+    expect(store.replaceArchivedProjects).toHaveBeenCalledWith("inst", [{ id: "20001", key: "TT", issueCount: 2340 }], { available: true });
+    expect(store.preserveArchivedFieldUsage).toHaveBeenCalledWith("inst", "v1", ["20001"]);
+    expect(store.pruneRestoredArchivedUsage).toHaveBeenCalledWith("inst", ["20001"]);
+  });
+
+  it("a refused read is recorded as unreadable and touches nothing else", async () => {
+    const store = await getProjectStoreMock();
+    getArchivedJiraProjects.mockRejectedValueOnce(new Error("403 Forbidden"));
+    const r = await refreshArchivedProjects("inst", "v1");
+    expect(r).toMatchObject({ available: false, error: "403 Forbidden" });
+    expect(store.replaceArchivedProjects).toHaveBeenCalledWith("inst", [], { available: false, error: "403 Forbidden" });
+    expect(store.preserveArchivedFieldUsage).not.toHaveBeenCalled();
+    expect(store.pruneRestoredArchivedUsage).not.toHaveBeenCalled();
+  });
+
+  it("finalization saves archived counts before the promote deletes them, and refreshes those fields' findings", async () => {
+    const store = await getProjectStoreMock();
+    const order = [];
+    store.readSnapshotMeta.mockResolvedValue({ version: "v1" });
+    store.readIssueScanMeta.mockResolvedValue({ processedIssues: 1, progressLog: [], scanHistory: [] });
+    getArchivedJiraProjects.mockResolvedValueOnce([{ id: "20001", key: "TT" }]);
+    store.preserveArchivedFieldUsage.mockImplementationOnce(async () => { order.push("preserve"); return { copied: 1 }; });
+    store.promoteIssueScanToSnapshotProjectUsage.mockImplementationOnce(async () => { order.push("promote"); return { fieldsPromoted: 0, rowsInserted: 0, touchedFieldIds: [] }; });
+    store.loadArchivedFieldUsage.mockResolvedValueOnce(new Map([["customfield_9", [{ projectId: "20001", issueCount: 40 }]]]));
+    await completeIssueScanFinalization(INSTALLATION_KEY, "test-tag");
+    expect(order).toEqual(["preserve", "promote"]);
+    // The archived-data field is refreshed although no crawl buffer touched it.
+    expect(refreshGovernanceFindingsForFields).toHaveBeenCalledWith(INSTALLATION_KEY, "v1", ["customfield_9"]);
   });
 });

@@ -60,6 +60,7 @@ import {
   getProjectById,
   getFieldContexts,
   getAllJiraProjects,
+  getArchivedJiraProjects,
   getAllStatuses,
   probeEndpoint,
   probeEndpointAsUser,
@@ -1684,5 +1685,21 @@ describe("updateJiraIssue / searchIssuesPage (remediation hierarchy)", () => {
     const out = await searchIssuesPage('project = "OPS"', ["summary"], 50);
     expect(out).toEqual([{ key: "OPS-9", id: "9", fields: { summary: "S" } }]);
     expect(JSON.parse(mockRequestJira.mock.calls[0][1].body)).toEqual({ jql: 'project = "OPS"', fields: ["summary"], maxResults: 50 });
+  });
+});
+
+describe("getArchivedJiraProjects", () => {
+  test("asks for archived projects with their issue counts", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { values: [
+      { id: 20001, key: "TT", name: "Talent Tracker", archivedDate: "2026-06-01T00:00:00.000+0000", insight: { totalIssueCount: 2340 } },
+      { id: 20002, key: "OLD", name: "Old" },
+    ], total: 2 } }));
+    await expect(getArchivedJiraProjects()).resolves.toEqual([
+      { id: "20001", key: "TT", name: "Talent Tracker", archivedAt: "2026-06-01T00:00:00.000+0000", issueCount: 2340 },
+      { id: "20002", key: "OLD", name: "Old", archivedAt: null, issueCount: null },
+    ]);
+    const [path] = mockRequestJira.mock.calls[0];
+    expect(String(path)).toContain("status=archived");
+    expect(String(path)).toContain("expand=insight");
   });
 });
