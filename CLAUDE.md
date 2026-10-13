@@ -73,6 +73,14 @@ not exist. When it fails, wire the missing piece rather than exempting the pilla
 item (`store/usage.js`) and a Rovo agent are expected too; where a pillar genuinely cannot have
 one, it says "not measured" with the reason, never zero.
 
+## Resolvers: one module per domain
+
+`src/resolvers.js` is being split into `src/resolvers/<domain>.js`; the plan, the order and
+the tools are in `docs/resolvers-refactor.md`. Until it finishes: a new resolver goes in its
+domain's module when that module exists, and `resolvers.js` only registers it. Modules under
+`src/resolvers/` never import `../resolvers.js`. A PR that moves code does not change it —
+`node scripts/refactor/verify-split.mjs` must pass.
+
 ## Testing
 
 Every new feature or change needs frontend *and* backend tests. Coverage floors are
