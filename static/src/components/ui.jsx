@@ -720,6 +720,30 @@ export function PillarHealthPanel({ pillar, onOpenTrends, trendsByDimension = nu
 
 // Text arrow rather than an Icon: the icon set has no chevron, and a missing name renders
 // as nothing at all, which would silently strip the affordance.
+// Two to four views of the same content, one chosen ("By priority / By pillar"). Pressed-state
+// buttons rather than tabs: the content underneath is the same set, ordered or grouped
+// differently, not a different page.
+export function SegmentedToggle({ label, options = [], value, onChange }) {
+  return (
+    <div className="ui-segmented" role="group" aria-label={label}>
+      {options.map((option) => {
+        const active = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            className={`ui-segmented__btn${active ? " ui-segmented__btn--active" : ""}`}
+            aria-pressed={active}
+            onClick={() => { if (!active) onChange?.(option.value); }}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function LinkButton({ children, onClick }) {
   return (
     <button type="button" className="ui-linkbutton" onClick={onClick}>

@@ -3,7 +3,7 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { router, rovo } from "@forge/bridge";
-import { StatTile, StatRow, Panel, CollapsiblePanels, Chip, EmptyState, BarList, FindingRow, LinkButton, PageHeader, RuleLink, JiraLink, SortFilterBar, StageRail, formatDurationMs, AskRovo, RemediationStatus, TransitionPath, WorkflowUsageList, UsageTriple, combineUsageItems, formatUsageWhen } from "./ui";
+import { StatTile, StatRow, Panel, CollapsiblePanels, Chip, EmptyState, BarList, FindingRow, LinkButton, PageHeader, RuleLink, JiraLink, SortFilterBar, StageRail, formatDurationMs, AskRovo, RemediationStatus, TransitionPath, WorkflowUsageList, UsageTriple, combineUsageItems, formatUsageWhen, SegmentedToggle } from "./ui";
 
 // These are the shared vocabulary that replaced four separate stat-card idioms. They are
 // small, but they now render on every tab, so a regression here is a regression
@@ -651,5 +651,25 @@ describe("UsageTriple", () => {
     expect(formatUsageWhen("2026-10-06T12:00:00.000Z", now)).toBe("today");
     expect(formatUsageWhen("2026-09-27T00:00:00.000Z", now)).toBe("10d ago");
     expect(formatUsageWhen("2025-01-15T00:00:00.000Z", now)).toMatch(/2025/);
+  });
+});
+
+describe("SegmentedToggle", () => {
+  const options = [{ value: "priority", label: "By priority" }, { value: "pillar", label: "By pillar" }];
+
+  test("marks the chosen view pressed and names the group", () => {
+    render(<SegmentedToggle label="Order the findings" options={options} value="pillar" onChange={vi.fn()} />);
+    expect(screen.getByRole("group", { name: "Order the findings" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "By pillar" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "By priority" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("reports a new choice, and ignores a click on the current one", async () => {
+    const onChange = vi.fn();
+    render(<SegmentedToggle label="Order" options={options} value="pillar" onChange={onChange} />);
+    await userEvent.click(screen.getByRole("button", { name: "By pillar" }));
+    expect(onChange).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "By priority" }));
+    expect(onChange).toHaveBeenCalledWith("priority");
   });
 });

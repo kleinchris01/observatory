@@ -145,7 +145,7 @@ beforeEach(() => vi.clearAllMocks());
 describe("OverviewDashboard — findings", () => {
   test("leads with what needs attention and routes each finding to a tab", async () => {
     const onNavigate = vi.fn();
-    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} onNavigate={onNavigate} />);
+    render(<OverviewDashboard initialOrder="pillar" dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} onNavigate={onNavigate} />);
 
     // One panel over the score and the findings, replacing "Site health" and "What needs
     // attention" -- which stated the same facts in two vocabularies.
@@ -160,7 +160,7 @@ describe("OverviewDashboard — findings", () => {
 
   test("routes workflow findings to the Workflows tab", async () => {
     const onNavigate = vi.fn();
-    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} onNavigate={onNavigate} />);
+    render(<OverviewDashboard initialOrder="pillar" dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} onNavigate={onNavigate} />);
 
     expect(screen.getByText("Groups of duplicate statuses")).toBeInTheDocument();
     await userEvent.click(screen.getAllByRole("button", { name: /^Workflows$/ })[0]);
@@ -168,13 +168,13 @@ describe("OverviewDashboard — findings", () => {
   });
 
   test("quantifies what consolidation would actually save", () => {
-    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} onNavigate={vi.fn()} />);
+    render(<OverviewDashboard initialOrder="pillar" dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} onNavigate={vi.fn()} />);
     // 20 removable, not the 32 statuses involved -- collapsing a group keeps one.
     expect(screen.getByText(/removes 20 statuses/i)).toBeInTheDocument();
   });
 
   test("says everything is clean rather than showing an empty list", () => {
-    render(<OverviewDashboard
+    render(<OverviewDashboard initialOrder="pillar"
       dashboard={{ projects: { totalProjects: 1, topByIssueVolume: [], topByFieldCount: [] }, fieldUsage: {} }}
       findingsSummary={{ adminAttention: 0, risky: 0, cleanup: 0, standardize: 0 }}
       workflow={workflow({ duplicateGroupCount: 0, reducibleStatusCount: 0, safeToRemoveCount: 0, flaggedSchemeCount: 0 })}
@@ -186,7 +186,7 @@ describe("OverviewDashboard — findings", () => {
 
   // The rule: no source, no finding.
   test("omits status cleanup as a finding when the scan has not confirmed usage", () => {
-    render(<OverviewDashboard
+    render(<OverviewDashboard initialOrder="pillar"
       dashboard={dashboard()}
       findingsSummary={findingsSummary}
       workflow={workflow({ hasIssueCounts: false, safeToRemoveCount: 0 })}
@@ -200,7 +200,7 @@ describe("OverviewDashboard — findings", () => {
   test("omits workflow findings entirely when no workflow snapshot exists", () => {
     // Field and project sources are clean here so the empty state is reachable; the point
     // is that an unbuilt workflow snapshot contributes no findings and says why.
-    render(<OverviewDashboard
+    render(<OverviewDashboard initialOrder="pillar"
       dashboard={{ fieldUsage: {}, projects: { totalProjects: 1, topByIssueVolume: [], topByFieldCount: [] } }}
       findingsSummary={{ adminAttention: 0, risky: 0, cleanup: 0, standardize: 0 }}
       workflow={{ available: false, state: "idle" }}
@@ -221,7 +221,7 @@ describe("OverviewDashboard — findings", () => {
 // the part of the page an admin actually acts on -- was assembled from fields, projects and
 // workflows only. A credential sitting in plaintext moved the score and named nothing.
 describe("OverviewDashboard — automation and screen findings", () => {
-  const renderAll = (over = {}) => render(<OverviewDashboard
+  const renderAll = (over = {}) => render(<OverviewDashboard initialOrder="pillar"
     dashboard={dashboard()}
     findingsSummary={findingsSummary}
     workflow={workflow()}
@@ -465,7 +465,7 @@ describe("OverviewDashboard — automation and screen findings", () => {
 // surfaced at all (reducible statuses, unreachable-with-issues, no-Done schemes).
 describe("OverviewDashboard — workflow, automation and project findings stand on their own", () => {
   test("promotes reducible statuses, unreachable-with-issues and no-Done schemes as their own cards", () => {
-    render(<OverviewDashboard
+    render(<OverviewDashboard initialOrder="pillar"
       dashboard={dashboard()}
       findingsSummary={findingsSummary}
       workflow={workflow({ automationChecked: true, unreachableWithIssuesCount: 6, noDoneSchemeCount: 2 })}
@@ -489,7 +489,7 @@ describe("OverviewDashboard — workflow, automation and project findings stand 
 
   test("promotes broken workflow rule references and inactive workflows, linked to where they are fixed", async () => {
     const onNavigate = vi.fn();
-    render(<OverviewDashboard
+    render(<OverviewDashboard initialOrder="pillar"
       dashboard={dashboard()}
       findingsSummary={findingsSummary}
       workflow={workflow({ ruleIntegrity: { available: true, workflows: 50, teamManaged: 5, rules: 300, brokenRules: 4, brokenProperties: 1, inactive: 7 } })}
@@ -503,7 +503,7 @@ describe("OverviewDashboard — workflow, automation and project findings stand 
   });
 
   test("promotes field scheme findings, the required-but-hidden one as critical", () => {
-    render(<OverviewDashboard
+    render(<OverviewDashboard initialOrder="pillar"
       dashboard={dashboard()}
       findingsSummary={findingsSummary}
       workflow={workflow()}
@@ -518,7 +518,7 @@ describe("OverviewDashboard — workflow, automation and project findings stand 
   });
 
   test("on field schemes, raises no required-but-hidden finding", () => {
-    render(<OverviewDashboard
+    render(<OverviewDashboard initialOrder="pillar"
       dashboard={dashboard()}
       findingsSummary={findingsSummary}
       workflow={workflow()}
@@ -531,15 +531,15 @@ describe("OverviewDashboard — workflow, automation and project findings stand 
 
   test("promotes dormant licences only when the crawl measured activity", () => {
     const users = (over) => ({ available: true, totalUsers: 50, deactivatedUsers: 0, activityMeasured: true, dormantAccounts: 4, dormantAfterDays: 365, ...over });
-    const { unmount } = render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} users={users()} onNavigate={vi.fn()} />);
+    const { unmount } = render(<OverviewDashboard initialOrder="pillar" dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} users={users()} onNavigate={vi.fn()} />);
     expect(within(screen.getByText("Licensed accounts idle for a year").closest(".ui-gov")).getByText("4")).toBeInTheDocument();
     unmount();
-    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} users={users({ activityMeasured: false })} onNavigate={vi.fn()} />);
+    render(<OverviewDashboard initialOrder="pillar" dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} users={users({ activityMeasured: false })} onNavigate={vi.fn()} />);
     expect(screen.queryByText("Licensed accounts idle for a year")).not.toBeInTheDocument();
   });
 
   test("raises no rule finding from a snapshot that never read the rules", () => {
-    render(<OverviewDashboard
+    render(<OverviewDashboard initialOrder="pillar"
       dashboard={dashboard()}
       findingsSummary={findingsSummary}
       workflow={workflow({ ruleIntegrity: { available: false } })}
@@ -557,7 +557,7 @@ describe("OverviewDashboard — workflow, automation and project findings stand 
         dimensions: [{ key: "automation-security", label: "Automation security", available: true, score: 70, detail: "3 rules with a credential." }],
       }],
     };
-    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} automation={automation()} health={health} onNavigate={vi.fn()} />);
+    render(<OverviewDashboard initialOrder="pillar" dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} automation={automation()} health={health} onNavigate={vi.fn()} />);
 
     const security = screen.getByText("Automation security").closest(".ui-gov");
     const credentials = screen.getByText("Automation rules storing a credential in plaintext").closest(".ui-gov");
@@ -573,7 +573,7 @@ describe("OverviewDashboard — workflow, automation and project findings stand 
         dimensions: [{ key: "project-consistency", label: "Project consistency", available: true, score: 60, detail: "5 over-configured." }],
       }],
     };
-    render(<OverviewDashboard
+    render(<OverviewDashboard initialOrder="pillar"
       health={health}
       dashboard={dashboard({
         projects: {
@@ -597,7 +597,7 @@ describe("OverviewDashboard — workflow, automation and project findings stand 
   });
 
   test("surfaces stale project-activity data as its own finding, since it silences the decline findings", () => {
-    render(<OverviewDashboard
+    render(<OverviewDashboard initialOrder="pillar"
       dashboard={dashboard({
         adoption: {
           available: true, measuredProjects: 40, judgeableProjects: 38,
@@ -615,7 +615,7 @@ describe("OverviewDashboard — workflow, automation and project findings stand 
   });
 
   test("promotes 'Dashboards published, unwanted', a finding that was computed and never shown at all", () => {
-    render(<OverviewDashboard
+    render(<OverviewDashboard initialOrder="pillar"
       dashboard={dashboard()}
       findingsSummary={findingsSummary}
       workflow={workflow()}
@@ -654,7 +654,7 @@ describe("OverviewDashboard — health pillars", () => {
   };
 
   test("groups the dimension bars under their pillar with a roll-up score", () => {
-    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} health={health} onNavigate={vi.fn()} />);
+    render(<OverviewDashboard initialOrder="pillar" dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} health={health} onNavigate={vi.fn()} />);
 
     expect(screen.getByText("Fields")).toBeInTheDocument();
     expect(screen.getByText("48")).toBeInTheDocument();
@@ -667,7 +667,7 @@ describe("OverviewDashboard — health pillars", () => {
   // One line for the pillar, not one dark bar per dimension. Three bars all reading "no
   // screen inventory yet" looks like three problems instead of one unbuilt snapshot.
   test("collapses an unmeasured pillar to a single reason", () => {
-    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} health={health} onNavigate={vi.fn()} />);
+    render(<OverviewDashboard initialOrder="pillar" dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} health={health} onNavigate={vi.fn()} />);
 
     // "not measured" is a statement about SCORING, so it appears against the screens
     // pillar the score covered and could not score -- not against a pillar that exists
@@ -679,7 +679,7 @@ describe("OverviewDashboard — health pillars", () => {
 
   // A cached payload from before pillars existed still has to render its bars.
   test("falls back to a flat list when the score carries no pillars", () => {
-    render(<OverviewDashboard
+    render(<OverviewDashboard initialOrder="pillar"
       dashboard={dashboard()}
       findingsSummary={findingsSummary}
       workflow={workflow()}
@@ -704,7 +704,7 @@ describe("OverviewDashboard — health pillars", () => {
         { key: "screen-hygiene", label: "Screen hygiene", available: true, score: 52, detail: "58 screens flagged." },
       ],
     };
-    render(<OverviewDashboard
+    render(<OverviewDashboard initialOrder="pillar"
       dashboard={dashboard()}
       findingsSummary={findingsSummary}
       workflow={workflow()}
@@ -735,19 +735,19 @@ describe("OverviewDashboard — health pillars", () => {
 
 describe("OverviewDashboard — resilience", () => {
   test("renders with no data at all rather than crashing", () => {
-    render(<OverviewDashboard />);
+    render(<OverviewDashboard initialOrder="pillar" />);
     expect(screen.getByText("Governance")).toBeInTheDocument();
   });
 
   test("deep links are inert rather than throwing when no navigator is supplied", async () => {
-    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} />);
+    render(<OverviewDashboard initialOrder="pillar" dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} />);
     await userEvent.click(screen.getAllByRole("button", { name: /Field Browser/ })[0]);
     expect(screen.getByText("Governance")).toBeInTheDocument();
   });
 
   test("the RQT panel degrades to dashes when its resolver fails", async () => {
     invoke.mockRejectedValue(new Error("resolver down"));
-    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} onNavigate={vi.fn()} />);
+    render(<OverviewDashboard initialOrder="pillar" dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} onNavigate={vi.fn()} />);
 
     await waitFor(() => expect(screen.getAllByText("—").length).toBeGreaterThan(0));
   });
@@ -767,7 +767,7 @@ describe("OverviewDashboard — site health", () => {
   });
 
   test("leads with the score and names the weakest dimension with its remedy", () => {
-    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} health={health()} onNavigate={vi.fn()} />);
+    render(<OverviewDashboard initialOrder="pillar" dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} health={health()} onNavigate={vi.fn()} />);
 
     expect(screen.getByText("72")).toBeInTheDocument();
     expect(screen.getByText("C")).toBeInTheDocument();
@@ -776,7 +776,7 @@ describe("OverviewDashboard — site health", () => {
   });
 
   test("says which dimensions it could not score", () => {
-    render(<OverviewDashboard
+    render(<OverviewDashboard initialOrder="pillar"
       dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()}
       health={health({
         dimensionsScored: 4, dimensionsTotal: 7,
@@ -796,14 +796,14 @@ describe("OverviewDashboard — site health", () => {
   });
 
   test("prompts for a build rather than showing a zero when nothing is measured", () => {
-    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} health={{ score: null }} onNavigate={vi.fn()} />);
+    render(<OverviewDashboard initialOrder="pillar" dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} health={{ score: null }} onNavigate={vi.fn()} />);
 
     expect(screen.getByText(/unchecked rather than clean|Nothing flagged/i)).toBeInTheDocument();
     expect(screen.queryByText("0")).not.toBeInTheDocument();
   });
 
   test("renders without a health object at all", () => {
-    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} onNavigate={vi.fn()} />);
+    render(<OverviewDashboard initialOrder="pillar" dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} onNavigate={vi.fn()} />);
     expect(screen.getByText(/unchecked rather than clean|Nothing flagged/i)).toBeInTheDocument();
   });
 });
@@ -818,7 +818,7 @@ describe("OverviewDashboard — remediation beside each finding", () => {
   test("shows the finding's epic and progress, and routes to it on the Remediation tab", async () => {
     invoke.mockImplementation(async (name) => (name === "getRemediationTickets" ? tickets : {}));
     const onNavigate = vi.fn();
-    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} access={access()} onNavigate={onNavigate} siteOrigin="https://acme.atlassian.net" />);
+    render(<OverviewDashboard initialOrder="pillar" dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} access={access()} onNavigate={onNavigate} siteOrigin="https://acme.atlassian.net" />);
 
     expect(await screen.findByRole("link", { name: "ADMIN-7" })).toHaveAttribute("href", "https://acme.atlassian.net/browse/ADMIN-7");
     expect(screen.getByText(/3 of 4 tasks open/)).toBeInTheDocument();
@@ -829,7 +829,7 @@ describe("OverviewDashboard — remediation beside each finding", () => {
   test("a finding with a playbook but no epic offers to start one", async () => {
     invoke.mockImplementation(async (name) => (name === "getRemediationTickets" ? tickets : {}));
     const onNavigate = vi.fn();
-    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} access={access()} onNavigate={onNavigate} />);
+    render(<OverviewDashboard initialOrder="pillar" dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} access={access()} onNavigate={onNavigate} />);
 
     expect(await screen.findByText("No remediation epic for 2026-Q3")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /Start remediation/ }));
@@ -841,9 +841,122 @@ describe("OverviewDashboard — remediation beside each finding", () => {
       if (name === "getRemediationTickets") throw new Error("down");
       return {};
     });
-    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} access={access()} onNavigate={vi.fn()} />);
+    render(<OverviewDashboard initialOrder="pillar" dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} access={access()} onNavigate={vi.fn()} />);
     await waitFor(() => expect(invoke).toHaveBeenCalledWith("getRemediationTickets", {}));
     expect(screen.queryByText(/remediation epic/)).toBeNull();
     expect(screen.getByText("Fields need admin attention")).toBeInTheDocument();
+  });
+});
+
+// "Do this first": the Governance panel's default view ranks every row across pillars. The
+// tests above pin initialOrder="pillar" because they test the pillar grouping; these test the
+// ranked view an admin lands on.
+describe("OverviewDashboard — Do this first", () => {
+  beforeEach(() => {
+    try { window.localStorage.clear(); } catch { /* storage unavailable: the default applies */ }
+  });
+
+  const health = {
+    score: 55,
+    grade: "E",
+    dimensions: [],
+    weakest: null,
+    pillars: [
+      {
+        key: "automation", label: "Automation", score: 40, grade: "E", available: true, scored: 1, total: 1,
+        dimensions: [{ key: "automation-findings", label: "Automation security", available: true, score: 40, weight: 2, detail: "3 rules store a credential." }],
+      },
+      {
+        key: "fields", label: "Fields", score: 79, grade: "C", available: true, scored: 1, total: 1,
+        dimensions: [{ key: "field-naming", label: "Field naming", available: true, score: 79, weight: 1, detail: "34 groups share a name.", action: "Merge the duplicate names." }],
+      },
+    ],
+  };
+  const renderRanked = (over = {}) => render(
+    <OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} automation={automation()} health={health} onNavigate={vi.fn()} {...over} />
+  );
+
+  test("opens on the ranked view, highest value first, with the exact score lift", () => {
+    renderRanked();
+
+    expect(screen.getByRole("button", { name: "By priority" })).toHaveAttribute("aria-pressed", "true");
+    const items = screen.getAllByRole("listitem").filter((li) => li.closest(".priority-list"));
+    expect(within(items[0]).getByText("Automation security")).toBeInTheDocument();
+    // Automation is weight 2 of 3.5 scored pillar weight; this check is all of its pillar.
+    expect(within(items[0]).getByText(/Automation · \+34\.3 points · Act now/)).toBeInTheDocument();
+    expect(screen.getByText(/Fields · \+9\.0 points · Cleanup when convenient · Merge the duplicate names\./)).toBeInTheDocument();
+  });
+
+  test("says each finding once: the pillar view's chips are not rendered alongside", () => {
+    renderRanked();
+    expect(screen.queryByText("Automation rules storing a credential in plaintext")).toBeNull();
+  });
+
+  test("Open goes where the finding's own link goes", async () => {
+    const onNavigate = vi.fn();
+    renderRanked({ onNavigate });
+
+    const first = screen.getAllByRole("listitem").find((li) => within(li).queryByText("Automation security"));
+    await userEvent.click(within(first).getByRole("button", { name: "Open" }));
+    expect(onNavigate).toHaveBeenCalledWith("automation", expect.any(Object));
+  });
+
+  test("switches to the pillar view and remembers the choice", async () => {
+    const { unmount } = renderRanked();
+    await userEvent.click(screen.getByRole("button", { name: "By pillar" }));
+
+    expect(screen.getByText("Automation rules storing a credential in plaintext")).toBeInTheDocument();
+    unmount();
+    renderRanked();
+    expect(screen.getByRole("button", { name: "By pillar" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("offers Plan the fix where a playbook exists, routed to the Remediation tab", async () => {
+    const tickets = {
+      period: "2026-Q4",
+      findingIndex: { "automation-credentials": "automation-credentials" },
+      groups: [{ findingKey: "automation-credentials", isCurrent: false, period: "2026-Q3", openCount: 0, taskCount: 2 }],
+    };
+    invoke.mockImplementation(async (name) => (name === "getRemediationTickets" ? tickets : {}));
+    const onNavigate = vi.fn();
+    renderRanked({ onNavigate });
+
+    await userEvent.click(await screen.findByRole("button", { name: "Plan the fix" }));
+    expect(onNavigate).toHaveBeenCalledWith("remediation", { finding: "automation-credentials" });
+  });
+
+  test("leaves work in progress this quarter out of the list, and counts it", async () => {
+    const tickets = {
+      period: "2026-Q4",
+      findingIndex: { "automation-credentials": "automation-credentials" },
+      groups: [{ findingKey: "automation-credentials", isCurrent: true, period: "2026-Q4", openCount: 2, taskCount: 3 }],
+    };
+    invoke.mockImplementation(async (name) => (name === "getRemediationTickets" ? tickets : {}));
+    renderRanked();
+
+    expect(await screen.findByText(/1 more already in progress this quarter\./)).toBeInTheDocument();
+    expect(screen.queryByText("Automation security")).toBeNull();
+  });
+
+  test("explains the ranking on request", async () => {
+    renderRanked();
+    await userEvent.click(screen.getByRole("button", { name: "How this is ranked" }));
+    expect(screen.getByText(/score lift × urgency ÷ effort/)).toBeInTheDocument();
+  });
+
+  test("says so when everything flagged is already under way", async () => {
+    const tickets = {
+      period: "2026-Q4",
+      findingIndex: { "automation-credentials": "automation-credentials", "automation-disabled": "automation-disabled" },
+      groups: [
+        { findingKey: "automation-credentials", isCurrent: true, openCount: 1, taskCount: 1 },
+        { findingKey: "automation-disabled", isCurrent: true, openCount: 1, taskCount: 1 },
+      ],
+    };
+    invoke.mockImplementation(async (name) => (name === "getRemediationTickets" ? tickets : {}));
+    const onlyAutomation = { ...health, pillars: [health.pillars[0]] };
+    render(<OverviewDashboard dashboard={dashboard()} automation={automation()} health={onlyAutomation} onNavigate={vi.fn()} />);
+
+    expect(await screen.findByText(/already in progress this quarter/)).toBeInTheDocument();
   });
 });

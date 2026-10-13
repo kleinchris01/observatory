@@ -2,7 +2,9 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { Icon } from "./Icons";
 import { formatNumber } from "../utils";
-import { StatTile, StatRow, Panel, EmptyState, LinkButton, GovernanceRow, TrendDelta, bandFromScore, RemediationStatus } from "./ui";
+import { StatTile, StatRow, Panel, EmptyState, LinkButton, GovernanceRow, TrendDelta, bandFromScore, RemediationStatus, FindingRow, GOVERNANCE_BANDS, SegmentedToggle } from "./ui";
+import { rankPriorities, formatLift } from "./priorities";
+import { usePersistentState } from "../hooks";
 import { HEALTH_PILLARS } from "../../../src/lib/health-score";
 
 // The admin landing page.
@@ -1361,18 +1363,91 @@ export function useHealthHistory({ days = 90, load = invoke } = {}) {
   return history;
 }
 
-function GovernanceLedgerPanel({ health, findings, history, workflow, screens, access, estate, fieldConfigs, automation, filters, dashboards, onNavigate, siteOrigin = "" }) {
-  const ledger = React.useMemo(() => buildGovernanceLedger({ health, findings, history }), [health, findings, history]);
-
-  // Where each finding's remediation stands. Fetched here rather than folded into
-  // getAdminOverview, like the RQT card: the ledger renders completely without it, and a
-  // failure leaves the findings exactly as they were rather than breaking the page.
+// Where each finding's remediation stands. Fetched separately rather than folded into
+// getAdminOverview, like the RQT card: the Overview renders completely without it, and a
+// failure leaves the findings exactly as they were rather than breaking the page. Shared by
+// the Governance ledger (status beside each finding) and "Do this first" (work in progress
+// leaves the top of the list).
+function useRemediationTickets() {
   const [remediation, setRemediation] = React.useState(null);
   React.useEffect(() => {
     let live = true;
     invoke("getRemediationTickets", {}).then((r) => { if (live) setRemediation(r); }).catch(() => {});
     return () => { live = false; };
   }, []);
+  return remediation;
+}
+
+const BAND_LABELS = Object.fromEntries(GOVERNANCE_BANDS.map((band) => [band.key, band.label]));
+
+// "Do this first": the ledger's rows ranked across every pillar, shown as the Governance
+// panel's priority view. The ranking lives in priorities.js; this is its presentation. A view
+// of the same rows rather than a second panel, so a finding is said once on the Overview.
+export function PriorityList({ ledger, health, remediation, onNavigate }) {
+  const ranked = React.useMemo(() => rankPriorities({ ledger, health, remediation }), [ledger, health, remediation]);
+  const [showMethod, setShowMethod] = React.useState(false);
+
+  const summary = [
+    ranked.totalLift >= 0.05 ? `Together worth about ${formatLift(ranked.totalLift).replace("+", "")} on the site score.` : null,
+    ranked.inProgress.length ? `${ranked.inProgress.length} more already in progress this quarter.` : null,
+    ranked.remaining ? `${ranked.remaining} more ranked below these; switch to By pillar to see everything.` : null,
+  ].filter(Boolean).join(" ");
+
+  return (
+    <div className="priority-view">
+      <p className="priority-intro">
+        Ranked across every pillar by how much fixing each raises the site score, how urgent it
+        is, and how many items it touches.{" "}
+        <LinkButton onClick={() => setShowMethod((v) => !v)}>{showMethod ? "Hide how" : "How this is ranked"}</LinkButton>
+      </p>
+      {showMethod && (
+        <p className="priority-method">
+          Each row's value is its score lift × urgency ÷ effort. The lift is exactly how many
+          points the site score gains if that check is fully fixed. Urgency is 3 for Act now,
+          2 for Worth reviewing and 1 for Cleanup. Effort grows with the number of items, but
+          slowly: ten items count as about twice the work of one. A finding the score does not
+          measure counts as half a point. Work with open tasks this quarter is left out.
+        </p>
+      )}
+      {ranked.items.length ? (
+        <ol className="priority-list">
+          {ranked.items.map((item) => (
+            <li key={item.key}>
+              <FindingRow
+                tone={item.band}
+                title={item.title}
+                count={typeof item.count === "number" ? formatNumber(item.count) : undefined}
+                detail={[
+                  item.pillarLabel,
+                  formatLift(item.lift) || "not scored",
+                  BAND_LABELS[item.band],
+                  item.action,
+                ].filter(Boolean).join(" · ")}
+                action={
+                  <span className="priority-actions">
+                    {item.onOpen && <LinkButton onClick={item.onOpen}>Open</LinkButton>}
+                    {item.playbook && (
+                      <LinkButton onClick={() => onNavigate?.("remediation", { finding: item.playbook })}>Plan the fix</LinkButton>
+                    )}
+                  </span>
+                }
+              />
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <EmptyState inline>
+          {ranked.inProgress.length
+            ? `Everything flagged is already in progress this quarter (${ranked.inProgress.length}).`
+            : "Nothing flagged needs attention."}
+        </EmptyState>
+      )}
+      {summary && <p className="priority-summary">{summary}</p>}
+    </div>
+  );
+}
+
+function GovernanceLedgerPanel({ ledger, remediation, health, history, order = "pillar", onOrderChange, workflow, screens, access, estate, fieldConfigs, automation, filters, dashboards, onNavigate, siteOrigin = "" }) {
   const remediationFor = React.useCallback((findingKey) => {
     const playbookKey = remediation?.findingIndex?.[findingKey];
     if (!playbookKey) return null;
@@ -1464,6 +1539,18 @@ function GovernanceLedgerPanel({ health, findings, history, workflow, screens, a
         )}
       </div>
 
+      {onOrderChange && (
+        <SegmentedToggle
+          label="Order the findings"
+          value={order}
+          onChange={onOrderChange}
+          options={[{ value: "priority", label: "By priority" }, { value: "pillar", label: "By pillar" }]}
+        />
+      )}
+
+      {order === "priority" ? (
+        <PriorityList ledger={ledger} health={health} remediation={remediation} onNavigate={onNavigate} />
+      ) : (
       <div className="ui-gov-pillars">
         {ledger.pillars.map((pillar) => (
           <section key={pillar.key} className="ui-gov-pillar">
@@ -1535,6 +1622,7 @@ function GovernanceLedgerPanel({ health, findings, history, workflow, screens, a
           </section>
         ))}
       </div>
+      )}
 
       {missing.length > 0 && (
         <p className="ui-note">
@@ -1594,7 +1682,7 @@ function RqtPanel({ onOpenRqtIndex }) {
   );
 }
 
-export function OverviewDashboard({ dashboard, findingsSummary, findingsByCode, workflow, screens, issueTypes, users, assets, access, estate, fieldConfigs, automation, filters, dashboards, health, history, onOpenRqtIndex, onNavigate, siteOrigin = "" }) {
+export function OverviewDashboard({ dashboard, findingsSummary, findingsByCode, workflow, screens, issueTypes, users, assets, access, estate, fieldConfigs, automation, filters, dashboards, health, history, onOpenRqtIndex, onNavigate, siteOrigin = "", initialOrder = null }) {
   // onNavigate is optional so this stays renderable in isolation; without it the deep
   // links become inert rather than throwing.
   const navigate = onNavigate || (() => {});
@@ -1602,13 +1690,21 @@ export function OverviewDashboard({ dashboard, findingsSummary, findingsByCode, 
   // A caller may pass history in -- tests do -- but nobody has to.
   const fetched = useHealthHistory();
   const series = history ?? fetched;
+  const ledger = React.useMemo(() => buildGovernanceLedger({ health, findings, history: series }), [health, findings, series]);
+  const remediation = useRemediationTickets();
+  // Priority first: the question an admin opens the app with is what to do, and the pillar
+  // view is one click away. Remembered per browser.
+  const [order, setOrder] = usePersistentState("observatory.overview.order", "priority", initialOrder);
 
   return (
     <div className="ui-dashboard">
       <GovernanceLedgerPanel
+        ledger={ledger}
+        remediation={remediation}
         health={health}
-        findings={findings}
         history={series}
+        order={order}
+        onOrderChange={setOrder}
         workflow={workflow}
         screens={screens}
         access={access}
