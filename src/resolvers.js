@@ -338,6 +338,7 @@ import {
   viewerProjects,
 } from "./resolvers/viewer.js";
 import { withAdminGuard, withAuditTrail } from "./resolvers/admin-guard.js";
+import { probeServiceManagementApi } from "./resolvers/jsm.js";
 import { checkMacroAccess } from "./resolvers/macro-access.js";
 export { __clearMacroAccessCache, MacroAccessError, withMacroAccessGuard } from "./resolvers/macro-access.js";
 export { __resetAdminCheckCache, AdminPermissionError } from "./resolvers/admin-guard.js";
@@ -10575,6 +10576,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getAdminOverview,                            // Admin read: dashboard aggregate
   probeAutomationApi,                          // Admin read: reports which Jira endpoints answer, for diagnosis
   probeAssetsApi,                              // Admin read: confirms the JSM Assets API and workspace on this site
+  probeServiceManagementApi,                   // Admin read: what the JSM API answers, per JSM pillar and build stage
   probeScreenFetchCost,                        // Admin read: samples the cost of a full screen inventory pass
   migrateNamespaceKeys,                        // Mutating: rewrites scope keys across every table
 };

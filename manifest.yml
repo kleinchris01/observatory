@@ -889,6 +889,24 @@ permissions:
     - read:cmdb-type:jira
     - read:servicedesk-request
     - read:servicemanagement-insight-objects
+    # The Jira Service Management pillars (request types, queues, SLAs, customers and
+    # organizations). Granular read scopes, one per servicedeskapi resource family; all
+    # read-only. Declared together so the scope change -- which needs the install upgraded on
+    # every environment -- happens once, with the probe, rather than once per build stage.
+    # SLA configuration has no REST endpoint at all; SLA outcomes come from JQL (breached(),
+    # running()) under read:jira-work, plus per-request SLA cycles under read:request.sla.
+    # The customer and organization reads return names and email addresses: the probe and
+    # the engine keep counts and ids, never contact details.
+    - read:servicedesk:jira-service-management
+    - read:requesttype:jira-service-management
+    - read:queue:jira-service-management
+    - read:request:jira-service-management
+    - read:request.sla:jira-service-management
+    - read:organization:jira-service-management
+    - read:organization.user:jira-service-management
+    - read:servicedesk.organization:jira-service-management
+    - read:customer:jira-service-management
+    - read:servicedesk.customer:jira-service-management
     # The boards pillar. Agile boards live under /rest/agile/1.0, and their scopes are
     # jira-software, not jira. Granular scopes are conjunctive:
     #   GET /rest/agile/1.0/board                     -> read:board-scope:jira-software, read:project:jira
