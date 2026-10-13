@@ -46,7 +46,6 @@ import {
   listAuditEvents,
   loadSnapshotFields,
   loadSnapshotField,
-  loadSnapshotFieldNames,
   loadSnapshotProjectUsage,
   loadAllSnapshotProjectUsage,
   loadAnySnapshotProjectUsage,
@@ -90,7 +89,6 @@ import {
   sumSnapshotFieldIssueCount,
   loadFieldTypeUsage,
   loadFieldUserUsage,
-  loadUserFieldAppearances,
   upsertProjectTotalsForDelta,
   upsertDeltaFieldProjectUsage,
   upsertRqtFieldHits,
@@ -98,18 +96,12 @@ import {
   upsertRqtValueIssueKeys,
   upsertRqtFieldIssueKeys,
   loadRqtFieldIndex,
-  loadRqtIssueKeys,
-  loadRqtValueFrequency,
-  searchRqtValueIssueKeys,
-  loadRqtFieldIssueIndex,
-  loadIssueRqtValues,
   readWorkflowSnapshotMeta,
   loadTransitionsTouchingStatus,
   transitionAwareWorkflowVersion,
   readRecentFullScanRuns,
   loadWorkflowSchemes,
   loadWorkflowSchemeProjects,
-  loadProjectWorkflowSchemeMap,
   loadWorkflowSchemeForProject,
   loadStatusesCatalog,
   loadWorkflowSchemeStatuses,
@@ -134,42 +126,20 @@ import {
   loadScreenCountsForFields,
   loadScreenDistributions,
   loadScreensForProject,
-  loadScreensForProjects,
   DEFAULT_SCREEN_SORT,
   SCREEN_SORT_KEYS,
   readIssueTypeSnapshotMeta,
   loadIssueTypes,
-  loadIssueTypeSchemes,
   loadIssueTypeSchemeItems,
-  loadIssueTypeSchemeProjects,
-  loadIssueTypeGovernanceSummary,
-  loadIssueTypeTotals,
   readUserSnapshotMeta,
   loadUsers,
-  loadUserGovernanceSummary,
-  readAssetSnapshotMeta,
-  loadAssetSchemas,
-  loadAssetObjectTypes,
-  loadAssetAttributes,
-  loadAssetTypeCounts,
-  readAssetTypeCountMeta,
   readAccessSnapshotMeta,
-  loadSchemes,
-  loadSchemeHolders,
-  loadSchemeLevels,
-  loadSchemeProjects,
-  loadSchemesGrantingHolder,
   loadProjectSchemes,
   loadProjectRoleActors,
   readDriftSnapshotMeta,
   loadConfigChanges,
   changeCursorOf,
-  loadConfigChangeSummary,
-  readEstateSnapshotMeta,
-  loadUserActivity,
   readFieldConfigSnapshotMeta,
-  loadEstateValues,
-  loadEstateValueTotals,
   readBoardSnapshotMeta,
   loadBoards,
   loadBoardColumns,
@@ -203,26 +173,14 @@ import { getWorkflowRuleUsage, getWorkflowRules, getWorkflowRestrictions, getWor
 import { getFieldConfigInventory, getFieldConfigItems, getFieldBehaviour } from "./lib/fieldconfig-reads.js";
 import { queueFieldConfigSnapshotBuild, isFieldConfigBuildStale } from "./lib/fieldconfig-engine.js";
 import { measureScreenFetchCost, probeScreenEndpoints, DEFAULT_SAMPLE_SIZE } from "./lib/screen-probe.js";
-import { probeAssetsApi as probeAssetsApiProbe } from "./lib/asset-probe.js";
 import { queueScreenSnapshotBuild, isScreenBuildStale } from "./lib/screen-engine.js";
-import { queueIssueTypeSnapshotBuild, isIssueTypeBuildStale } from "./lib/issuetype-engine.js";
-import { queueUserSnapshotBuild, isUserBuildStale } from "./lib/user-engine.js";
-import { queueAssetSnapshotBuild, isAssetBuildStale, queueAssetTypeCountBuild, isAssetTypeCountBuildStale } from "./lib/asset-engine.js";
-import { queueAccessSnapshotBuild, isAccessBuildStale } from "./lib/access-engine.js";
-import { queueDriftSnapshotBuild, isDriftBuildStale, DRIFT_PILLARS } from "./lib/drift-engine.js";
-import { queueEstateSnapshotBuild, isEstateBuildStale } from "./lib/estate-engine.js";
-import { queueBoardSnapshotBuild, isBoardBuildStale } from "./lib/board-engine.js";
-import { summarizeBoardInsights, boardIssues, indexFiltersById } from "./lib/board-insights.js";
+import { summarizeBoardInsights } from "./lib/board-insights.js";
 import { buildPillarReport, unavailableReport, isPillarReportKey, countScreenProjects, REPORT_ROW_LIMIT } from "./lib/pillar-reports.js";
 import { parseOql, evaluate as evaluateOql, sortEntities as sortOqlEntities, pinnedPillars } from "./lib/oql.js";
 import { buildOqlCatalog, buildEntityIndex, OQL_PILLARS, CHURN_WINDOW_DAYS } from "./lib/oql-index.js";
-import { attachEstateUsage, summarizeEstateInsights } from "./lib/estate-insights.js";
+import { summarizeEstateInsights } from "./lib/estate-insights.js";
 import { summarizeIssueTypeInsights } from "./lib/issuetype-insights.js";
 import { summarizeAssetInsights } from "./lib/asset-insights.js";
-import {
-  summarizePermissionInsights, summarizeSecurityInsights, summarizeNotificationInsights,
-  summarizeRoleInsights,
-} from "./lib/access-insights.js";
 import { computeSiteHealth } from "./lib/health-score.js";
 // Moved out of this file so a scan can record a measurement without importing the
 // resolver layer. Same implementation, both callers.
@@ -252,7 +210,7 @@ import { filterRows, sortFilters, filterFindingCounts, FILTER_SORTS } from "./li
 import { isDashboardBuildStale, queueDashboardSnapshotBuild } from "./lib/dashboard-engine.js";
 import { startFullScan, fullScanStageCatalog, startQuickScan, quickScanStageCatalog, recoverStalledScan, resumeScanRun, cancelScan, readStageProducedCounts } from "./lib/full-scan-runner.js";
 import { FULL_SCAN_STALL_MS, MAX_SCAN_TOTAL_MS } from "./lib/full-scan.js";
-import { probeEndpoint, probeStargateEndpoint, getCloudId, getAllJiraProjects, getPermissionCatalog, getSiteBaseUrl, normalizeSiteOrigin } from "./lib/jira-api.js";
+import { probeEndpoint, probeStargateEndpoint, getCloudId, getAllJiraProjects, getSiteBaseUrl, normalizeSiteOrigin } from "./lib/jira-api.js";
 import {
   findDuplicateStatusGroups,
   findOrphanedStatuses,
@@ -262,7 +220,7 @@ import {
 import { summarizeScreenFieldCross } from "./lib/screen-insights.js";
 import { assessFieldDeletion, assessStatusDeletion, summarizeDeletionSafety } from "./lib/deletion-safety.js";
 import { analyzeCascadeGraph, MAX_CHAIN_DEPTH } from "./lib/cascade-graph.js";
-import { activeRosterIds, buildOwnershipIndex, summarizeOrphanedOwnership, classifyUserActivity } from "./lib/user-ownership.js";
+import { activeRosterIds, buildOwnershipIndex } from "./lib/user-ownership.js";
 import {
   hydrateRuleDirectory,
   assessAutomationEvidence,
@@ -296,7 +254,6 @@ import {
   STRUCTURAL_SYSTEM_FIELDS,
   isFieldValueNonEmpty,
   collectIssueRqtValues,
-  buildRqtJql,
   summarizeProjectUsageCapacity,
   normalizeFieldName,
   buildDuplicateNameCountMap,
@@ -331,8 +288,6 @@ import {
   saveAdminConfigResolver,
 } from "./resolvers/admin-config.js";
 import {
-  MACRO_PILLAR_PAGE_SIZE,
-  macroPaginate,
   callerAccountId,
   browsableOrAll,
   viewerProjects,
@@ -340,6 +295,37 @@ import {
 import { withAdminGuard, withAuditTrail } from "./resolvers/admin-guard.js";
 import { probeServiceManagementApi } from "./resolvers/jsm.js";
 import { checkMacroAccess } from "./resolvers/macro-access.js";
+import { getIssueTypeInventory, buildIssueTypeInventory } from "./resolvers/issue-types.js";
+import {
+  getUserInventory,
+  getUserDetails,
+  collectRuleUserReferences,
+  buildUserInventory,
+} from "./resolvers/people.js";
+import {
+  getAccessInventory,
+  buildAccessInventory,
+  probeGlobalPermissions,
+  loadActiveRoster,
+} from "./resolvers/access.js";
+import {
+  getAssetInventory,
+  buildAssetInventory,
+  buildAssetTypeCountCrawl,
+  probeAssetsApi,
+} from "./resolvers/assets.js";
+import { getBoardInventory, buildBoardInventory } from "./resolvers/boards.js";
+import { CHANGE_WINDOW_DAYS, getChangeHistory, buildChangeHistory } from "./resolvers/changes.js";
+import { getEstateInventory, buildEstateInventory } from "./resolvers/estate.js";
+import { getRqtIndex, searchRqtValue } from "./resolvers/rqt.js";
+import {
+  getMacroFilters,
+  getMacroDashboards,
+  getMacroScreens,
+  getMacroIssueTypes,
+  getMacroBoards,
+  getMacroWorkflows,
+} from "./resolvers/macro.js";
 export { __clearMacroAccessCache, MacroAccessError, withMacroAccessGuard } from "./resolvers/macro-access.js";
 export { __resetAdminCheckCache, AdminPermissionError } from "./resolvers/admin-guard.js";
 export { readAdminConfig, getAdminConfigResolver, saveAdminConfigResolver } from "./resolvers/admin-config.js";
@@ -379,15 +365,6 @@ export { readAdminConfig, getAdminConfigResolver, saveAdminConfigResolver } from
 // ----- Inventory UI helpers -----
 
 const OPTION_SEARCH_FIELD_BATCH_SIZE = 10;
-
-// Labels for Jira's issue-type hierarchy levels. Only -1, 0 and 1 are standard; a site with
-// custom hierarchy above Epic has levels 2+, which the caller labels "Level N" rather than
-// inventing a name. Keyed by the raw integer Jira returns, not by an ordinal.
-const HIERARCHY_LEVEL_LABELS = {
-  "-1": "Sub-task",
-  0: "Base (Story, Task, Bug)",
-  1: "Epic",
-};
 
 // ----- Resolvers -----
 
@@ -894,367 +871,6 @@ async function getWorkflowInsights({ context }) {
   }
 }
 
-async function getMacroFilters({ payload, context }) {
-  incrMetric(METRIC_NAMES.resolver);
-  await ensureProjectStoreReady();
-  const installationKey = getInstallationKey(context);
-  const query = String(payload?.query || "").trim().toLowerCase();
-
-  const meta = await readFilterSnapshotMeta(installationKey).catch(
-    fallbackOn("macro_filters.meta_read_failed", null, { installationKey })
-  );
-  const scope = await viewerProjects(installationKey, context);
-  if (!meta?.version || !scope.available) {
-    return { available: false, reason: "no-inventory", filters: [], projectCount: scope.projects.length, page: 1, pageSize: MACRO_PILLAR_PAGE_SIZE, totalPages: 0, total: 0, matchedTotal: 0 };
-  }
-
-  const all = await loadFilters(installationKey, meta.version).catch(() => []);
-  const browsableIds = scope.projectIds;
-
-  const mine = all
-    .map((f) => {
-      // A filter is "in scope" if its JQL names a browsable project, or it is shared to one.
-      const refProjects = (f.projectRefs || []).filter((k) => scope.projectKeys.has(String(k).toLowerCase()));
-      const sharedToProject = (f.shares || []).some((s) => s.type === "project" && browsableIds.has(String(s.targetId)));
-      if (!refProjects.length && !sharedToProject) return null;
-      return {
-        id: f.id,
-        name: f.name,
-        jql: f.jql || "",
-        owner: f.ownerName || null,
-        projects: refProjects,
-        fields: f.fieldRefs || [],
-        viewUrl: f.viewUrl || null,
-      };
-    })
-    .filter(Boolean)
-    .sort((a, b) => a.name.localeCompare(b.name));
-
-  const matched = query
-    ? mine.filter((f) => f.name.toLowerCase().includes(query) || f.jql.toLowerCase().includes(query))
-    : mine;
-  const { slice, page, pageSize, totalPages } = macroPaginate(matched, payload?.page);
-
-  return {
-    available: true,
-    filters: slice,
-    projectCount: scope.projects.length,
-    page, pageSize, totalPages,
-    total: mine.length,
-    matchedTotal: matched.length,
-    snapshotRefreshedAt: meta.refreshedAt || meta.completedAt || null,
-  };
-}
-
-async function getMacroDashboards({ payload, context }) {
-  incrMetric(METRIC_NAMES.resolver);
-  await ensureProjectStoreReady();
-  const installationKey = getInstallationKey(context);
-  const query = String(payload?.query || "").trim().toLowerCase();
-
-  const dashMeta = await readDashboardSnapshotMeta(installationKey).catch(
-    fallbackOn("macro_dashboards.meta_read_failed", null, { installationKey })
-  );
-  const scope = await viewerProjects(installationKey, context);
-  if (!dashMeta?.version || !scope.available) {
-    return { available: false, reason: "no-inventory", dashboards: [], projectCount: scope.projects.length, page: 1, pageSize: MACRO_PILLAR_PAGE_SIZE, totalPages: 0, total: 0, matchedTotal: 0 };
-  }
-
-  const filterMeta = await readFilterSnapshotMeta(installationKey).catch(() => null);
-  const [all, allFilters] = await Promise.all([
-    loadDashboards(installationKey, dashMeta.version).catch(() => []),
-    filterMeta?.version ? loadFilters(installationKey, filterMeta.version).catch(() => []) : Promise.resolve([]),
-  ]);
-
-  // Filter ids whose JQL names a browsable project -- so a dashboard is in scope if a gadget
-  // points at one, not only if the dashboard itself is shared to the project.
-  const inScopeFilterIds = new Set(
-    allFilters
-      .filter((f) => (f.projectRefs || []).some((k) => scope.projectKeys.has(String(k).toLowerCase())))
-      .map((f) => String(f.id))
-  );
-  const fieldsByFilterId = new Map(allFilters.map((f) => [String(f.id), f.fieldRefs || []]));
-
-  const mine = all
-    .map((d) => {
-      const gadgets = d.gadgets || [];
-      const gadgetFilterIds = [...new Set(gadgets.map((g) => g.filterId).filter(Boolean).map(String))];
-      const sharedToProject = (d.shares || []).some((s) => s.type === "project" && scope.projectIds.has(String(s.targetId)));
-      const backedByScopedFilter = gadgetFilterIds.some((id) => inScopeFilterIds.has(id));
-      if (!sharedToProject && !backedByScopedFilter) return null;
-      const fields = [...new Set(gadgetFilterIds.flatMap((id) => fieldsByFilterId.get(id) || []))].sort();
-      return {
-        id: d.id,
-        name: d.name,
-        owner: d.ownerName || null,
-        gadgetCount: d.gadgetCount ?? gadgets.length,
-        fields,
-        sharedToProject,
-        viewUrl: d.viewUrl || null,
-      };
-    })
-    .filter(Boolean)
-    .sort((a, b) => a.name.localeCompare(b.name));
-
-  const matched = query
-    ? mine.filter((d) => d.name.toLowerCase().includes(query) || d.fields.some((x) => x.toLowerCase().includes(query)))
-    : mine;
-  const { slice, page, pageSize, totalPages } = macroPaginate(matched, payload?.page);
-
-  return {
-    available: true,
-    dashboards: slice,
-    projectCount: scope.projects.length,
-    fieldsResolved: Boolean(filterMeta?.version),
-    page, pageSize, totalPages,
-    total: mine.length,
-    matchedTotal: matched.length,
-    snapshotRefreshedAt: dashMeta.refreshedAt || dashMeta.completedAt || null,
-  };
-}
-
-// -- Three more macro pillars, all scoped the same way -----------------------
-//
-// The macro browses and reports; the admin page governs. That split is deliberate and these
-// keep it -- they carry inventory and no governance findings, because a finding is a
-// judgement an admin acts on and a viewer cannot.
-//
-// What they do NOT carry is just as deliberate. Access schemes, the people roster, Assets
-// and the automation findings stay admin-only: the first two are a disclosure risk in a
-// panel anyone in Confluence can open, and automation findings include plaintext-credential
-// hits, which is the last thing to put on a wiki page.
-//
-// Every one filters through viewerProjects, so a viewer sees their own estate and is told
-// so, rather than seeing the site's and wondering which half is theirs.
-
-async function getMacroScreens({ context }) {
-  incrMetric(METRIC_NAMES.resolver);
-  await ensureProjectStoreReady();
-  const installationKey = getInstallationKey(context);
-
-  const meta = await readScreenSnapshotMeta(installationKey).catch(
-    fallbackOn("macro_screens.meta_read_failed", null, { installationKey })
-  );
-  const scope = await viewerProjects(installationKey, context);
-  if (!meta?.version || !scope.available) {
-    return { available: false, reason: "no-inventory", projects: [], projectCount: scope.projects.length };
-  }
-
-  const rows = await loadScreensForProjects(installationKey, meta.version, [...scope.projectIds])
-    .catch(fallbackOn("macro_screens.load_failed", [], { installationKey }));
-
-  const byProject = new Map(scope.projects.map((p) => [p.projectId, { ...p, screens: [] }]));
-  for (const row of rows) {
-    const entry = byProject.get(row.projectId);
-    if (!entry) continue;
-    entry.screens.push({
-      screenId: row.screenId,
-      name: row.name,
-      fieldCount: row.fieldCount,
-      tabCount: row.tabCount,
-      // "Could not be read" is not "has no fields". The viewer is the person about to ask
-      // why their form looks different, so the distinction has to survive to the panel.
-      unreadable: row.tabsResolved !== "resolved",
-      operations: [row.onCreate && "create", row.onEdit && "edit", row.onView && "view"].filter(Boolean),
-    });
-  }
-
-  const projects = [...byProject.values()]
-    .map((p) => ({
-      ...p,
-      screens: p.screens.sort((a, b) => b.fieldCount - a.fieldCount || a.name.localeCompare(b.name)),
-      // The number anyone actually came to argue about: how long the form is that every
-      // person filing an issue here has to get through.
-      createFieldCount: p.screens.filter((s) => s.operations.includes("create"))
-        .reduce((n, s) => Math.max(n, s.fieldCount), 0),
-    }))
-    .sort((a, b) => b.createFieldCount - a.createFieldCount || a.projectKey.localeCompare(b.projectKey));
-
-  return {
-    available: true,
-    refreshedAt: meta.refreshedAt || null,
-    projectCount: projects.length,
-    projects,
-  };
-}
-
-async function getMacroIssueTypes({ context }) {
-  incrMetric(METRIC_NAMES.resolver);
-  await ensureProjectStoreReady();
-  const installationKey = getInstallationKey(context);
-
-  const meta = await readIssueTypeSnapshotMeta(installationKey).catch(
-    fallbackOn("macro_issue_types.meta_read_failed", null, { installationKey })
-  );
-  const scope = await viewerProjects(installationKey, context);
-  if (!meta?.version || !scope.available) {
-    return { available: false, reason: "no-inventory", schemes: [], projectCount: scope.projects.length };
-  }
-
-  const [types, items, schemeProjects, schemes] = await Promise.all([
-    loadIssueTypes(installationKey, meta.version).catch(() => []),
-    loadIssueTypeSchemeItems(installationKey, meta.version).catch(() => []),
-    loadIssueTypeSchemeProjects(installationKey, meta.version).catch(() => []),
-    loadIssueTypeSchemes(installationKey, meta.version).catch(() => []),
-  ]);
-  // The project rows carry no scheme name, so it comes from the scheme table. Falling back
-  // to the id would show a viewer a number where a name belongs.
-  const schemeNameById = new Map(schemes.map((sc) => [String(sc.schemeId), sc.name]));
-
-  const typeById = new Map(types.map((t) => [String(t.id), t]));
-  const membersByScheme = new Map();
-  for (const item of items) {
-    if (!membersByScheme.has(item.schemeId)) membersByScheme.set(item.schemeId, []);
-    const type = typeById.get(String(item.issueTypeId));
-    membersByScheme.get(item.schemeId).push({
-      id: item.issueTypeId,
-      name: type?.name || null,
-      subtask: type?.subtask ?? null,
-      // A scheme naming a type the catalogue no longer holds is worth showing, not hiding.
-      missing: !type,
-    });
-  }
-
-  // Grouped by scheme rather than listed per project: projects sharing a scheme are meant to
-  // run the same set, so the grouping IS the information -- and a project sitting alone in a
-  // group is the question worth asking.
-  const bySchemeId = new Map();
-  for (const row of schemeProjects) {
-    if (!scope.projectIds.has(String(row.projectId))) continue;
-    const key = String(row.schemeId);
-    if (!bySchemeId.has(key)) {
-      bySchemeId.set(key, {
-        schemeId: key,
-        name: schemeNameById.get(key) || key,
-        projects: [],
-        issueTypes: membersByScheme.get(row.schemeId) || [],
-      });
-    }
-    bySchemeId.get(key).projects.push(row.projectKey);
-  }
-
-  const grouped = [...bySchemeId.values()]
-    .map((s) => ({ ...s, projects: s.projects.sort() }))
-    .sort((a, b) => b.projects.length - a.projects.length || a.name.localeCompare(b.name));
-
-  return {
-    available: true,
-    refreshedAt: meta.refreshedAt || null,
-    projectCount: scope.projects.length,
-    schemes: grouped,
-  };
-}
-
-async function getMacroBoards({ context }) {
-  incrMetric(METRIC_NAMES.resolver);
-  await ensureProjectStoreReady();
-  const installationKey = getInstallationKey(context);
-
-  const meta = await readBoardSnapshotMeta(installationKey).catch(
-    fallbackOn("macro_boards.meta_read_failed", null, { installationKey })
-  );
-  const scope = await viewerProjects(installationKey, context);
-  if (!meta?.version || !scope.available) {
-    return { available: false, reason: "no-inventory", boards: [], projectCount: scope.projects.length };
-  }
-
-  const all = await loadBoards(installationKey, meta.version)
-    .catch(fallbackOn("macro_boards.load_failed", [], { installationKey }));
-
-  const keyById = new Map(scope.projects.map((p) => [p.projectId, p.projectKey]));
-  const boards = all
-    .filter((b) => b.locationType === "project" && scope.projectIds.has(String(b.locationId)))
-    .map((b) => ({
-      boardId: b.boardId,
-      name: b.name,
-      type: b.type,
-      projectKey: keyById.get(String(b.locationId)) || b.locationKey || null,
-      columnCount: b.columnCount,
-      // The one fact a viewer can act on without being an admin: a board whose configuration
-      // could not be read -- team-managed boards routinely 404 -- shows them something this
-      // page cannot describe, and saying so is the only honest option.
-      configReadable: b.configReadable,
-    }))
-    .sort((a, b) => String(a.projectKey || "").localeCompare(String(b.projectKey || "")) || a.name.localeCompare(b.name));
-
-  return {
-    available: true,
-    refreshedAt: meta.refreshedAt || null,
-    projectCount: scope.projects.length,
-    boards,
-  };
-}
-
-async function getMacroWorkflows({ context }) {
-  incrMetric(METRIC_NAMES.resolver);
-  await ensureProjectStoreReady();
-  const installationKey = getInstallationKey(context);
-
-  const meta = await readWorkflowSnapshotMeta(installationKey).catch(
-    fallbackOn("macro_workflows.meta_read_failed", null, { installationKey })
-  );
-  const scope = await viewerProjects(installationKey, context);
-  if (!meta?.version || !scope.available) {
-    return { available: false, reason: "no-inventory", schemes: [], statuses: [], projectCount: scope.projects.length };
-  }
-
-  const [schemeMap, schemeStatuses, catalog] = await Promise.all([
-    loadProjectWorkflowSchemeMap(installationKey, meta.version).catch(() => new Map()),
-    loadWorkflowSchemeStatuses(installationKey, meta.version).catch(() => []),
-    loadStatusesCatalog(installationKey, meta.version).catch(() => []),
-  ]);
-
-  // scheme id -> its statuses
-  const statusIdsByScheme = new Map();
-  for (const { schemeId, statusId } of schemeStatuses) {
-    if (!statusIdsByScheme.has(schemeId)) statusIdsByScheme.set(schemeId, new Set());
-    statusIdsByScheme.get(schemeId).add(String(statusId));
-  }
-  const statusName = new Map(catalog.map((s) => [String(s.id), s]));
-
-  // The browsable projects, grouped by the workflow scheme they run.
-  const bySchemeId = new Map();
-  for (const project of scope.projects) {
-    const mapped = schemeMap.get(String(project.projectId));
-    if (!mapped) continue;
-    const key = String(mapped.schemeId);
-    if (!bySchemeId.has(key)) {
-      bySchemeId.set(key, { schemeId: key, name: mapped.name || key, projects: [], statuses: [] });
-    }
-    bySchemeId.get(key).projects.push(project.projectKey);
-  }
-
-  const usedStatusIds = new Set();
-  const schemes = [...bySchemeId.values()].map((s) => {
-    const ids = [...(statusIdsByScheme.get(s.schemeId) || [])];
-    ids.forEach((id) => usedStatusIds.add(id));
-    return {
-      ...s,
-      projects: s.projects.sort(),
-      statuses: ids
-        .map((id) => statusName.get(id))
-        .filter(Boolean)
-        .map((st) => ({ id: String(st.id), name: st.name, category: st.statusCategory || "Uncategorised" }))
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    };
-  }).sort((a, b) => b.projects.length - a.projects.length || a.name.localeCompare(b.name));
-
-  // The de-duplicated status list across every scheme the viewer's projects run.
-  const statuses = [...usedStatusIds]
-    .map((id) => statusName.get(id))
-    .filter(Boolean)
-    .map((st) => ({ id: String(st.id), name: st.name, category: st.statusCategory || "Uncategorised" }))
-    .sort((a, b) => a.name.localeCompare(b.name));
-
-  return {
-    available: true,
-    schemes,
-    statuses,
-    projectCount: scope.projects.length,
-    snapshotRefreshedAt: meta.refreshedAt || meta.completedAt || null,
-  };
-}
-
 
 // Governance findings over the site's automation rules.
 //
@@ -1445,838 +1061,6 @@ async function buildScreenInventory({ context }) {
   return { queued: true };
 }
 
-// Read path for the Issue Types surface. Mirrors getScreenInventory: one call returns the
-// meta, the type catalog grouped by hierarchy level, the schemes with their ordered
-// membership resolved, and -- best-effort from the screen snapshot -- the issue-type ->
-// screen-scheme routing layer, so the tab renders from a single round trip.
-async function getIssueTypeInventory({ context }) {
-  incrMetric(METRIC_NAMES.resolver);
-  await ensureProjectStoreReady();
-  const installationKey = getInstallationKey(context);
-
-  const meta = await readIssueTypeSnapshotMeta(installationKey);
-  const staleBuild = isIssueTypeBuildStale(meta);
-
-  // No snapshot has ever completed. Report that plainly rather than empty lists that read
-  // as "this site has no issue types" -- the opposite claim.
-  if (!meta?.version) {
-    return {
-      state: meta?.state || "idle",
-      staleBuild,
-      startedAt: meta?.startedAt || null,
-      version: null,
-      issueTypes: [],
-      hierarchy: [],
-      schemes: [],
-      governance: null,
-      issueTypeScreenSchemes: [],
-      lastError: meta?.lastError || null,
-      neverBuilt: true,
-    };
-  }
-
-  const [issueTypes, schemes, schemeItems, schemeProjects, governance] = await Promise.all([
-    loadIssueTypes(installationKey, meta.version),
-    loadIssueTypeSchemes(installationKey, meta.version),
-    loadIssueTypeSchemeItems(installationKey, meta.version),
-    loadIssueTypeSchemeProjects(installationKey, meta.version),
-    loadIssueTypeGovernanceSummary(installationKey, meta.version),
-  ]);
-
-  const typeById = new Map(issueTypes.map((t) => [String(t.id), t]));
-
-  // Group the catalog by Jira's hierarchy level, highest first (Epic and any custom levels
-  // above it, then base, then sub-task at -1). The level number is carried alongside the
-  // label so the tab does not have to hard-code a mapping that a custom hierarchy breaks.
-  const byLevel = new Map();
-  for (const type of issueTypes) {
-    const level = Number(type.hierarchyLevel) || 0;
-    if (!byLevel.has(level)) byLevel.set(level, []);
-    byLevel.get(level).push(type);
-  }
-  const hierarchyRaw = [...byLevel.keys()]
-    .sort((a, b) => b - a)
-    .map((level) => ({
-      level,
-      label: HIERARCHY_LEVEL_LABELS[level] || (level < 0 ? "Sub-task" : `Level ${level}`),
-      types: byLevel.get(level),
-    }));
-
-  // Resolve each scheme's ordered membership against the catalog. A member id the catalog
-  // does not contain is kept with a null name rather than dropped: a scheme allowing a type
-  // that no longer exists is a finding, not noise.
-  const membersByScheme = new Map();
-  for (const item of schemeItems) {
-    if (!membersByScheme.has(item.schemeId)) membersByScheme.set(item.schemeId, []);
-    const type = typeById.get(String(item.issueTypeId));
-    membersByScheme.get(item.schemeId).push({
-      id: item.issueTypeId,
-      name: type?.name || null,
-      hierarchyLevel: type?.hierarchyLevel ?? null,
-      subtask: type?.subtask ?? null,
-      missing: !type,
-    });
-  }
-  const projectsByScheme = new Map();
-  for (const row of schemeProjects) {
-    if (!projectsByScheme.has(row.schemeId)) projectsByScheme.set(row.schemeId, []);
-    projectsByScheme.get(row.schemeId).push({
-      projectId: row.projectId,
-      projectKey: row.projectKey,
-      projectName: row.projectName,
-    });
-  }
-  const schemesResolved = schemes.map((s) => ({
-    ...s,
-    defaultIssueTypeName: s.defaultIssueTypeId ? (typeById.get(String(s.defaultIssueTypeId))?.name || null) : null,
-    issueTypes: membersByScheme.get(s.schemeId) || [],
-    projects: (projectsByScheme.get(s.schemeId) || []).sort((a, b) => a.projectKey.localeCompare(b.projectKey)),
-  }));
-
-  // The tier below: issue-type -> screen-scheme routing, from the screen snapshot. Sent so
-  // the tab can show, per issue type screen scheme, which screen scheme each type resolves
-  // to. Best-effort -- the screen pillar refreshes on its own cadence and may not have run.
-  let issueTypeScreenSchemes = [];
-  try {
-    const screenMeta = await readScreenSnapshotMeta(installationKey);
-    if (screenMeta?.version) {
-      const [itss, itssMappings] = await Promise.all([
-        loadIssueTypeScreenSchemes(installationKey, screenMeta.version),
-        loadItssMappings(installationKey, screenMeta.version),
-      ]);
-      const mappingsByItss = new Map();
-      for (const m of itssMappings) {
-        if (!mappingsByItss.has(m.itssId)) mappingsByItss.set(m.itssId, []);
-        mappingsByItss.get(m.itssId).push({
-          issueTypeId: m.issueTypeId,
-          issueTypeName: m.issueTypeId === "default" ? "All unmapped types" : (typeById.get(String(m.issueTypeId))?.name || null),
-          screenSchemeId: m.screenSchemeId,
-          isDefault: m.isDefault,
-        });
-      }
-      issueTypeScreenSchemes = itss.map((s) => ({
-        ...s,
-        mappings: mappingsByItss.get(s.itssId) || [],
-      }));
-    }
-  } catch (error) {
-    // A screen-snapshot read failing must not take the issue-type tab down with it.
-    console.error("getIssueTypeInventory: screen-scheme layer unavailable:", error?.message || error);
-  }
-
-  // Per-type issue counts from the crawl, and the tri-state that makes them safe to read.
-  //
-  // Zero is what makes a type look safe to delete, so it is only ever asserted when a crawl
-  // actually completed. Three outcomes, never collapsed into two:
-  //   measured     a full scan finished and this type has a count (possibly a real zero)
-  //   not-measured no crawl has completed, so no type has a count
-  //   partial      a crawl ran but did not finish, so a missing row means "not reached",
-  //                not "nobody uses it"
-  const usage = await (async () => {
-    try {
-      const scanMeta = await readIssueScanMeta(installationKey);
-      const state = scanMeta?.state || null;
-      if (state !== "ready" && state !== "building" && state !== "failed") {
-        return { measurement: "not-measured", byType: new Map(), measuredAt: null };
-      }
-      const rows = await loadIssueTypeTotals(installationKey);
-      if (!rows.length && state !== "ready") {
-        return { measurement: "not-measured", byType: new Map(), measuredAt: null };
-      }
-      return {
-        // A crawl that is still running, or that failed part-way, has counted SOME projects.
-        // Calling that "measured" would report a half-walked estate's silence as evidence.
-        measurement: state === "ready" ? "measured" : "partial",
-        byType: new Map(rows.map((r) => [String(r.issueTypeId), r])),
-        measuredAt: scanMeta?.completedAt || null,
-      };
-    } catch (error) {
-      // A counting failure is not a count of zero -- the distinction CONNECT-4091 exists for.
-      console.error("getIssueTypeInventory: usage unavailable:", error?.message || error);
-      return { measurement: "measurement-failed", byType: new Map(), measuredAt: null };
-    }
-  })();
-
-  const withUsage = (type) => {
-    const row = usage.byType.get(String(type.id));
-    return {
-      ...type,
-      // null, not 0, wherever the count is not evidence. The tab renders the three states
-      // differently and must never show a dash as a zero.
-      issueCount: usage.measurement === "measured" ? (row?.issueCount ?? 0) : (row?.issueCount ?? null),
-      usedInProjects: row?.projectCount ?? null,
-    };
-  };
-
-  return {
-    state: meta.state,
-    staleBuild,
-    startedAt: meta.startedAt || null,
-    version: meta.version,
-    refreshedAt: meta.refreshedAt,
-    completedAt: meta.completedAt,
-    usage: { measurement: usage.measurement, measuredAt: usage.measuredAt },
-    totalTypes: meta.totalTypes,
-    totalSchemes: meta.totalSchemes,
-    lastError: meta.lastError || null,
-    issueTypes: issueTypes.map(withUsage),
-    hierarchy: hierarchyRaw.map((h) => ({ ...h, types: h.types.map(withUsage) })),
-    schemes: schemesResolved,
-    governance,
-    // The finding-shaped detail behind the governance counts: near-duplicate name groups,
-    // the orphan list, and the schemes whose type set does not hang together. Computed from
-    // the rows already loaded above so the tab renders findings without a second round trip.
-    governanceFindings: summarizeIssueTypeInsights({ types: issueTypes, schemes, schemeItems }),
-    issueTypeScreenSchemes,
-    neverBuilt: false,
-  };
-}
-
-async function buildIssueTypeInventory({ context }) {
-  incrMetric(METRIC_NAMES.resolver);
-  await ensureProjectStoreReady();
-  const installationKey = getInstallationKey(context);
-
-  const meta = await readIssueTypeSnapshotMeta(installationKey);
-  // Suppress only a build that is both building AND not stale, matching buildScreenInventory:
-  // a wedged row must never block every future rebuild with no way out of the UI.
-  if (meta?.state === "building" && !isIssueTypeBuildStale(meta)) {
-    return { queued: false, reason: "already-building", meta };
-  }
-
-  const adminConfig = await readAdminConfig();
-  if (adminConfig.readOnlyMode) {
-    return { queued: false, error: "Read-only mode is enabled. Disable it before building the issue type inventory." };
-  }
-
-  await queueIssueTypeSnapshotBuild(installationKey);
-  return { queued: true };
-}
-
-// The People pillar's read: the licensed-user roster with each user's products and access
-// groups, plus the site's own seat numbers for the header.
-async function getUserInventory({ context }) {
-  incrMetric(METRIC_NAMES.resolver);
-  await ensureProjectStoreReady();
-  const installationKey = getInstallationKey(context);
-
-  const meta = await readUserSnapshotMeta(installationKey);
-  const staleBuild = isUserBuildStale(meta);
-
-  if (!meta?.version) {
-    return {
-      state: meta?.state || "idle",
-      staleBuild,
-      startedAt: meta?.startedAt || null,
-      version: null,
-      users: [],
-      applicationSummary: [],
-      governance: null,
-      lastError: meta?.lastError || null,
-      neverBuilt: true,
-    };
-  }
-
-  const [users, governance, ownership, ruleUserIndex] = await Promise.all([
-    loadUsers(installationKey, meta.version),
-    loadUserGovernanceSummary(installationKey, meta.version),
-    buildOwnershipIndex(installationKey).catch(() => ({ byAccount: new Map(), available: {} })),
-    readAutomationPart(installationKey, "users").catch(() => null),
-  ]);
-
-  // accountId -> how many DISTINCT rules name this person. Built once from the automation
-  // user index so the roster can show it without a per-user lookup.
-  const ruleRefCountByAccount = new Map();
-  for (const entry of ruleUserIndex?.entries ?? []) {
-    const ids = new Set([...(entry.write ?? []), ...(entry.read ?? []), ...(entry.trigger ?? [])]);
-    ruleRefCountByAccount.set(String(entry.label), ids.size);
-  }
-
-  const rosterIds = activeRosterIds(users);
-  // Last activity and the dormant flag per account -- the same classification the score uses,
-  // so the roster lists exactly the accounts the dormant-licences dimension counted.
-  const activity = classifyUserActivity(
-    users,
-    await loadUserActivity(installationKey, [...rosterIds]).catch(fallbackOn("people.activity_load_failed", () => [], { installationKey }))
-  );
-  const withOwnership = users.map((u) => {
-    const owned = ownership.byAccount.get(u.accountId);
-    const act = activity.byAccount.get(String(u.accountId));
-    return {
-      ...u,
-      ownedFilters: owned?.filters.length ?? 0,
-      ownedDashboards: owned?.dashboards.length ?? 0,
-      authoredRules: owned?.rules.length ?? 0,
-      automationRefs: ruleRefCountByAccount.get(u.accountId) ?? 0,
-      lastActivityAt: act?.lastActivityAt ?? null,
-      // true / false where the crawl measured the account, null where it did not.
-      dormant: act?.dormant ?? null,
-    };
-  });
-
-  const orphaned = summarizeOrphanedOwnership(ownership, rosterIds);
-
-  // People an automation rule names who are not on the licensed roster -- a rule assigning
-  // work to a deactivated or unlicensed account. Estate-level count; the People tab lists
-  // them per rule from getUserDetails.
-  let automationRefUsers = 0;
-  let orphanedAutomationRefUsers = 0;
-  for (const accountId of ruleRefCountByAccount.keys()) {
-    automationRefUsers += 1;
-    if (!rosterIds.has(accountId)) orphanedAutomationRefUsers += 1;
-  }
-
-  return {
-    state: meta.state || "ready",
-    staleBuild,
-    startedAt: meta.startedAt || null,
-    refreshedAt: meta.refreshedAt || null,
-    version: meta.version,
-    users: withOwnership,
-    applicationSummary: meta.applicationSummary || [],
-    governance: {
-      ...governance, ...orphaned, automationRefUsers, orphanedAutomationRefUsers,
-      activityMeasured: activity.measured,
-      measuredAccounts: activity.measuredAccounts,
-      dormantAccounts: activity.dormantAccounts,
-      dormantAfterDays: activity.dormantAfterDays,
-    },
-    automationRefsAvailable: Boolean(ruleUserIndex),
-    ownershipAvailable: ownership.available,
-    lastError: meta.lastError || null,
-    neverBuilt: false,
-  };
-}
-
-// One user's full cross-pillar footprint: products, groups, and the filters, dashboards and
-// automation rules they own. The roster gives counts; this gives the lists.
-async function getUserDetails({ payload, context }) {
-  incrMetric(METRIC_NAMES.resolver);
-  await ensureProjectStoreReady();
-  const installationKey = getInstallationKey(context);
-  const accountId = String(payload?.accountId || "");
-  if (!accountId) throw new Error("accountId is required");
-
-  const meta = await readUserSnapshotMeta(installationKey);
-  if (!meta?.version) return { available: false, reason: "no-roster" };
-
-  const [fieldMeta, accessMeta] = await Promise.all([
-    readSnapshotMeta(installationKey).catch(() => null),
-    readAccessSnapshotMeta(installationKey).catch(() => null),
-  ]);
-
-  const [users, ownership, ruleUserIndex, ruleDirectoryDoc, fieldAppearanceRows, grantedBySchemes] = await Promise.all([
-    loadUsers(installationKey, meta.version),
-    buildOwnershipIndex(installationKey).catch(() => ({ byAccount: new Map(), available: {} })),
-    readAutomationPart(installationKey, "users").catch(() => null),
-    readAutomationPart(installationKey, "directory").catch(() => null),
-    fieldMeta?.version
-      ? loadUserFieldAppearances(installationKey, fieldMeta.version, accountId).catch(() => [])
-      : Promise.resolve([]),
-    accessMeta?.version
-      ? loadSchemesGrantingHolder(installationKey, accessMeta.version, "user", accountId).catch(() => [])
-      : Promise.resolve([]),
-  ]);
-
-  const user = users.find((u) => u.accountId === accountId) || null;
-  const owned = ownership.byAccount.get(accountId) || { filters: [], dashboards: [], rules: [] };
-
-  // Grants via GROUP membership, not just a direct grant on the account. This is the common
-  // case, not the edge case: a permission or notification scheme naming a person directly is
-  // the anti-pattern the comment below calls out, but most real grants run through a group,
-  // and grantedBySchemes above -- holder_type = "user" only -- could not see a single one of
-  // them. A scheme granting to "jira-administrators" was invisible here even for an account
-  // that IS one, which is exactly the footprint this resolver exists to show.
-  let grantedByGroups = [];
-  if (accessMeta?.version && user?.groups?.length) {
-    const perGroup = await Promise.all(
-      user.groups.map((g) =>
-        loadSchemesGrantingHolder(installationKey, accessMeta.version, "group", g.id)
-          .then((rows) => rows.map((r) => ({ ...r, viaGroup: g.name || g.id })))
-          .catch(() => [])
-      )
-    );
-    grantedByGroups = perGroup.flat();
-  }
-
-  // The rules that NAME this person -- assign to them, condition on them being the assignee,
-  // set a user field to their account. Distinct from authoredRules (rules they own): a
-  // deactivated account can still be the assignee half a dozen rules route work to.
-  const referencedInRules = collectRuleUserReferences(accountId, ruleUserIndex, ruleDirectoryDoc);
-
-  // The user-picker fields this account holds a value in, from the last full crawl. Names
-  // joined from the field snapshot. Empty until a scan has run since this feature landed.
-  let fieldAppearances = [];
-  if (fieldAppearanceRows.length && fieldMeta?.version) {
-    const names = await loadSnapshotFieldNames(installationKey, fieldMeta.version, fieldAppearanceRows.map((r) => r.fieldId)).catch(() => new Map());
-    fieldAppearances = fieldAppearanceRows.map((r) => ({
-      fieldId: r.fieldId,
-      fieldName: names.get(r.fieldId) || r.fieldId,
-      issueCount: r.issueCount,
-    }));
-  }
-
-  return {
-    available: true,
-    inRoster: Boolean(user),
-    user: user || { accountId, displayName: accountId, applications: [], groups: [], active: null },
-    ownedFilters: owned.filters,
-    ownedDashboards: owned.dashboards,
-    authoredRules: owned.rules,
-    referencedInRules,
-    fieldAppearances,
-    // Permission grants, security-level memberships and notification recipients that name
-    // this account directly (a direct grant is an anti-pattern -- it should be a role).
-    grantedBySchemes,
-    // The same, via a group this account belongs to. Each entry carries which group earned
-    // it (viaGroup), because "you have this via jira-administrators" and "you have this via
-    // marketing-contractors" are different facts even when the scheme is the same one.
-    grantedByGroups,
-    automationRefsAvailable: Boolean(ruleUserIndex),
-    fieldAppearancesAvailable: Boolean(fieldMeta?.version),
-    accessGrantsAvailable: Boolean(accessMeta?.version),
-    ownershipAvailable: ownership.available,
-  };
-}
-
-// One account's entry in the automation user index, joined to rule names. `direction` is
-// "write" when a rule assigns/sets the account and "read" when it only conditions on it --
-// the write side is what breaks loudest if the account goes away.
-function collectRuleUserReferences(accountId, userIndex, directoryDoc) {
-  const entry = (userIndex?.entries ?? []).find((e) => String(e.label) === String(accountId));
-  if (!entry) return [];
-  const names = directoryDoc ? hydrateRuleDirectory(directoryDoc) : new Map();
-  const byId = new Map();
-  for (const direction of ["write", "read", "trigger"]) {
-    for (const ruleId of entry[direction] ?? []) {
-      const existing = byId.get(ruleId);
-      const rule = names.get(ruleId);
-      if (existing) {
-        if (direction === "write") existing.direction = "write";
-      } else {
-        byId.set(ruleId, {
-          id: ruleId,
-          name: rule?.name || `Rule ${ruleId}`,
-          enabled: rule?.enabled ?? null,
-          direction,
-        });
-      }
-    }
-  }
-  return [...byId.values()];
-}
-
-async function buildUserInventory({ context }) {
-  incrMetric(METRIC_NAMES.resolver);
-  await ensureProjectStoreReady();
-  const installationKey = getInstallationKey(context);
-
-  const meta = await readUserSnapshotMeta(installationKey);
-  if (meta?.state === "building" && !isUserBuildStale(meta)) {
-    return { queued: false, reason: "already-building", meta };
-  }
-
-  const adminConfig = await readAdminConfig();
-  if (adminConfig.readOnlyMode) {
-    return { queued: false, error: "Read-only mode is enabled. Disable it before building the people inventory." };
-  }
-
-  await queueUserSnapshotBuild(installationKey);
-  return { queued: true };
-}
-
-// The JSM Assets (CMDB) pillar's read: object schemas, their object types and those types'
-// attributes, plus the governance summary. `assetsEnabled: false` is a first-class state --
-// the build ran and Assets is not licensed here -- and the tab renders the explanation
-// rather than an empty catalogue.
-async function getAssetInventory({ context }) {
-  incrMetric(METRIC_NAMES.resolver);
-  await ensureProjectStoreReady();
-  const installationKey = getInstallationKey(context);
-
-  const meta = await readAssetSnapshotMeta(installationKey);
-  const staleBuild = isAssetBuildStale(meta);
-
-  if (meta?.state === "unavailable") {
-    return {
-      state: "unavailable",
-      assetsEnabled: false,
-      staleBuild: false,
-      refreshedAt: meta?.refreshedAt || null,
-      workspaceId: meta?.workspaceId || null,
-      schemas: [],
-      objectTypes: [],
-      attributes: [],
-      governance: summarizeAssetInsights({ assetsEnabled: false }),
-      lastError: meta?.lastError || null,
-      neverBuilt: false,
-    };
-  }
-
-  if (!meta?.version) {
-    return {
-      state: meta?.state || "idle",
-      assetsEnabled: null,
-      staleBuild,
-      startedAt: meta?.startedAt || null,
-      version: null,
-      schemas: [],
-      objectTypes: [],
-      attributes: [],
-      governance: null,
-      lastError: meta?.lastError || null,
-      neverBuilt: true,
-    };
-  }
-
-  const [schemas, objectTypes, attributes, typeCounts, countMeta] = await Promise.all([
-    loadAssetSchemas(installationKey, meta.version),
-    loadAssetObjectTypes(installationKey, meta.version),
-    loadAssetAttributes(installationKey, meta.version),
-    loadAssetTypeCounts(installationKey),
-    readAssetTypeCountMeta(installationKey),
-  ]);
-
-  const governance = summarizeAssetInsights({ schemas, objectTypes, attributes, typeCounts, assetsEnabled: true });
-
-  return {
-    state: meta.state || "ready",
-    assetsEnabled: true,
-    staleBuild,
-    startedAt: meta.startedAt || null,
-    refreshedAt: meta.refreshedAt || null,
-    version: meta.version,
-    workspaceId: meta.workspaceId || null,
-    schemas,
-    objectTypes,
-    attributes,
-    // Keyed by objectTypeId so the tab can join it onto the type list it already has,
-    // rather than requiring a second round trip once someone has run the crawl.
-    typeCounts,
-    governance,
-    lastError: meta.lastError || null,
-    neverBuilt: false,
-    typeCountCrawl: {
-      state: countMeta?.state || "idle",
-      staleBuild: isAssetTypeCountBuildStale(countMeta),
-      refreshedAt: countMeta?.refreshedAt || null,
-      measuredTypes: countMeta?.measuredTypes || 0,
-      unmeasuredTypes: countMeta?.unmeasuredTypes || 0,
-      lastError: countMeta?.lastError || null,
-    },
-  };
-}
-
-async function buildAssetInventory({ context }) {
-  incrMetric(METRIC_NAMES.resolver);
-  await ensureProjectStoreReady();
-  const installationKey = getInstallationKey(context);
-
-  const meta = await readAssetSnapshotMeta(installationKey);
-  if (meta?.state === "building" && !isAssetBuildStale(meta)) {
-    return { queued: false, reason: "already-building", meta };
-  }
-
-  const adminConfig = await readAdminConfig();
-  if (adminConfig.readOnlyMode) {
-    return { queued: false, error: "Read-only mode is enabled. Disable it before building the Assets inventory." };
-  }
-
-  await queueAssetSnapshotBuild(installationKey);
-  return { queued: true };
-}
-
-// The object-count crawl: a separate job from the structure build, so it has its own
-// "already building" guard against its own meta rather than the structure's.
-async function buildAssetTypeCountCrawl({ context }) {
-  incrMetric(METRIC_NAMES.resolver);
-  await ensureProjectStoreReady();
-  const installationKey = getInstallationKey(context);
-
-  const structureMeta = await readAssetSnapshotMeta(installationKey);
-  if (!structureMeta?.version) {
-    return { queued: false, error: "No Assets structure inventory yet. Build that first." };
-  }
-
-  const countMeta = await readAssetTypeCountMeta(installationKey);
-  if (countMeta?.state === "building" && !isAssetTypeCountBuildStale(countMeta)) {
-    return { queued: false, reason: "already-building", meta: countMeta };
-  }
-
-  const adminConfig = await readAdminConfig();
-  if (adminConfig.readOnlyMode) {
-    return { queued: false, error: "Read-only mode is enabled. Disable it before crawling object counts." };
-  }
-
-  await queueAssetTypeCountBuild(installationKey);
-  return { queued: true };
-}
-
-// The access pillar's read: permission / issue-security / notification schemes, their
-// holders and project assignments, with the governance summary for each type. Roster
-// accountIds are joined in so an off-roster grant reads as such.
-// The second argument is internal: Forge only ever passes the request. Remediation calls this
-// with listLimit: Infinity to read every flagged item rather than the tab's first 25.
-async function getAccessInventory({ context }, { listLimit = 25 } = {}) {
-  incrMetric(METRIC_NAMES.resolver);
-  await ensureProjectStoreReady();
-  const installationKey = getInstallationKey(context);
-
-  const meta = await readAccessSnapshotMeta(installationKey);
-  const staleBuild = isAccessBuildStale(meta);
-
-  if (!meta?.version) {
-    return {
-      state: meta?.state || "idle",
-      staleBuild,
-      startedAt: meta?.startedAt || null,
-      version: null,
-      permissions: null,
-      security: null,
-      notifications: null,
-      lastError: meta?.lastError || null,
-      neverBuilt: true,
-    };
-  }
-
-  const rosterAccountIds = (await loadActiveRoster(installationKey)) || new Set();
-
-  const [
-    permSchemes, permHolders, permProjects,
-    secSchemes, secHolders, secProjects, levels,
-    notifSchemes, notifHolders, notifProjects,
-    roleSchemes, roleHolders,
-  ] = await Promise.all([
-    loadSchemes(installationKey, meta.version, "permission"),
-    loadSchemeHolders(installationKey, meta.version, "permission"),
-    loadSchemeProjects(installationKey, meta.version, "permission"),
-    loadSchemes(installationKey, meta.version, "security"),
-    loadSchemeHolders(installationKey, meta.version, "security"),
-    loadSchemeProjects(installationKey, meta.version, "security"),
-    loadSchemeLevels(installationKey, meta.version),
-    loadSchemes(installationKey, meta.version, "notification"),
-    loadSchemeHolders(installationKey, meta.version, "notification"),
-    loadSchemeProjects(installationKey, meta.version, "notification"),
-    loadSchemes(installationKey, meta.version, "project-role"),
-    loadSchemeHolders(installationKey, meta.version, "project-role"),
-  ]);
-
-  const projectCountFor = (rows) => {
-    const m = new Map();
-    for (const r of rows) m.set(r.schemeId, (m.get(r.schemeId) || 0) + 1);
-    return m;
-  };
-
-  const decorate = (schemes, projRows) => {
-    const counts = projectCountFor(projRows);
-    return schemes.map((s) => ({ ...s, projectCount: counts.get(s.id) || 0 }));
-  };
-
-  return {
-    state: meta.state || "ready",
-    staleBuild,
-    startedAt: meta.startedAt || null,
-    refreshedAt: meta.refreshedAt || null,
-    version: meta.version,
-    neverBuilt: false,
-    lastError: meta.lastError || null,
-    permissions: {
-      schemes: decorate(permSchemes, permProjects),
-      holders: permHolders,
-      governance: summarizePermissionInsights({ schemes: permSchemes, holders: permHolders, schemeProjects: permProjects, rosterAccountIds, listLimit }),
-    },
-    security: {
-      schemes: decorate(secSchemes, secProjects),
-      levels,
-      holders: secHolders,
-      governance: summarizeSecurityInsights({ schemes: secSchemes, levels, holders: secHolders, schemeProjects: secProjects, rosterAccountIds, listLimit }),
-    },
-    notifications: {
-      schemes: decorate(notifSchemes, notifProjects),
-      holders: notifHolders,
-      governance: summarizeNotificationInsights({ schemes: notifSchemes, holders: notifHolders, schemeProjects: notifProjects, rosterAccountIds, listLimit }),
-    },
-    roles: {
-      // projectCount here means "on how many projects does this role have at least one
-      // real actor", built from the role holder rows rather than a schemeProjects table.
-      schemes: (() => {
-        const withActor = new Map();
-        for (const h of roleHolders) {
-          if (h.holderType === "user" || h.holderType === "group") {
-            if (!withActor.has(h.schemeId)) withActor.set(h.schemeId, new Set());
-            withActor.get(h.schemeId).add(h.context);
-          }
-        }
-        return roleSchemes.map((s) => ({ ...s, projectCount: withActor.get(s.id)?.size || 0 }));
-      })(),
-      holders: roleHolders,
-      governance: summarizeRoleInsights({ roles: roleSchemes, holders: roleHolders, rosterAccountIds, listLimit, permHolders, permProjects }),
-    },
-  };
-}
-
-async function buildAccessInventory({ context }) {
-  incrMetric(METRIC_NAMES.resolver);
-  await ensureProjectStoreReady();
-  const installationKey = getInstallationKey(context);
-
-  const meta = await readAccessSnapshotMeta(installationKey);
-  if (meta?.state === "building" && !isAccessBuildStale(meta)) {
-    return { queued: false, reason: "already-building", meta };
-  }
-
-  const adminConfig = await readAdminConfig();
-  if (adminConfig.readOnlyMode) {
-    return { queued: false, error: "Read-only mode is enabled. Disable it before building the access inventory." };
-  }
-
-  await queueAccessSnapshotBuild(installationKey);
-  return { queued: true };
-}
-
-// The configuration change-history timeline: one page of detected adds / removes / modifies
-// across every pillar drift tracks, plus a trailing-window summary for the headline. Keyset
-// pagination on detected_at -- `before` is the last row's detectedAt from the previous page.
-const CHANGE_WINDOW_DAYS = 30;
-
-async function getChangeHistory({ payload, context }) {
-  incrMetric(METRIC_NAMES.resolver);
-  await ensureProjectStoreReady();
-  const installationKey = getInstallationKey(context);
-
-  const meta = await readDriftSnapshotMeta(installationKey);
-  const staleBuild = isDriftBuildStale(meta);
-
-  if (!meta?.version) {
-    return {
-      state: meta?.state || "idle",
-      staleBuild,
-      startedAt: meta?.startedAt || null,
-      neverBuilt: true,
-      trackedPillars: DRIFT_PILLARS.map((p) => ({ key: p.pillar, label: p.label })),
-      changes: [],
-      summary: { total: 0, byPillar: {}, byKind: { added: 0, removed: 0, modified: 0 } },
-      lastError: meta?.lastError || null,
-    };
-  }
-
-  const pillar = payload?.pillar && payload.pillar !== "all" ? String(payload.pillar) : null;
-  const kind = payload?.kind && payload.kind !== "all" ? String(payload.kind) : null;
-  const before = payload?.before ? String(payload.before) : null;
-  const limit = Math.max(1, Math.min(200, Number(payload?.limit) || 100));
-  const windowStart = new Date(Date.now() - CHANGE_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
-
-  const [changes, summary] = await Promise.all([
-    loadConfigChanges(installationKey, { pillar, kind, before, limit: limit + 1 }),
-    loadConfigChangeSummary(installationKey, windowStart),
-  ]);
-
-  const hasMore = changes.length > limit;
-  return {
-    state: meta.state || "ready",
-    staleBuild,
-    refreshedAt: meta.refreshedAt || null,
-    neverBuilt: false,
-    lastRunChanges: meta.lastRunChanges || 0,
-    totalChanges: meta.totalChanges || 0,
-    seededPillars: meta.seededPillars || [],
-    trackedPillars: DRIFT_PILLARS.map((p) => ({ key: p.pillar, label: p.label })),
-    windowDays: CHANGE_WINDOW_DAYS,
-    changes: hasMore ? changes.slice(0, limit) : changes,
-    nextCursor: hasMore ? changeCursorOf(changes[limit - 1]) : null,
-    summary,
-    lastError: meta.lastError || null,
-  };
-}
-
-async function buildChangeHistory({ context }) {
-  incrMetric(METRIC_NAMES.resolver);
-  await ensureProjectStoreReady();
-  const installationKey = getInstallationKey(context);
-
-  const meta = await readDriftSnapshotMeta(installationKey);
-  if (meta?.state === "building" && !isDriftBuildStale(meta)) {
-    return { queued: false, reason: "already-building", meta };
-  }
-
-  const adminConfig = await readAdminConfig();
-  if (adminConfig.readOnlyMode) {
-    return { queued: false, error: "Read-only mode is enabled. Disable it before running a drift pass." };
-  }
-
-  await queueDriftSnapshotBuild(installationKey);
-  return { queued: true };
-}
-
-// The estate-config pillar's read: the global value lists (resolutions, priorities) with
-// the near-duplicate-name governance summary over each.
-async function getEstateInventory({ context }) {
-  incrMetric(METRIC_NAMES.resolver);
-  await ensureProjectStoreReady();
-  const installationKey = getInstallationKey(context);
-
-  const meta = await readEstateSnapshotMeta(installationKey);
-  const staleBuild = isEstateBuildStale(meta);
-
-  if (!meta?.version) {
-    return {
-      state: meta?.state || "idle",
-      staleBuild,
-      startedAt: meta?.startedAt || null,
-      neverBuilt: true,
-      resolutions: [],
-      priorities: [],
-      governance: summarizeEstateInsights({}),
-      lastError: meta?.lastError || null,
-    };
-  }
-
-  const [rawResolutions, rawPriorities, totals] = await Promise.all([
-    loadEstateValues(installationKey, meta.version, "resolution"),
-    loadEstateValues(installationKey, meta.version, "priority"),
-    // Usage from the issue crawl. Without it every row read "Not measured", though the crawl
-    // had counted issues per value all along; only the Overview attached the counts.
-    loadEstateValueTotals(installationKey).catch(fallbackOn("estate.usage_load_failed", [], { installationKey })),
-  ]);
-  const { resolutions, priorities, usageMeasured, unresolvedIssueCount } = attachEstateUsage({
-    resolutions: rawResolutions,
-    priorities: rawPriorities,
-    totals,
-  });
-
-  return {
-    state: meta.state || "ready",
-    staleBuild,
-    refreshedAt: meta.refreshedAt || null,
-    neverBuilt: false,
-    lastError: meta.lastError || null,
-    resolutions,
-    priorities,
-    usageMeasured,
-    unresolvedIssueCount,
-    governance: summarizeEstateInsights({ resolutions, priorities }),
-  };
-}
-
-async function buildEstateInventory({ context }) {
-  incrMetric(METRIC_NAMES.resolver);
-  await ensureProjectStoreReady();
-  const installationKey = getInstallationKey(context);
-
-  const meta = await readEstateSnapshotMeta(installationKey);
-  if (meta?.state === "building" && !isEstateBuildStale(meta)) {
-    return { queued: false, reason: "already-building", meta };
-  }
-
-  const adminConfig = await readAdminConfig();
-  if (adminConfig.readOnlyMode) {
-    return { queued: false, error: "Read-only mode is enabled. Disable it before building the priorities/resolutions inventory." };
-  }
-
-  await queueEstateSnapshotBuild(installationKey);
-  return { queued: true };
-}
-
 // Queue a field scheme / field configuration build. Same guard as every other inventory:
 // a live build is not doubled, a wedged one is not honoured, and read-only mode refuses.
 async function buildFieldConfigInventory({ context }) {
@@ -2295,117 +1079,6 @@ async function buildFieldConfigInventory({ context }) {
   }
 
   await queueFieldConfigSnapshotBuild(installationKey);
-  return { queued: true };
-}
-
-// The boards pillar's read: every agile board with its backing filter, location and column
-// mapping. Structure only -- the cross-pillar joins (broken backing filter, statuses not
-// mapped to a column, personal boards owned by inactive users) and the governance score
-// arrive with B2/B3.
-async function getBoardInventory({ context }) {
-  incrMetric(METRIC_NAMES.resolver);
-  await ensureProjectStoreReady();
-  const installationKey = getInstallationKey(context);
-
-  const meta = await readBoardSnapshotMeta(installationKey);
-  const staleBuild = isBoardBuildStale(meta);
-
-  if (!meta?.version) {
-    return {
-      state: meta?.state || "idle",
-      staleBuild,
-      startedAt: meta?.startedAt || null,
-      neverBuilt: true,
-      boards: [],
-      summary: { total: 0, byType: {}, personal: 0, unreadable: 0, missingFilter: 0, totalColumns: 0 },
-      lastError: meta?.lastError || null,
-    };
-  }
-
-  const [boards, columns, filterMeta, workflowMeta] = await Promise.all([
-    loadBoards(installationKey, meta.version),
-    loadBoardColumns(installationKey, meta.version),
-    readFilterSnapshotMeta(installationKey).catch(() => null),
-    readWorkflowSnapshotMeta(installationKey).catch(() => null),
-  ]);
-
-  // The two cross-pillar joins. Each is best-effort: a missing snapshot means that check did
-  // not run, which summarizeBoardInsights reports as joinedFilters / joinedStatuses rather
-  // than as a clean bill of health.
-  const [filters, statusCatalog] = await Promise.all([
-    filterMeta?.version ? loadFilters(installationKey, filterMeta.version).catch(() => null) : Promise.resolve(null),
-    workflowMeta?.version ? loadStatusesCatalog(installationKey, workflowMeta.version).catch(() => null) : Promise.resolve(null),
-  ]);
-  const knownStatusIds = statusCatalog ? new Set(statusCatalog.map((s) => String(s.id ?? s.statusId))) : null;
-
-  const columnsByBoard = new Map();
-  for (const col of columns) {
-    if (!columnsByBoard.has(col.boardId)) columnsByBoard.set(col.boardId, []);
-    columnsByBoard.get(col.boardId).push(col);
-  }
-
-  const filterById = indexFiltersById(filters);
-  const rows = boards.map((board) => {
-    const cols = columnsByBoard.get(board.boardId) || [];
-    const withColumns = {
-      ...board,
-      columns: cols,
-      unmappedColumns: cols.filter((c) => c.statusIds.length === 0).length,
-    };
-    // Every board's own finding codes, uncapped -- insights.flagged stops at 50, and the
-    // pillar report needs the full set.
-    return { ...withColumns, issues: boardIssues(withColumns, filterById, knownStatusIds) };
-  });
-
-  const byType = {};
-  for (const board of rows) {
-    const key = board.type || "unknown";
-    byType[key] = (byType[key] || 0) + 1;
-  }
-
-  const insights = summarizeBoardInsights({ boards: rows, filters, knownStatusIds });
-
-  return {
-    state: meta.state || "ready",
-    staleBuild,
-    refreshedAt: meta.refreshedAt || null,
-    neverBuilt: false,
-    lastError: meta.lastError || null,
-    boards: rows,
-    insights,
-    summary: {
-      total: rows.length,
-      byType,
-      personal: rows.filter((board) => board.locationType === "user").length,
-      // Boards whose /configuration endpoint 404'd -- their column and filter facts are unknown.
-      unreadable: Number(meta.boardsUnreadable) || 0,
-      // Config was readable but named no backing filter.
-      missingFilter: rows.filter((board) => board.configReadable && !board.filterId).length,
-      // Config named a filter id that is not in the filter snapshot -- deleted out from under it.
-      brokenFilter: insights.missingFilter,
-      inactiveFilterOwner: insights.inactiveFilterOwner,
-      staleColumnBoards: insights.staleColumnBoards,
-      totalColumns: columns.length,
-    },
-  };
-}
-
-async function buildBoardInventory({ context }) {
-  incrMetric(METRIC_NAMES.resolver);
-  await ensureProjectStoreReady();
-  const installationKey = getInstallationKey(context);
-
-  const meta = await readBoardSnapshotMeta(installationKey);
-  if (meta?.state === "building" && !isBoardBuildStale(meta)) {
-    return { queued: false, reason: "already-building", meta };
-  }
-
-  const adminConfig = await readAdminConfig();
-  if (adminConfig.readOnlyMode) {
-    return { queued: false, error: "Read-only mode is enabled. Disable it before building the board inventory." };
-  }
-
-  await queueBoardSnapshotBuild(installationKey);
   return { queued: true };
 }
 
@@ -4864,54 +3537,6 @@ async function probeScreenFetchCost({ payload, context }) {
         : null,
     };
   }
-}
-
-// reports exactly what each one returned. Admin-only, read-only, and it never throws:
-// a diagnostic that can fail the page it runs on is worse than no diagnostic.
-// Confirms what the JSM Assets API answers on this site -- the first step of the Assets
-// pillar, done as a probe because Assets is a gateway API whose exact endpoint spelling and
-// availability (JSM Premium only) are worth verifying before an engine is built on them.
-async function probeAssetsApi() {
-  incrMetric(METRIC_NAMES.resolver);
-  return probeAssetsApiProbe();
-}
-
-// Global permissions: does the Jira Cloud REST API let this app enumerate WHO HOLDS each
-// global permission (ADMINISTER, SYSTEM_ADMIN, CREATE_SHARED_OBJECTS, ...)? As of writing
-// it exposes only the permission CATALOG, not the grants -- this probe confirms that
-// against the live site before an access-pillar view is built on it. Admin-only,
-// read-only, never throws.
-async function probeGlobalPermissions() {
-  incrMetric(METRIC_NAMES.resolver);
-  const rows = [];
-  const tryEndpoint = async (path, note) => {
-    try {
-      const data = await probeEndpoint(path);
-      rows.push({ path, ok: data.ok, status: data.status, note, sample: data.sample ?? null });
-    } catch (err) {
-      rows.push({ path, ok: false, status: null, note, error: String(err?.message || err) });
-    }
-  };
-
-  await tryEndpoint("/rest/api/3/permissions", "The permission catalog — definitions only, no holders");
-  await tryEndpoint("/rest/api/3/permissions/check", "Bulk permission check for the current user — not an enumeration");
-
-  let catalog = {};
-  try {
-    catalog = await getPermissionCatalog();
-  } catch { /* reflected in rows above */ }
-  const globalKeys = Object.values(catalog)
-    .filter((p) => String(p?.type || "").toUpperCase() === "GLOBAL")
-    .map((p) => p.key);
-
-  return {
-    // The catalog read is expected to succeed; grant enumeration is what is missing.
-    catalogAvailable: globalKeys.length > 0,
-    globalPermissionKeys: globalKeys,
-    grantEnumerationAvailable: false,
-    rows,
-    hint: "Jira Cloud's REST API returns the global-permission catalog but no endpoint that lists which groups hold each one. A global-permissions governance view is blocked on that gap; the access pillar covers PROJECT permission schemes, which the API does expose.",
-  };
 }
 
 async function probeAutomationApi({ context }) {
@@ -7806,15 +6431,6 @@ export async function rovoAccessSearch(payload, context) {
   }
 }
 
-// The active roster's accountIds, or null when no people snapshot exists (so an off-roster
-// flag is unknown, not false).
-async function loadActiveRoster(installationKey) {
-  const userMeta = await readUserSnapshotMeta(installationKey).catch(() => null);
-  if (!userMeta?.version) return null;
-  const users = await loadUsers(installationKey, userMeta.version).catch(() => []);
-  return activeRosterIds(users);
-}
-
 // One stored holder row, as the access agent reports it. The row carries the grant in
 // context/contextLabel (permission key, notification event, security level or project) and
 // the holder in holderValue/holderLabel. The agent used to read holderName, permission and
@@ -10285,68 +8901,6 @@ async function getDeltaIssueScanStatus({ context }) {
   const deltaScopeKey = `${installationKey}${DELTA_SCOPE_SUFFIX}`;
   const meta = await readIssueScanMeta(deltaScopeKey);
   return { meta: meta || null };
-}
-
-async function getRqtIndex({ context }) {
-  await ensureProjectStoreReady();
-  const installationKey = getInstallationKey(context);
-
-  const [rqtFields, snapshotMeta, issuesByProject, rqtValueFrequency, issueRqtValues, fieldIssueIndex] = await Promise.all([
-    loadRqtFieldIndex(installationKey),
-    readSnapshotMeta(installationKey),
-    loadRqtIssueKeys(installationKey),
-    loadRqtValueFrequency(installationKey),
-    loadIssueRqtValues(installationKey),
-    loadRqtFieldIssueIndex(installationKey),
-  ]);
-
-  // Enrich field names from the live snapshot if available
-  if (snapshotMeta?.version && rqtFields.length > 0) {
-    try {
-      const snapshotFields = await loadSnapshotFields(installationKey, snapshotMeta.version);
-      const nameMap = {};
-      for (const f of snapshotFields) nameMap[f.id] = f.name;
-      for (const r of rqtFields) {
-        if (nameMap[r.fieldId]) r.fieldName = nameMap[r.fieldId];
-      }
-    } catch (error) {
-      // Best-effort: the RQT index is usable with raw field ids, just less readable.
-      logger.warn("rqt.name_enrichment_failed", {
-        installationKey,
-        error: String(error?.message || error),
-      });
-    }
-  }
-
-  const jql = buildRqtJql(rqtFields.map((r) => r.fieldId));
-  const allValues = [...new Set(rqtFields.flatMap((r) => r.sampleValues))].sort();
-  const totalIssues = rqtFields.reduce((sum, r) => sum + r.issueCount, 0);
-  const refreshedAt = rqtFields[0]?.refreshedAt || null;
-
-  const totalUniqueIssues = issuesByProject.reduce((sum, p) => sum + p.total, 0);
-
-  return {
-    fields: rqtFields,
-    jql,
-    uniqueValues: allValues,
-    totalIssues,
-    totalUniqueIssues,
-    issuesByProject,
-    rqtValueFrequency,
-    refreshedAt,
-    fieldCount: rqtFields.length,
-    issueRqtValues,
-    fieldIssueIndex,
-  };
-}
-
-async function searchRqtValue({ payload, context }) {
-  await ensureProjectStoreReady();
-  const installationKey = getInstallationKey(context);
-  const rqtValue = String(payload?.rqtValue || "").trim().toUpperCase();
-  if (!rqtValue) return { issueKeys: [] };
-  const issueKeys = await searchRqtValueIssueKeys(installationKey, rqtValue);
-  return { issueKeys };
 }
 
 async function getFieldOptions({ payload, context }) {

@@ -1,6 +1,6 @@
 # Splitting `src/resolvers.js`
 
-Status: **in progress** — PR 1 of 6 (foundation) is this plan's first delivery.
+Status: **in progress**. PR 1 (foundation, #203) merged 13 Oct 2026; PR 2 (nine pillar leaves) follows.
 Owner: platform. Started 13 Oct 2026.
 
 ## Why
