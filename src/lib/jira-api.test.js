@@ -65,6 +65,7 @@ import {
   probeEndpoint,
   probeEndpointAsUser,
   probeStargateEndpoint,
+  probeJqlCount,
   requestAtlassianJson,
   getAssetsWorkspaceId,
   getCloudId,
@@ -904,6 +905,66 @@ describe("probeEndpoint", () => {
     const result = await probeEndpoint("/rest/api/3/automation/rule");
 
     expect(result.sample).toHaveLength(300);
+  });
+});
+
+// JSM's experimental endpoints answer 400 without their opt-in header, and the JSM probe
+// must parse a full page to take its next step -- so both are options, off by default.
+describe("probeEndpoint options", () => {
+  test("sends extra headers alongside Accept", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ status: 200, ok: true, text: "{}" }));
+
+    await probeEndpoint("/rest/servicedeskapi/organization", { headers: { "X-ExperimentalApi": "opt-in" } });
+
+    expect(mockRequestJira).toHaveBeenCalledWith("/rest/servicedeskapi/organization", expect.objectContaining({
+      headers: { Accept: "application/json", "X-ExperimentalApi": "opt-in" },
+    }));
+  });
+
+  test("returns the full body only when asked", async () => {
+    const text = `{"values":[${"1,".repeat(400)}1]}`;
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ status: 200, ok: true, text }));
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ status: 200, ok: true, text }));
+
+    const kept = await probeEndpoint("/rest/servicedeskapi/servicedesk", { keepBody: true });
+    const plain = await probeEndpoint("/rest/servicedeskapi/servicedesk");
+
+    expect(kept.body).toBe(text);
+    expect(kept.sample).toHaveLength(300);
+    expect(plain).not.toHaveProperty("body");
+  });
+});
+
+describe("probeJqlCount", () => {
+  test("posts the JQL to approximate-count and returns the count", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ status: 200, ok: true, text: '{"count":42}' }));
+
+    const result = await probeJqlCount('project = "SD" AND cf[10030] = breached()');
+
+    expect(mockRequestJira).toHaveBeenCalledWith("/rest/api/3/search/approximate-count", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ jql: 'project = "SD" AND cf[10030] = breached()' }),
+    }));
+    expect(result).toMatchObject({ status: 200, ok: true, count: 42 });
+  });
+
+  // A 400 is the answer a probe of JQL functions is looking for: which clause Jira rejected.
+  test("reports a rejected query with Jira's message and no count", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ status: 400, ok: false, text: '{"errorMessages":["Field cf[1] does not exist"]}' }));
+
+    const result = await probeJqlCount("cf[1] = breached()");
+
+    expect(result).toMatchObject({ status: 400, ok: false, count: null, jql: "cf[1] = breached()" });
+    expect(result.sample).toContain("does not exist");
+  });
+
+  test("returns a null status instead of throwing when the request fails", async () => {
+    mockRequestJira.mockRejectedValueOnce(new Error("socket hang up"));
+
+    const result = await probeJqlCount("project = SD");
+
+    expect(result).toMatchObject({ status: null, ok: false, count: null });
+    expect(result.sample).toContain("socket hang up");
   });
 });
 

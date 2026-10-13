@@ -2072,12 +2072,16 @@ export async function loadFieldOptionsFromJira(fieldId) {
 //
 // Read-only by construction: GET only, and the body is truncated because the point is the
 // shape of the response, not its contents.
-export async function probeEndpoint(path, { method = "GET" } = {}) {
+//
+// `headers` adds request headers (JSM's experimental endpoints need X-ExperimentalApi).
+// `keepBody` also returns the full text as `body`, for a caller that must parse the answer
+// to take its next step; that caller is responsible for not passing `body` on.
+export async function probeEndpoint(path, { method = "GET", headers = {}, keepBody = false } = {}) {
   const started = Date.now();
   try {
     const response = await api.asApp().requestJira(route([path]), {
       method,
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", ...headers },
     });
     const text = await response.text();
     return {
@@ -2087,6 +2091,7 @@ export async function probeEndpoint(path, { method = "GET" } = {}) {
       ms: Date.now() - started,
       // Enough to tell a rule list from an error envelope; not enough to leak issue data.
       sample: text.slice(0, 300),
+      ...(keepBody ? { body: text } : {}),
     };
   } catch (error) {
     return {
@@ -2099,6 +2104,30 @@ export async function probeEndpoint(path, { method = "GET" } = {}) {
   }
 }
 
+
+// Ask Jira how many issues a JQL query matches, reporting exactly what came back. Same
+// never-throws contract as probeEndpoint. approximate-count is a POST but reads only -- the
+// body carries the query. A 400 is an answer here, not a failure: its errorMessages say
+// which part of the JQL Jira rejected, which is what a probe of JQL functions needs to know.
+export async function probeJqlCount(jql) {
+  const started = Date.now();
+  try {
+    const response = await api.asApp().requestJira(route`/rest/api/3/search/approximate-count`, {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ jql }),
+    });
+    const text = await response.text();
+    let count = null;
+    try {
+      const parsed = JSON.parse(text);
+      if (typeof parsed?.count === "number") count = parsed.count;
+    } catch { /* non-JSON answer; the sample shows it */ }
+    return { jql, status: response.status, ok: response.ok, count, ms: Date.now() - started, sample: text.slice(0, 300) };
+  } catch (error) {
+    return { jql, status: null, ok: false, count: null, ms: Date.now() - started, sample: String(error?.message || error).slice(0, 300) };
+  }
+}
 
 // asUser() twin of probeEndpoint, for the one question probeEndpoint cannot answer.
 //
