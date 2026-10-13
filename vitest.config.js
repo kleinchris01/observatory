@@ -36,7 +36,7 @@ export default defineConfig({
     ],
     coverage: {
       reporter: ["text-summary", "lcov"],
-      include: ["src/*.js", "src/lib/**/*.js", "static/src/**/*.{js,jsx}"],
+      include: ["src/*.js", "src/lib/**/*.js", "src/resolvers/**/*.js", "static/src/**/*.{js,jsx}"],
       exclude: ["**/*.test.*", "static/src/test-setup.js"],
       // A ratchet, not a goal. These are set just below current actuals so coverage
       // can only go up: adding untested code fails CI, and raising the numbers is a
@@ -69,8 +69,16 @@ export default defineConfig({
         "src/lib/jira-api.js": { lines: 96, functions: 95, branches: 78.5 },
         "src/index.js": { lines: 96, functions: 49, branches: 86.5 },
         "src/lib/report-engine.js": { lines: 100, functions: 100, branches: 94.5 },
-        // Holds the authorization boundary -- withAdminGuard and the audit trail. A
-        // regression here is a security regression, not a coverage statistic.
+        // The authorization boundary -- withAdminGuard and the audit trail, and the macro's
+        // reader-group guard. A regression here is a security regression, not a coverage
+        // statistic. Split out of resolvers.js (docs/resolvers-refactor.md); pinned at actuals.
+        "src/resolvers/admin-guard.js": { lines: 100, functions: 100, branches: 86 },
+        "src/resolvers/macro-access.js": { lines: 95, functions: 100, branches: 87.5 },
+        // Rewrites thresholds and the macro access group list; decides which projects a
+        // viewer is scoped to.
+        "src/resolvers/admin-config.js": { lines: 84, functions: 100, branches: 73 },
+        "src/resolvers/viewer.js": { lines: 96, functions: 83, branches: 77.5 },
+        // Kept while the split is in progress: what remains is still every resolver.
         "src/resolvers.js": { lines: 90, functions: 74, branches: 75.5 },
       },
     },
