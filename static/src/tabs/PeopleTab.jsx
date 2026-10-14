@@ -5,6 +5,7 @@ import { Icon } from "../components/Icons";
 import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PanelGrid, GridSpan, PillarHealthPanel, BarList, SortFilterBar, AskRovo, UsageTriple } from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
+import { HandoverReport } from "./HandoverReport";
 import { useVisiblePolling, usePersistentState, useNavIntent, usePillarUsage } from "../hooks";
 
 // The People pillar: the who, not just the what.
@@ -66,7 +67,7 @@ function OwnedList({ title, items, empty }) {
   );
 }
 
-function UserRow({ user, expanded, detail, detailLoading, onToggle, usage = null }) {
+function UserRow({ user, expanded, detail, detailLoading, onToggle, usage = null, siteOrigin = "" }) {
   const owns = ownsSummary(user);
   return (
     <div className={`people-row${expanded ? " people-row--open" : ""}`}>
@@ -110,6 +111,7 @@ function UserRow({ user, expanded, detail, detailLoading, onToggle, usage = null
 
       {expanded && (
         <div className="people-row__detail">
+          <HandoverReport accountId={user.accountId} siteOrigin={siteOrigin} />
           {detailLoading && !detail ? (
             <p className="admin-config-row__hint">Loading…</p>
           ) : (
@@ -270,7 +272,7 @@ function sortRoster(users, sort) {
   return [...users].sort(by[sort] || by["name-asc"]);
 }
 
-export function PeopleTab({ intent = null } = {}) {
+export function PeopleTab({ intent = null, siteOrigin = "" } = {}) {
   const [view, setView] = usePersistentState("observatory.section.people", "overview");
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
@@ -634,6 +636,7 @@ export function PeopleTab({ intent = null } = {}) {
                     detail={details[user.accountId]}
                     detailLoading={detailLoading}
                     onToggle={toggleUser}
+                    siteOrigin={siteOrigin}
                   />
                 ))}
               </div>

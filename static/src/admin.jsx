@@ -435,7 +435,7 @@ export function AdminApp() {
           ) : activeTab === "boards" ? (
             <BoardsTab intent={navIntent} siteOrigin={siteOrigin} />
           ) : activeTab === "people" ? (
-            <PeopleTab intent={navIntent} />
+            <PeopleTab intent={navIntent} siteOrigin={siteOrigin} />
           ) : activeTab === "assets" ? (
             <AssetsTab intent={navIntent} siteOrigin={siteOrigin} />
           ) : activeTab === "access" ? (

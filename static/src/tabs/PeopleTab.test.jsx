@@ -95,6 +95,28 @@ describe("PeopleTab", () => {
     expect(screen.getByText("Bot Account")).toBeInTheDocument();
   });
 
+  // Offboarding starts from the person: the handover report is offered on their row, and only
+  // read when asked for, because it reads every project's lead from Jira.
+  test("offers a handover report on an expanded person, loaded only on request", async () => {
+    invoke.mockImplementation((fn, payload) => {
+      if (fn === "getUserInventory") return Promise.resolve(roster());
+      if (fn === "getUserDetails") return Promise.resolve({ available: true, inRoster: true, user: roster().users[0], ownedFilters: [], ownedDashboards: [], authoredRules: [], ownershipAvailable: {} });
+      if (fn === "getHandoverReport" && payload.accountId === "a1") {
+        return Promise.resolve({ available: true, person: { displayName: "Ann Admin" }, summary: "Nothing is deleted with this account and no work is routed to it.", beforeRemoval: 0, sections: [] });
+      }
+      return Promise.resolve({});
+    });
+    render(<PeopleTab siteOrigin="https://acme.atlassian.net" />);
+    await screen.findByText("People");
+    await userEvent.click(screen.getByRole("button", { name: /^Roster/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /Ann Admin/ }));
+
+    const prepare = await screen.findByRole("button", { name: "Prepare handover report" });
+    expect(invoke).not.toHaveBeenCalledWith("getHandoverReport", expect.anything());
+    await userEvent.click(prepare);
+    expect(await screen.findByText("Nothing is deleted with this account and no work is routed to it.")).toBeInTheDocument();
+  });
+
   test("shows an owns-summary chip and expands to the owned artifacts on click", async () => {
     invoke.mockImplementation((fn, payload) => {
       if (fn === "getUserInventory") return Promise.resolve(roster());

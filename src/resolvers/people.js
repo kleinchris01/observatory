@@ -1,8 +1,10 @@
-// People pillar: the licensed roster, one person's footprint across pillars, and the roster build.
+// People pillar: the licensed roster, one person's footprint across pillars, the roster build,
+// and the handover report for someone leaving.
 //
-// Moved verbatim from src/resolvers.js; see docs/resolvers-refactor.md.
+// Everything above getHandoverReport was moved verbatim from src/resolvers.js; see
+// docs/resolvers-refactor.md.
 
-import { incrMetric, METRIC_NAMES, getInstallationKey } from "../lib/jira-api.js";
+import { incrMetric, METRIC_NAMES, getInstallationKey, getProjectLeads, countIssues } from "../lib/jira-api.js";
 import {
   ensureProjectStoreReady,
   readSnapshotMeta,
@@ -14,7 +16,12 @@ import {
   readAccessSnapshotMeta,
   loadSchemesGrantingHolder,
   loadUserActivity,
+  readBoardSnapshotMeta,
+  loadBoards,
+  readDashboardSnapshotMeta,
+  loadDashboardsForFilters,
 } from "../lib/project-store.js";
+import { buildHandoverReport } from "../lib/handover.js";
 import { queueUserSnapshotBuild, isUserBuildStale } from "../lib/user-engine.js";
 import {
   activeRosterIds,
@@ -257,4 +264,38 @@ export async function buildUserInventory({ context }) {
 
   await queueUserSnapshotBuild(installationKey);
   return { queued: true };
+}
+
+// Everything that depends on one person's account, ordered by what happens when it is removed:
+// what is deleted with it, what breaks because of that, the work still routed to it, and the
+// access to take away. Admin-only. Reuses getUserDetails' footprint and adds what offboarding
+// needs on top: boards and gadgets built on their filters (from the snapshots), and the
+// projects they lead and their open issues (read live, because neither is in a snapshot).
+//
+// Every input fails soft: one that cannot be read becomes "unmeasured" in its section with the
+// reason, never an empty list that would read as nothing to hand over.
+export async function getHandoverReport({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  const accountId = String(payload?.accountId || "");
+  if (!accountId) throw new Error("accountId is required");
+  const installationKey = getInstallationKey(context);
+
+  const details = await getUserDetails({ payload: { accountId }, context });
+  if (!details?.available) return buildHandoverReport({ details });
+
+  const filterIds = (details.ownedFilters || []).map((f) => f.id);
+  const [boards, gadgets, projectsLed, openAssigned] = await Promise.all([
+    readBoardSnapshotMeta(installationKey)
+      .then((meta) => (meta?.version ? loadBoards(installationKey, meta.version) : null))
+      .catch(fallbackOn("handover.boards_failed", () => null, { installationKey })),
+    readDashboardSnapshotMeta(installationKey)
+      .then((meta) => (meta?.version ? loadDashboardsForFilters(installationKey, meta.version, filterIds) : null))
+      .catch(fallbackOn("handover.gadgets_failed", () => null, { installationKey })),
+    getProjectLeads()
+      .then((projects) => projects.filter((p) => p.leadAccountId === accountId))
+      .catch(fallbackOn("handover.leads_failed", () => null, { installationKey })),
+    countIssues(`assignee = "${accountId.replace(/"/g, "")}" AND statusCategory != Done`),
+  ]);
+
+  return buildHandoverReport({ details, boards, gadgets, projectsLed, openAssigned });
 }

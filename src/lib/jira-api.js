@@ -943,6 +943,36 @@ export async function getArchivedJiraProjects() {
   }));
 }
 
+// Every active project with its lead's account id. Not part of any snapshot -- leads are read
+// live for the handover report, which asks about one person at a time -- so this is the
+// project list with expand=lead and nothing else kept.
+export async function getProjectLeads() {
+  const rows = await paginate(
+    (startAt) => route`/rest/api/3/project/search?expand=lead&maxResults=50&startAt=${startAt}`
+  );
+  return rows.map((p) => ({
+    id: String(p.id),
+    key: p.key || null,
+    name: p.name || null,
+    leadAccountId: p.lead?.accountId || null,
+  }));
+}
+
+// How many issues a JQL query matches, or null when Jira could not say. Null, never 0: a
+// count that timed out is unknown, and "no open issues" would tell an admin the opposite of
+// what they need to check.
+export async function countIssues(jql) {
+  try {
+    const data = await withTimeout(
+      jiraRequest(route`/rest/api/3/search/approximate-count`, { method: "POST", body: JSON.stringify({ jql }) }),
+      ISSUE_COUNT_TIMEOUT_MS
+    );
+    return typeof data?.count === "number" ? data.count : null;
+  } catch {
+    return null;
+  }
+}
+
 // ----- Screens -----
 //
 // The three reads at the bottom of the screen chain. Fields-per-tab is the expensive one:
