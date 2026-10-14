@@ -813,6 +813,360 @@ Object.assign(REMEDIATION_PLAYBOOKS, {
   }),
 });
 
+// ── The thin-pillar checks (14 Oct 2026) ────────────────────────────────────
+//
+// One playbook per new health check. Each finding key matches its check, so the ticket, the
+// Overview chip and the scored card are the same thing seen three ways.
+
+const grantLines = (grants = [], limit = 40) => [
+  ...grants.slice(0, limit).map((x) => [x.permission, `${x.accountId}${x.departed ? " (left)" : ""}`]),
+  ...(grants.length > limit ? [["More", `${grants.length - limit} further grants -- see the Access tab`]] : []),
+];
+
+Object.assign(REMEDIATION_PLAYBOOKS, {
+  "permission-public-access": definePlaybook({
+    pillar: "permissions",
+    label: "Permission schemes open to anonymous users",
+    findings: ["permission-public-access"],
+    epic: {
+      summary: (n) => `Close anonymous access in ${n} permission ${plural(n, "scheme")}`,
+      why: (n) => `${n} permission ${plural(n, "scheme grants", "schemes grant")} a permission to anonymous users. On a site that allows public access, anyone at all can use those permissions on every project the scheme governs.`,
+      strategy: `For each scheme, remove each grant to Anyone. If a project genuinely needs to be public, keep the browse grant there and document why; give everything else to a group or project role.`,
+      done: `Every child task is closed and the next scan reports no permission scheme open to anonymous users.`,
+    },
+    task: {
+      heading: "The permission scheme",
+      summary: (it) => `Remove anonymous access from permission scheme "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [
+        ["Scheme", it.name || "(unnamed)"],
+        ["Scheme id", it.id],
+        ["Projects using it", it.projectCount],
+        ["Permissions open to anonymous users", (it.permissions || []).join(", ")],
+      ],
+      steps: () => [
+        "Open the scheme (link below) and find each permission granted to Anyone.",
+        "Remove the grant, or replace it with the group or project role that should have it.",
+        "The change applies to every project on the scheme at once -- check the project list first.",
+      ],
+      done: "The scheme grants nothing to anonymous users, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[`Permission scheme: ${it.name || it.id}`, L.permissionScheme(o, it.id)]],
+  }),
+
+  "permission-everyone-sensitive": definePlaybook({
+    pillar: "permissions",
+    label: "Sensitive permissions granted to every logged-in user",
+    findings: ["permission-everyone-sensitive"],
+    epic: {
+      summary: (n) => `Narrow sensitive permissions in ${n} permission ${plural(n, "scheme")}`,
+      why: (n) => `${n} permission ${plural(n, "scheme gives", "schemes give")} a sensitive permission -- delete issues, move issues, administer projects, edit others' comments or work logs -- to every logged-in user. Anyone with a licence can do it on every project the scheme governs.`,
+      strategy: `For each scheme, move each listed permission from "any logged-in user" to the project role that should hold it.`,
+      done: `Every child task is closed and the next scan reports no sensitive permission granted to every logged-in user.`,
+    },
+    task: {
+      heading: "The permission scheme",
+      summary: (it) => `Narrow sensitive permissions in permission scheme "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [
+        ["Scheme", it.name || "(unnamed)"],
+        ["Scheme id", it.id],
+        ["Projects using it", it.projectCount],
+        ["Granted to every logged-in user", (it.permissions || []).join(", ")],
+      ],
+      steps: () => [
+        "Open the scheme (link below) and find each listed permission.",
+        "Remove the \"any logged-in user\" grant and give it to the project role that needs it.",
+      ],
+      done: "None of the listed permissions is granted to every logged-in user, and the next Observatory scan no longer flags the scheme.",
+    },
+    links: (it, o) => [[`Permission scheme: ${it.name || it.id}`, L.permissionScheme(o, it.id)]],
+  }),
+
+  "permission-direct-grants": definePlaybook({
+    pillar: "permissions",
+    label: "Permissions granted to named individuals",
+    findings: ["permission-direct-grants"],
+    epic: {
+      summary: (n) => `Move grants to individuals into roles in ${n} permission ${plural(n, "scheme")}`,
+      why: (n) => `${n} permission ${plural(n, "scheme grants", "schemes grant")} permissions to named people. A grant to a person is reviewed by nobody, applies on every project the scheme governs, and outlives the reason it was made.`,
+      strategy: `For each scheme, replace each grant to a person with a project role, and add that person to the role only in the projects where they need it.`,
+      done: `Every child task is closed and the next scan reports no permission granted to a named individual.`,
+    },
+    task: {
+      heading: "The grants to individuals",
+      summary: (it) => `Move ${(it.grants || []).length} named ${plural((it.grants || []).length, "grant")} to roles in permission scheme "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [
+        ["Scheme", it.name || "(unnamed)"],
+        ["Scheme id", it.id],
+        ["Projects using it", it.projectCount],
+        ...grantLines(it.grants),
+      ],
+      steps: () => [
+        "Open the scheme (link below).",
+        "For each listed grant, grant the permission to a project role instead and remove the named person.",
+        "Add the person to that role in the projects where they need the permission.",
+      ],
+      done: "The scheme grants nothing to named individuals, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[`Permission scheme: ${it.name || it.id}`, L.permissionScheme(o, it.id)]],
+  }),
+
+  "permission-departed-grants": definePlaybook({
+    pillar: "permissions",
+    label: "Permissions granted to accounts that have left",
+    findings: ["permission-departed-grants"],
+    epic: {
+      summary: (n) => `Remove grants to departed accounts from ${n} permission ${plural(n, "scheme")}`,
+      why: (n) => `${n} permission ${plural(n, "scheme grants", "schemes grant")} permissions to accounts no longer on the licensed roster. They grant nothing today, hide what the scheme really allows, and come straight back if an account is reactivated.`,
+      strategy: `Remove every listed grant. If the permission is still needed, give it to the project role that should hold it.`,
+      done: `Every child task is closed and the next scan reports no permission granted to a departed account.`,
+    },
+    task: {
+      heading: "The grants to remove",
+      summary: (it) => `Remove ${(it.grants || []).length} ${plural((it.grants || []).length, "grant")} to departed accounts from permission scheme "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [["Scheme", it.name || "(unnamed)"], ["Scheme id", it.id], ...grantLines(it.grants)],
+      steps: () => [
+        "Open the scheme (link below).",
+        "Remove each listed grant; give the permission to a project role if it is still needed.",
+      ],
+      done: "No grant in the scheme names a departed account, and the next Observatory scan agrees.",
+    },
+    links: (it, o) => [[`Permission scheme: ${it.name || it.id}`, L.permissionScheme(o, it.id)]],
+  }),
+
+  "security-direct-members": definePlaybook({
+    pillar: "security",
+    label: "Issue security levels held by named individuals",
+    findings: ["security-direct-members"],
+    epic: {
+      summary: (n) => `Move named members into roles in ${n} issue security ${plural(n, "scheme")}`,
+      why: (n) => `${n} issue security ${plural(n, "scheme names", "schemes name")} individual people as level members. Who can see a restricted issue then depends on a list nobody maintains, and it goes stale as people change teams.`,
+      strategy: `For each scheme, replace named members with the project role or group they stand for.`,
+      done: `Every child task is closed and the next scan reports no security level held by named individuals.`,
+    },
+    task: {
+      heading: "The named members",
+      summary: (it) => `Replace ${(it.members || []).length} named ${plural((it.members || []).length, "member")} in issue security scheme "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [
+        ["Scheme", it.name || "(unnamed)"],
+        ["Scheme id", it.id],
+        ...(it.members || []).slice(0, 40).map((m) => [m.levelName, `${m.accountId}${m.departed ? " (left)" : ""}`]),
+      ],
+      steps: () => [
+        "Open the scheme (link below).",
+        "For each level, add the project role or group these people belong to, then remove the named people.",
+        "Check each level still has members afterwards -- an empty level hides its issues from everyone.",
+      ],
+      done: "The scheme's levels are held by roles or groups, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[`Issue security scheme: ${it.name || it.id}`, L.securityScheme(o, it.id)]],
+  }),
+
+  "security-departed-members": definePlaybook({
+    pillar: "security",
+    label: "Issue security level members who have left",
+    findings: ["security-departed-members"],
+    epic: {
+      summary: (n) => `Remove departed members from ${n} issue security ${plural(n, "scheme")}`,
+      why: (n) => `${n} issue security ${plural(n, "scheme lists", "schemes list")} accounts that are no longer on the licensed roster as level members. If they were the only members, the issues at that level are now visible to nobody but a site admin.`,
+      strategy: `Remove each listed member, and give the level to the role or group that should see its issues.`,
+      done: `Every child task is closed and the next scan reports no departed security level members.`,
+    },
+    task: {
+      heading: "The members to remove",
+      summary: (it) => `Remove ${(it.members || []).length} departed ${plural((it.members || []).length, "member")} from issue security scheme "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [
+        ["Scheme", it.name || "(unnamed)"],
+        ["Scheme id", it.id],
+        ...(it.members || []).slice(0, 40).map((m) => [m.levelName, m.accountId]),
+      ],
+      steps: () => [
+        "Search for issues at each listed level first -- if the departed person was its only member, nobody can see them today.",
+        "Open the scheme (link below), add the right role or group to the level, then remove the departed account.",
+      ],
+      done: "No level in the scheme names a departed account, every level still has members, and the next Observatory scan agrees.",
+    },
+    links: (it, o) => [[`Issue security scheme: ${it.name || it.id}`, L.securityScheme(o, it.id)]],
+  }),
+
+  "notification-external-email": definePlaybook({
+    pillar: "notifications",
+    label: "Notifications sent to raw email addresses",
+    findings: ["notification-external-email"],
+    epic: {
+      summary: (n) => `Replace raw email recipients in ${n} notification ${plural(n, "scheme")}`,
+      why: (n) => `${n} notification ${plural(n, "scheme sends", "schemes send")} issue mail to raw email addresses. They sit outside the user directory, so nothing changes when someone leaves, and issue content goes wherever that mailbox forwards.`,
+      strategy: `Replace each address with the group, project role or issue field (assignee, reporter, watchers) the mail was meant for. If an outside party really must receive it, confirm that with the data owner and record it.`,
+      done: `Every child task is closed and the next scan reports no notification scheme sending to a raw email address.`,
+    },
+    task: {
+      heading: "The raw email recipients",
+      summary: (it) => `Replace ${(it.addresses || []).length} raw email ${plural((it.addresses || []).length, "address", "addresses")} in notification scheme "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [
+        ["Scheme", it.name || "(unnamed)"],
+        ["Scheme id", it.id],
+        ["Events sending to an address", it.events],
+        ["Addresses", (it.addresses || []).join(", ")],
+      ],
+      steps: () => [
+        "Open the scheme (link below) and find each event that notifies an email address.",
+        "Replace it with a group, project role or issue field; remove the address.",
+      ],
+      done: "The scheme sends to no raw email address, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[`Notification scheme: ${it.name || it.id}`, L.notificationScheme(o, it.id)]],
+  }),
+
+  "notification-departed-recipients": definePlaybook({
+    pillar: "notifications",
+    label: "Notifications sent to accounts that have left",
+    findings: ["notification-departed-recipients"],
+    epic: {
+      summary: (n) => `Re-route notifications to departed accounts in ${n} notification ${plural(n, "scheme")}`,
+      why: (n) => `${n} notification ${plural(n, "scheme sends", "schemes send")} events to accounts that are no longer on the licensed roster. Those events now reach nobody.`,
+      strategy: `For each listed event, send it to the project role or group that should hear about it instead.`,
+      done: `Every child task is closed and the next scan reports no notification sent to a departed account.`,
+    },
+    task: {
+      heading: "The recipients to replace",
+      summary: (it) => `Re-route ${(it.recipients || []).length} ${plural((it.recipients || []).length, "notification")} to departed accounts in "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [
+        ["Scheme", it.name || "(unnamed)"],
+        ["Scheme id", it.id],
+        ...(it.recipients || []).slice(0, 40).map((r) => [`Event ${r.event}`, r.accountId]),
+      ],
+      steps: () => [
+        "Open the scheme (link below).",
+        "For each listed event, add the right project role or group and remove the departed account.",
+      ],
+      done: "No event in the scheme notifies a departed account, and the next Observatory scan agrees.",
+    },
+    links: (it, o) => [[`Notification scheme: ${it.name || it.id}`, L.notificationScheme(o, it.id)]],
+  }),
+
+  // Bounded, like off-roster actors: one task per project, bundled past 50.
+  "role-group-actors": definePlaybook({
+    pillar: "roles",
+    label: "Project roles held by individuals",
+    findings: ["role-group-actors"],
+    granularity: "bounded",
+    epic: {
+      summary: (n) => `Fill project roles with groups instead of individuals (${n} ${plural(n, "task")})`,
+      why: () => `Project roles are filled person by person in these projects. A group is one place to change membership; a person per role per project is many, and none of them changes when someone moves team.`,
+      strategy: `Each task covers one project (or a small bundle). Where the people in a role share a team, add that team's group to the role and remove the individuals. Leave individuals where no group fits -- this is a tidy-up, not a rule.`,
+      done: `Every child task is closed. The check scores a rate, so a few individuals left on purpose are fine.`,
+    },
+    task: {
+      heading: "The individuals in roles",
+      summary: (it) => `Review ${it.count || 0} individual role ${plural(it.count || 0, "member")} in ${it.name || "(unknown)"}`,
+      facts: (it) => [
+        ["Projects", (it.owners || []).join(", ")],
+        ["Role memberships", it.count],
+        ...(it.members || []).slice(0, 60).map((m) => [`${m.projectKey} / ${m.role}`, m.accountId]),
+        ...((it.members || []).length > 60 ? [["More", `${it.members.length - 60} further memberships -- see the Access tab`]] : []),
+      ],
+      steps: () => [
+        "Open each project's People / roles settings (links below).",
+        "Where the people in a role belong to one team, add that team's group and remove them individually.",
+      ],
+      done: "The roles in these projects are held by groups wherever a group fits.",
+    },
+    links: (it, o) => (it.owners || []).slice(0, 25).map((key) => [`${key} roles`, L.projectRoles(o, key)]),
+  }),
+
+  "role-unused": definePlaybook({
+    pillar: "roles",
+    label: "Project roles nobody holds",
+    findings: ["role-unused"],
+    epic: {
+      summary: (n) => `Retire ${n} project ${plural(n, "role")} nobody holds`,
+      why: (n) => `${n} project ${plural(n, "role has", "roles have")} no user or group in any project. Each still appears in every role picker and permission scheme, granting nothing and inviting the wrong choice.`,
+      strategy: `Confirm each role is unused (check permission and notification schemes that reference it), then delete it, or take it out of those schemes.`,
+      done: `Every child task is closed and the next scan reports no project role that nobody holds.`,
+    },
+    task: {
+      heading: "The project role",
+      summary: (it) => `Retire project role "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [["Role", it.name], ["Role id", it.id]],
+      steps: () => [
+        "Open Project roles in Jira administration (link below) and view the role's usage.",
+        "Remove it from any permission or notification scheme that references it, then delete the role.",
+      ],
+      done: "The role no longer exists (or holds someone), and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [["Project roles", L.projectRolesAdmin(o)]],
+  }),
+
+  "priority-usage": definePlaybook({
+    pillar: "estate",
+    label: "Priorities no issue uses",
+    findings: ["priority-usage"],
+    epic: {
+      summary: (n) => `Retire ${n} unused ${plural(n, "priority", "priorities")}`,
+      why: (n) => `${n} ${plural(n, "priority is", "priorities are")} on no issue at all. Each is one more option everyone reads past when creating an issue.`,
+      strategy: `Confirm each priority is unused and not referenced by a priority scheme you rely on, then delete it.`,
+      done: `Every child task is closed and the next scan reports no unused priorities.`,
+    },
+    task: {
+      heading: "The priority",
+      summary: (it) => `Retire unused priority "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [["Priority", it.name], ["Priority id", it.id], ["Default", it.isDefault ? "Yes -- pick a new default first" : null]],
+      steps: (it) => [
+        ...(it.isDefault ? ["It is the default priority: set another default first."] : []),
+        "Open Priorities in Jira administration (link below) and delete it.",
+      ],
+      done: "The priority no longer exists, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [["Priorities", L.priorityAdmin(o)]],
+  }),
+
+  "resolution-usage": definePlaybook({
+    pillar: "estate",
+    label: "Resolutions no issue uses",
+    findings: ["resolution-usage"],
+    epic: {
+      summary: (n) => `Retire ${n} unused ${plural(n, "resolution")}`,
+      why: (n) => `${n} ${plural(n, "resolution is", "resolutions are")} on no issue at all. Each is one more choice on every resolve screen and one more row in every resolution report.`,
+      strategy: `Confirm each resolution is unused and not set by a workflow post-function, then delete it.`,
+      done: `Every child task is closed and the next scan reports no unused resolutions.`,
+    },
+    task: {
+      heading: "The resolution",
+      summary: (it) => `Retire unused resolution "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [["Resolution", it.name], ["Resolution id", it.id], ["Default", it.isDefault ? "Yes -- pick a new default first" : null]],
+      steps: (it) => [
+        ...(it.isDefault ? ["It is the default resolution: set another default first."] : []),
+        "Check no workflow transition sets this resolution (the Workflows tab's rule usage shows it).",
+        "Open Resolutions in Jira administration (link below) and delete it.",
+      ],
+      done: "The resolution no longer exists, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [["Resolutions", L.resolutionAdmin(o)]],
+  }),
+
+  "estate-defaults": definePlaybook({
+    pillar: "estate",
+    label: "Priority or resolution list with no default",
+    findings: ["estate-defaults"],
+    epic: {
+      summary: (n) => `Set a default for ${n} value ${plural(n, "list")}`,
+      why: () => `A priority or resolution list with no default makes every create or resolve screen choose, or leaves the value empty, so reports split across "none" and real values.`,
+      strategy: `Pick the value most issues should start with and make it the default.`,
+      done: `Every child task is closed and the next scan reports both lists with a default.`,
+    },
+    task: {
+      heading: "The value list",
+      summary: (it) => `Set a default ${it.kind || "value"}`,
+      facts: (it) => [["List", it.kind === "priority" ? "Priorities" : "Resolutions"], ["Values in the list", it.valueCount]],
+      steps: (it) => [
+        `Open ${it.kind === "priority" ? "Priorities" : "Resolutions"} in Jira administration (link below).`,
+        "Choose the value most issues should start with and set it as the default.",
+      ],
+      done: "The list has a default, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[it.kind === "priority" ? "Priorities" : "Resolutions", it.kind === "priority" ? L.priorityAdmin(o) : L.resolutionAdmin(o)]],
+  }),
+});
+
 // ── Filters and dashboards ──────────────────────────────────────────────────
 
 const ownerFact = (it) => it.ownerName || null;

@@ -988,6 +988,49 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
     });
   }
 
+  // The thin-pillar checks (14 Oct 2026). Each finding's dimension IS its scored check, so the
+  // count, the remediation status and "Start remediation" sit on that check's own card.
+  // Departed-account findings appear only once the People roster is measured.
+  const accessFinding = (key, pillar, view, tone, count, title, detail) => {
+    if (count > 0) {
+      findings.push({ key, dimension: key, pillar, tone, count, title, detail, onOpen: () => onNavigate("access", { view }), openLabel: "Access" });
+    }
+  };
+  if (perm?.available) {
+    accessFinding("permission-public-access", "permissions", "permissions", "critical", perm.publicSchemeCount,
+      "Permission schemes open to anonymous users", "Anyone at all can use these permissions, on a site that allows public access.");
+    accessFinding("permission-everyone-sensitive", "permissions", "permissions", "warning", perm.loggedInSensitiveSchemeCount,
+      "Sensitive permissions granted to every logged-in user", "Delete, move, administer or edit others' work, open to anyone with a licence.");
+    accessFinding("permission-direct-grants", "permissions", "permissions", "info", perm.directUserGrantCount,
+      "Permissions granted to named individuals", "A grant to one person is reviewed by nobody. Move it to a project role.");
+    if (perm.rosterMeasured !== false) {
+      accessFinding("permission-departed-grants", "permissions", "permissions", "warning", perm.offRosterUserGrantCount,
+        "Permissions granted to accounts that have left", "They grant nothing today and hide what the scheme really allows.");
+    }
+  }
+  if (sec?.available) {
+    accessFinding("security-direct-members", "security", "security", "info", sec.userMemberCount,
+      "Security level members who are named individuals", "Who sees a restricted issue depends on a list nobody maintains.");
+    if (sec.rosterMeasured !== false) {
+      accessFinding("security-departed-members", "security", "security", "warning", sec.offRosterMemberCount,
+        "Security level members who have left", "If they were a level's only members, its issues are now visible to nobody.");
+    }
+  }
+  if (notif?.available) {
+    accessFinding("notification-external-email", "notifications", "notifications", "warning", notif.emailRecipientCount,
+      "Notifications sent to raw email addresses", "Outside the directory: issue content goes wherever that mailbox forwards.");
+    if (notif.rosterMeasured !== false) {
+      accessFinding("notification-departed-recipients", "notifications", "notifications", "warning", notif.offRosterRecipientCount,
+        "Notifications sent to accounts that have left", "Those events now reach nobody.");
+    }
+  }
+  if (roleGov?.available) {
+    accessFinding("role-group-actors", "roles", "roles", "info", roleGov.directUserActorCount,
+      "Project-role members who are individuals", "A group is one place to change membership; a person per project is many.");
+    accessFinding("role-unused", "roles", "roles", "info", roleGov.emptyRoleCount,
+      "Project roles nobody holds", "No user or group in any project, yet the role shows in every picker.");
+  }
+
   // ── Field schemes / field configurations ──────────────────────────────
   const fc = fieldConfigs?.available ? fieldConfigs.summary || {} : null;
   const fcLegacy = fieldConfigs?.source === "field-configurations";
@@ -1077,6 +1120,19 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       onOpen: () => onNavigate("priorities", { view: "priorities" }),
       openLabel: "Priorities",
     });
+  }
+
+  // Unused values (once the issue crawl has measured usage) and missing defaults. Each attaches
+  // to its own scored check, like the access findings above.
+  if (estate?.available) {
+    const unused = (rows) => (estate.usageMeasured ? (rows || []).filter((v) => v.issueCount === 0).length : 0);
+    const estateFinding = (key, view, count, title, detail) => {
+      if (count > 0) findings.push({ key, dimension: key, pillar: "estate", tone: "info", count, title, detail, onOpen: () => onNavigate("priorities", { view }), openLabel: "Priorities" });
+    };
+    estateFinding("priority-usage", "priorities", unused(estate.priorities), "Priorities no issue uses", "Options everyone reads past when creating an issue.");
+    estateFinding("resolution-usage", "resolutions", unused(estate.resolutions), "Resolutions no issue uses", "One more choice on every resolve screen.");
+    estateFinding("estate-defaults", "priorities", (estate.prioritiesWithoutDefault ? 1 : 0) + (estate.resolutionsWithoutDefault ? 1 : 0),
+      "Value lists with no default", "Every create or resolve has to choose, or leaves the value empty.");
   }
 
   // ── Projects ────────────────────────────────────────────────────────────
