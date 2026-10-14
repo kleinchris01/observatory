@@ -40,7 +40,14 @@ const declText = (text, st) => {
   const node = st.node.type === "ExportNamedDeclaration" && st.node.declaration ? st.node.declaration : st.node;
   return text.slice(node.start, node.end);
 };
-const collect = (text, where) => analyse(text).stmts.filter((s) => s.names.length).map((s) => ({ key: s.names.join(","), code: declText(text, s), where }));
+// Named declarations are keyed by name. Nameless expression statements (Object.assign onto a
+// table, say) are keyed by their own text, so one that changed reads as missing plus new.
+const collect = (text, where) => analyse(text).stmts
+  .filter((s) => s.names.length || s.node.type === "ExpressionStatement")
+  .map((s) => {
+    const code = declText(text, s);
+    return { key: s.names.length ? s.names.join(",") : `statement: ${code.replace(/\s+/g, " ").slice(0, 80)}`, code, where };
+  });
 
 const before = new Map(collect(baseText, "src/resolvers.js").map((d) => [d.key, d]));
 for (const file of baseModules) {
