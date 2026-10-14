@@ -271,3 +271,80 @@ describe("projects nobody can administer", () => {
     expect(cap.get("8")).toEqual({ roleIds: new Set(), direct: false });
   });
 });
+
+// The counts the thin-pillar checks score from (14 Oct 2026), and the roster flag that keeps the
+// departed-account checks honest on a site whose People roster was never built.
+describe("counts behind the new access checks", () => {
+  test("permissions: every grant counted, and the health carries the new inputs", () => {
+    const holders = [
+      { schemeId: "1", context: "BROWSE_PROJECTS", holderType: "anyone", holderValue: "" },
+      { schemeId: "1", context: "DELETE_ISSUES", holderType: "applicationRole", holderValue: "" },
+      { schemeId: "1", context: "EDIT_ISSUES", holderType: "user", holderValue: "acc-gone" },
+      { schemeId: "1", context: "CREATE_ISSUES", holderType: "projectRole", holderValue: "10002" },
+    ];
+    const s = summarizePermissionInsights({ schemes: [{ id: "1", name: "Prod" }], holders, schemeProjects: [{ schemeId: "1", projectId: "10" }], rosterAccountIds: roster });
+    expect(s.totalGrantCount).toBe(4);
+    expect(s.rosterMeasured).toBe(true);
+    expect(summarizePermissionHealth(s)).toMatchObject({
+      publicSchemeCount: 1, loggedInSensitiveSchemeCount: 1, directUserGrantCount: 1,
+      offRosterUserGrantCount: 1, totalGrantCount: 4, rosterMeasured: true,
+    });
+  });
+
+  test("security: user members and every member, with the roster flag", () => {
+    const s = summarizeSecurityInsights({
+      schemes: [{ id: "s1", name: "Secure" }],
+      levels: [{ schemeId: "s1", id: "l1", name: "Internal" }],
+      holders: [
+        { schemeId: "s1", context: "l1", holderType: "user", holderValue: "acc-1" },
+        { schemeId: "s1", context: "l1", holderType: "user", holderValue: "acc-gone" },
+        { schemeId: "s1", context: "l1", holderType: "group", holderValue: "g-1" },
+      ],
+      schemeProjects: [{ schemeId: "s1", projectId: "10" }],
+      rosterAccountIds: roster,
+    });
+    expect(summarizeSecurityHealth(s)).toMatchObject({ userMemberCount: 2, totalMemberCount: 3, offRosterMemberCount: 1, rosterMeasured: true });
+  });
+
+  test("notifications: named users and every recipient, raw emails carried through", () => {
+    const s = summarizeNotificationInsights({
+      schemes: [{ id: "n1", name: "Prod" }],
+      holders: [
+        { schemeId: "n1", context: "1", holderType: "user", holderValue: "acc-gone" },
+        { schemeId: "n1", context: "1", holderType: "emailAddress", holderValue: "x@example.com" },
+        { schemeId: "n1", context: "2", holderType: "projectRole", holderValue: "10002" },
+      ],
+      schemeProjects: [{ schemeId: "n1", projectId: "10" }],
+      rosterAccountIds: roster,
+    });
+    expect(summarizeNotificationHealth(s)).toMatchObject({
+      namedUserRecipientCount: 1, totalRecipientCount: 3, emailRecipientCount: 1, offRosterRecipientCount: 1, rosterMeasured: true,
+    });
+  });
+
+  test("roles: group actors and roles nobody holds anywhere", () => {
+    const s = summarizeRoleInsights({
+      roles: [{ id: "a", name: "Administrators" }, { id: "b", name: "Members" }, { id: "c", name: "Viewers" }],
+      holders: [
+        { schemeId: "a", context: "1", contextLabel: "OPS", holderType: "group", holderValue: "g" },
+        { schemeId: "b", context: "1", contextLabel: "OPS", holderType: "user", holderValue: "acc-1" },
+        { schemeId: "c", context: "1", contextLabel: "OPS", holderType: "empty", holderValue: "" },
+      ],
+      rosterAccountIds: roster,
+    });
+    expect(summarizeRoleHealth(s)).toMatchObject({ groupActorCount: 1, directUserActorCount: 1, emptyRoleCount: 1, rosterMeasured: true });
+  });
+
+  // Without a roster every named account looked departed. The flag lets the score say
+  // "not measured" instead.
+  test("an empty roster is reported as unmeasured on every summary", () => {
+    const empty = new Set();
+    expect(summarizePermissionInsights({ schemes: [{ id: "1" }], rosterAccountIds: empty }).rosterMeasured).toBe(false);
+    expect(summarizeSecurityInsights({ schemes: [{ id: "1" }], rosterAccountIds: empty }).rosterMeasured).toBe(false);
+    expect(summarizeNotificationInsights({ schemes: [{ id: "1" }], rosterAccountIds: empty }).rosterMeasured).toBe(false);
+    const roles = summarizeRoleInsights({ roles: [{ id: "a", name: "Members" }], holders: [{ schemeId: "a", context: "1", holderType: "user", holderValue: "acc-1" }], rosterAccountIds: empty });
+    expect(roles.rosterMeasured).toBe(false);
+    const dim = computeSiteHealth({ roles: summarizeRoleHealth(roles) }).dimensions.find((d) => d.key === "role-actor-hygiene");
+    expect(dim.available).toBe(false);
+  });
+});

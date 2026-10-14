@@ -50,9 +50,11 @@ export function summarizePermissionInsights({ schemes = [], holders = [], scheme
   let publicSchemes = 0;
   let loggedInSensitiveSchemes = 0;
   let loggedInGrants = 0;
+  let totalGrants = 0;
 
   for (const scheme of schemes) {
     const g = holdersBy.get(scheme.id) || [];
+    totalGrants += g.length;
     const count = projCount.get(scheme.id) || 0;
     if (count === 0 && !scheme.isDefault) {
       unused.push({ id: scheme.id, name: scheme.name });
@@ -94,6 +96,10 @@ export function summarizePermissionInsights({ schemes = [], holders = [], scheme
     publicSchemeCount: publicSchemes,
     loggedInSensitiveSchemeCount: loggedInSensitiveSchemes,
     loggedInGrantCount: loggedInGrants,
+    totalGrantCount: totalGrants,
+    // An empty roster means the People roster was never built, not that everyone left. Every
+    // off-roster count is meaningless without it, so the score treats it as unmeasured.
+    rosterMeasured: rosterAccountIds.size > 0,
     unusedSchemes: unused.slice(0, listLimit),
     riskySchemes: risky.slice(0, listLimit),
   };
@@ -106,6 +112,12 @@ export function summarizePermissionHealth(s) {
     totalSchemes: s.totalSchemes,
     riskySchemeCount: s.riskySchemeCount,
     unusedSchemeCount: s.unusedSchemeCount,
+    publicSchemeCount: s.publicSchemeCount,
+    loggedInSensitiveSchemeCount: s.loggedInSensitiveSchemeCount,
+    directUserGrantCount: s.directUserGrantCount,
+    offRosterUserGrantCount: s.offRosterUserGrantCount,
+    totalGrantCount: s.totalGrantCount,
+    rosterMeasured: s.rosterMeasured,
   };
 }
 
@@ -116,10 +128,14 @@ export function summarizeSecurityInsights({ schemes = [], levels = [], holders =
   // members keyed by "schemeId|levelId" (holder.context is the level id)
   const memberCountByLevel = new Map();
   let offRosterMembers = 0;
+  let userMembers = 0;
   for (const h of holders) {
     const key = `${h.schemeId}|${h.context}`;
     memberCountByLevel.set(key, (memberCountByLevel.get(key) || 0) + 1);
-    if (h.holderType === "user" && h.holderValue && !rosterAccountIds.has(h.holderValue)) offRosterMembers += 1;
+    if (h.holderType === "user" && h.holderValue) {
+      userMembers += 1;
+      if (!rosterAccountIds.has(h.holderValue)) offRosterMembers += 1;
+    }
   }
 
   const unused = [];
@@ -145,6 +161,9 @@ export function summarizeSecurityInsights({ schemes = [], levels = [], holders =
     noLevelSchemeCount: noLevels.length,
     emptyLevelCount: emptyLevels.length,
     offRosterMemberCount: offRosterMembers,
+    userMemberCount: userMembers,
+    totalMemberCount: holders.length,
+    rosterMeasured: rosterAccountIds.size > 0,
     unusedSchemes: unused.slice(0, listLimit),
     emptyLevels: emptyLevels.slice(0, listLimit === 25 ? 40 : listLimit),
     noLevelSchemes: noLevels.slice(0, listLimit),
@@ -159,6 +178,10 @@ export function summarizeSecurityHealth(s) {
     totalLevels: s.totalLevels,
     brokenLevelCount: s.emptyLevelCount + s.noLevelSchemeCount,
     unusedSchemeCount: s.unusedSchemeCount,
+    offRosterMemberCount: s.offRosterMemberCount,
+    userMemberCount: s.userMemberCount,
+    totalMemberCount: s.totalMemberCount,
+    rosterMeasured: s.rosterMeasured,
   };
 }
 
@@ -172,6 +195,7 @@ export function summarizeNotificationInsights({ schemes = [], holders = [], sche
   let offRosterRecipients = 0;
   let emailRecipients = 0;
   let groupRecipients = 0;
+  let namedUserRecipients = 0;
 
   for (const scheme of schemes) {
     const h = holdersBy.get(scheme.id) || [];
@@ -185,6 +209,7 @@ export function summarizeNotificationInsights({ schemes = [], holders = [], sche
     const groups = h.filter((r) => r.holderType === "group");
     groupRecipients += groups.length;
     emailRecipients += emailAddresses.length;
+    namedUserRecipients += namedUsers.length;
     if (namedUsers.length || emailAddresses.length) {
       fragile.push({
         id: scheme.id,
@@ -206,6 +231,9 @@ export function summarizeNotificationInsights({ schemes = [], holders = [], sche
     // Raw email addresses (outside the directory) and whole groups, across every scheme.
     emailRecipientCount: emailRecipients,
     groupRecipientCount: groupRecipients,
+    namedUserRecipientCount: namedUserRecipients,
+    totalRecipientCount: holders.length,
+    rosterMeasured: rosterAccountIds.size > 0,
     unusedSchemes: unused.slice(0, listLimit),
     fragileSchemes: fragile.slice(0, listLimit),
   };
@@ -218,6 +246,11 @@ export function summarizeNotificationHealth(s) {
     totalSchemes: s.totalSchemes,
     fragileSchemeCount: s.fragileSchemeCount,
     unusedSchemeCount: s.unusedSchemeCount,
+    emailRecipientCount: s.emailRecipientCount,
+    offRosterRecipientCount: s.offRosterRecipientCount,
+    namedUserRecipientCount: s.namedUserRecipientCount,
+    totalRecipientCount: s.totalRecipientCount,
+    rosterMeasured: s.rosterMeasured,
   };
 }
 
@@ -267,6 +300,8 @@ export function summarizeRoleInsights({ roles = [], holders = [], rosterAccountI
   const projectsWithRoles = new Set();
   let offRosterActors = 0;
   let userActorCount = 0;
+  let groupActorCount = 0;
+  const filledRoleIds = new Set();
   const offRosterMemberships = [];
 
   for (const h of holders) {
@@ -275,6 +310,8 @@ export function summarizeRoleInsights({ roles = [], holders = [], rosterAccountI
     projectsWithRoles.add(h.context);
     if (h.holderType === "user" || h.holderType === "group") {
       filledByRoleProject.add(rp);
+      filledRoleIds.add(String(h.schemeId));
+      if (h.holderType === "group") groupActorCount += 1;
       if (h.holderType === "user" && h.holderValue) {
         userActorCount += 1;
         if (!rosterAccountIds.has(h.holderValue)) {
@@ -326,6 +363,11 @@ export function summarizeRoleInsights({ roles = [], holders = [], rosterAccountI
     projectsMissingAdminActorCount: missingAdminCount,
     offRosterActorCount: offRosterActors,
     directUserActorCount: userActorCount,
+    groupActorCount,
+    // Roles with no user or group in any project: a name in every role picker that grants
+    // nothing anywhere.
+    emptyRoleCount: roles.filter((r) => !filledRoleIds.has(String(r.id))).length,
+    rosterMeasured: rosterAccountIds.size > 0,
     projectsMissingAdminActor: missingAdminSamples,
     offRosterMemberships,
   };
@@ -343,5 +385,8 @@ export function summarizeRoleHealth(s) {
     // above a finding counting 1,071 of them.
     offRosterActorCount: s.offRosterActorCount,
     directUserActorCount: s.directUserActorCount,
+    groupActorCount: s.groupActorCount,
+    emptyRoleCount: s.emptyRoleCount,
+    rosterMeasured: s.rosterMeasured,
   };
 }

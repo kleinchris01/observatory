@@ -81,5 +81,19 @@ export function summarizeEstateHealth(summary) {
     totalPriorities: summary.totalPriorities,
     reducibleResolutionCount: summary.reducibleResolutionCount,
     reduciblePriorityCount: summary.reduciblePriorityCount,
+    resolutionsWithoutDefault: Boolean(summary.resolutionsWithoutDefault),
+    prioritiesWithoutDefault: Boolean(summary.prioritiesWithoutDefault),
+  };
+}
+
+// The usage half of this pillar's score: values no issue carries. Only measured once the issue
+// crawl has run -- before that every value reads as unused, which says nothing.
+export function summarizeEstateUsage(usage) {
+  if (!usage?.usageMeasured) return { usageMeasured: false };
+  const unused = (rows) => (rows || []).filter((v) => v.issueCount === 0).length;
+  return {
+    usageMeasured: true,
+    unusedPriorityCount: unused(usage.priorities),
+    unusedResolutionCount: unused(usage.resolutions),
   };
 }

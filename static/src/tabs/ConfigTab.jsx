@@ -353,6 +353,15 @@ const DEFAULT_TOLERANCES = {
   offRosterRoleActors: 0.05,
   duplicateResolutions: 0.15,
   duplicatePriorities: 0.20,
+  publicPermissionSchemes: 0.02,
+  everyoneSensitiveSchemes: 0.10,
+  directUserGrants: 0.10,
+  departedAccounts: 0.02,
+  directSecurityMembers: 0.25,
+  externalEmailRecipients: 0.02,
+  directRoleActors: 0.60,
+  unusedRoles: 0.30,
+  unusedEstateValues: 0.30,
   boardsColumnHygiene: 0.25,
   configChurn: 0.20,
 };
@@ -1227,6 +1236,22 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent, targetPct, setTa
               share of projects with a manageable admin role is the good state to hold. */}
           <ToleranceRule tone="cleanup" badge="Roles" name="Off-roster role actors" pct={pct} set={setTolerancePercent} k="offRosterRoleActors"
             tail="of project-role user actors that are accounts no longer on the licensed roster." />
+          <ToleranceRule tone="risky" badge="Permissions" name="Public access" pct={pct} set={setTolerancePercent} k="publicPermissionSchemes"
+            tail="of permission schemes granting anything to anonymous users." />
+          <ToleranceRule tone="risky" badge="Permissions" name="Sensitive grants to everyone" pct={pct} set={setTolerancePercent} k="everyoneSensitiveSchemes"
+            tail="of permission schemes giving delete, move, administer or edit-others to every logged-in user." />
+          <ToleranceRule tone="standardize" badge="Permissions" name="Grants to individuals" pct={pct} set={setTolerancePercent} k="directUserGrants"
+            tail="of permission grants naming a person instead of a project role or group." />
+          <ToleranceRule tone="risky" badge="Access" name="Departed accounts" pct={pct} set={setTolerancePercent} k="departedAccounts"
+            tail="of named grants, security-level members and notification recipients that are accounts no longer on the licensed roster." />
+          <ToleranceRule tone="standardize" badge="Security" name="Levels held by individuals" pct={pct} set={setTolerancePercent} k="directSecurityMembers"
+            tail="of security-level members that are named people rather than a role or group." />
+          <ToleranceRule tone="risky" badge="Notifications" name="Raw email recipients" pct={pct} set={setTolerancePercent} k="externalEmailRecipients"
+            tail="of notification recipients that are email addresses outside the user directory." />
+          <ToleranceRule tone="standardize" badge="Roles" name="Roles held by individuals" pct={pct} set={setTolerancePercent} k="directRoleActors"
+            tail="of project-role actors that are people rather than groups." />
+          <ToleranceRule tone="cleanup" badge="Roles" name="Roles nobody holds" pct={pct} set={setTolerancePercent} k="unusedRoles"
+            tail="of project roles with no user or group in any project." />
         </div>
       </ConfigSection>
 
@@ -1241,6 +1266,8 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent, targetPct, setTa
             tail="of the resolution list duplicating another entry &mdash; a Done / Fixed / Complete split makes every resolution report wrong." />
           <ToleranceRule tone="standardize" badge="Priorities" name="Duplicate priority names" pct={pct} set={setTolerancePercent} k="duplicatePriorities"
             tail="of the priority list duplicating another entry." />
+          <ToleranceRule tone="cleanup" badge="Both lists" name="Unused values" pct={pct} set={setTolerancePercent} k="unusedEstateValues"
+            tail="of priorities or resolutions that no issue carries (measured by the issue crawl)." />
         </div>
       </ConfigSection>
 
