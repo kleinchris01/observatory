@@ -1,6 +1,8 @@
 # Splitting `src/resolvers.js`
 
-Status: **in progress**. PR 1 (#203) and PR 2 (#206) merged 13 Oct 2026; PR 3 (filters, dashboards, screens, automation, fields) follows.
+Status: **done**, 14 Oct 2026. Six PRs (#203, #206, #209, #210, #213 and the Rovo split) took
+`src/resolvers.js` from 11,162 lines to a 391-line registry; 39 modules live under `src/resolvers/`,
+the Rovo actions one module per agent in `src/resolvers/rovo/`. "After the split" below is next.
 Owner: platform. Started 13 Oct 2026.
 
 ## Why
