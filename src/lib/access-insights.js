@@ -51,6 +51,11 @@ export function summarizePermissionInsights({ schemes = [], holders = [], scheme
   let loggedInSensitiveSchemes = 0;
   let loggedInGrants = 0;
   let totalGrants = 0;
+  const rosterMeasured = rosterAccountIds.size > 0;
+  // The items behind the new checks, one entry per scheme, for remediation tasks.
+  const publicList = [];
+  const everyoneSensitiveList = [];
+  const directGrantList = [];
 
   for (const scheme of schemes) {
     const g = holdersBy.get(scheme.id) || [];
@@ -66,7 +71,10 @@ export function summarizePermissionInsights({ schemes = [], holders = [], scheme
     // public acting on the projects this scheme governs, not just reading them.
     const otherPublic = [...new Set(g.filter((h) => isPublicHolder(h) && h.context !== BROWSE).map((h) => h.context))];
     if (otherPublic.length) reasons.push(`${otherPublic.length} other permission${otherPublic.length === 1 ? "" : "s"} open to anonymous users (public): ${otherPublic.slice(0, 4).join(", ")}`);
-    if (g.some(isPublicHolder)) publicSchemes += 1;
+    if (g.some(isPublicHolder)) {
+      publicSchemes += 1;
+      publicList.push({ id: scheme.id, name: scheme.name, projectCount: count, permissions: [...new Set(g.filter(isPublicHolder).map((h) => h.context))] });
+    }
 
     const loggedIn = g.filter(isAnyLoggedInHolder);
     loggedInGrants += loggedIn.length;
@@ -74,11 +82,21 @@ export function summarizePermissionInsights({ schemes = [], holders = [], scheme
     if (sensitive.length) {
       reasons.push(`${sensitive.length} sensitive permission${sensitive.length === 1 ? "" : "s"} granted to every logged-in user: ${sensitive.slice(0, 4).join(", ")}`);
       loggedInSensitiveSchemes += 1;
+      everyoneSensitiveList.push({ id: scheme.id, name: scheme.name, projectCount: count, permissions: sensitive });
     }
     if (g.some((h) => h.context === ADMIN && (h.holderType === "anyone" || h.holderType === "group"))) reasons.push("project admin granted to a group or to anyone");
     const userGrants = g.filter((h) => h.holderType === "user" && h.holderValue);
     if (userGrants.length) reasons.push(`${userGrants.length} grant${userGrants.length === 1 ? "" : "s"} to a named individual`);
     directUserGrants += userGrants.length;
+    if (userGrants.length) {
+      directGrantList.push({
+        id: scheme.id,
+        name: scheme.name,
+        projectCount: count,
+        // `departed` only when the roster was measured: otherwise every account would read as gone.
+        grants: userGrants.map((h) => ({ permission: h.context, accountId: h.holderValue, departed: rosterMeasured && !rosterAccountIds.has(h.holderValue) })),
+      });
+    }
     offRosterUserGrants += userGrants.filter((h) => !rosterAccountIds.has(h.holderValue)).length;
 
     if (reasons.length) risky.push({ id: scheme.id, name: scheme.name, reasons, projectCount: count });
@@ -99,9 +117,12 @@ export function summarizePermissionInsights({ schemes = [], holders = [], scheme
     totalGrantCount: totalGrants,
     // An empty roster means the People roster was never built, not that everyone left. Every
     // off-roster count is meaningless without it, so the score treats it as unmeasured.
-    rosterMeasured: rosterAccountIds.size > 0,
+    rosterMeasured,
     unusedSchemes: unused.slice(0, listLimit),
     riskySchemes: risky.slice(0, listLimit),
+    publicSchemes: publicList.slice(0, listLimit),
+    everyoneSensitiveSchemes: everyoneSensitiveList.slice(0, listLimit),
+    directGrantSchemes: directGrantList.slice(0, listLimit),
   };
 }
 
@@ -129,12 +150,22 @@ export function summarizeSecurityInsights({ schemes = [], levels = [], holders =
   const memberCountByLevel = new Map();
   let offRosterMembers = 0;
   let userMembers = 0;
+  const rosterMeasured = rosterAccountIds.size > 0;
+  const levelName = new Map(levels.map((l) => [`${l.schemeId}|${l.id}`, l.name]));
+  const userMembersByScheme = new Map();
   for (const h of holders) {
     const key = `${h.schemeId}|${h.context}`;
     memberCountByLevel.set(key, (memberCountByLevel.get(key) || 0) + 1);
     if (h.holderType === "user" && h.holderValue) {
       userMembers += 1;
       if (!rosterAccountIds.has(h.holderValue)) offRosterMembers += 1;
+      if (!userMembersByScheme.has(h.schemeId)) userMembersByScheme.set(h.schemeId, []);
+      userMembersByScheme.get(h.schemeId).push({
+        levelId: h.context,
+        levelName: levelName.get(`${h.schemeId}|${h.context}`) || h.context,
+        accountId: h.holderValue,
+        departed: rosterMeasured && !rosterAccountIds.has(h.holderValue),
+      });
     }
   }
 
@@ -163,7 +194,11 @@ export function summarizeSecurityInsights({ schemes = [], levels = [], holders =
     offRosterMemberCount: offRosterMembers,
     userMemberCount: userMembers,
     totalMemberCount: holders.length,
-    rosterMeasured: rosterAccountIds.size > 0,
+    rosterMeasured,
+    userMemberSchemes: schemes
+      .filter((sc) => userMembersByScheme.has(sc.id))
+      .map((sc) => ({ id: sc.id, name: sc.name, members: userMembersByScheme.get(sc.id) }))
+      .slice(0, listLimit),
     unusedSchemes: unused.slice(0, listLimit),
     emptyLevels: emptyLevels.slice(0, listLimit === 25 ? 40 : listLimit),
     noLevelSchemes: noLevels.slice(0, listLimit),
@@ -196,6 +231,9 @@ export function summarizeNotificationInsights({ schemes = [], holders = [], sche
   let emailRecipients = 0;
   let groupRecipients = 0;
   let namedUserRecipients = 0;
+  const rosterMeasured = rosterAccountIds.size > 0;
+  const emailList = [];
+  const namedRecipientList = [];
 
   for (const scheme of schemes) {
     const h = holdersBy.get(scheme.id) || [];
@@ -210,6 +248,16 @@ export function summarizeNotificationInsights({ schemes = [], holders = [], sche
     groupRecipients += groups.length;
     emailRecipients += emailAddresses.length;
     namedUserRecipients += namedUsers.length;
+    if (emailAddresses.length) {
+      emailList.push({ id: scheme.id, name: scheme.name, addresses: [...new Set(emailAddresses.map((r) => r.holderValue).filter(Boolean))], events: emailAddresses.length });
+    }
+    if (namedUsers.length) {
+      namedRecipientList.push({
+        id: scheme.id,
+        name: scheme.name,
+        recipients: namedUsers.map((r) => ({ event: r.contextLabel || r.context, accountId: r.holderValue, departed: rosterMeasured && !rosterAccountIds.has(r.holderValue) })),
+      });
+    }
     if (namedUsers.length || emailAddresses.length) {
       fragile.push({
         id: scheme.id,
@@ -233,7 +281,9 @@ export function summarizeNotificationInsights({ schemes = [], holders = [], sche
     groupRecipientCount: groupRecipients,
     namedUserRecipientCount: namedUserRecipients,
     totalRecipientCount: holders.length,
-    rosterMeasured: rosterAccountIds.size > 0,
+    rosterMeasured,
+    emailRecipientSchemes: emailList.slice(0, listLimit),
+    namedRecipientSchemes: namedRecipientList.slice(0, listLimit),
     unusedSchemes: unused.slice(0, listLimit),
     fragileSchemes: fragile.slice(0, listLimit),
   };
@@ -302,6 +352,7 @@ export function summarizeRoleInsights({ roles = [], holders = [], rosterAccountI
   let userActorCount = 0;
   let groupActorCount = 0;
   const filledRoleIds = new Set();
+  const userActorList = [];
   const offRosterMemberships = [];
 
   for (const h of holders) {
@@ -314,6 +365,7 @@ export function summarizeRoleInsights({ roles = [], holders = [], rosterAccountI
       if (h.holderType === "group") groupActorCount += 1;
       if (h.holderType === "user" && h.holderValue) {
         userActorCount += 1;
+        userActorList.push({ projectId: h.context, projectKey: h.contextLabel || h.context, roleId: h.schemeId, role: roleName.get(h.schemeId), accountId: h.holderValue });
         if (!rosterAccountIds.has(h.holderValue)) {
           offRosterActors += 1;
           if (offRosterMemberships.length < listLimit) {
@@ -368,6 +420,8 @@ export function summarizeRoleInsights({ roles = [], holders = [], rosterAccountI
     // nothing anywhere.
     emptyRoleCount: roles.filter((r) => !filledRoleIds.has(String(r.id))).length,
     rosterMeasured: rosterAccountIds.size > 0,
+    userActorMemberships: userActorList.slice(0, listLimit),
+    emptyRoles: roles.filter((r) => !filledRoleIds.has(String(r.id))).map((r) => ({ id: String(r.id), name: r.name || String(r.id) })).slice(0, listLimit),
     projectsMissingAdminActor: missingAdminSamples,
     offRosterMemberships,
   };

@@ -54,6 +54,7 @@ export const jiraLinks = {
   securityScheme: (o, id) => (o && present(id) ? `${o}/secure/admin/EditIssueSecurities!default.jspa?schemeId=${enc(id)}` : null),
   priorityAdmin: (o) => (o ? `${o}/secure/admin/ViewPriorities.jspa` : null),
   resolutionAdmin: (o) => (o ? `${o}/secure/admin/ViewResolutions.jspa` : null),
+  projectRolesAdmin: (o) => (o ? `${o}/secure/project/ViewProjectRoles.jspa` : null),
   person: (o, accountId) => (o && accountId ? `${o}/jira/people/${enc(accountId)}` : null),
   automationRule: (o, id) => (o && present(id) ? `${o}/jira/settings/automation#/rule/${enc(id)}` : null),
   assetSchema: (o, id) => (o && present(id) ? `${o}/secure/ObjectSchema.jspa?id=${enc(id)}` : null),

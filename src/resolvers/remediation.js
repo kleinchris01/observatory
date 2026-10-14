@@ -856,6 +856,107 @@ export const REMEDIATION_CANDIDATE_LOADERS = {
     const groups = groupBounded(inv.roles.governance.offRosterMemberships, { keyOf: (m) => m.projectKey, max: 50 });
     return { available: true, items: groups };
   },
+
+  // ── The thin-pillar checks (14 Oct 2026): one task per scheme, role or value ──
+  // Departed-account loaders need the People roster; without it every account would read as
+  // gone, so they report "no-roster" rather than a task list of everyone.
+  "permission-public-access": async ({ context }) => {
+    const inv = await accessGovernance(context);
+    if (!inv) return ACCESS_UNAVAILABLE;
+    return { available: true, items: inv.permissions.governance.publicSchemes.map((sc) => ({ ...sc, id: String(sc.id) })) };
+  },
+
+  "permission-everyone-sensitive": async ({ context }) => {
+    const inv = await accessGovernance(context);
+    if (!inv) return ACCESS_UNAVAILABLE;
+    return { available: true, items: inv.permissions.governance.everyoneSensitiveSchemes.map((sc) => ({ ...sc, id: String(sc.id) })) };
+  },
+
+  "permission-direct-grants": async ({ context }) => {
+    const inv = await accessGovernance(context);
+    if (!inv) return ACCESS_UNAVAILABLE;
+    return { available: true, items: inv.permissions.governance.directGrantSchemes.map((sc) => ({ ...sc, id: String(sc.id) })) };
+  },
+
+  "permission-departed-grants": async ({ context }) => {
+    const inv = await accessGovernance(context);
+    if (!inv) return ACCESS_UNAVAILABLE;
+    const g = inv.permissions.governance;
+    if (!g.rosterMeasured) return { available: false, reason: "no-roster", items: [] };
+    return {
+      available: true,
+      items: g.directGrantSchemes
+        .map((sc) => ({ ...sc, id: String(sc.id), grants: sc.grants.filter((x) => x.departed) }))
+        .filter((sc) => sc.grants.length),
+    };
+  },
+
+  "security-direct-members": async ({ context }) => {
+    const inv = await accessGovernance(context);
+    if (!inv) return ACCESS_UNAVAILABLE;
+    return { available: true, items: inv.security.governance.userMemberSchemes.map((sc) => ({ ...sc, id: String(sc.id) })) };
+  },
+
+  "security-departed-members": async ({ context }) => {
+    const inv = await accessGovernance(context);
+    if (!inv) return ACCESS_UNAVAILABLE;
+    const g = inv.security.governance;
+    if (!g.rosterMeasured) return { available: false, reason: "no-roster", items: [] };
+    return {
+      available: true,
+      items: g.userMemberSchemes
+        .map((sc) => ({ ...sc, id: String(sc.id), members: sc.members.filter((m) => m.departed) }))
+        .filter((sc) => sc.members.length),
+    };
+  },
+
+  "notification-external-email": async ({ context }) => {
+    const inv = await accessGovernance(context);
+    if (!inv) return ACCESS_UNAVAILABLE;
+    return { available: true, items: inv.notifications.governance.emailRecipientSchemes.map((sc) => ({ ...sc, id: String(sc.id) })) };
+  },
+
+  "notification-departed-recipients": async ({ context }) => {
+    const inv = await accessGovernance(context);
+    if (!inv) return ACCESS_UNAVAILABLE;
+    const g = inv.notifications.governance;
+    if (!g.rosterMeasured) return { available: false, reason: "no-roster", items: [] };
+    return {
+      available: true,
+      items: g.namedRecipientSchemes
+        .map((sc) => ({ ...sc, id: String(sc.id), recipients: sc.recipients.filter((r) => r.departed) }))
+        .filter((sc) => sc.recipients.length),
+    };
+  },
+
+  // Bounded, like off-roster actors: one task per project, bundled past 50.
+  "role-group-actors": async ({ context }) => {
+    const inv = await accessGovernance(context);
+    if (!inv) return ACCESS_UNAVAILABLE;
+    return { available: true, items: groupBounded(inv.roles.governance.userActorMemberships, { keyOf: (m) => m.projectKey, max: 50 }) };
+  },
+
+  "role-unused": async ({ context }) => {
+    const inv = await accessGovernance(context);
+    if (!inv) return ACCESS_UNAVAILABLE;
+    return { available: true, items: inv.roles.governance.emptyRoles };
+  },
+
+  "priority-usage": ({ context }) => estateUnusedValues(context, "priorities", "priority"),
+  "resolution-usage": ({ context }) => estateUnusedValues(context, "resolutions", "resolution"),
+
+  "estate-defaults": async ({ context }) => {
+    const inv = await getEstateInventory({ context });
+    if (inv.neverBuilt) return { available: false, reason: "no-snapshot", items: [] };
+    const missing = (rows) => rows.length > 0 && !rows.some((v) => v.isDefault);
+    return {
+      available: true,
+      items: [
+        missing(inv.priorities || []) && { id: "priority", kind: "priority", valueCount: (inv.priorities || []).length },
+        missing(inv.resolutions || []) && { id: "resolution", kind: "resolution", valueCount: (inv.resolutions || []).length },
+      ].filter(Boolean),
+    };
+  },
   // ── Filters and dashboards: the same analysis their tabs run, every row ──
   "filters-zombie-subscriptions": ({ installationKey }) => filterItemsWith(installationKey, "subscribed-but-unused"),
   "filters-shared-everyone": ({ installationKey }) => filterItemsWith(installationKey, "shared-with-everyone"),
@@ -1273,6 +1374,18 @@ export async function issueTypeInsightsFull(installationKey, context) {
   if (inv.neverBuilt || !inv.version) return null;
   const schemeItems = await loadIssueTypeSchemeItems(installationKey, inv.version);
   return summarizeIssueTypeInsights({ types: inv.issueTypes, schemes: inv.schemes, schemeItems, listLimit: Infinity });
+}
+
+// Priorities or resolutions no issue carries. Unavailable until the issue crawl has measured
+// usage -- before that every value would read as unused.
+export async function estateUnusedValues(context, listKey, kind) {
+  const inv = await getEstateInventory({ context });
+  if (inv.neverBuilt) return { available: false, reason: "no-snapshot", items: [] };
+  if (!inv.usageMeasured) return { available: false, reason: "no-usage", items: [] };
+  return {
+    available: true,
+    items: (inv[listKey] || []).filter((v) => v.issueCount === 0).map((v) => ({ id: String(v.id), kind, name: v.name, isDefault: Boolean(v.isDefault) })),
+  };
 }
 
 export async function estateGroups(context, listKey) {
