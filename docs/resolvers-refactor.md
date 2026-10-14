@@ -1,6 +1,6 @@
 # Splitting `src/resolvers.js`
 
-Status: **in progress**. PR 1 (foundation, #203) merged 13 Oct 2026; PR 2 (nine pillar leaves) follows.
+Status: **in progress**. PR 1 (#203) and PR 2 (#206) merged 13 Oct 2026; PR 3 (filters, dashboards, screens, automation, fields) follows.
 Owner: platform. Started 13 Oct 2026.
 
 ## Why
