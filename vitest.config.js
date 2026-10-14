@@ -78,8 +78,17 @@ export default defineConfig({
         // viewer is scoped to.
         "src/resolvers/admin-config.js": { lines: 84, functions: 100, branches: 73 },
         "src/resolvers/viewer.js": { lines: 96, functions: 83, branches: 77.5 },
-        // Kept while the split is in progress: what remains is still every resolver.
-        "src/resolvers.js": { lines: 90, functions: 74, branches: 75.5 },
+        // Re-pinned 14 Oct 2026 by split PR 3, from 90 / 74 / 75.5. No code lost its tests:
+        // statement totals are identical to master. The best-covered domains moved into the
+        // modules pinned below, so what remains here averages lower. Per-module floors replace
+        // this one as the split finishes (docs/resolvers-refactor.md).
+        "src/resolvers.js": { lines: 89.5, functions: 77, branches: 73.5 },
+        "src/resolvers/fields.js": { lines: 92, functions: 60, branches: 80 },
+        "src/resolvers/automation.js": { lines: 95, functions: 88.5, branches: 82 },
+        "src/resolvers/filters-dashboards.js": { lines: 94, functions: 77, branches: 82 },
+        "src/resolvers/screens.js": { lines: 85.5, functions: 77.5, branches: 80 },
+        // The macro's pillar reads: the one surface non-admins reach, scoped per viewer.
+        "src/resolvers/macro.js": { lines: 88.5, functions: 72, branches: 70.5 },
       },
     },
   },
