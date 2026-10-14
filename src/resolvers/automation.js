@@ -43,6 +43,17 @@ import {
 import { logger, fallbackOn } from "../lib/logger.js";
 import { readAdminConfig } from "./admin-config.js";
 
+// Governance findings over the site's automation rules.
+//
+// Admin-only, unlike getWorkflowInsights. Workflow insights describe configuration shared
+// with every user; this returns rule names, the projects they act on, and the external
+// hosts they post to -- an inventory of the site's outbound integrations, which is not
+// something an arbitrary authenticated user should be able to enumerate.
+//
+// Reads the stored analysis rather than computing one. Deriving it needs every rule, and
+// the rules are neither held here nor cheap to fetch; the build path writes the document
+// this reads. No document means the analysis has never been built, which is the normal
+// state on a fresh install and renders as an empty state rather than an error.
 export async function getAutomationInsights({ context }) {
   incrMetric(METRIC_NAMES.resolver);
   try {
