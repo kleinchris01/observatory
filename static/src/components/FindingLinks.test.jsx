@@ -116,7 +116,9 @@ const filters = () => ({
 });
 
 function renderAll(onNavigate) {
+  // Every chip is a pillar-view element; the priority view is tested in OverviewDashboard.test.jsx.
   return render(<OverviewDashboard
+    initialOrder="pillar"
     dashboard={dashboard()}
     filters={filters()}
     users={{ available: true, totalUsers: 80, deactivatedUsers: 3, activityMeasured: true, dormantAccounts: 6, dormantAfterDays: 365 }}
