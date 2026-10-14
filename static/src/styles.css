@@ -6173,7 +6173,9 @@ a.macro-pillar__name:hover { color: var(--cool); text-decoration: underline; }
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 12px;
-  align-items: start;
+  /* Cards in a row share a height; each card's count and link sit on its bottom edge
+     (.ui-gov__act margin-top: auto), so a row reads as one band instead of a ragged edge. */
+  align-items: stretch;
 }
 
 .ui-gov {
@@ -6193,8 +6195,10 @@ a.macro-pillar__name:hover { color: var(--cool); text-decoration: underline; }
 .ui-gov--info { border-left-color: #4d8fd6; }
 .ui-gov--clear { border-left-color: rgba(111, 174, 129, 0.45); }
 
-.ui-gov__head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-.ui-gov__label { font-size: 0.8rem; font-weight: 600; }
+.ui-gov__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 8px; }
+/* Sized to its own text: a short title keeps the band label on its line; a long one takes the
+   full width and pushes the label onto the next line, rather than being squeezed to three. */
+.ui-gov__label { font-size: 0.8rem; font-weight: 600; flex: 1 1 auto; min-width: 0; line-height: 1.35; }
 .ui-gov__band {
   font-size: 0.62rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
   opacity: 0.75; flex-shrink: 0;
@@ -7565,10 +7569,13 @@ a.dash-row__name:hover { text-decoration: underline; }
 /* Remediation status line (ui.jsx RemediationStatus): beside each Overview finding and on
    each Remediation card. */
 .ui-remediation {
-  display: inline-flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
+  /* Icon in its own column, text beside it, the action link under the text. As a wrapping
+     flex row, a long status line dropped below the icon and left the wrench on a line alone. */
+  display: inline-grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  column-gap: 6px;
+  row-gap: 2px;
   font-size: 0.76rem;
   color: var(--muted);
   padding: 3px 8px;
@@ -7577,7 +7584,11 @@ a.dash-row__name:hover { text-decoration: underline; }
 }
 .ui-remediation--active { color: var(--text); }
 .ui-remediation--success { color: var(--tone-success-text); }
+.ui-remediation > svg { margin-top: 0.2em; }
+.ui-remediation__body { min-width: 0; line-height: 1.45; }
 .ui-remediation__open {
+  grid-column: 2;
+  justify-self: start;
   border: none;
   background: none;
   padding: 0;
