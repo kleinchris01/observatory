@@ -82,9 +82,11 @@ export default defineConfig({
         // statement totals are identical to master. The best-covered domains moved into the
         // modules pinned below, so what remains here averages lower. Per-module floors replace
         // this one as the split finishes (docs/resolvers-refactor.md).
-        // Re-pinned again by split PR 4 (branches 73.5 -> 72.5) and PR 5 (lines 90 -> 87.5,
-        // branches -> 69.5), for the same reason: what remains is the Rovo actions.
-        "src/resolvers.js": { lines: 87.5, functions: 89.5, branches: 69.5 },
+        // After the split (PR 6) this file is only the registry: which resolver is reachable
+        // from the macro and which only behind the admin guard. Fully covered, and kept there.
+        "src/resolvers.js": { lines: 100, functions: 100, branches: 100 },
+        // The Rovo actions, one module per agent, pinned together at their weakest member.
+        "src/resolvers/rovo/**": { lines: 75, functions: 64, branches: 56 },
         "src/resolvers/remediation.js": { lines: 94, functions: 77.5, branches: 69.5 },
         "src/resolvers/overview.js": { lines: 93, functions: 70, branches: 88 },
         "src/resolvers/reports.js": { lines: 91, functions: 59, branches: 84 },

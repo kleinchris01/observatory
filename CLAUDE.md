@@ -75,11 +75,11 @@ one, it says "not measured" with the reason, never zero.
 
 ## Resolvers: one module per domain
 
-`src/resolvers.js` is being split into `src/resolvers/<domain>.js`; the plan, the order and
-the tools are in `docs/resolvers-refactor.md`. Until it finishes: a new resolver goes in its
-domain's module when that module exists, and `resolvers.js` only registers it. Modules under
-`src/resolvers/` never import `../resolvers.js`. A PR that moves code does not change it —
-`node scripts/refactor/verify-split.mjs` must pass.
+Every resolver lives in its domain module under `src/resolvers/` (Rovo actions in
+`src/resolvers/rovo/<pillar>.js`). `src/resolvers.js` is only the registry: a new resolver is
+written in its module and registered there, in `SHARED_RESOLVER_FUNCTIONS` (macro) or
+`RAW_ADMIN_ONLY_FUNCTIONS` (admin, behind the guard). Modules never import `../resolvers.js`.
+A new pillar gets its own module. History and tools: `docs/resolvers-refactor.md`.
 
 ## Testing
 
