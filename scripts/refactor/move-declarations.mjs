@@ -3,7 +3,7 @@
 //
 //   node scripts/refactor/move-declarations.mjs --to src/resolvers/admin-guard.js \
 //     --names withAdminGuard,withAuditTrail,... [--header "One-line description"]
-//     [--leave-comments name1,name2] [--accept-comments] [--dry-run]
+//     [--leave-comments name1,name2] [--accept-comments] [--statements line,line] [--dry-run]
 //
 // --leave-comments: for the named declarations, only the comment group directly above the
 // code moves (the last run of comments after a blank line); earlier groups stay in
@@ -43,6 +43,16 @@ const moving = new Set();
 for (const n of names) {
   const st = owner.get(n);
   if (!st) throw new Error(`No top-level declaration named ${n} in src/resolvers.js`);
+  moving.add(st);
+}
+// Nameless top-level statements (e.g. `Object.assign(TABLE, {...})`) cannot be named, so they
+// are picked by the line their code starts on: --statements 1561,1720.
+const statementLines = String(args.statements || "").split(",").map((n) => Number(n.trim())).filter(Boolean);
+const lineOf = (pos) => text.slice(0, pos).split("\n").length;
+for (const line of statementLines) {
+  const st = stmts.find((s) => !s.names.length && !s.isImport && lineOf(s.node.start) === line);
+  if (!st) throw new Error(`No nameless top-level statement starts on line ${line}`);
+  if (st.node.type !== "ExpressionStatement") throw new Error(`Line ${line} is a ${st.node.type}; only expression statements can be moved this way`);
   moving.add(st);
 }
 for (const st of moving) {
@@ -111,7 +121,7 @@ const importLines = [...bySource].map(([source, g]) => {
 const body = moved.map((st) => {
   const comments = text.slice(st.start, st.node.start);
   const code = text.slice(st.node.start, st.end);
-  return comments + (st.exported ? code : `export ${code}`);
+  return comments + (st.exported || !st.names.length ? code : `export ${code}`);
 });
 const header = args.header ? `// ${args.header}\n//\n// Moved verbatim from src/resolvers.js; see docs/resolvers-refactor.md.\n\n` : "";
 const moduleText = `${header}${importLines.join("\n")}\n\n${body.join("\n\n")}\n`;
