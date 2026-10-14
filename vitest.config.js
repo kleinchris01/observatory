@@ -82,8 +82,13 @@ export default defineConfig({
         // statement totals are identical to master. The best-covered domains moved into the
         // modules pinned below, so what remains here averages lower. Per-module floors replace
         // this one as the split finishes (docs/resolvers-refactor.md).
-        // Re-pinned again by split PR 4 (branches 73.5 -> 72.5), for the same reason.
-        "src/resolvers.js": { lines: 90, functions: 78.5, branches: 72.5 },
+        // Re-pinned again by split PR 4 (branches 73.5 -> 72.5) and PR 5 (lines 90 -> 87.5,
+        // branches -> 69.5), for the same reason: what remains is the Rovo actions.
+        "src/resolvers.js": { lines: 87.5, functions: 89.5, branches: 69.5 },
+        "src/resolvers/remediation.js": { lines: 94, functions: 77.5, branches: 69.5 },
+        "src/resolvers/overview.js": { lines: 93, functions: 70, branches: 88 },
+        "src/resolvers/reports.js": { lines: 91, functions: 59, branches: 84 },
+        "src/resolvers/project-overview.js": { lines: 78, functions: 52.5, branches: 75 },
         "src/resolvers/workflows.js": { lines: 93, functions: 68.5, branches: 80 },
         "src/resolvers/deletion-safety.js": { lines: 87.5, functions: 70, branches: 88 },
         "src/resolvers/project-usage.js": { lines: 92.5, functions: 82.5, branches: 71.5 },
