@@ -63,6 +63,7 @@ import {
   getArchivedJiraProjects,
   getProjectLeads,
   countIssues,
+  transitionIssueWithComment,
   getAllStatuses,
   probeEndpoint,
   probeEndpointAsUser,
@@ -1800,5 +1801,64 @@ describe("countIssues", () => {
     await expect(countIssues("x")).resolves.toBeNull();
     mockRequestJira.mockResolvedValueOnce(jiraResponse({ ok: false, status: 400, text: "bad jql" }));
     await expect(countIssues("x")).resolves.toBeNull();
+  });
+});
+
+describe("transitionIssueWithComment", () => {
+  const transitions = { transitions: [
+    { id: "11", name: "Start", to: { name: "In Progress", statusCategory: { key: "indeterminate" } } },
+    { id: "21", name: "Reopen", to: { name: "To Do", statusCategory: { key: "new" } } },
+    { id: "31", name: "Done", to: { name: "Done", statusCategory: { key: "done" } } },
+  ] };
+  const body = { type: "doc", version: 1, content: [] };
+
+  test("moves the issue into Done, then comments, as the caller", async () => {
+    mockRequestJiraAsUser
+      .mockResolvedValueOnce(jiraResponse({ body: transitions }))
+      .mockResolvedValueOnce(jiraResponse({ status: 204 }))
+      .mockResolvedValueOnce(jiraResponse({ status: 201, body: {} }));
+
+    const r = await transitionIssueWithComment("OPS-1", { target: "done", commentBody: body, asUser: true });
+
+    expect(r).toEqual({ issueKey: "OPS-1", transitioned: true, commented: true, toStatus: "Done", reason: null });
+    expect(JSON.parse(mockRequestJiraAsUser.mock.calls[1][1].body)).toEqual({ transition: { id: "31" } });
+    expect(mockRequestJiraAsUser.mock.calls[2][0]).toContain("/comment");
+    expect(mockRequestJira).not.toHaveBeenCalled();
+  });
+
+  test("reopening prefers To Do over In Progress", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: transitions }))
+      .mockResolvedValueOnce(jiraResponse({ status: 204 }));
+    const r = await transitionIssueWithComment("OPS-1", { target: "reopen" });
+    expect(r.toStatus).toBe("To Do");
+    expect(JSON.parse(mockRequestJira.mock.calls[1][1].body)).toEqual({ transition: { id: "21" } });
+  });
+
+  // A workflow with no way back from Done is an answer, not an error -- and no comment is left
+  // claiming a reopen that did not happen.
+  test("reports a workflow with no matching transition without commenting", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { transitions: [transitions.transitions[2]] } }));
+    const r = await transitionIssueWithComment("OPS-1", { target: "reopen", commentBody: body });
+    expect(r).toMatchObject({ transitioned: false, commented: false });
+    expect(r.reason).toMatch(/No transition/);
+    expect(mockRequestJira).toHaveBeenCalledTimes(1);
+  });
+
+  test("a failed move throws before any comment is written", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: transitions }))
+      .mockResolvedValueOnce(jiraResponse({ ok: false, status: 400, text: "a field is required" }));
+    await expect(transitionIssueWithComment("OPS-1", { target: "done", commentBody: body })).rejects.toThrow(/400/);
+    expect(mockRequestJira).toHaveBeenCalledTimes(2);
+  });
+
+  test("a failed comment after a successful move is reported, not thrown", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: transitions }))
+      .mockResolvedValueOnce(jiraResponse({ status: 204 }))
+      .mockResolvedValueOnce(jiraResponse({ ok: false, status: 403, text: "no" }));
+    const r = await transitionIssueWithComment("OPS-1", { target: "done", commentBody: body });
+    expect(r).toMatchObject({ transitioned: true, commented: false });
   });
 });

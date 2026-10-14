@@ -118,6 +118,7 @@ export const AUDITED_ADMIN_ACTIONS = new Set([
   "buildBoardInventory",
   "createRemediationEpic",
   "syncRemediationNow",
+  "applyRemediationVerification",
 ]);
 
 export function withAuditTrail(functions) {

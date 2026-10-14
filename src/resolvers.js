@@ -22,6 +22,7 @@ import {
   createJiraIssue,
   updateJiraIssue,
   searchIssuesPage,
+  transitionIssueWithComment,
 } from "./lib/jira-api.js";
 import { queueIssueScanWorker, completeIssueScanFinalization } from "./lib/scan-engine.js";
 import { pillarUnavailable, agentOk, agentNotFound, rankMatches, clampResults } from "./lib/rovo-agents.js";
@@ -133,6 +134,7 @@ import { ensureInitiativeFor, ROOT_NODE } from "./lib/remediation-hierarchy.js";
 import { computeRemediationMetrics } from "./lib/remediation-metrics.js";
 import { queueRemediationSync } from "./lib/remediation-sync.js";
 import { renderADF } from "./lib/adf.js";
+import { verifyTickets, verificationComment, targetCategory } from "./lib/remediation-verify.js";
 import { queueWorkflowSnapshotBuild, isWorkflowBuildStale, queueStatusHistoryBuild } from "./lib/workflow-engine.js";
 import { getWorkflowRuleUsage, getWorkflowRules, getWorkflowRestrictions, getWorkflowRuleInsights, loadFieldWorkflowEvidence } from "./lib/workflow-rule-reads.js";
 import { getFieldConfigInventory, getFieldConfigItems, getFieldBehaviour } from "./lib/fieldconfig-reads.js";
@@ -774,6 +776,69 @@ async function getRemediationTickets({ payload, context }) {
 // Progress metrics for the Remediation tab: burn-down, throughput, time to close, ageing, and
 // where the open work sits. The numbers come from computeRemediationMetrics, a pure function
 // over the stored ticket rows; this only loads them. `scope` is "quarter" (default) or "all".
+// Did the fixes hold? Every remediation task checked against the latest scan: closed and no
+// longer flagged (held), closed but still flagged (regressed), open but already fixed, or still
+// open. Candidates come from the same loaders that created the tasks, so item ids match.
+// Admin read; it changes nothing in Jira.
+async function getRemediationVerification({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  const installationKey = getInstallationKey(context);
+  const tickets = await loadRemediationTickets(installationKey);
+  const findingKeys = [...new Set(tickets.filter((t) => !t.isEpic).map((t) => t.findingKey))];
+  const current = new Map();
+  await mapWithConcurrency(findingKeys, 3, async (findingKey) => {
+    try {
+      const result = await loadRemediationCandidates({ payload: { findingKey }, context });
+      current.set(findingKey, result?.available === false
+        ? { available: false, ids: new Set(), reason: result.reason || "unavailable" }
+        : { available: true, ids: new Set((result?.items || []).map((it) => String(it.id ?? it.name))) });
+    } catch (error) {
+      logger.warn("remediation.verify_candidates_failed", { installationKey, findingKey, error: String(error?.message || error) });
+      current.set(findingKey, { available: false, ids: new Set(), reason: "error" });
+    }
+  });
+  const labels = Object.fromEntries(listPlaybookCatalog().map((p) => [p.key, p.label]));
+  return { checkedAt: new Date().toISOString(), labels, ...verifyTickets({ tickets, current }) };
+}
+
+// Act on verification: reopen tasks whose fix did not hold, close tasks whose item is fixed.
+// Explicit admin action only -- the page lists the candidates, an admin chooses them. Verdicts
+// are recomputed here rather than trusted from the page, so a task that changed since the page
+// loaded is left alone and says why. Each task gets a comment explaining the move, written as
+// the admin. Mutating and audited.
+const MAX_VERIFICATION_APPLY = 50;
+async function applyRemediationVerification({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  const installationKey = getInstallationKey(context);
+  requireArray(payload?.issueKeys, "issueKeys");
+  const issueKeys = [...new Set(payload.issueKeys.map(String))].slice(0, MAX_VERIFICATION_APPLY);
+
+  const verification = await getRemediationVerification({ context });
+  const byKey = new Map(verification.rows.map((r) => [r.issueKey, r]));
+  const results = [];
+  for (const issueKey of issueKeys) {
+    const row = byKey.get(issueKey);
+    const target = row ? targetCategory(row.verdict) : null;
+    if (!target) {
+      results.push({
+        issueKey, transitioned: false, commented: false,
+        reason: row ? `Its verdict is now "${row.verdict}", so it was left as it is.` : "Not an Observatory remediation task.",
+      });
+      continue;
+    }
+    const text = verificationComment(row, { checkedAt: verification.checkedAt, findingLabel: verification.labels[row.findingKey] });
+    try {
+      // eslint-disable-next-line no-await-in-loop -- one ticket at a time; each is a write.
+      results.push(await transitionIssueWithComment(issueKey, { target, commentBody: renderADF(text), asUser: true }));
+    } catch (error) {
+      results.push({ issueKey, transitioned: false, commented: false, reason: String(error?.message || error) });
+    }
+  }
+  // Pull the new statuses back now rather than at the next hourly sync.
+  await queueRemediationSync(installationKey).catch(fallbackOn("remediation.verify_sync_queue_failed", null, { installationKey }));
+  return { results, applied: results.filter((r) => r.transitioned).length, skipped: payload.issueKeys.length - issueKeys.length };
+}
+
 async function getRemediationMetrics({ payload, context }) {
   incrMetric(METRIC_NAMES.resolver);
   await ensureProjectStoreReady();
@@ -6710,6 +6775,8 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   createRemediationEpic,   // Mutating: creates a Jira epic + tasks for a governance finding
   organiseRemediationHierarchy, // Mutating: puts this quarter's epics under their pillar initiatives
   syncRemediationNow,      // Mutating: queues a remediation status sync from Jira
+  getRemediationVerification,   // Admin read: did each remediation task's fix hold, per the latest scan
+  applyRemediationVerification, // Mutating: reopens regressed tasks / closes fixed ones, with a comment, as the admin
   getRemediationCandidates,// Admin read: current items behind one finding, ready to ticket
   getStatusAutomationUsage,// Admin read: which rules reference one status, by direction
   getWorkflowRuleUsage,    // Admin read: workflow rules and properties pointing at one field, group, role...

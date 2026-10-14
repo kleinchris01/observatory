@@ -54,6 +54,7 @@ const mocks = vi.hoisted(() => ({
   readFullScanMeta: vi.fn(async () => null),
   writeFullScanMeta: vi.fn(async () => ({})),
   createJiraIssue: vi.fn(async () => ({ id: "10001", key: "OPS-1", self: "https://x/OPS-1" })),
+  transitionIssueWithComment: vi.fn(async (issueKey) => ({ issueKey, transitioned: true, commented: true, toStatus: "To Do", reason: null })),
   updateJiraIssue: vi.fn(async () => {}),
   searchIssuesPage: vi.fn(async () => []),
   loadHierarchyNodes: vi.fn(async () => new Map()),
@@ -618,6 +619,7 @@ vi.mock("./lib/jira-api.js", () => ({
   loadFieldOptionsFromJira: mocks.loadFieldOptionsFromJira,
   getBrowsableProjectIds: mocks.getBrowsableProjectIds,
   createJiraIssue: mocks.createJiraIssue,
+  transitionIssueWithComment: mocks.transitionIssueWithComment,
   updateJiraIssue: mocks.updateJiraIssue,
   getFieldProjectAssociations: mocks.getFieldProjectAssociations,
   searchIssuesPage: mocks.searchIssuesPage,
@@ -717,6 +719,7 @@ import {
   getFirstRunState,
   setFirstRunState,
 } from "./resolvers.js";
+import { AUDITED_ADMIN_ACTIONS } from "./resolvers/admin-guard.js";
 
 const {
   saveReportDefinition,
@@ -780,6 +783,8 @@ const {
   buildBoardInventory,
   probeGlobalPermissions,
   getStatusDetail,
+  getRemediationVerification,
+  applyRemediationVerification,
 } = __RAW_ADMIN_ONLY_FUNCTIONS;
 
 const {
@@ -7239,6 +7244,78 @@ describe("syncRemediationNow", () => {
   test("is admin-only", () => {
     expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toContain("syncRemediationNow");
     expect(Object.keys(SHARED_RESOLVER_FUNCTIONS)).not.toContain("syncRemediationNow");
+  });
+});
+
+// Did the fixes hold? Each task's item checked against the same candidate loader that created
+// it. Filter ownership is the loader used here: filter 7 has no owner (still flagged), 8 does.
+describe("remediation verification", () => {
+  const filters = [
+    { id: "7", name: "Orphaned", owner: null },
+    { id: "8", name: "Owned", owner: { accountId: "a1", displayName: "Ann", active: true } },
+  ];
+  const tickets = [
+    { findingKey: "filter-ownership", pillar: "filters", period: "2026-Q4", isEpic: true, itemId: "", issueKey: "ADMIN-1", lastStatusCategory: "indeterminate" },
+    { findingKey: "filter-ownership", pillar: "filters", period: "2026-Q4", isEpic: false, itemId: "7", issueKey: "ADMIN-2", lastStatusCategory: "done" },
+    { findingKey: "filter-ownership", pillar: "filters", period: "2026-Q4", isEpic: false, itemId: "8", issueKey: "ADMIN-3", lastStatusCategory: "done" },
+    { findingKey: "filter-ownership", pillar: "filters", period: "2026-Q4", isEpic: false, itemId: "9", issueKey: "ADMIN-4", lastStatusCategory: "new" },
+  ];
+  beforeEach(() => {
+    mocks.loadRemediationTickets.mockResolvedValue(tickets);
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.loadFilters.mockResolvedValue(filters);
+  });
+
+  test("classifies each task against the latest scan", async () => {
+    const r = await getRemediationVerification({ payload: {}, context: ctxWithAccount() });
+    const verdict = (key) => r.rows.find((row) => row.issueKey === key).verdict;
+    expect(verdict("ADMIN-2")).toBe("regressed");
+    expect(verdict("ADMIN-3")).toBe("held");
+    expect(verdict("ADMIN-4")).toBe("fixed-open");
+    expect(r.counts).toMatchObject({ regressed: 1, held: 1, "fixed-open": 1 });
+    expect(r.labels["filter-ownership"]).toBeTruthy();
+    expect(mocks.transitionIssueWithComment).not.toHaveBeenCalled();
+  });
+
+  test("a finding whose snapshot is missing leaves its tasks unverified", async () => {
+    mocks.readFilterSnapshotMeta.mockResolvedValueOnce(null);
+    const r = await getRemediationVerification({ payload: {}, context: ctxWithAccount() });
+    expect(new Set(r.rows.map((row) => row.verdict))).toEqual(new Set(["unverified"]));
+  });
+
+  test("reopens a regressed task and closes a fixed one, each with a comment, as the admin", async () => {
+    const r = await applyRemediationVerification({ payload: { issueKeys: ["ADMIN-2", "ADMIN-4"] }, context: ctxWithAccount() });
+
+    expect(r.applied).toBe(2);
+    const calls = mocks.transitionIssueWithComment.mock.calls;
+    expect(calls.map(([key, opts]) => [key, opts.target, opts.asUser])).toEqual([["ADMIN-2", "reopen", true], ["ADMIN-4", "done", true]]);
+    expect(JSON.stringify(calls[0][1].commentBody)).toContain("the fix did not hold");
+    expect(mocks.queuePush).toHaveBeenCalledWith({ body: { jobType: "sync-remediation", installationKey: "test-install" } });
+  });
+
+  // The page's verdict is not trusted: a held or still-open task is left alone, with the reason.
+  test("leaves a task alone when its verdict does not call for a change", async () => {
+    const r = await applyRemediationVerification({ payload: { issueKeys: ["ADMIN-3", "NOPE-1"] }, context: ctxWithAccount() });
+    expect(r.applied).toBe(0);
+    expect(r.results.map((x) => x.reason)).toEqual(['Its verdict is now "held", so it was left as it is.', "Not an Observatory remediation task."]);
+    expect(mocks.transitionIssueWithComment).not.toHaveBeenCalled();
+  });
+
+  test("reports a Jira failure per task without stopping the rest", async () => {
+    mocks.transitionIssueWithComment.mockRejectedValueOnce(new Error("403 forbidden"));
+    const r = await applyRemediationVerification({ payload: { issueKeys: ["ADMIN-2", "ADMIN-4"] }, context: ctxWithAccount() });
+    expect(r.results[0]).toMatchObject({ issueKey: "ADMIN-2", transitioned: false, reason: "403 forbidden" });
+    expect(r.applied).toBe(1);
+  });
+
+  test("requires a list of issue keys", async () => {
+    await expect(applyRemediationVerification({ payload: {}, context: ctxWithAccount() })).rejects.toThrow(/issueKeys/);
+  });
+
+  test("the write is admin-only and audited; the read is admin-only", () => {
+    expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toEqual(expect.arrayContaining(["getRemediationVerification", "applyRemediationVerification"]));
+    expect(Object.keys(SHARED_RESOLVER_FUNCTIONS)).not.toContain("applyRemediationVerification");
+    expect(AUDITED_ADMIN_ACTIONS.has("applyRemediationVerification")).toBe(true);
   });
 });
 

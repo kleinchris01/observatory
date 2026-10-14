@@ -1627,6 +1627,48 @@ export async function updateJiraIssue(issueKey, fields, { asUser = false } = {})
   }
 }
 
+// Move one issue into a status category and leave a comment saying why, for remediation
+// verification: reopening a task whose fix did not hold, or closing one whose item is fixed.
+// As the caller when asked, so Jira shows the admin who pressed the button.
+//
+// `target` is "done", or "reopen" (any transition into To Do, else In Progress). The move
+// comes first and the comment only after it succeeds: a "Reopened by Observatory" comment on
+// a ticket that did not move would say something untrue. No matching transition is reported,
+// not thrown -- a workflow without a way back from Done is a normal answer.
+export async function transitionIssueWithComment(issueKey, { target, commentBody, asUser = false } = {}) {
+  const requester = asUser ? api.asUser() : api.asApp();
+  const call = async (path, init = {}) => {
+    const response = await requester.requestJira(path, {
+      ...init,
+      headers: { Accept: "application/json", ...(init.body ? { "Content-Type": "application/json" } : {}) },
+    });
+    if (!response.ok) {
+      const error = new Error(`${init.method || "GET"} ${issueKey} failed (${response.status}): ${(await response.text()).slice(0, 300)}`);
+      error.status = response.status;
+      throw error;
+    }
+    return response.status === 204 ? null : response.json().catch(() => null);
+  };
+
+  const { transitions = [] } = (await call(route`/rest/api/3/issue/${issueKey}/transitions`)) || {};
+  const into = (key) => transitions.find((t) => t?.to?.statusCategory?.key === key);
+  const chosen = target === "done" ? into("done") : (into("new") || into("indeterminate"));
+  if (!chosen) {
+    return { issueKey, transitioned: false, commented: false, reason: `No transition from its current status leads to ${target === "done" ? "Done" : "an open status"}.` };
+  }
+  await call(route`/rest/api/3/issue/${issueKey}/transitions`, { method: "POST", body: JSON.stringify({ transition: { id: chosen.id } }) });
+  let commented = false;
+  if (commentBody) {
+    try {
+      await call(route`/rest/api/3/issue/${issueKey}/comment`, { method: "POST", body: JSON.stringify({ body: commentBody }) });
+      commented = true;
+    } catch {
+      commented = false;
+    }
+  }
+  return { issueKey, transitioned: true, commented, toStatus: chosen.to?.name || null, reason: null };
+}
+
 // One page of issues matching a JQL query, with only the requested fields. For small lookups
 // (the quarter's hierarchy items, an epic's current parent), not for crawls.
 export async function searchIssuesPage(jql, fields = ["summary"], maxResults = 100) {
