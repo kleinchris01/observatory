@@ -77,7 +77,7 @@ import { summarizeFilters, summarizeFilterHealth } from "./filter-insights.js";
 import { summarizeDashboards, summarizeDashboardHealth } from "./dashboard-insights.js";
 import { summarizeIssueTypeInsights, summarizeIssueTypeHealth } from "./issuetype-insights.js";
 import { summarizeAssetInsights, summarizeAssetHealth } from "./asset-insights.js";
-import { attachEstateUsage, summarizeEstateInsights, summarizeEstateHealth } from "./estate-insights.js";
+import { attachEstateUsage, summarizeEstateInsights, summarizeEstateHealth, summarizeEstateUsage } from "./estate-insights.js";
 import { summarizeBoardInsights, summarizeBoardHealth } from "./board-insights.js";
 import {
   summarizePermissionInsights, summarizePermissionHealth,
@@ -791,7 +791,7 @@ export async function buildEstateOverview(installationKey) {
       state: meta.state || "idle",
       refreshedAt: meta.refreshedAt || null,
       lastError: meta.lastError || null,
-      health: summarizeEstateHealth(summary),
+      health: { ...summarizeEstateHealth(summary), ...summarizeEstateUsage(usage) },
     };
   } catch (error) {
     console.warn("buildEstateOverview failed:", error?.message || error);

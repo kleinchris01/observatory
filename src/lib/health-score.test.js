@@ -284,8 +284,8 @@ const assets = (over = {}) => ({
 const permissions = (over = {}) => ({ available: true, totalSchemes: 8, riskySchemeCount: 0, unusedSchemeCount: 0, ...over });
 const security = (over = {}) => ({ available: true, totalSchemes: 4, totalLevels: 12, brokenLevelCount: 0, unusedSchemeCount: 0, ...over });
 const notifications = (over = {}) => ({ available: true, totalSchemes: 5, fragileSchemeCount: 0, unusedSchemeCount: 0, ...over });
-const estate = (over = {}) => ({ available: true, totalResolutions: 6, totalPriorities: 5, reducibleResolutionCount: 0, reduciblePriorityCount: 0, ...over });
-const roles = (over = {}) => ({ available: true, projectsWithRoles: 40, projectsMissingAdminActorCount: 0, offRosterActorCount: 0, directUserActorCount: 20, ...over });
+const estate = (over = {}) => ({ available: true, totalResolutions: 6, totalPriorities: 5, reducibleResolutionCount: 0, reduciblePriorityCount: 0, usageMeasured: true, unusedPriorityCount: 0, unusedResolutionCount: 0, ...over });
+const roles = (over = {}) => ({ available: true, projectsWithRoles: 40, projectsMissingAdminActorCount: 0, offRosterActorCount: 0, directUserActorCount: 20, groupActorCount: 2000, totalRoles: 8, emptyRoleCount: 0, ...over });
 const boards = (over = {}) => ({ available: true, total: 30, brokenBackingCount: 0, inactiveFilterOwner: 0, staleColumnBoards: 0, unmappedColumnBoards: 0, ...over });
 const drift = (over = {}) => ({ available: true, windowDays: 30, trackedEntities: 500, changesInWindow: 0, ...over });
 // The screen x field cross. Its two dimensions are the only ones in the model that come from
@@ -976,11 +976,11 @@ describe("access dimensions", () => {
     expect(dim(computeSiteHealth({ security: security({ totalLevels: 20, brokenLevelCount: 6 }) }), "security-level-integrity").level).toBe(0);
   });
 
-  test("the three access pillars are weighted 1.5 / 1 / 0.5 and each rolls its two dimensions", () => {
+  test("the three access pillars roll up six, four and four dimensions", () => {
     const health = computeSiteHealth({ permissions: permissions({ riskySchemeCount: 1 }), security: security(), notifications: notifications() });
-    expect(health.pillars.find((p) => p.key === "permissions").total).toBe(2);
-    expect(health.pillars.find((p) => p.key === "security").total).toBe(2);
-    expect(health.pillars.find((p) => p.key === "notifications").total).toBe(2);
+    expect(health.pillars.find((p) => p.key === "permissions").total).toBe(6);
+    expect(health.pillars.find((p) => p.key === "security").total).toBe(4);
+    expect(health.pillars.find((p) => p.key === "notifications").total).toBe(4);
   });
 
   test("all six dimensions are unmeasured until an access inventory exists", () => {
@@ -1010,7 +1010,7 @@ describe("project-role dimensions", () => {
     expect(d.baseWeight).toBe(1.5);
     // 25 of 50 missing -> coverage 0.50, below the 0.60 floor -> 0.
     expect(dim(computeSiteHealth({ roles: roles({ projectsWithRoles: 50, projectsMissingAdminActorCount: 25 }) }), "role-admin-coverage").level).toBe(0);
-    expect(computeSiteHealth({ roles: roles({ projectsWithRoles: 50 }) }).pillars.find((p) => p.key === "roles").total).toBe(2);
+    expect(computeSiteHealth({ roles: roles({ projectsWithRoles: 50 }) }).pillars.find((p) => p.key === "roles").total).toBe(4);
   });
 
   test("both dimensions are unmeasured until the access inventory exists", () => {
@@ -1034,7 +1034,7 @@ describe("estate dimensions", () => {
     const health = computeSiteHealth({ estate: estate({ totalResolutions: 20, reducibleResolutionCount: 3 }) });
     // 3/20 = 0.15 = the tolerance -> 0.
     expect(dim(health, "resolution-naming").score).toBe(0);
-    expect(health.pillars.find((p) => p.key === "estate").total).toBe(2);
+    expect(health.pillars.find((p) => p.key === "estate").total).toBe(5);
   });
 
   test("both dimensions are unmeasured until the inventory exists", () => {
@@ -1588,5 +1588,110 @@ describe("the screen cross-signal dimensions", () => {
       screenCross: { available: false, reason: "No project's screen chain resolved completely in the last build." },
     });
     expect(dim(health, "invisible-data").reason).toMatch(/no project's screen chain resolved/i);
+  });
+});
+
+// The checks added to the thin pillars on 14 Oct 2026: permissions, issue security,
+// notifications, project roles, priorities and resolutions. Each is a rate against a tolerance
+// over counts the access and estate builds already computed.
+describe("thin-pillar checks", () => {
+  const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+
+  test("public access scores schemes open to anonymous users, tightly", () => {
+    // 1 of 50 = 0.02 = the tolerance -> 0. 0 of 50 -> 100.
+    expect(dim(computeSiteHealth({ permissions: permissions({ totalSchemes: 50, publicSchemeCount: 1 }) }), "permission-public-access").score).toBe(0);
+    const clean = dim(computeSiteHealth({ permissions: permissions({ totalSchemes: 50 }) }), "permission-public-access");
+    expect(clean.score).toBe(100);
+    expect(clean.weight).toBe(1.5);
+  });
+
+  test("sensitive grants to everyone, and grants to individuals, score their own rates", () => {
+    // 2 of 40 = 0.05, half the 0.10 tolerance -> 50.
+    expect(dim(computeSiteHealth({ permissions: permissions({ totalSchemes: 40, loggedInSensitiveSchemeCount: 2 }) }), "permission-everyone-sensitive").score).toBe(50);
+    // 5 of 100 grants name a person: 0.05 of a 0.10 tolerance -> 50.
+    const direct = dim(computeSiteHealth({ permissions: permissions({ totalGrantCount: 100, directUserGrantCount: 5 }) }), "permission-direct-grants");
+    expect(direct.score).toBe(50);
+    expect(direct.detail).toMatch(/5 of 100 permission grants name an individual/);
+  });
+
+  test("a scheme with no grants at all reads as clean, never as 0/0", () => {
+    const d = dim(computeSiteHealth({ permissions: permissions({ totalGrantCount: 0, directUserGrantCount: 0 }) }), "permission-direct-grants");
+    expect(d.score).toBe(100);
+  });
+
+  test("departed-account checks are unmeasured without the People roster", () => {
+    const health = computeSiteHealth({
+      permissions: permissions({ rosterMeasured: false, directUserGrantCount: 3, offRosterUserGrantCount: 3 }),
+      security: security({ rosterMeasured: false }),
+      notifications: notifications({ rosterMeasured: false }),
+      roles: roles({ rosterMeasured: false, offRosterActorCount: 20 }),
+    });
+    for (const key of ["permission-departed-grants", "security-departed-members", "notification-departed-recipients", "role-actor-hygiene"]) {
+      expect(dim(health, key).available).toBe(false);
+      expect(dim(health, key).reason).toMatch(/People roster/);
+    }
+  });
+
+  // The Actor hygiene fix: an empty roster used to make every user actor "departed".
+  test("actor hygiene still scores when the roster is measured", () => {
+    expect(dim(computeSiteHealth({ roles: roles({ rosterMeasured: true, offRosterActorCount: 0 }) }), "role-actor-hygiene").score).toBe(100);
+  });
+
+  test("departed accounts score against the individuals they are drawn from", () => {
+    // 1 of 100 named grants is a departed account: 0.01 of the 0.02 tolerance -> 50.
+    expect(dim(computeSiteHealth({ permissions: permissions({ directUserGrantCount: 100, offRosterUserGrantCount: 1 }) }), "permission-departed-grants").score).toBe(50);
+    expect(dim(computeSiteHealth({ security: security({ userMemberCount: 50, offRosterMemberCount: 1 }) }), "security-departed-members").score).toBe(0);
+    const notif = dim(computeSiteHealth({ notifications: notifications({ namedUserRecipientCount: 200, offRosterRecipientCount: 2 }) }), "notification-departed-recipients");
+    expect(notif.score).toBe(50);
+    expect(notif.detail).toMatch(/2 notification recipients are accounts no longer on the licensed roster/);
+  });
+
+  test("security levels held by individuals score member share", () => {
+    // 5 of 40 members are people: 0.125 of a 0.25 tolerance -> 50.
+    expect(dim(computeSiteHealth({ security: security({ totalMemberCount: 40, userMemberCount: 5 }) }), "security-direct-members").score).toBe(50);
+  });
+
+  test("raw email recipients are weighted as exposure", () => {
+    const d = dim(computeSiteHealth({ notifications: notifications({ totalRecipientCount: 100, emailRecipientCount: 1 }) }), "notification-external-email");
+    expect(d.score).toBe(50);
+    expect(d.weight).toBe(1.5);
+    expect(d.action).toMatch(/group or project role/);
+  });
+
+  test("roles held by individuals and roles nobody holds", () => {
+    // 30 of 100 actors are people: 0.30 of a 0.60 tolerance -> 50.
+    expect(dim(computeSiteHealth({ roles: roles({ directUserActorCount: 30, groupActorCount: 70 }) }), "role-group-actors").score).toBe(50);
+    // 3 of 20 roles empty: 0.15 of a 0.30 tolerance -> 50.
+    const unused = dim(computeSiteHealth({ roles: roles({ totalRoles: 20, emptyRoleCount: 3 }) }), "role-unused");
+    expect(unused.score).toBe(50);
+    expect(unused.detail).toMatch(/3 of 20 project roles have no user or group/);
+  });
+
+  test("priority and resolution usage need the issue crawl, and score unused values", () => {
+    const unmeasured = computeSiteHealth({ estate: estate({ usageMeasured: false }) });
+    expect(dim(unmeasured, "priority-usage").available).toBe(false);
+    expect(dim(unmeasured, "resolution-usage").reason).toMatch(/issue crawl/);
+    // 3 of 20 priorities unused: 0.15 of a 0.30 tolerance -> 50.
+    expect(dim(computeSiteHealth({ estate: estate({ totalPriorities: 20, unusedPriorityCount: 3 }) }), "priority-usage").score).toBe(50);
+    expect(dim(computeSiteHealth({ estate: estate({ totalResolutions: 10, unusedResolutionCount: 0 }) }), "resolution-usage").score).toBe(100);
+  });
+
+  test("defaults set loses half for each list with no default", () => {
+    expect(dim(computeSiteHealth({ estate: estate() }), "estate-defaults").score).toBe(100);
+    const one = dim(computeSiteHealth({ estate: estate({ prioritiesWithoutDefault: true }) }), "estate-defaults");
+    expect(one.score).toBe(50);
+    expect(one.action).toBe("Set a default priority.");
+    expect(dim(computeSiteHealth({ estate: estate({ prioritiesWithoutDefault: true, resolutionsWithoutDefault: true }) }), "estate-defaults").score).toBe(0);
+  });
+
+  test("every new check is unmeasured until its inventory exists", () => {
+    const health = computeSiteHealth({});
+    for (const key of [
+      "permission-public-access", "permission-everyone-sensitive", "permission-direct-grants", "permission-departed-grants",
+      "security-direct-members", "security-departed-members", "notification-external-email", "notification-departed-recipients",
+      "role-group-actors", "role-unused", "priority-usage", "resolution-usage", "estate-defaults",
+    ]) {
+      expect(dim(health, key)?.available).toBe(false);
+    }
   });
 });

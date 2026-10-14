@@ -169,6 +169,26 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   // less when they do.
   duplicateResolutions: 0.15,
   duplicatePriorities: 0.20,
+  // Anything granted to anonymous users. Exposure, so as tight as the credential bound.
+  publicPermissionSchemes: 0.02,
+  // Delete, move, administer or edit-others granted to every logged-in user.
+  everyoneSensitiveSchemes: 0.10,
+  // Permission grants naming an individual instead of a role or group.
+  directUserGrants: 0.10,
+  // Grants, security-level members and notification recipients naming an account that has
+  // left. Tight: each is access or mail pointing at nobody, and a clean site has none.
+  departedAccounts: 0.02,
+  // Security-level members who are named individuals.
+  directSecurityMembers: 0.25,
+  // Notification recipients that are raw email addresses, outside the directory.
+  externalEmailRecipients: 0.02,
+  // Project-role actors who are individuals rather than groups. Forgiving: small sites fill
+  // roles person by person on purpose.
+  directRoleActors: 0.60,
+  // Project roles with nobody in them in any project.
+  unusedRoles: 0.30,
+  // Priorities or resolutions no issue carries.
+  unusedEstateValues: 0.30,
   // Agile boards. Column hygiene (a column mapping no status, or one that has been removed)
   // drops issues off the board silently: worse than clutter, less immediate than a
   // wrong-scope board.
@@ -1703,6 +1723,11 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
   // Three pillars, one scan stage. "No access inventory yet" is the unmeasured state for all
   // of them; each dimension scores a rate over its own scheme count.
   const noAccess = "No access inventory yet. Run a full scan to populate it.";
+  // Off-roster checks need the People roster: without it every named account would read as
+  // departed. Unmeasured, never scored, until the roster has been built.
+  const noRoster = "Build the People roster (or run a full scan) to check for accounts that have left.";
+  // A rate over a count that may be zero: nothing to judge reads as clean, not as 0/0.
+  const rateOf = (n, d) => (d > 0 ? n / d : 0);
 
   // Permission schemes: least-privilege conformance (v2 target), then unused clutter.
   if (permissions?.available && permissions.totalSchemes > 0) {
@@ -1740,9 +1765,76 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
         : `${unused} of ${permissions.totalSchemes} permission schemes are assigned to no project.`,
       action: unused > 0 ? "Delete the unused schemes — each is a decision nobody made that still shows in every scheme picker." : null,
     });
+
+    // Public access. Also one of least privilege's reasons, scored on its own because exposure
+    // to anonymous users is the consequence an admin is actually asked about.
+    const publicSchemes = Number(permissions.publicSchemeCount) || 0;
+    dimensions.push({
+      key: "permission-public-access",
+      label: "Public access",
+      pillar: "permissions",
+      available: true,
+      weight: 1.5,
+      score: scoreFromRate(rateOf(publicSchemes, total), TOLERANCE.publicPermissionSchemes),
+      detail: publicSchemes === 0
+        ? `No permission scheme grants anything to anonymous users.`
+        : `${publicSchemes} of ${total} permission schemes grant a permission to anonymous users — anyone at all, on a site that allows public access.`,
+      action: publicSchemes > 0 ? "Remove the grants to Anyone and give that access to a group or project role." : null,
+    });
+
+    const everyone = Number(permissions.loggedInSensitiveSchemeCount) || 0;
+    dimensions.push({
+      key: "permission-everyone-sensitive",
+      label: "Sensitive grants to everyone",
+      pillar: "permissions",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(rateOf(everyone, total), TOLERANCE.everyoneSensitiveSchemes),
+      detail: everyone === 0
+        ? `No permission scheme gives a sensitive permission (delete, move, administer, edit others' work) to every logged-in user.`
+        : `${everyone} of ${total} permission schemes give a sensitive permission — delete, move, administer, edit others' work — to every logged-in user.`,
+      action: everyone > 0 ? "Narrow those grants to the project roles that need them." : null,
+    });
+
+    const grants = Number(permissions.totalGrantCount) || 0;
+    const direct = Number(permissions.directUserGrantCount) || 0;
+    dimensions.push({
+      key: "permission-direct-grants",
+      label: "Grants to individuals",
+      pillar: "permissions",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(rateOf(direct, grants), TOLERANCE.directUserGrants),
+      detail: direct === 0
+        ? `None of the ${grants} permission grants names an individual.`
+        : `${direct} of ${grants} permission grants name an individual instead of a project role or group.`,
+      action: direct > 0 ? "Move each to a project role; a permission held by one named person is one nobody reviews." : null,
+    });
+
+    if (permissions.rosterMeasured === false) {
+      dimensions.push(unavailable("permission-departed-grants", "Grants to departed accounts", "permissions", noRoster));
+    } else {
+      const off = Number(permissions.offRosterUserGrantCount) || 0;
+      dimensions.push({
+        key: "permission-departed-grants",
+        label: "Grants to departed accounts",
+        pillar: "permissions",
+        available: true,
+        weight: 1,
+        score: scoreFromRate(rateOf(off, direct), TOLERANCE.departedAccounts),
+        detail: off === 0
+          ? (direct === 0 ? `No permission is granted to an individual, so none to an account that has left.` : `None of the ${direct} grants to individuals names an account that has left.`)
+          : `${off} permission grants name an account no longer on the licensed roster.`,
+        action: off > 0 ? "Remove them. They grant nothing today and hide what the scheme really allows." : null,
+      });
+    }
   } else {
     dimensions.push(unavailable("permission-least-privilege", "Least privilege", "permissions", noAccess));
     dimensions.push(unavailable("permission-scheme-sprawl", "Scheme sprawl", "permissions", noAccess));
+    dimensions.push(unavailable("permission-public-access", "Public access", "permissions", noAccess));
+    dimensions.push(unavailable("permission-everyone-sensitive", "Sensitive grants to everyone", "permissions", noAccess));
+    dimensions.push(unavailable("permission-direct-grants", "Grants to individuals", "permissions", noAccess));
+    dimensions.push(unavailable("permission-departed-grants", "Grants to departed accounts", "permissions", noAccess));
   }
 
   // Issue security: data black holes, then unused clutter.
@@ -1778,9 +1870,44 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
         : `${unused} of ${security.totalSchemes} issue security schemes are assigned to no project.`,
       action: unused > 0 ? "Delete the unused schemes." : null,
     });
+
+    const members = Number(security.totalMemberCount) || 0;
+    const userMembers = Number(security.userMemberCount) || 0;
+    dimensions.push({
+      key: "security-direct-members",
+      label: "Levels held by individuals",
+      pillar: "security",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(rateOf(userMembers, members), TOLERANCE.directSecurityMembers),
+      detail: userMembers === 0
+        ? `No security level names an individual; every member is a role, group or field.`
+        : `${userMembers} of ${members} security level members are named individuals rather than a role or group.`,
+      action: userMembers > 0 ? "Grant levels to project roles or groups; a level held by named people goes stale as people move." : null,
+    });
+
+    if (security.rosterMeasured === false) {
+      dimensions.push(unavailable("security-departed-members", "Departed members", "security", noRoster));
+    } else {
+      const off = Number(security.offRosterMemberCount) || 0;
+      dimensions.push({
+        key: "security-departed-members",
+        label: "Departed members",
+        pillar: "security",
+        available: true,
+        weight: 1,
+        score: scoreFromRate(rateOf(off, userMembers), TOLERANCE.departedAccounts),
+        detail: off === 0
+          ? `No security level names an account that has left.`
+          : `${off} security level members are accounts no longer on the licensed roster.`,
+        action: off > 0 ? "Remove them, and check the level still has someone who can see its issues." : null,
+      });
+    }
   } else {
     dimensions.push(unavailable("security-level-integrity", "Level integrity", "security", noAccess));
     dimensions.push(unavailable("security-scheme-sprawl", "Scheme sprawl", "security", noAccess));
+    dimensions.push(unavailable("security-direct-members", "Levels held by individuals", "security", noAccess));
+    dimensions.push(unavailable("security-departed-members", "Departed members", "security", noAccess));
   }
 
   // Notification schemes: fragile routing, then unused clutter.
@@ -1811,9 +1938,45 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
         : `${unused} of ${notifications.totalSchemes} notification schemes are assigned to no project.`,
       action: unused > 0 ? "Delete the unused schemes." : null,
     });
+
+    const recipients = Number(notifications.totalRecipientCount) || 0;
+    const emails = Number(notifications.emailRecipientCount) || 0;
+    dimensions.push({
+      key: "notification-external-email",
+      label: "Raw email recipients",
+      pillar: "notifications",
+      available: true,
+      weight: 1.5,
+      score: scoreFromRate(rateOf(emails, recipients), TOLERANCE.externalEmailRecipients),
+      detail: emails === 0
+        ? `No notification scheme sends to a raw email address.`
+        : `${emails} of ${recipients} notification recipients are raw email addresses — outside the user directory, so issue content goes wherever that mailbox forwards, even after people leave.`,
+      action: emails > 0 ? "Replace each address with a group or project role." : null,
+    });
+
+    if (notifications.rosterMeasured === false) {
+      dimensions.push(unavailable("notification-departed-recipients", "Departed recipients", "notifications", noRoster));
+    } else {
+      const named = Number(notifications.namedUserRecipientCount) || 0;
+      const off = Number(notifications.offRosterRecipientCount) || 0;
+      dimensions.push({
+        key: "notification-departed-recipients",
+        label: "Departed recipients",
+        pillar: "notifications",
+        available: true,
+        weight: 1,
+        score: scoreFromRate(rateOf(off, named), TOLERANCE.departedAccounts),
+        detail: off === 0
+          ? `No notification goes to an account that has left.`
+          : `${off} notification recipients are accounts no longer on the licensed roster — those events now reach nobody.`,
+        action: off > 0 ? "Send those events to a project role or group instead." : null,
+      });
+    }
   } else {
     dimensions.push(unavailable("notification-routing", "Routing resilience", "notifications", noAccess));
     dimensions.push(unavailable("notification-scheme-sprawl", "Scheme sprawl", "notifications", noAccess));
+    dimensions.push(unavailable("notification-external-email", "Raw email recipients", "notifications", noAccess));
+    dimensions.push(unavailable("notification-departed-recipients", "Departed recipients", "notifications", noAccess));
   }
 
   // ── Project roles & actors ───────────────────────────────────────────────
@@ -1840,7 +2003,11 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     }));
     const off = Number(roles.offRosterActorCount) || 0;
     const denom = Math.max(1, Number(roles.directUserActorCount) || 0);
-    dimensions.push({
+    if (roles.rosterMeasured === false) {
+      // Without the roster every user actor read as departed: "Actor hygiene 0" on any site
+      // that had not built People yet.
+      dimensions.push(unavailable("role-actor-hygiene", "Actor hygiene", "roles", noRoster));
+    } else dimensions.push({
       key: "role-actor-hygiene",
       label: "Actor hygiene",
       pillar: "roles",
@@ -1852,9 +2019,41 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
         : `${off} project-role actors are accounts no longer on the licensed roster.`,
       action: off > 0 ? "Remove the off-roster accounts from their project roles." : null,
     });
+
+    const users = Number(roles.directUserActorCount) || 0;
+    const groups = Number(roles.groupActorCount) || 0;
+    dimensions.push({
+      key: "role-group-actors",
+      label: "Roles held by individuals",
+      pillar: "roles",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(rateOf(users, users + groups), TOLERANCE.directRoleActors),
+      detail: users === 0
+        ? `Every project-role actor is a group.`
+        : `${users} of ${users + groups} project-role actors are named individuals rather than groups.`,
+      action: users > 0 ? "Fill roles with groups where you can; a group is one place to change membership, a person per project is many." : null,
+    });
+
+    const totalRoles = Number(roles.totalRoles) || 0;
+    const emptyRoles = Number(roles.emptyRoleCount) || 0;
+    dimensions.push({
+      key: "role-unused",
+      label: "Roles nobody holds",
+      pillar: "roles",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(rateOf(emptyRoles, totalRoles), TOLERANCE.unusedRoles),
+      detail: emptyRoles === 0
+        ? `Every one of the ${totalRoles} project roles has someone in it somewhere.`
+        : `${emptyRoles} of ${totalRoles} project roles have no user or group in any project.`,
+      action: emptyRoles > 0 ? "Delete them, or take them out of permission schemes; a role nobody holds still appears in every picker." : null,
+    });
   } else {
     dimensions.push(unavailable("role-admin-coverage", "Admin coverage", "roles", noAccess));
     dimensions.push(unavailable("role-actor-hygiene", "Actor hygiene", "roles", noAccess));
+    dimensions.push(unavailable("role-group-actors", "Roles held by individuals", "roles", noAccess));
+    dimensions.push(unavailable("role-unused", "Roles nobody holds", "roles", noAccess));
   }
 
   // ── Estate config: the global value lists ─────────────────────────────────
@@ -1897,6 +2096,56 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     });
   } else {
     dimensions.push(unavailable("priority-naming", "Priority naming", "estate", noEstate));
+  }
+
+  // Usage: values no issue carries. Only measured once the issue crawl has run.
+  const noEstateUsage = "Usage comes from the issue crawl. Run a full scan to measure it.";
+  for (const [key, label, totalKey, unusedKey, noun] of [
+    ["priority-usage", "Priority usage", "totalPriorities", "unusedPriorityCount", "priorities"],
+    ["resolution-usage", "Resolution usage", "totalResolutions", "unusedResolutionCount", "resolutions"],
+  ]) {
+    const count = Number(estate?.[totalKey]) || 0;
+    if (!estate?.available || count === 0) {
+      dimensions.push(unavailable(key, label, "estate", noEstate));
+    } else if (!estate.usageMeasured) {
+      dimensions.push(unavailable(key, label, "estate", noEstateUsage));
+    } else {
+      const unusedValues = Number(estate[unusedKey]) || 0;
+      dimensions.push({
+        key,
+        label,
+        pillar: "estate",
+        available: true,
+        weight: 1,
+        score: scoreFromRate(rateOf(unusedValues, count), TOLERANCE.unusedEstateValues),
+        detail: unusedValues === 0
+          ? `Every one of the ${count} ${noun} is on at least one issue.`
+          : `${unusedValues} of ${count} ${noun} are on no issue at all.`,
+        action: unusedValues > 0 ? `Retire the unused ${noun}; each is an option people have to read past.` : null,
+      });
+    }
+  }
+
+  // Defaults: a list with no default makes every create choose, or leaves the value empty.
+  if (estate?.available && (estate.totalPriorities > 0 || estate.totalResolutions > 0)) {
+    const missing = [
+      estate.prioritiesWithoutDefault && "priority",
+      estate.resolutionsWithoutDefault && "resolution",
+    ].filter(Boolean);
+    dimensions.push({
+      key: "estate-defaults",
+      label: "Defaults set",
+      pillar: "estate",
+      available: true,
+      weight: 0.5,
+      score: 100 - 50 * missing.length,
+      detail: missing.length === 0
+        ? `Priorities and resolutions both have a default.`
+        : `No default ${missing.join(" or ")} is set.`,
+      action: missing.length ? `Set a default ${missing.join(" and ")}.` : null,
+    });
+  } else {
+    dimensions.push(unavailable("estate-defaults", "Defaults set", "estate", noEstate));
   }
 
   // ── Agile boards ─────────────────────────────────────────────────────────
