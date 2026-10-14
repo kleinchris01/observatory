@@ -67,6 +67,23 @@ function mockInvoke(handlers) {
   });
 }
 
+describe("RemediationTab — Did it hold?", () => {
+  // Starts on the remembered view, so the Progress view (and its metrics) is not the subject.
+  test("a third view checks every task against the latest scan", async () => {
+    window.localStorage.setItem("observatory.section.remediation", "verify");
+    mockInvoke({
+      getRemediationTickets: { available: false, total: 0, groups: [] },
+      getRemediationVerification: { checkedAt: "2026-10-14T09:30:00.000Z", labels: {}, counts: { held: 2 }, heldRate: 1, rows: [{ issueKey: "A-1", verdict: "held", findingKey: "f" }] },
+    });
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+
+    expect(await screen.findByText("Fixes that held")).toBeInTheDocument();
+    expect(invoke).toHaveBeenCalledWith("getRemediationVerification", {});
+    expect(screen.getByRole("button", { name: /Did it hold\?/ })).toHaveAttribute("aria-current", "page");
+    window.localStorage.removeItem("observatory.section.remediation");
+  });
+});
+
 describe("RemediationTab", () => {
   test("lists every finding in the catalog", async () => {
     mockInvoke({ getRemediationTickets: { available: false, total: 0, groups: [] } });

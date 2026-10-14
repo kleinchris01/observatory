@@ -7754,3 +7754,12 @@ a.dash-row__name:hover { text-decoration: underline; }
 .handover-section__why, .handover-section__action { margin: 0; font-size: 0.82rem; color: var(--muted); }
 .handover-section__action { color: var(--text); }
 .handover-section__detail { color: var(--muted); font-size: 0.82rem; }
+
+/* Remediation "Did it hold?" (tabs/RemediationVerification.jsx). */
+.verify-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.verify-list > li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.verify-list__summary { flex: 1 1 16rem; min-width: 0; }
+.verify-list__meta { font-size: 0.8rem; color: var(--muted); }
+.verify-selectall { font-size: 0.82rem; color: var(--muted); display: inline-block; margin-bottom: 0.4rem; }
+.verify-confirm { padding: 0.75rem 0.9rem; border-radius: 6px; border: 1px solid var(--tone-warning); background: var(--wash-9); margin: 0.75rem 0; }
+.verify-confirm p { margin: 0 0 0.6rem; }

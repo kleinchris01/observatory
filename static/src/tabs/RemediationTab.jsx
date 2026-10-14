@@ -5,6 +5,7 @@ import { Icon } from "../components/Icons";
 import { PageHeader, Panel, StatRow, StatTile, EmptyState, RemediationStatus, SortFilterBar, Chip } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useNavIntent, usePersistentState } from "../hooks";
+import { RemediationVerification } from "./RemediationVerification";
 import { RemediationProgress } from "./RemediationProgress";
 
 // The playbook catalog is served with the tickets (getRemediationTickets -> catalog), so this
@@ -404,6 +405,7 @@ const SORT_OPTIONS = [
 const VIEWS = [
   { key: "progress", label: "Progress", icon: "activity" },
   { key: "findings", label: "Findings", icon: "checkCircle" },
+  { key: "verify", label: "Did it hold?", icon: "shield" },
 ];
 
 export function RemediationTab({ siteOrigin, intent = null }) {
@@ -764,6 +766,8 @@ export function RemediationTab({ siteOrigin, intent = null }) {
       <SubNavLayout items={VIEWS} activeKey={view} onSelect={setView}>
         {view === "progress" ? (
           <RemediationProgress />
+        ) : view === "verify" ? (
+          <RemediationVerification siteOrigin={siteOrigin} />
         ) : loading ? (
           <EmptyState inline>Loading…</EmptyState>
         ) : (
