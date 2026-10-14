@@ -1801,6 +1801,8 @@ describe("countIssues", () => {
     await expect(countIssues("x")).resolves.toBeNull();
     mockRequestJira.mockResolvedValueOnce(jiraResponse({ ok: false, status: 400, text: "bad jql" }));
     await expect(countIssues("x")).resolves.toBeNull();
+  });
+});
 
 describe("transitionIssueWithComment", () => {
   const transitions = { transitions: [
