@@ -41,38 +41,6 @@ import {
 } from "../lib/validate.js";
 import { getFilterUsage } from "./filters-dashboards.js";
 
-// ---------------------------------------------------------------------------
-// PII / data-retention audit note
-// ---------------------------------------------------------------------------
-// What user-derived data is persisted by this app:
-//
-//   progressLog entries  â€” Human-readable status messages written during
-//     snapshot, issue-scan, and project-usage-job runs. These contain only
-//     counts, timestamps, and field/project names â€” no issue content and no
-//     Jira user IDs or account IDs.
-//
-//   scan statistics  â€” issue_scan_meta rows store counts (processedIssues,
-//     totalIssues, pagesScanned) and timing only. No issue content is
-//     persisted; the scanner reads issues at runtime and discards them after
-//     aggregation.
-//
-//   fieldOptionsCache  â€” The replaceFieldOptionsCache / loadFieldOptionsCache
-//     functions store field option *labels* as returned by the Jira Fields
-//     API. These labels may contain user-entered values (e.g. option names
-//     typed by a Jira admin). They are stored as-is to support the
-//     searchFieldOptions resolver.
-//
-//   field_summaries / snapshot_fields  â€” Store field metadata (name, type,
-//     project/issue counts) from the Jira custom fields catalogue. No issue
-//     body content or user-identifiable data beyond field configuration is
-//     stored.
-//
-// Recommended retention review:
-//   Review annually and whenever a GDPR/data-subject access or erasure
-//   request arrives. The KVS key ADMIN_CONFIG_KEY and all installation-scoped
-//   keys can be enumerated via the project-store helpers for targeted erasure.
-// ---------------------------------------------------------------------------
-
 export async function getWorkflowInventory({ payload, context }) {
   incrMetric(METRIC_NAMES.resolver);
   try {
