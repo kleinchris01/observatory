@@ -7745,3 +7745,12 @@ a.dash-row__name:hover { text-decoration: underline; }
 .priority-list > li { display: grid; grid-template-columns: 1.6rem minmax(0, 1fr); align-items: center; gap: 0.4rem; counter-increment: priority; }
 .priority-list > li::before { content: counter(priority); font-weight: 650; font-variant-numeric: tabular-nums; color: var(--muted); text-align: right; }
 .priority-actions { display: inline-flex; gap: 0.6rem; flex-shrink: 0; }
+
+/* Handover report on a People row (tabs/HandoverReport.jsx). */
+.handover { display: flex; flex-direction: column; gap: 0.75rem; padding-bottom: 0.75rem; margin-bottom: 0.75rem; border-bottom: 1px solid var(--stroke); }
+.handover__head { display: flex; flex-direction: column; gap: 0.25rem; }
+.handover__summary { margin: 0; font-weight: 600; }
+.handover-section { display: flex; flex-direction: column; gap: 0.3rem; }
+.handover-section__why, .handover-section__action { margin: 0; font-size: 0.82rem; color: var(--muted); }
+.handover-section__action { color: var(--text); }
+.handover-section__detail { color: var(--muted); font-size: 0.82rem; }

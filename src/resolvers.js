@@ -237,6 +237,7 @@ import { getIssueTypeInventory, buildIssueTypeInventory } from "./resolvers/issu
 import {
   getUserInventory,
   getUserDetails,
+  getHandoverReport,
   collectRuleUserReferences,
   buildUserInventory,
 } from "./resolvers/people.js";
@@ -6675,6 +6676,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   // People pillar
   getUserInventory,        // Admin read: the licensed-user roster with products, access groups and ownership counts
   getUserDetails,          // Admin read: one user's owned filters / dashboards / automation rules
+  getHandoverReport,       // Admin read: what depends on one person's account, for offboarding
   buildUserInventory,      // Mutating: queues a licensed-user roster build
 
   // JSM Assets (CMDB) pillar

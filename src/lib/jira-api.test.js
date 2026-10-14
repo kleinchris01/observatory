@@ -61,6 +61,8 @@ import {
   getFieldContexts,
   getAllJiraProjects,
   getArchivedJiraProjects,
+  getProjectLeads,
+  countIssues,
   getAllStatuses,
   probeEndpoint,
   probeEndpointAsUser,
@@ -1762,5 +1764,41 @@ describe("getArchivedJiraProjects", () => {
     const [path] = mockRequestJira.mock.calls[0];
     expect(String(path)).toContain("status=archived");
     expect(String(path)).toContain("expand=insight");
+  });
+});
+
+describe("getProjectLeads", () => {
+  test("lists every project with its lead's account id", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { values: [
+      { id: 100, key: "TEAM", name: "Team", lead: { accountId: "acc-1" } },
+      { id: 101, key: "OPS", name: "Ops" },
+    ], total: 2 } }));
+    await expect(getProjectLeads()).resolves.toEqual([
+      { id: "100", key: "TEAM", name: "Team", leadAccountId: "acc-1" },
+      { id: "101", key: "OPS", name: "Ops", leadAccountId: null },
+    ]);
+    expect(String(mockRequestJira.mock.calls[0][0])).toContain("expand=lead");
+  });
+});
+
+describe("countIssues", () => {
+  test("returns the approximate count for a JQL query", async () => {
+    // The suite fires timers immediately; leave the 8 s count timeout pending so it cannot
+    // win the race, as the shared setup does for the hard request deadline.
+    vi.spyOn(globalThis, "setTimeout").mockImplementation((fn, ms) => {
+      if (ms !== 8000 && ms !== JIRA_REQUEST_HARD_TIMEOUT_MS) fn();
+      return 0;
+    });
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { count: 23 } }));
+    await expect(countIssues('assignee = "acc-1"')).resolves.toBe(23);
+    expect(JSON.parse(mockRequestJira.mock.calls[0][1].body)).toEqual({ jql: 'assignee = "acc-1"' });
+  });
+
+  // Unknown, never zero: "no open issues" would tell an admin the opposite of what to check.
+  test("returns null when Jira cannot say", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: {} }));
+    await expect(countIssues("x")).resolves.toBeNull();
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ ok: false, status: 400, text: "bad jql" }));
+    await expect(countIssues("x")).resolves.toBeNull();
   });
 });
