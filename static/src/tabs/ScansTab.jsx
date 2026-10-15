@@ -1711,7 +1711,7 @@ export function QuickScanPanel({
 
 const DEFAULT_QUICK_SCAN_SCHEDULE = { enabled: false, frequency: "weekly", dayOfWeek: 0, hourUtc: 0, windowHours: 168 };
 
-export function ScansTab({ siteOrigin, initialSection }) {
+export function ScansTab({ initialSection }) {
   const [activeSection, setActiveSection] = usePersistentState(
     "observatory.section.scans",
     "full",
@@ -1815,7 +1815,9 @@ export function ScansTab({ siteOrigin, initialSection }) {
     try {
       const r = await invoke("getDeltaIssueScanStatus");
       setDeltaIssueScanStatus(r?.meta || null);
-    } catch {}
+    } catch {
+      // Best effort: the status poll runs again shortly, and a failed read keeps the last value.
+    }
   }, []);
 
   const fetchSchedule = React.useCallback(async () => {

@@ -11,7 +11,6 @@ import {
   formatShortTime,
   toDisplayName,
 } from "../utils";
-import { CHART_PALETTE } from "./Icons";
 import { AskRovo } from "./ui";
 import { FieldOptionsModal } from "./FieldOptionsModal";
 
@@ -202,95 +201,6 @@ function ScrollableTableWrap({ children, colCount }) {
       >
         ›
       </button>
-    </div>
-  );
-}
-
-function TopFieldsChart({ fields }) {
-  const top = [...fields]
-    .filter((f) => String(f.fieldId || "").startsWith("customfield_"))
-    .sort((a, b) => b.issueCount - a.issueCount)
-    .slice(0, 8);
-  const max = top[0]?.issueCount || 1;
-  if (!top.length) return null;
-  return (
-    <div className="project-chart">
-      <div className="chart-title">Top fields by issue count</div>
-      <div className="chart-bar-list">
-        {top.map((field, i) => {
-          const pct = Math.max(3, Math.round((field.issueCount / max) * 100));
-          return (
-            <div className="chart-bar-row" key={field.fieldId}>
-              <span className="chart-bar-label" title={field.fieldName}>
-                {field.fieldName}
-              </span>
-              <div className="chart-bar-track">
-                <div
-                  className="chart-bar-fill"
-                  style={{ width: `${pct}%`, background: CHART_PALETTE[i % CHART_PALETTE.length] }}
-                />
-              </div>
-              <span className="chart-bar-count">{formatNumber(field.issueCount)}</span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function FieldTypeDonut({ fields }) {
-  if (!fields.length) return null;
-  const counts = {};
-  for (const f of fields) {
-    counts[f.fieldType] = (counts[f.fieldType] || 0) + 1;
-  }
-  const entries = Object.entries(counts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 7);
-  const total = entries.reduce((s, [, c]) => s + c, 0);
-  const r = 40;
-  const circumference = 2 * Math.PI * r;
-  let acc = 0;
-  const segments = entries.map(([type, count], i) => {
-    const dash = (count / total) * circumference;
-    const seg = { type, count, color: CHART_PALETTE[i % CHART_PALETTE.length], dash, acc };
-    acc += dash;
-    return seg;
-  });
-  return (
-    <div className="project-chart">
-      <div className="chart-title">Field types on this project</div>
-      <div className="project-chart__donut-layout">
-        <svg className="donut-svg" viewBox="0 0 108 108" width="100" height="100" aria-hidden="true">
-          <g transform="rotate(-90, 54, 54)">
-            {segments.map((seg) => (
-              <circle
-                key={seg.type}
-                cx={54}
-                cy={54}
-                r={r}
-                fill="none"
-                stroke={seg.color}
-                strokeWidth="15"
-                strokeDasharray={`${seg.dash} ${circumference - seg.dash}`}
-                strokeDashoffset={-seg.acc}
-              />
-            ))}
-          </g>
-        </svg>
-        <div className="chart-legend">
-          {segments.map((seg) => (
-            <div className="chart-legend-item" key={seg.type}>
-              <span className="chart-legend-dot" style={{ background: seg.color }} />
-              <span className="chart-legend-label" title={seg.type}>
-                {seg.type}
-              </span>
-              <span className="chart-legend-count">{seg.count}</span>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

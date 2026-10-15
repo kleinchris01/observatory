@@ -299,7 +299,7 @@ function AccessTabInner({
 }) {
   const term = search.trim().toLowerCase();
 
-  const filterSchemes = (schemes, governance, flagFn) => {
+  const filterSchemes = (schemes, governance) => {
     let rows = schemes;
     if (term)
       rows = rows.filter(

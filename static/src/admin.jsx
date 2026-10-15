@@ -9,13 +9,6 @@ import { DaySky } from "./components/DaySky";
 
 import { useRefreshOnVisible } from "./hooks";
 
-// Lazy: both pull in recharts (+122KB gzip measured on the macro bundle) and
-// sit behind tabs not shown by default -- split into their own chunk, fetched
-// only when a user actually opens Projects or Scans/RQT.
-const ProjectsTabView = React.lazy(() =>
-  import("./components/ProjectsTab").then((m) => ({ default: m.ProjectsTabView })),
-);
-const RqtIndexView = React.lazy(() => import("./tabs/RqtTab").then((m) => ({ default: m.RqtIndexView })));
 const WorkflowTab = React.lazy(() => import("./tabs/WorkflowTab").then((m) => ({ default: m.WorkflowTab })));
 // Every tab is loaded on demand.
 //
@@ -49,9 +42,6 @@ const FieldConfigsTab = React.lazy(() =>
 const PrioritiesTab = React.lazy(() => import("./tabs/PrioritiesTab").then((m) => ({ default: m.PrioritiesTab })));
 const BoardsTab = React.lazy(() => import("./tabs/BoardsTab").then((m) => ({ default: m.BoardsTab })));
 const ScreensTab = React.lazy(() => import("./tabs/ScreensTab").then((m) => ({ default: m.ScreensTab })));
-const OverviewDashboard = React.lazy(() =>
-  import("./components/OverviewDashboard").then((m) => ({ default: m.OverviewDashboard })),
-);
 
 const bootStatusNode = document.getElementById("boot-status");
 
@@ -201,7 +191,9 @@ export function AdminApp() {
   React.useEffect(() => {
     try {
       view.setAutoResizing(true);
-    } catch {}
+    } catch {
+      // Outside a Forge iframe (local dev, tests) there is nothing to resize.
+    }
   }, []);
 
   async function loadOverview({ quiet = false } = {}) {

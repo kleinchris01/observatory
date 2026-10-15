@@ -21,34 +21,6 @@ import { FieldOptionsModal } from "./FieldOptionsModal";
 // tooltip that names the agent and the read-only guarantee, wired at every panel here and
 // on every pillar tab. The FieldCard-local button that used to live here is gone.
 
-// A one-line, client-side search box for a panel's own already-fetched list.
-//
-// Not a resolver call: Automation/Filter/Dashboard usage are scoped to ONE field, so even a
-// field referenced by every rule on the site is a few hundred rows already sitting in this
-// component's state, not the few-thousand-row estate the Filters and Field Browser tabs had
-// to move server-side. Filtering an array already in memory needs no debounce and no round
-// trip.
-function PanelSearch({ value, onChange, placeholder, matchCount, totalCount }) {
-  if (totalCount <= 1) return null;
-  return (
-    <div className="panel-search">
-      <Icon name="search" size={13} />
-      <input
-        type="text"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        onClick={(event) => event.stopPropagation()}
-      />
-      {value ? (
-        <span className="panel-search__count">
-          {matchCount} of {totalCount}
-        </span>
-      ) : null}
-    </div>
-  );
-}
-
 // A detail section that can be folded away.
 //
 // The expanded card runs to five sections and several screens; on a field with 132 active
@@ -1070,7 +1042,6 @@ export function FieldCard({
   screenCount,
   filterCount,
   dashboardGadgetCount,
-  screenSnapshot,
   // Admin only (getPillarUsage("field")); the macro never passes it.
   usage = null,
 }) {

@@ -29,7 +29,7 @@ export default [
     },
   },
   {
-    files: ["static/**"],
+    files: ["static/**/*.{js,jsx}"],
     plugins: { react, "react-hooks": reactHooks },
     languageOptions: { globals: { ...globals.browser }, parserOptions: { ecmaFeatures: { jsx: true } } },
     // Pinned, not 'detect', so linting never depends on which package react resolves from.
@@ -42,10 +42,18 @@ export default [
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
       "react/prop-types": "off",
+      // Apostrophes in JSX copy render fine; escaping them would only make the copy harder to edit.
+      "react/no-unescaped-entities": "off",
     },
   },
   {
-    files: ["**/*.test.{js,jsx,mjs}", "**/__tests__/**", "**/__mocks__/**", "**/test-setup.js", "test/**"],
+    files: [
+      "**/*.test.{js,jsx,mjs}",
+      "**/__tests__/**/*.{js,jsx}",
+      "**/__mocks__/**/*.{js,jsx}",
+      "**/test-setup.js",
+      "test/**/*.{js,jsx}",
+    ],
     languageOptions: { globals: { ...globals.vitest } },
   },
   // Last, so formatting is Prettier's job alone.

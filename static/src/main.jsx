@@ -112,7 +112,9 @@ export function App() {
   React.useEffect(() => {
     try {
       view.setAutoResizing(true);
-    } catch {}
+    } catch {
+      // Outside a Forge iframe (local dev, tests) there is nothing to resize.
+    }
   }, []);
 
   React.useEffect(() => {
@@ -449,18 +451,12 @@ export function App() {
     await loadFieldDetails(fieldId, usagePage, { silent: true });
   }
 
-  const summary = React.useMemo(() => {
-    return {
-      totalFields,
-    };
-  }, [totalFields]);
   const compactLayout = totalFields > 0 && totalFields < pageSize;
   const visibleInventoryFields =
     optionSearchFieldIds instanceof Set
       ? inventoryFields.filter((field) => optionSearchFieldIds.has(field.id))
       : inventoryFields;
   const visibleTotalFields = optionSearchFieldIds instanceof Set ? visibleInventoryFields.length : totalFields;
-  const visibleTotalPages = optionSearchFieldIds instanceof Set ? 1 : totalPages;
 
   function toggleFieldSelection(fieldId, checked) {
     setSelectedFieldIds((current) => {

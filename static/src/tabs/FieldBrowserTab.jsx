@@ -881,40 +881,46 @@ export function FieldBrowserTab({
             const isOpen = openFieldId === field.id;
             const detail = fieldDetails[field.id] || null;
             return (
-              <FieldCard
-                usage={usage}
-                key={field.id}
-                field={field}
-                details={isOpen ? detail : null}
-                expanded={isOpen}
-                loading={isOpen && detailLoading && !detail}
-                selected={selectedSet.has(field.id)}
-                onSelectChange={(id, checked) => onToggleField?.(id, checked)}
-                onToggle={() => openField(field.id)}
-                onProjectUsagePageChange={loadDetailPage}
-                onRefreshProjectUsage={refreshProjectUsage}
-                // Positional arguments, NOT a wrapper object. buildReportRovoPrompt in the
-                // same module does take a destructured object, and passing one here
-                // instead produced a prompt reading "Field id: undefined. Field name:
-                // undefined" with every count zeroed -- the field object ended up bound to
-                // the `field` parameter's own `field` property, and `details` to nothing.
-                // Rovo then answered confidently about a nonexistent "ghost field".
-                onAskField={() => {
-                  openFieldExpertRovo(buildFieldRovoPrompt(field, fieldDetails[field.id])).catch(() => {});
-                }}
-                onAskProject={(project) => {
-                  openFieldExpertRovo(buildProjectRovoPrompt(field, fieldDetails[field.id], project)).catch(() => {});
-                }}
-                siteOrigin={siteOrigin}
-                rovoEnabled={rovoEnabled}
-                automationCounts={automationCounts[field.id]}
-                screenCount={screenCounts.available ? (screenCounts.counts[field.id] ?? 0) : null}
-                filterCount={filterCounts.available ? (filterCounts.counts[field.id] ?? 0) : null}
-                dashboardGadgetCount={
-                  dashboardGadgetCounts.available ? (dashboardGadgetCounts.counts[field.id] ?? 0) : null
-                }
-                screenSnapshot={screenCounts}
-              />
+              <React.Fragment key={field.id}>
+                <FieldCard
+                  usage={usage}
+                  field={field}
+                  details={isOpen ? detail : null}
+                  expanded={isOpen}
+                  loading={isOpen && detailLoading && !detail}
+                  selected={selectedSet.has(field.id)}
+                  onSelectChange={(id, checked) => onToggleField?.(id, checked)}
+                  onToggle={() => openField(field.id)}
+                  onProjectUsagePageChange={loadDetailPage}
+                  onRefreshProjectUsage={refreshProjectUsage}
+                  // Positional arguments, NOT a wrapper object. buildReportRovoPrompt in the
+                  // same module does take a destructured object, and passing one here
+                  // instead produced a prompt reading "Field id: undefined. Field name:
+                  // undefined" with every count zeroed -- the field object ended up bound to
+                  // the `field` parameter's own `field` property, and `details` to nothing.
+                  // Rovo then answered confidently about a nonexistent "ghost field".
+                  onAskField={() => {
+                    openFieldExpertRovo(buildFieldRovoPrompt(field, fieldDetails[field.id])).catch(() => {});
+                  }}
+                  onAskProject={(project) => {
+                    openFieldExpertRovo(buildProjectRovoPrompt(field, fieldDetails[field.id], project)).catch(() => {});
+                  }}
+                  siteOrigin={siteOrigin}
+                  rovoEnabled={rovoEnabled}
+                  automationCounts={automationCounts[field.id]}
+                  screenCount={screenCounts.available ? (screenCounts.counts[field.id] ?? 0) : null}
+                  filterCount={filterCounts.available ? (filterCounts.counts[field.id] ?? 0) : null}
+                  dashboardGadgetCount={
+                    dashboardGadgetCounts.available ? (dashboardGadgetCounts.counts[field.id] ?? 0) : null
+                  }
+                  screenSnapshot={screenCounts}
+                />
+                {isOpen && detailError && (
+                  <div className="error-banner" role="alert">
+                    Couldn't load this field's details: {detailError}
+                  </div>
+                )}
+              </React.Fragment>
             );
           })}
         </div>
