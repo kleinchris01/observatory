@@ -31,11 +31,8 @@ import {
   MacroBoardsView,
 } from "./components/MacroViewerPillars";
 
-// Lazy: ProjectsTab pulls in recharts, which nearly doubles this macro's JS
-// payload (measured: +122KB gzip). The macro defaults to the "inventory" tab,
-// so most page views never touch Projects/charts at all -- loading recharts
-// eagerly on every Confluence page view for a tab most visits never open isn't
-// worth it. Split into its own chunk, fetched only when the tab is opened.
+// Lazy: the macro opens on the inventory tab, so most page views never touch Projects.
+// Keeping it in its own chunk keeps the default Confluence load small.
 const ProjectsTabView = React.lazy(() =>
   import("./components/ProjectsTab").then((m) => ({ default: m.ProjectsTabView })),
 );

@@ -1,10 +1,8 @@
 import React from "react";
 import { invoke, router } from "@forge/bridge";
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList } from "recharts";
 import { toDisplayName } from "../utils";
 import { formatTimestamp, formatNumber } from "../utils";
-import { useChartPalette } from "../components/Icons";
-import { StatTile, StatRow } from "../components/ui";
+import { StatTile, StatRow, BarList, Donut } from "../components/ui";
 
 // ── RQT Dashboard helper components ─────────────────────────────────────
 
@@ -166,125 +164,20 @@ function RqtValuesTable({ uniqueValues, rqtValueFrequency, siteOrigin }) {
   );
 }
 
-function RqtChartTooltip({ active, payload }) {
-  if (!active || !payload?.length) return null;
-  const { name, value } = payload[0];
+function RqtHBarChart({ items, labelKey, valueKey, maxItems = 15, emptyMsg = "No data" }) {
   return (
-    <div className="chart-tooltip">
-      <span className="chart-tooltip__label">{name}</span>
-      <span className="chart-tooltip__value">{formatNumber(value)}</span>
-    </div>
-  );
-}
-
-function RqtHBarChart({
-  items,
-  labelKey,
-  valueKey,
-  color = "#f2b367",
-  maxItems = 15,
-  emptyMsg = "No data",
-  labelWidth = 110,
-}) {
-  if (!items?.length)
-    return <div style={{ color: "var(--muted)", fontSize: "0.82rem", padding: "20px 0" }}>{emptyMsg}</div>;
-  const rows = items.slice(0, maxItems).map((row) => ({ name: String(row[labelKey]), value: row[valueKey] }));
-  const height = Math.max(120, rows.length * 25);
-  return (
-    <div style={{ width: "100%", height }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={rows} layout="vertical" margin={{ top: 2, right: 40, bottom: 2, left: 2 }}>
-          <XAxis type="number" hide />
-          <YAxis
-            type="category"
-            dataKey="name"
-            width={labelWidth}
-            tick={{ fontSize: 11, fill: "var(--muted)" }}
-            tickLine={false}
-            axisLine={false}
-          />
-          <Tooltip content={<RqtChartTooltip />} cursor={{ fill: "var(--stroke)" }} />
-          <Bar dataKey="value" fill={color} radius={[0, 2, 2, 0]} maxBarSize={16} opacity={0.85}>
-            <LabelList
-              dataKey="value"
-              position="right"
-              fontSize={11}
-              fill="var(--muted)"
-              formatter={(v) => v.toLocaleString()}
-            />
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
+    <BarList
+      items={(items || []).slice(0, maxItems)}
+      labelKey={labelKey}
+      valueKey={valueKey}
+      formatValue={(v) => v.toLocaleString()}
+      emptyMessage={emptyMsg}
+    />
   );
 }
 
 function RqtDonutChart({ items }) {
-  const palette = useChartPalette();
-  if (!items?.length) return <div style={{ color: "var(--muted)", fontSize: "0.82rem" }}>No data</div>;
-  const total = items.reduce((s, d) => s + d.value, 0);
-  if (!total) return null;
-  return (
-    <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
-      <div style={{ width: 140, height: 140, flexShrink: 0, position: "relative" }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={items}
-              dataKey="value"
-              nameKey="label"
-              innerRadius={38}
-              outerRadius={56}
-              paddingAngle={2}
-              stroke="none"
-            >
-              {items.map((entry, i) => (
-                <Cell key={entry.label} fill={palette[i % palette.length]} />
-              ))}
-            </Pie>
-            <Tooltip content={<RqtChartTooltip />} />
-          </PieChart>
-        </ResponsiveContainer>
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            pointerEvents: "none",
-          }}
-        >
-          <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>{total.toLocaleString()}</span>
-          <span style={{ fontSize: 9, color: "var(--muted)" }}>issues</span>
-        </div>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: "0.77rem", paddingTop: 4 }}>
-        {items.map((d, i) => (
-          <div key={d.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span
-              style={{ width: 9, height: 9, borderRadius: 2, background: palette[i % palette.length], flexShrink: 0 }}
-            />
-            <span
-              style={{
-                color: "var(--muted)",
-                maxWidth: 110,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {d.label}
-            </span>
-            <span style={{ marginLeft: "auto", color: "var(--text)", fontWeight: 600, paddingLeft: 8 }}>
-              {d.value.toLocaleString()}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  return <Donut segments={items || []} size={140} centerLabel="issues" label="Issues by type" />;
 }
 
 function RqtMatrix({ issuesByProject, allTypes }) {
@@ -1007,7 +900,6 @@ export function RqtIndexView({ siteOrigin }) {
                 items={projectChartData}
                 labelKey="label"
                 valueKey="value"
-                color="#f2b367"
                 maxItems={15}
                 emptyMsg="No projects match filters"
               />
@@ -1026,9 +918,7 @@ export function RqtIndexView({ siteOrigin }) {
                 items={topValuesData}
                 labelKey="label"
                 valueKey="value"
-                color="#79b8ff"
                 maxItems={20}
-                labelWidth={145}
                 emptyMsg="No value frequency data yet"
               />
             </div>

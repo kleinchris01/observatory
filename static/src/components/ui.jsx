@@ -1,5 +1,5 @@
 import React from "react";
-import { Icon, useLiveDuration } from "./Icons";
+import { Icon, useLiveDuration, useChartPalette } from "./Icons";
 import {
   buildAutomationRuleUrl,
   buildIssueUrl,
@@ -207,6 +207,105 @@ export function BarList({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// Part-to-whole ring with its legend. Drawn as SVG (one stroked circle per segment, offset
+// along the ring) so the Projects and RQT tabs need no charting library.
+//
+// Colours come from the validated chart palette in slot order, never cycled: past the
+// palette's length the smallest segments fold into one "Other" in the muted ink. Each
+// segment is separated by a 2px surface gap; hovering a segment or its legend row shows
+// that segment in the centre, which otherwise shows the total.
+export function Donut({
+  segments = [],
+  size = 120,
+  thickness = 20,
+  centerLabel = "total",
+  emptyMessage = "No data",
+  label = "Breakdown",
+}) {
+  const palette = useChartPalette();
+  const [active, setActive] = React.useState(null);
+  const clean = segments.filter((s) => Number(s.value) > 0);
+  const total = clean.reduce((sum, s) => sum + Number(s.value), 0);
+  if (!clean.length || !total) return <EmptyState inline>{emptyMessage}</EmptyState>;
+
+  let shown = clean;
+  if (clean.length > palette.length) {
+    const kept = clean.slice(0, palette.length - 1);
+    const rest = clean.slice(palette.length - 1).reduce((sum, s) => sum + Number(s.value), 0);
+    shown = [...kept, { label: "Other", value: rest, other: true }];
+  }
+  const colored = shown.map((s, i) => ({ ...s, color: s.other ? "var(--muted)" : palette[i] }));
+
+  const radius = (size - thickness) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const gap = colored.length > 1 ? 2 : 0;
+  let offset = 0;
+  const arcs = colored.map((s) => {
+    const length = (Number(s.value) / total) * circumference;
+    const arc = { ...s, dash: Math.max(length - gap, 0.5), offset };
+    offset += length;
+    return arc;
+  });
+  const focus = active != null ? arcs[active] : null;
+
+  return (
+    <div className="ui-donut">
+      <div className="ui-donut__ring" style={{ width: size, height: size }}>
+        <svg
+          width={size}
+          height={size}
+          viewBox={`0 0 ${size} ${size}`}
+          role="img"
+          aria-label={`${label}: ${arcs.map((a) => `${a.label} ${a.value}`).join(", ")}`}
+        >
+          <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
+            {arcs.map((a, i) => (
+              <circle
+                key={a.label}
+                className="ui-donut__segment"
+                cx={size / 2}
+                cy={size / 2}
+                r={radius}
+                fill="none"
+                stroke={a.color}
+                strokeWidth={active === i ? thickness + 4 : thickness}
+                strokeDasharray={`${a.dash} ${circumference - a.dash}`}
+                strokeDashoffset={-a.offset}
+                onMouseEnter={() => setActive(i)}
+                onMouseLeave={() => setActive(null)}
+              >
+                <title>{`${a.label}: ${a.value.toLocaleString()}`}</title>
+              </circle>
+            ))}
+          </g>
+        </svg>
+        <div className="ui-donut__center" aria-hidden="true">
+          <span className="ui-donut__value">{(focus ? focus.value : total).toLocaleString()}</span>
+          <span className="ui-donut__label" title={focus ? focus.label : centerLabel}>
+            {focus ? focus.label : centerLabel}
+          </span>
+        </div>
+      </div>
+      <div className="chart-legend">
+        {arcs.map((a, i) => (
+          <div
+            className={`chart-legend-item ${active === i ? "chart-legend-item--active" : ""}`}
+            key={a.label}
+            onMouseEnter={() => setActive(i)}
+            onMouseLeave={() => setActive(null)}
+          >
+            <span className="chart-legend-dot" style={{ background: a.color }} />
+            <span className="chart-legend-label" title={a.label}>
+              {a.label}
+            </span>
+            <span className="chart-legend-count">{a.value.toLocaleString()}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

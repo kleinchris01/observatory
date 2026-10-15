@@ -10734,6 +10734,117 @@ a.dash-row__name:hover {
   width: 100%;
   min-width: 0;
 }
+/* ── Shared donut (ui.jsx Donut) ──────────────────────────────────────────── */
+.ui-donut {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.ui-donut__ring {
+  position: relative;
+  flex-shrink: 0;
+}
+.ui-donut__segment {
+  cursor: default;
+  transition: stroke-width 120ms ease;
+}
+.ui-donut__center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  padding: 0 22%;
+  text-align: center;
+}
+.ui-donut__value {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.ui-donut__label {
+  font-size: 10px;
+  color: var(--muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chart-legend-item--active .chart-legend-label {
+  font-weight: 600;
+}
+
+/* ── Remediation progress charts (SVG) ───────────────────────────────────── */
+.rp-chart {
+  position: relative;
+  width: 100%;
+}
+.rp-chart__svg {
+  display: block;
+}
+.rp-chart__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.rp-chart__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.rp-chart__grid {
+  stroke: var(--stroke);
+  stroke-width: 1;
+}
+.rp-chart__tick {
+  font-size: 12px;
+  fill: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.rp-chart__today {
+  stroke: var(--stroke);
+  stroke-width: 1;
+}
+.rp-chart__line {
+  fill: none;
+  stroke: var(--chart-accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.rp-chart__line--reference {
+  stroke: var(--chart-reference);
+  stroke-dasharray: 6 4;
+}
+.rp-chart__crosshair {
+  stroke: var(--muted);
+  stroke-dasharray: 3 3;
+}
+.rp-chart__dot {
+  fill: var(--chart-accent);
+  stroke: var(--panel-strong);
+  stroke-width: 2;
+}
+.rp-chart__bar {
+  fill: var(--chart-accent);
+}
+.rp-chart__bar--active {
+  opacity: 0.8;
+}
+.rp-chart__tooltip {
+  position: absolute;
+  pointer-events: none;
+  z-index: 2;
+  min-width: 140px;
+}
+
 .remediation-progress__endlabel {
   font-size: 12px;
   fill: var(--muted);
