@@ -3,7 +3,7 @@
 // Moved verbatim from src/resolvers.js; see docs/resolvers-refactor.md.
 
 import api, { route } from "@forge/api";
-import { logger } from "../lib/logger.js";
+import { logger, errorContext } from "../lib/logger.js";
 import { readAdminConfig } from "./admin-config.js";
 import { viewerProjectCount } from "./viewer.js";
 
@@ -54,7 +54,7 @@ export async function macroAccessDecision(context) {
       .requestJira(route`/rest/api/3/user/groups?accountId=${accountId}`, { headers: { Accept: "application/json" } });
 
     if (!resp.ok) {
-      console.error("checkMacroAccess: group lookup failed", resp.status);
+      logger.error("checkMacroAccess.group_lookup_failed", { status: resp.status });
       // Fail open -- do not block on an API error. Not cached, so the next call retries.
       return { allowed: true, failedOpen: true };
     }
@@ -73,7 +73,7 @@ export async function macroAccessDecision(context) {
     macroAccessCache.set(cacheKey, { decision, expires: Date.now() + MACRO_ACCESS_TTL_MS });
     return decision;
   } catch (err) {
-    console.error("checkMacroAccess error:", err);
+    logger.error("checkMacroAccess.failed", errorContext(err));
     return { allowed: true, failedOpen: true }; // fail open
   }
 }

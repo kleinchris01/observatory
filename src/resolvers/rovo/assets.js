@@ -5,6 +5,7 @@
 import { incrMetric, METRIC_NAMES } from "../../lib/jira-api.js";
 import { pillarUnavailable, agentOk, agentNotFound, rankMatches, clampResults } from "../../lib/rovo-agents.js";
 import { getAssetInventory } from "../assets.js";
+import { logger, errorContext } from "../../lib/logger.js";
 
 // ── Rovo: assets (CMDB) expert ──────────────────────────────────────────────
 //
@@ -51,7 +52,7 @@ export async function rovoAssetSearch(payload, context) {
     });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("rovoAssetSearch failed:", error);
+    logger.error("rovoAssetSearch.failed", errorContext(error));
     throw error;
   }
 }
@@ -116,7 +117,7 @@ export async function rovoAssetInspect(payload, context) {
     });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("rovoAssetInspect failed:", error);
+    logger.error("rovoAssetInspect.failed", errorContext(error));
     throw error;
   }
 }
@@ -156,7 +157,7 @@ export async function rovoAssetImpact(payload, context) {
     });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("rovoAssetImpact failed:", error);
+    logger.error("rovoAssetImpact.failed", errorContext(error));
     throw error;
   }
 }

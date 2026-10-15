@@ -8,6 +8,7 @@ import { loadWorkflowSchemeProjects } from "../../lib/project-store.js";
 import { findDuplicateStatusGroups, computeSchemeCategoryBalance } from "../../lib/workflow-insights.js";
 import { loadStatusAutomationReferences } from "../../lib/store/automation.js";
 import { loadWorkflowForAgent, statusRow, computeStatusDetail } from "../workflows.js";
+import { logger, errorContext } from "../../lib/logger.js";
 
 export async function rovoWorkflowSearch(payload, context) {
   incrMetric(METRIC_NAMES.resolver);
@@ -41,7 +42,7 @@ export async function rovoWorkflowSearch(payload, context) {
     });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("rovoWorkflowSearch failed:", error);
+    logger.error("rovoWorkflowSearch.failed", errorContext(error));
     throw error;
   }
 }
@@ -114,7 +115,7 @@ export async function rovoWorkflowInspect(payload, context) {
     });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("rovoWorkflowInspect failed:", error);
+    logger.error("rovoWorkflowInspect.failed", errorContext(error));
     throw error;
   }
 }
@@ -166,7 +167,7 @@ export async function rovoWorkflowImpact(payload, context) {
     });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("rovoWorkflowImpact failed:", error);
+    logger.error("rovoWorkflowImpact.failed", errorContext(error));
     throw error;
   }
 }

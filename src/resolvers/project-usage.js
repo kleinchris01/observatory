@@ -49,7 +49,7 @@ import { attachUniqueIssueCounts } from "../lib/site-health.js";
 import { summarizeAdoption } from "../lib/project-adoption.js";
 import { summarizeProjectUsageCapacity, isJiraBuiltinField, filterProjectUsageByBrowsable } from "../lib/analysis.js";
 import { buildFieldJql, buildOverallFieldJql } from "../lib/transform.js";
-import { fallbackOn } from "../lib/logger.js";
+import { fallbackOn, logger, errorContext } from "../lib/logger.js";
 import { requireNonEmptyString, requirePositiveInt, requireArray, optionalString } from "../lib/validate.js";
 
 export async function getProjectUsageJobs({ context }) {
@@ -977,7 +977,7 @@ export async function getProjectsView({ payload, context }) {
         refreshedAt: wfMeta.refreshedAt || null,
       };
     } catch (error) {
-      console.warn("getProjectsView: workflow scheme lookup failed:", error?.message || error);
+      logger.warn("getProjectsView.workflow_scheme_lookup_failed", errorContext(error));
       return null;
     }
   })();

@@ -27,7 +27,7 @@ import { summarizeDashboards, summarizeDashboardHealth } from "../lib/dashboard-
 import { isFilterBuildStale, queueFilterSnapshotBuild } from "../lib/filter-engine.js";
 import { filterRows, sortFilters, filterFindingCounts, FILTER_SORTS } from "../lib/filter-query.js";
 import { isDashboardBuildStale, queueDashboardSnapshotBuild } from "../lib/dashboard-engine.js";
-import { fallbackOn } from "../lib/logger.js";
+import { fallbackOn, logger, errorContext } from "../lib/logger.js";
 import { requirePositiveInt, requireBoundedInt, optionalString } from "../lib/validate.js";
 import { readAdminConfig } from "./admin-config.js";
 
@@ -162,7 +162,7 @@ export async function getFilterInventory({ payload, context }) {
     };
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("getFilterInventory failed:", error);
+    logger.error("getFilterInventory.failed", errorContext(error));
     throw error;
   }
 }
@@ -401,7 +401,7 @@ export async function getDashboardUsage({ payload, context }) {
     };
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("getDashboardUsage failed:", error);
+    logger.error("getDashboardUsage.failed", errorContext(error));
     throw error;
   }
 }
@@ -423,7 +423,7 @@ export async function getFilterUsage({ payload, context }) {
     return { available: true, label, kind, ...result };
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("getFilterUsage failed:", error);
+    logger.error("getFilterUsage.failed", errorContext(error));
     throw error;
   }
 }
@@ -544,7 +544,7 @@ export async function getDashboardInventory({ context }) {
     };
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("getDashboardInventory failed:", error);
+    logger.error("getDashboardInventory.failed", errorContext(error));
     throw error;
   }
 }

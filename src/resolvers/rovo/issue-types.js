@@ -5,6 +5,7 @@
 import { incrMetric, METRIC_NAMES } from "../../lib/jira-api.js";
 import { pillarUnavailable, agentOk, agentNotFound, rankMatches, clampResults } from "../../lib/rovo-agents.js";
 import { getIssueTypeInventory } from "../issue-types.js";
+import { logger, errorContext } from "../../lib/logger.js";
 
 // ── Rovo: issue type expert ─────────────────────────────────────────────────
 //
@@ -48,7 +49,7 @@ export async function rovoIssueTypeSearch(payload, context) {
     });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("rovoIssueTypeSearch failed:", error);
+    logger.error("rovoIssueTypeSearch.failed", errorContext(error));
     throw error;
   }
 }
@@ -111,7 +112,7 @@ export async function rovoIssueTypeInspect(payload, context) {
     });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("rovoIssueTypeInspect failed:", error);
+    logger.error("rovoIssueTypeInspect.failed", errorContext(error));
     throw error;
   }
 }
@@ -146,7 +147,7 @@ export async function rovoIssueTypeImpact(payload, context) {
     });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("rovoIssueTypeImpact failed:", error);
+    logger.error("rovoIssueTypeImpact.failed", errorContext(error));
     throw error;
   }
 }

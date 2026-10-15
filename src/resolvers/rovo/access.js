@@ -5,6 +5,7 @@
 import { incrMetric, METRIC_NAMES, getInstallationKey } from "../../lib/jira-api.js";
 import { pillarUnavailable, agentOk, agentNotFound, rankMatches, clampResults } from "../../lib/rovo-agents.js";
 import { getAccessInventory, loadActiveRoster } from "../access.js";
+import { logger, errorContext } from "../../lib/logger.js";
 
 // ── Rovo: access expert ─────────────────────────────────────────────────────
 //
@@ -44,7 +45,7 @@ export async function rovoAccessSearch(payload, context) {
     return agentOk(inv.refreshedAt || null, { query, schemes: matches });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("rovoAccessSearch failed:", error);
+    logger.error("rovoAccessSearch.failed", errorContext(error));
     throw error;
   }
 }
@@ -101,7 +102,7 @@ export async function rovoAccessInspect(payload, context) {
     );
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("rovoAccessInspect failed:", error);
+    logger.error("rovoAccessInspect.failed", errorContext(error));
     throw error;
   }
 }
@@ -148,7 +149,7 @@ export async function rovoAccessImpact(payload, context) {
     });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("rovoAccessImpact failed:", error);
+    logger.error("rovoAccessImpact.failed", errorContext(error));
     throw error;
   }
 }

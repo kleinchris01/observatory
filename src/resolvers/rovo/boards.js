@@ -5,6 +5,7 @@
 import { incrMetric, METRIC_NAMES } from "../../lib/jira-api.js";
 import { pillarUnavailable, agentOk, agentNotFound, rankMatches, clampResults } from "../../lib/rovo-agents.js";
 import { getBoardInventory } from "../boards.js";
+import { logger, errorContext } from "../../lib/logger.js";
 
 // ── Rovo: boards expert ────────────────────────────────────────────────────
 //
@@ -45,7 +46,7 @@ export async function rovoBoardSearch(payload, context) {
     });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("rovoBoardSearch failed:", error);
+    logger.error("rovoBoardSearch.failed", errorContext(error));
     throw error;
   }
 }
@@ -100,7 +101,7 @@ export async function rovoBoardInspect(payload, context) {
     });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("rovoBoardInspect failed:", error);
+    logger.error("rovoBoardInspect.failed", errorContext(error));
     throw error;
   }
 }
@@ -142,7 +143,7 @@ export async function rovoBoardImpact(payload, context) {
     });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("rovoBoardImpact failed:", error);
+    logger.error("rovoBoardImpact.failed", errorContext(error));
     throw error;
   }
 }

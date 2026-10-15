@@ -621,12 +621,16 @@ describe("findFieldIdsByOptionValue", () => {
 
   // One field's options failing must not abort the whole option search.
   test("logs and continues when a field's option lookup fails", async () => {
-    vi.spyOn(console, "warn").mockImplementation(() => {});
+    // logger.warn writes through console.error, as one JSON line.
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
     mockRequestJira.mockResolvedValue(jiraResponse({ ok: false, status: 500, text: "boom" }));
 
     const result = await findFieldIdsByOptionValue([selectFields[0]], "dcv");
     expect(result.matchingIds.size).toBe(0);
-    expect(console.warn).toHaveBeenCalled();
+    expect(err).toHaveBeenCalledWith(
+      expect.stringContaining('"event":"findFieldIdsByOptionValue.option_lookup_failed"'),
+    );
+    err.mockRestore();
   });
 
   test("reports batch position so the caller can resume", async () => {
