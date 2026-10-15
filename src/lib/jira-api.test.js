@@ -1820,10 +1820,36 @@ describe("transitionIssueWithComment", () => {
 
     const r = await transitionIssueWithComment("OPS-1", { target: "done", commentBody: body, asUser: true });
 
-    expect(r).toEqual({ issueKey: "OPS-1", transitioned: true, commented: true, toStatus: "Done", reason: null });
+    expect(r).toEqual({ issueKey: "OPS-1", transitioned: true, commented: true, toStatus: "Done", resolution: null, reason: null });
     expect(JSON.parse(mockRequestJiraAsUser.mock.calls[1][1].body)).toEqual({ transition: { id: "31" } });
     expect(mockRequestJiraAsUser.mock.calls[2][0]).toContain("/comment");
     expect(mockRequestJira).not.toHaveBeenCalled();
+  });
+
+  // Withdrawn advice closes as Won't Do -- by transition name where the workflow has one, and
+  // with the Won't Do resolution where the transition's screen offers it.
+  test("withdraw prefers a Won't Do transition and sets the Won't Do resolution", async () => {
+    const withWontDo = { transitions: [
+      ...transitions.transitions,
+      { id: "41", name: "Won't Do", to: { name: "Closed", statusCategory: { key: "done" } },
+        fields: { resolution: { allowedValues: [{ id: "1", name: "Done" }, { id: "10000", name: "Won't Do" }] } } },
+    ] };
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: withWontDo }))
+      .mockResolvedValueOnce(jiraResponse({ status: 204 }));
+    const r = await transitionIssueWithComment("OPS-1", { target: "withdraw" });
+    expect(mockRequestJira.mock.calls[0][0]).toContain("expand=transitions.fields");
+    expect(JSON.parse(mockRequestJira.mock.calls[1][1].body)).toEqual({ transition: { id: "41" }, fields: { resolution: { id: "10000" } } });
+    expect(r).toMatchObject({ transitioned: true, toStatus: "Closed", resolution: "Won't Do" });
+  });
+
+  test("withdraw still closes on a workflow with no Won't Do, without a resolution", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: transitions }))
+      .mockResolvedValueOnce(jiraResponse({ status: 204 }));
+    const r = await transitionIssueWithComment("OPS-1", { target: "withdraw" });
+    expect(JSON.parse(mockRequestJira.mock.calls[1][1].body)).toEqual({ transition: { id: "31" } });
+    expect(r).toMatchObject({ transitioned: true, toStatus: "Done", resolution: null });
   });
 
   test("reopening prefers To Do over In Progress", async () => {

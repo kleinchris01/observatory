@@ -905,6 +905,33 @@ describe("RemediationTab — open tasks the finding no longer flags", () => {
     expect(decodeURIComponent(link.getAttribute("href"))).toContain("issuekey in (OPS-3, OPS-9)");
   });
 
+  // "Review and close" opens Did it hold? narrowed to this finding, so the fixed and the
+  // withdrawn tasks can be closed with the right comment rather than only opened in Jira.
+  test("Review and close opens Did it hold? for just this finding", async () => {
+    const calls = [];
+    mockInvoke({
+      getRemediationTickets: { available: true, total: 5, groups: [group] },
+      getRemediationCandidates: (payload) => (payload.findingKey === "filter-ownership"
+        ? { available: true, items: [{ id: "p1" }] } : { available: true, items: [] }),
+      getRemediationVerification: (payload) => {
+        calls.push(payload);
+        return { checkedAt: "2026-10-14T09:30:00.000Z", labels: {}, counts: { withdrawn: 1 }, rows: [
+          { issueKey: "OPS-3", verdict: "withdrawn", findingKey: "filter-ownership", itemId: "p2", summary: "Old", evidence: "it holds data" },
+        ] };
+      },
+    });
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    const note = await screen.findByTestId("stale-tasks");
+    await userEvent.click(within(note).getByRole("button", { name: /Review and close/ }));
+    expect(await screen.findByText("Advice withdrawn, still open (1)")).toBeInTheDocument();
+    expect(calls.at(-1)).toEqual({ findingKey: "filter-ownership" });
+    expect(screen.getByText(/Showing tasks for/)).toBeInTheDocument();
+    // Widening back checks every finding.
+    await userEvent.click(screen.getByRole("button", { name: /Show every finding/ }));
+    await screen.findByText("Advice withdrawn, still open (1)");
+    expect(calls.at(-1)).toEqual({});
+  });
+
   test("an unreadable finding never makes its tasks look stale", async () => {
     mockInvoke({
       getRemediationTickets: { available: true, total: 5, groups: [group] },

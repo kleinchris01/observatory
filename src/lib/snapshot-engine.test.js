@@ -150,6 +150,20 @@ const INSTALLATION_KEY = "test-install";
 
 // ── hydrateFieldForGovernance ─────────────────────────────────────────────────
 
+describe("hydrateFieldForGovernance keeps archived data (14 Oct 2026)", () => {
+  // The Overview, health, reports and remediation all re-hydrate from the stored row; without
+  // the archived count they flagged a field whose data is only in archived projects as unused.
+  // (analysis.js is mocked in this file; the rule itself is tested in analysis.test.js.)
+  test("passes the row's archived issue count to the governance rules", async () => {
+    const { buildGovernanceFindings } = await import("./analysis.js");
+    buildGovernanceFindings.mockClear();
+    hydrateFieldForGovernance({ id: "customfield_500", name: "Hiring Manager", configuredProjectCount: 3, archivedIssueCount: 2340 }, null);
+    expect(buildGovernanceFindings.mock.calls[0][1]).toMatchObject({ archivedIssueCount: 2340 });
+    hydrateFieldForGovernance({ id: "customfield_501", name: "Never archived" }, null);
+    expect(buildGovernanceFindings.mock.calls[1][1]).toMatchObject({ archivedIssueCount: 0 });
+  });
+});
+
 describe("hydrateFieldForGovernance", () => {
   beforeEach(() => {
     vi.clearAllMocks();

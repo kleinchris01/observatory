@@ -145,7 +145,12 @@ export async function loadSnapshotFields(scopeKey, version) {
         usage_status_detail,
         project_usage_fingerprint,
         field_jql,
-        findings_json
+        findings_json,
+        -- Values in projects since archived (field_archived_usage): Jira's search cannot see
+        -- them, so every read that re-hydrates a field's findings needs this to keep a field
+        -- holding archived data from being flagged as unused.
+        (SELECT COALESCE(SUM(a.issue_count), 0) FROM field_archived_usage a
+          WHERE a.scope_key = snapshot_fields.scope_key AND a.field_id = snapshot_fields.field_id) AS archived_issue_count
       FROM snapshot_fields
       WHERE scope_key = ? AND version = ?
       ORDER BY LOWER(name) ASC, field_id ASC
@@ -169,6 +174,7 @@ export async function loadSnapshotFields(scopeKey, version) {
     usageStatusDetail: row.usage_status_detail || null,
     projectUsageFingerprint: row.project_usage_fingerprint || null,
     fieldJql: row.field_jql || null,
+    archivedIssueCount: toNumber(row.archived_issue_count) || 0,
     findings: safeParseJson(row.findings_json, null),
   }));
 }
@@ -194,7 +200,12 @@ export async function loadSnapshotField(scopeKey, version, fieldId) {
         usage_status_detail,
         project_usage_fingerprint,
         field_jql,
-        findings_json
+        findings_json,
+        -- Values in projects since archived (field_archived_usage): Jira's search cannot see
+        -- them, so every read that re-hydrates a field's findings needs this to keep a field
+        -- holding archived data from being flagged as unused.
+        (SELECT COALESCE(SUM(a.issue_count), 0) FROM field_archived_usage a
+          WHERE a.scope_key = snapshot_fields.scope_key AND a.field_id = snapshot_fields.field_id) AS archived_issue_count
       FROM snapshot_fields
       WHERE scope_key = ? AND version = ? AND field_id = ?
       LIMIT 1
@@ -223,6 +234,7 @@ export async function loadSnapshotField(scopeKey, version, fieldId) {
     usageStatusDetail: row.usage_status_detail || null,
     projectUsageFingerprint: row.project_usage_fingerprint || null,
     fieldJql: row.field_jql || null,
+    archivedIssueCount: toNumber(row.archived_issue_count) || 0,
     findings: safeParseJson(row.findings_json, null),
   };
 }

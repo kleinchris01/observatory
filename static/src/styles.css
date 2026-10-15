@@ -7771,6 +7771,7 @@ a.dash-row__name:hover { text-decoration: underline; }
 .verify-list > li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
 .verify-list__summary { flex: 1 1 16rem; min-width: 0; }
 .verify-list__meta { font-size: 0.8rem; color: var(--muted); }
+.verify-list__evidence { flex: 1 1 100%; font-size: 0.8rem; color: var(--muted); padding-left: 1.6rem; }
 .verify-selectall { font-size: 0.82rem; color: var(--muted); display: inline-block; margin-bottom: 0.4rem; }
 .verify-confirm { padding: 0.75rem 0.9rem; border-radius: 6px; border: 1px solid var(--tone-warning); background: var(--wash-9); margin: 0.75rem 0; }
 .verify-confirm p { margin: 0 0 0.6rem; }

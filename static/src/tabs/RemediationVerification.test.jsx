@@ -22,6 +22,39 @@ function loader(apply = { applied: 1, results: [{ issueKey: "ADMIN-2", transitio
   return vi.fn(async (name) => (name === "getRemediationVerification" ? verification() : apply));
 }
 
+// Withdrawn advice: no longer flagged, but the item is still there and the task was wrong. It
+// is listed with its evidence and withdrawn, never "closed as fixed".
+describe("RemediationVerification — withdrawn advice", () => {
+  const withdrawn = {
+    checkedAt: "2026-10-14T09:30:00.000Z",
+    labels: { "field-cleanup": "Fields with no populated issues" },
+    counts: { "fixed-open": 1, withdrawn: 1 },
+    rows: [
+      { issueKey: "ADMIN-50", verdict: "withdrawn", findingKey: "field-cleanup", itemId: "customfield_500", summary: "Delete Hiring Manager",
+        evidence: "it holds values on 2,340 issues in archived projects (TT), which Jira's search cannot see. Deleting it would destroy that data" },
+      { issueKey: "ADMIN-52", verdict: "fixed-open", findingKey: "field-cleanup", itemId: "customfield_502", summary: "Delete Gone Field" },
+    ],
+  };
+
+  test("lists withdrawn tasks apart from fixed ones, with the evidence, and withdraws on confirmation", async () => {
+    const load = vi.fn(async (name) => (name === "getRemediationVerification" ? withdrawn : { applied: 1, results: [] }));
+    render(<RemediationVerification load={load} findingKey="field-cleanup" findingLabel="Fields with no populated issues" />);
+
+    expect(await screen.findByText("Advice withdrawn, still open (1)")).toBeInTheDocument();
+    expect(screen.getByText("Fixed, but still open (1)")).toBeInTheDocument();
+    expect(screen.getByText(/2,340 issues in archived projects \(TT\)/)).toBeInTheDocument();
+    expect(screen.getByText("1 more withdrawn: the advice was wrong")).toBeInTheDocument();
+    expect(load).toHaveBeenCalledWith("getRemediationVerification", { findingKey: "field-cleanup" });
+
+    await userEvent.click(screen.getByLabelText(/ADMIN-50/));
+    await userEvent.click(screen.getByRole("button", { name: "Withdraw as Won't Do (1)" }));
+    const dialog = screen.getByRole("alertdialog", { name: "Confirm the change in Jira" });
+    expect(within(dialog).getByText(/Withdraw 1 ticket in Jira, as you, .*telling the assignee not to act/)).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Withdraw as Won't Do" }));
+    expect(load).toHaveBeenCalledWith("applyRemediationVerification", { issueKeys: ["ADMIN-50"], findingKey: "field-cleanup" });
+  });
+});
+
 describe("RemediationVerification", () => {
   test("summarises what held, what regressed and what is fixed but open", async () => {
     render(<RemediationVerification load={loader()} />);

@@ -1,6 +1,6 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
-import { StatRow, StatTile, Panel, EmptyState, Chip, JiraLink } from "../components/ui";
+import { StatRow, StatTile, Panel, EmptyState, Chip, JiraLink, LinkButton } from "../components/ui";
 import { buildIssueUrl, formatNumber } from "../utils";
 
 // "Did it hold?": every remediation task checked against the latest scan
@@ -22,6 +22,13 @@ const GROUPS = [
     title: "Fixed, but still open",
     description: "The latest scan no longer flags the item. Anyone working this task is working stale advice.",
     action: "Close as fixed",
+    tone: "warning",
+  },
+  {
+    verdict: "withdrawn",
+    title: "Advice withdrawn, still open",
+    description: "No longer flagged, but the item is still there and the evidence says the task was wrong, such as a field \"with no data\" that holds data in archived projects. These close as Won't Do with a \"do not act\" comment, never as fixed.",
+    action: "Withdraw as Won't Do",
     tone: "warning",
   },
 ];
@@ -59,6 +66,7 @@ function VerificationGroup({ group, rows, labels, siteOrigin, selected, onToggle
             <span className="verify-list__summary">{r.summary || r.itemId}</span>
             <Chip tone="neutral">{labels?.[r.findingKey] || r.findingKey}</Chip>
             <span className="verify-list__meta">{r.status || "—"}{r.period ? ` · ${r.period}` : ""}{r.assigneeName ? ` · ${r.assigneeName}` : ""}</span>
+            {r.evidence && <span className="verify-list__evidence">{r.evidence}.</span>}
           </li>
         ))}
       </ul>
@@ -66,7 +74,9 @@ function VerificationGroup({ group, rows, labels, siteOrigin, selected, onToggle
   );
 }
 
-export function RemediationVerification({ siteOrigin = "", load = invoke }) {
+// `findingKey` narrows the check to one finding (the finding card's "Review and close");
+// `onClearFinding` widens it back to every finding.
+export function RemediationVerification({ siteOrigin = "", load = invoke, findingKey = null, findingLabel = null, onClearFinding = null }) {
   const [data, setData] = React.useState(null);
   const [error, setError] = React.useState(null);
   const [selected, setSelected] = React.useState(() => new Set());
@@ -77,12 +87,12 @@ export function RemediationVerification({ siteOrigin = "", load = invoke }) {
   const refresh = React.useCallback(async () => {
     setError(null);
     try {
-      setData(await load("getRemediationVerification", {}));
+      setData(await load("getRemediationVerification", findingKey ? { findingKey } : {}));
     } catch (err) {
       setError(err?.message || "Could not check the remediation tasks.");
     }
-  }, [load]);
-  React.useEffect(() => { refresh(); }, [refresh]);
+  }, [load, findingKey]);
+  React.useEffect(() => { setData(null); refresh(); }, [refresh]);
 
   const toggle = (key) => setSelected((s) => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; });
   const toggleAll = (rows, on) => setSelected((s) => { const n = new Set(s); rows.forEach((r) => (on ? n.add(r.issueKey) : n.delete(r.issueKey))); return n; });
@@ -92,7 +102,7 @@ export function RemediationVerification({ siteOrigin = "", load = invoke }) {
     setBusy(true);
     setPending(null);
     try {
-      const result = await load("applyRemediationVerification", { issueKeys: rows.map((r) => r.issueKey) });
+      const result = await load("applyRemediationVerification", { issueKeys: rows.map((r) => r.issueKey), ...(findingKey ? { findingKey } : {}) });
       setOutcome(result);
       setSelected(new Set());
       await refresh();
@@ -103,20 +113,28 @@ export function RemediationVerification({ siteOrigin = "", load = invoke }) {
     }
   }
 
-  if (error) return <EmptyState inline>{error}</EmptyState>;
-  if (!data) return <EmptyState inline>Checking every remediation task against the latest scan…</EmptyState>;
+  const scope = findingKey && (
+    <p className="remediation-history">
+      Showing tasks for <strong>{findingLabel || findingKey}</strong> only.
+      {onClearFinding && <>{" "}<LinkButton onClick={onClearFinding}>Show every finding</LinkButton></>}
+    </p>
+  );
+  if (error) return <>{scope}<EmptyState inline>{error}</EmptyState></>;
+  if (!data) return <>{scope}<EmptyState inline>Checking {findingKey ? "this finding's" : "every"} remediation task{findingKey ? "s" : ""} against the latest scan…</EmptyState></>;
   const rows = data.rows || [];
   const counts = data.counts || {};
-  if (!rows.length) return <EmptyState inline>No remediation tasks yet. Create some from the Findings view, then come back after the next scan.</EmptyState>;
+  if (!rows.length) return <>{scope}<EmptyState inline>No remediation tasks yet. Create some from the Findings view, then come back after the next scan.</EmptyState></>;
 
   const byVerdict = (v) => rows.filter((r) => r.verdict === v);
   return (
     <>
+      {scope}
       <StatRow>
         <StatTile label="Fixes that held" value={formatNumber(counts.held || 0)} tone={counts.held ? "success" : "neutral"} icon="checkCircle"
           hint={typeof data.heldRate === "number" ? `${Math.round(data.heldRate * 100)}% of closed tasks` : "nothing closed yet"} />
         <StatTile label="Closed, still flagged" value={formatNumber(counts.regressed || 0)} tone={counts.regressed ? "critical" : "neutral"} icon="alertTriangle" />
-        <StatTile label="Fixed, still open" value={formatNumber(counts["fixed-open"] || 0)} tone={counts["fixed-open"] ? "warning" : "neutral"} icon="clock" />
+        <StatTile label="Fixed, still open" value={formatNumber(counts["fixed-open"] || 0)} tone={counts["fixed-open"] ? "warning" : "neutral"} icon="clock"
+          hint={counts.withdrawn ? `${counts.withdrawn} more withdrawn: the advice was wrong` : null} />
         <StatTile label="Open and still flagged" value={formatNumber(counts.open || 0)} tone="active" icon="wrench"
           hint={counts.unverified ? `${counts.unverified} could not be checked` : null} />
       </StatRow>
@@ -125,8 +143,8 @@ export function RemediationVerification({ siteOrigin = "", load = invoke }) {
       {pending && (
         <div className="verify-confirm" role="alertdialog" aria-label="Confirm the change in Jira">
           <p>
-            {pending.group.verdict === "regressed" ? "Reopen" : "Close"} {pending.rows.length} ticket{pending.rows.length === 1 ? "" : "s"} in Jira,
-            as you, with a comment on each explaining why. Each verdict is checked again before anything moves.
+            {pending.group.verdict === "regressed" ? "Reopen" : pending.group.verdict === "withdrawn" ? "Withdraw" : "Close"} {pending.rows.length} ticket{pending.rows.length === 1 ? "" : "s"} in Jira,
+            as you, with a comment on each explaining why{pending.group.verdict === "withdrawn" ? " and telling the assignee not to act" : ""}. Each verdict is checked again before anything moves.
           </p>
           <button type="button" className="primary-button" onClick={confirm}>{pending.group.action}</button>{" "}
           <button type="button" className="secondary-button" onClick={() => setPending(null)}>Cancel</button>
@@ -154,7 +172,7 @@ export function RemediationVerification({ siteOrigin = "", load = invoke }) {
           busy={busy}
         />
       ))}
-      {!byVerdict("regressed").length && !byVerdict("fixed-open").length && (
+      {!byVerdict("regressed").length && !byVerdict("fixed-open").length && !byVerdict("withdrawn").length && (
         <EmptyState inline>Every closed task held, and no open task is already fixed.</EmptyState>
       )}
     </>
