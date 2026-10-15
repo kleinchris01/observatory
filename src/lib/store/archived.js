@@ -15,30 +15,51 @@ import { chunkArray, ensureProjectStoreReady, toNumber, withSqlRetry } from "./c
 
 // Replace the archived list. `available: false` records that Jira refused, so readers report
 // "could not check" rather than "none archived".
-export async function replaceArchivedProjects(scopeKey, projects = [], { available = true, error = null, now = new Date() } = {}) {
+export async function replaceArchivedProjects(
+  scopeKey,
+  projects = [],
+  { available = true, error = null, now = new Date() } = {},
+) {
   await ensureProjectStoreReady();
   const checkedAt = now.toISOString();
   if (available) {
-    await withSqlRetry(() => sql.prepare("DELETE FROM archived_projects WHERE scope_key = ?").bindParams(scopeKey).execute());
+    await withSqlRetry(() =>
+      sql.prepare("DELETE FROM archived_projects WHERE scope_key = ?").bindParams(scopeKey).execute(),
+    );
     for (const batch of chunkArray(projects, 100)) {
       const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(", ");
       const params = batch.flatMap((p) => [
-        scopeKey, String(p.id), p.key || null, p.name || null, p.archivedAt || null,
-        p.issueCount != null ? Number(p.issueCount) : null, checkedAt,
+        scopeKey,
+        String(p.id),
+        p.key || null,
+        p.name || null,
+        p.archivedAt || null,
+        p.issueCount != null ? Number(p.issueCount) : null,
+        checkedAt,
       ]);
       await withSqlRetry(() =>
-        sql.prepare(`
+        sql
+          .prepare(
+            `
           INSERT INTO archived_projects (scope_key, project_id, project_key, project_name, archived_at, issue_count, checked_at)
           VALUES ${valuesSql}
-        `).bindParams(...params).execute()
+        `,
+          )
+          .bindParams(...params)
+          .execute(),
       );
     }
   }
   await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       INSERT INTO archived_projects_meta (scope_key, checked_at, available, last_error) VALUES (?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE checked_at = VALUES(checked_at), available = VALUES(available), last_error = VALUES(last_error)
-    `).bindParams(scopeKey, checkedAt, available ? 1 : 0, error ? String(error).slice(0, 500) : null).execute()
+    `,
+      )
+      .bindParams(scopeKey, checkedAt, available ? 1 : 0, error ? String(error).slice(0, 500) : null)
+      .execute(),
   );
 }
 
@@ -47,16 +68,23 @@ export async function replaceArchivedProjects(scopeKey, projects = [], { availab
 export async function loadArchivedProjects(scopeKey) {
   await ensureProjectStoreReady();
   const meta = await withSqlRetry(() =>
-    sql.prepare("SELECT checked_at, available, last_error FROM archived_projects_meta WHERE scope_key = ?")
-      .bindParams(scopeKey).execute()
+    sql
+      .prepare("SELECT checked_at, available, last_error FROM archived_projects_meta WHERE scope_key = ?")
+      .bindParams(scopeKey)
+      .execute(),
   );
   const m = meta.rows?.[0];
   if (!m) return null;
   const rows = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT project_id, project_key, project_name, archived_at, issue_count
       FROM archived_projects WHERE scope_key = ? ORDER BY project_key ASC
-    `).bindParams(scopeKey).execute()
+    `,
+      )
+      .bindParams(scopeKey)
+      .execute(),
   );
   return {
     checkedAt: m.checked_at,
@@ -83,23 +111,40 @@ export async function preserveArchivedFieldUsage(scopeKey, version, archivedProj
     const placeholders = batch.map(() => "?").join(", ");
     // eslint-disable-next-line no-await-in-loop -- batched
     const result = await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         SELECT field_id, project_id, project_key, issue_count
         FROM snapshot_project_usage
         WHERE scope_key = ? AND version = ? AND project_id IN (${placeholders}) AND issue_count > 0
-      `).bindParams(scopeKey, version, ...batch).execute()
+      `,
+        )
+        .bindParams(scopeKey, version, ...batch)
+        .execute(),
     );
     const rows = result.rows || [];
     for (const chunk of chunkArray(rows, 100)) {
       const valuesSql = chunk.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
-      const params = chunk.flatMap((r) => [scopeKey, r.field_id, String(r.project_id), r.project_key || null, toNumber(r.issue_count), now.toISOString()]);
+      const params = chunk.flatMap((r) => [
+        scopeKey,
+        r.field_id,
+        String(r.project_id),
+        r.project_key || null,
+        toNumber(r.issue_count),
+        now.toISOString(),
+      ]);
       // eslint-disable-next-line no-await-in-loop
       await withSqlRetry(() =>
-        sql.prepare(`
+        sql
+          .prepare(
+            `
           INSERT INTO field_archived_usage (scope_key, field_id, project_id, project_key, issue_count, last_seen_at)
           VALUES ${valuesSql}
           ON DUPLICATE KEY UPDATE project_key = VALUES(project_key), issue_count = VALUES(issue_count), last_seen_at = VALUES(last_seen_at)
-        `).bindParams(...params).execute()
+        `,
+          )
+          .bindParams(...params)
+          .execute(),
       );
     }
     copied += rows.length;
@@ -113,13 +158,17 @@ export async function pruneRestoredArchivedUsage(scopeKey, archivedProjectIds = 
   await ensureProjectStoreReady();
   const ids = [...new Set(archivedProjectIds.map(String))];
   if (!ids.length) {
-    await withSqlRetry(() => sql.prepare("DELETE FROM field_archived_usage WHERE scope_key = ?").bindParams(scopeKey).execute());
+    await withSqlRetry(() =>
+      sql.prepare("DELETE FROM field_archived_usage WHERE scope_key = ?").bindParams(scopeKey).execute(),
+    );
     return;
   }
   const placeholders = ids.map(() => "?").join(", ");
   await withSqlRetry(() =>
-    sql.prepare(`DELETE FROM field_archived_usage WHERE scope_key = ? AND project_id NOT IN (${placeholders})`)
-      .bindParams(scopeKey, ...ids).execute()
+    sql
+      .prepare(`DELETE FROM field_archived_usage WHERE scope_key = ? AND project_id NOT IN (${placeholders})`)
+      .bindParams(scopeKey, ...ids)
+      .execute(),
   );
 }
 
@@ -131,7 +180,14 @@ export async function loadArchivedFieldUsage(scopeKey, fieldIds = null) {
     for (const r of rows || []) {
       const id = String(r.field_id);
       if (!out.has(id)) out.set(id, []);
-      out.get(id).push({ projectId: String(r.project_id), projectKey: r.project_key || String(r.project_id), issueCount: toNumber(r.issue_count), lastSeenAt: r.last_seen_at || null });
+      out
+        .get(id)
+        .push({
+          projectId: String(r.project_id),
+          projectKey: r.project_key || String(r.project_id),
+          issueCount: toNumber(r.issue_count),
+          lastSeenAt: r.last_seen_at || null,
+        });
     }
   };
   if (fieldIds) {
@@ -140,17 +196,26 @@ export async function loadArchivedFieldUsage(scopeKey, fieldIds = null) {
       const placeholders = batch.map(() => "?").join(", ");
       // eslint-disable-next-line no-await-in-loop
       const result = await withSqlRetry(() =>
-        sql.prepare(`
+        sql
+          .prepare(
+            `
           SELECT field_id, project_id, project_key, issue_count, last_seen_at
           FROM field_archived_usage WHERE scope_key = ? AND field_id IN (${placeholders})
-        `).bindParams(scopeKey, ...batch).execute()
+        `,
+          )
+          .bindParams(scopeKey, ...batch)
+          .execute(),
       );
       push(result.rows);
     }
   } else {
     const result = await withSqlRetry(() =>
-      sql.prepare("SELECT field_id, project_id, project_key, issue_count, last_seen_at FROM field_archived_usage WHERE scope_key = ?")
-        .bindParams(scopeKey).execute()
+      sql
+        .prepare(
+          "SELECT field_id, project_id, project_key, issue_count, last_seen_at FROM field_archived_usage WHERE scope_key = ?",
+        )
+        .bindParams(scopeKey)
+        .execute(),
     );
     push(result.rows);
   }

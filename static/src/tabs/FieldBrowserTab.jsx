@@ -39,7 +39,14 @@ const FIELD_SORT_OPTIONS = [
 
 // The largest single tab, and the one most worth testing in isolation.
 
-export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSelectedFieldIds, onGoToReport, siteOrigin, intent = null }) {
+export function FieldBrowserTab({
+  selectedFieldIds = [],
+  onToggleField,
+  onSetSelectedFieldIds,
+  onGoToReport,
+  siteOrigin,
+  intent = null,
+}) {
   const selectedSet = React.useMemo(() => new Set(selectedFieldIds), [selectedFieldIds]);
   const [pageSize, setPageSize] = React.useState(() => {
     const saved = Number(localStorage.getItem("admin-field-pagesize"));
@@ -116,11 +123,17 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
   const [rovoEnabled, setRovoEnabled] = React.useState(false);
 
   React.useEffect(() => {
-    view.getContext().then(() => setRovoEnabled(true)).catch(() => {});
+    view
+      .getContext()
+      .then(() => setRovoEnabled(true))
+      .catch(() => {});
   }, []);
 
   React.useEffect(() => {
-    const t = setTimeout(() => { setDeferredQuery(query); setPage(1); }, 350);
+    const t = setTimeout(() => {
+      setDeferredQuery(query);
+      setPage(1);
+    }, 350);
     return () => clearTimeout(t);
   }, [query]);
 
@@ -161,14 +174,19 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
       maxActiveProjects: deferredMaxActiveProjects,
       minContexts: deferredMinContexts,
       maxContexts: deferredMaxContexts,
-    }).then((result) => {
-      if (!cancelled) setData(result);
-    }).catch((err) => {
-      if (!cancelled) setLoadError(err.message || "Failed to load field inventory.");
-    }).finally(() => {
-      if (!cancelled) setLoading(false);
-    });
-    return () => { cancelled = true; };
+    })
+      .then((result) => {
+        if (!cancelled) setData(result);
+      })
+      .catch((err) => {
+        if (!cancelled) setLoadError(err.message || "Failed to load field inventory.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [
     deferredQuery,
     typeFilter,
@@ -190,26 +208,35 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
   ]);
 
   function openField(fieldId) {
-    if (openFieldId === fieldId) { setOpenFieldId(null); return; }
+    if (openFieldId === fieldId) {
+      setOpenFieldId(null);
+      return;
+    }
     setOpenFieldId(fieldId);
     setDetailError("");
     if (!fieldDetails[fieldId]) {
       setDetailLoading(true);
-      invoke("getFieldDetails", { fieldId, usagePage: 1 }).then((result) => {
-        setFieldDetails((prev) => ({ ...prev, [fieldId]: result }));
-      }).catch((err) => {
-        setDetailError(err.message || "Failed to load field details.");
-      }).finally(() => setDetailLoading(false));
+      invoke("getFieldDetails", { fieldId, usagePage: 1 })
+        .then((result) => {
+          setFieldDetails((prev) => ({ ...prev, [fieldId]: result }));
+        })
+        .catch((err) => {
+          setDetailError(err.message || "Failed to load field details.");
+        })
+        .finally(() => setDetailLoading(false));
     }
   }
 
   function loadDetailPage(fieldId, pg) {
     setDetailLoading(true);
-    invoke("getFieldDetails", { fieldId, usagePage: pg }).then((result) => {
-      setFieldDetails((prev) => ({ ...prev, [fieldId]: result }));
-    }).catch((err) => {
-      setDetailError(err.message || "Failed to load.");
-    }).finally(() => setDetailLoading(false));
+    invoke("getFieldDetails", { fieldId, usagePage: pg })
+      .then((result) => {
+        setFieldDetails((prev) => ({ ...prev, [fieldId]: result }));
+      })
+      .catch((err) => {
+        setDetailError(err.message || "Failed to load.");
+      })
+      .finally(() => setDetailLoading(false));
   }
 
   function refreshProjectUsage(fieldId, pg) {
@@ -307,9 +334,15 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
     if (!fields.length) return undefined;
     let cancelled = false;
     invoke("getAutomationFieldCounts", { fields: fields.map((f) => ({ id: f.id, name: f.name })) })
-      .then((result) => { if (!cancelled) setAutomationCounts(result?.counts || {}); })
-      .catch(() => { if (!cancelled) setAutomationCounts({}); });
-    return () => { cancelled = true; };
+      .then((result) => {
+        if (!cancelled) setAutomationCounts(result?.counts || {});
+      })
+      .catch(() => {
+        if (!cancelled) setAutomationCounts({});
+      });
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageFieldKey]);
 
@@ -319,11 +352,17 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
     // Name AND id, because JQL names most fields by name and reaches the rest through
     // cf[10001]. The resolver folds both back onto the field id.
     invoke("getFieldFilterCounts", { fields: fields.map((f) => ({ id: f.id, name: f.name })) })
-      .then((result) => { if (!cancelled) setFilterCounts(result || { available: false, counts: {} }); })
+      .then((result) => {
+        if (!cancelled) setFilterCounts(result || { available: false, counts: {} });
+      })
       // Silent, like the two above: an unbuilt filter inventory is the normal fresh-install
       // state, and the chip renders that as unknown rather than as zero.
-      .catch(() => { if (!cancelled) setFilterCounts({ available: false, counts: {} }); });
-    return () => { cancelled = true; };
+      .catch(() => {
+        if (!cancelled) setFilterCounts({ available: false, counts: {} });
+      });
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageFieldKey]);
 
@@ -331,11 +370,17 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
     if (!fields.length) return undefined;
     let cancelled = false;
     invoke("getFieldScreenCounts", { fieldIds: fields.map((f) => f.id) })
-      .then((result) => { if (!cancelled) setScreenCounts(result || { available: false, counts: {} }); })
+      .then((result) => {
+        if (!cancelled) setScreenCounts(result || { available: false, counts: {} });
+      })
       // Silent, like the automation counts above: an unbuilt screen inventory is the normal
       // fresh-install state, and the chip already renders that as unknown rather than zero.
-      .catch(() => { if (!cancelled) setScreenCounts({ available: false, counts: {} }); });
-    return () => { cancelled = true; };
+      .catch(() => {
+        if (!cancelled) setScreenCounts({ available: false, counts: {} });
+      });
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageFieldKey]);
 
@@ -345,9 +390,15 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
     // Bulk, like the filter counts above: field -> filter ids -> gadgets, answered for a
     // whole page at once rather than the per-field chain the expanded card section uses.
     invoke("getFieldDashboardCounts", { fields: fields.map((f) => ({ id: f.id, name: f.name })) })
-      .then((result) => { if (!cancelled) setDashboardGadgetCounts(result || { available: false, counts: {} }); })
-      .catch(() => { if (!cancelled) setDashboardGadgetCounts({ available: false, counts: {} }); });
-    return () => { cancelled = true; };
+      .then((result) => {
+        if (!cancelled) setDashboardGadgetCounts(result || { available: false, counts: {} });
+      })
+      .catch(() => {
+        if (!cancelled) setDashboardGadgetCounts({ available: false, counts: {} });
+      });
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageFieldKey]);
 
@@ -384,7 +435,9 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
         <span className="admin-pagination__info">
           {total > 0
             ? `Showing ${startItem}–${endItem} of ${total.toLocaleString()} fields`
-            : loading ? "Loading…" : "No fields match the current filter"}
+            : loading
+              ? "Loading…"
+              : "No fields match the current filter"}
         </span>
         {top && (
           <div className="admin-field-browser__pagesize">
@@ -394,16 +447,50 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
                 key={n}
                 type="button"
                 className={`admin-field-browser__pagesize-btn${pageSize === n ? " admin-field-browser__pagesize-btn--active" : ""}`}
-                onClick={() => { localStorage.setItem("admin-field-pagesize", n); setPageSize(n); setPage(1); }}
-              >{n}</button>
+                onClick={() => {
+                  localStorage.setItem("admin-field-pagesize", n);
+                  setPageSize(n);
+                  setPage(1);
+                }}
+              >
+                {n}
+              </button>
             ))}
           </div>
         )}
         <div className="admin-field-browser__page-nav">
-          <button disabled={page <= 1} className="secondary-button secondary-button--small" type="button" onClick={() => setPage(1)}>First</button>
-          <button disabled={page <= 1} className="secondary-button secondary-button--small" type="button" onClick={() => setPage((p) => p - 1)}>Previous</button>
-          <button disabled={page >= totalPages} className="secondary-button secondary-button--small" type="button" onClick={() => setPage((p) => p + 1)}>Next</button>
-          <button disabled={page >= totalPages} className="secondary-button secondary-button--small" type="button" onClick={() => setPage(totalPages)}>Last</button>
+          <button
+            disabled={page <= 1}
+            className="secondary-button secondary-button--small"
+            type="button"
+            onClick={() => setPage(1)}
+          >
+            First
+          </button>
+          <button
+            disabled={page <= 1}
+            className="secondary-button secondary-button--small"
+            type="button"
+            onClick={() => setPage((p) => p - 1)}
+          >
+            Previous
+          </button>
+          <button
+            disabled={page >= totalPages}
+            className="secondary-button secondary-button--small"
+            type="button"
+            onClick={() => setPage((p) => p + 1)}
+          >
+            Next
+          </button>
+          <button
+            disabled={page >= totalPages}
+            className="secondary-button secondary-button--small"
+            type="button"
+            onClick={() => setPage(totalPages)}
+          >
+            Last
+          </button>
         </div>
       </div>
     );
@@ -414,41 +501,120 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
     const chips = [];
     if (fieldOrigin !== "all") {
       const label = fieldOrigin === "user-created" ? "User-created" : "Jira built-in";
-      chips.push({ id: "fieldOrigin", label: `Origin: ${label}`, clear: () => { setFieldOrigin("all"); setPage(1); } });
+      chips.push({
+        id: "fieldOrigin",
+        label: `Origin: ${label}`,
+        clear: () => {
+          setFieldOrigin("all");
+          setPage(1);
+        },
+      });
     }
     if (projectUsageFilter !== "all") {
-      const labels = { "not-built": "not-built", "built": "built", "building": "building", "incomplete": "incomplete" };
-      chips.push({ id: "projectUsageFilter", label: `Build: ${labels[projectUsageFilter] || projectUsageFilter}`, clear: () => { setProjectUsageFilter("all"); setPage(1); } });
+      const labels = { "not-built": "not-built", built: "built", building: "building", incomplete: "incomplete" };
+      chips.push({
+        id: "projectUsageFilter",
+        label: `Build: ${labels[projectUsageFilter] || projectUsageFilter}`,
+        clear: () => {
+          setProjectUsageFilter("all");
+          setPage(1);
+        },
+      });
     }
     if (hasDescription !== "all") {
-      chips.push({ id: "hasDescription", label: `Has description: ${hasDescription === "yes" ? "Yes" : "No"}`, clear: () => { setHasDescription("all"); setPage(1); } });
+      chips.push({
+        id: "hasDescription",
+        label: `Has description: ${hasDescription === "yes" ? "Yes" : "No"}`,
+        clear: () => {
+          setHasDescription("all");
+          setPage(1);
+        },
+      });
     }
     if (duplicateNamesOnly) {
-      chips.push({ id: "duplicateNamesOnly", label: "Duplicate names only", clear: () => { setDuplicateNamesOnly(false); setPage(1); } });
+      chips.push({
+        id: "duplicateNamesOnly",
+        label: "Duplicate names only",
+        clear: () => {
+          setDuplicateNamesOnly(false);
+          setPage(1);
+        },
+      });
     }
     if (hideSystemFields) {
-      chips.push({ id: "hideSystemFields", label: "System fields hidden", clear: () => { setHideSystemFields(false); setPage(1); } });
+      chips.push({
+        id: "hideSystemFields",
+        label: "System fields hidden",
+        clear: () => {
+          setHideSystemFields(false);
+          setPage(1);
+        },
+      });
     }
     if (minIssues !== "" || maxIssues !== "") {
       const range = [minIssues || "0", maxIssues || "∞"].join("–");
-      chips.push({ id: "issues", label: `Issues: ${range}`, clear: () => { setMinIssues(""); setMaxIssues(""); setPage(1); } });
+      chips.push({
+        id: "issues",
+        label: `Issues: ${range}`,
+        clear: () => {
+          setMinIssues("");
+          setMaxIssues("");
+          setPage(1);
+        },
+      });
     }
     if (minActiveProjects !== "" || maxActiveProjects !== "") {
       const range = [minActiveProjects || "0", maxActiveProjects || "∞"].join("–");
-      chips.push({ id: "activeProjects", label: `Active projects: ${range}`, clear: () => { setMinActiveProjects(""); setMaxActiveProjects(""); setPage(1); } });
+      chips.push({
+        id: "activeProjects",
+        label: `Active projects: ${range}`,
+        clear: () => {
+          setMinActiveProjects("");
+          setMaxActiveProjects("");
+          setPage(1);
+        },
+      });
     }
     if (minContexts !== "" || maxContexts !== "") {
       const range = [minContexts || "0", maxContexts || "∞"].join("–");
-      chips.push({ id: "contexts", label: `Contexts: ${range}`, clear: () => { setMinContexts(""); setMaxContexts(""); setPage(1); } });
+      chips.push({
+        id: "contexts",
+        label: `Contexts: ${range}`,
+        clear: () => {
+          setMinContexts("");
+          setMaxContexts("");
+          setPage(1);
+        },
+      });
     }
     if (findingsFilter !== "all") {
       // Was hardcoded to "Admin attention" whichever filter was set, which is a lie the
       // moment a deep link can arrive with any of the four.
       const label = FINDINGS_FILTER_LABELS[findingsFilter] ?? findingsFilter;
-      chips.push({ id: "findingsFilter", label: `Findings: ${label}`, clear: () => { setFindingsFilter("all"); setPage(1); } });
+      chips.push({
+        id: "findingsFilter",
+        label: `Findings: ${label}`,
+        clear: () => {
+          setFindingsFilter("all");
+          setPage(1);
+        },
+      });
     }
     return chips;
-  }, [fieldOrigin, projectUsageFilter, hasDescription, duplicateNamesOnly, hideSystemFields, minIssues, maxIssues, minActiveProjects, maxActiveProjects, minContexts, maxContexts, findingsFilter]);
+  }, [
+    fieldOrigin,
+    projectUsageFilter,
+    hasDescription,
+    duplicateNamesOnly,
+    hideSystemFields,
+    minIssues,
+    maxIssues,
+    minActiveProjects,
+    maxActiveProjects,
+    minContexts,
+    maxContexts,
+    findingsFilter,
+  ]);
 
   return (
     <div className="admin-field-browser">
@@ -460,162 +626,182 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
           searchLabel="Search fields"
           searchPlaceholder="Field name, ID, or description…"
           sort={sortBy}
-          onSortChange={(value) => { setSortBy(value); setPage(1); }}
+          onSortChange={(value) => {
+            setSortBy(value);
+            setPage(1);
+          }}
           sortOptions={FIELD_SORT_OPTIONS}
-          filters={[{
-            key: "type",
-            label: "Type",
-            value: typeFilter,
-            onChange: (value) => { setTypeFilter(value); setPage(1); },
-            options: [{ value: "all", label: "All types" }, ...availableTypes.map((t) => ({ value: t, label: t }))],
-          }]}
+          filters={[
+            {
+              key: "type",
+              label: "Type",
+              value: typeFilter,
+              onChange: (value) => {
+                setTypeFilter(value);
+                setPage(1);
+              },
+              options: [{ value: "all", label: "All types" }, ...availableTypes.map((t) => ({ value: t, label: t }))],
+            },
+          ]}
           onClear={clearAllFilters}
         >
-        <div className="admin-field-browser__filter-anchor" ref={filterPanelRef}>
-          <button
-            type="button"
-            className={`admin-field-browser__filter-toggle${filtersOpen ? " admin-field-browser__filter-toggle--active" : ""}`}
-            onClick={() => setFiltersOpen((v) => !v)}
-            aria-expanded={filtersOpen}
-          >
-            Filters
-            {activeFilterCount > 0 && (
-              <span className="admin-field-browser__filter-badge">{activeFilterCount}</span>
+          <div className="admin-field-browser__filter-anchor" ref={filterPanelRef}>
+            <button
+              type="button"
+              className={`admin-field-browser__filter-toggle${filtersOpen ? " admin-field-browser__filter-toggle--active" : ""}`}
+              onClick={() => setFiltersOpen((v) => !v)}
+              aria-expanded={filtersOpen}
+            >
+              Filters
+              {activeFilterCount > 0 && <span className="admin-field-browser__filter-badge">{activeFilterCount}</span>}
+            </button>
+
+            {/* Floating filter popover */}
+            {filtersOpen && (
+              <div className="admin-field-browser__filter-panel">
+                <div className="admin-field-browser__filter-group">
+                  <span className="admin-field-browser__filter-group-label">Origin &amp; status</span>
+                  <div className="admin-field-browser__filter-group-controls">
+                    <select
+                      aria-label="Field origin"
+                      value={fieldOrigin}
+                      onChange={(e) => {
+                        setFieldOrigin(e.target.value);
+                        setPage(1);
+                      }}
+                    >
+                      <option value="all">All fields</option>
+                      <option value="user-created">User-created</option>
+                      <option value="jira-builtin">Jira built-in</option>
+                    </select>
+                    <select
+                      aria-label="Project usage build status"
+                      value={projectUsageFilter}
+                      onChange={(e) => {
+                        setProjectUsageFilter(e.target.value);
+                        setPage(1);
+                      }}
+                    >
+                      <option value="all">Any build status</option>
+                      <option value="not-built">Not built</option>
+                      <option value="built">Built</option>
+                      <option value="building">Building</option>
+                      <option value="incomplete">Incomplete</option>
+                    </select>
+                    <select
+                      aria-label="Has description"
+                      value={hasDescription}
+                      onChange={(e) => {
+                        setHasDescription(e.target.value);
+                        setPage(1);
+                      }}
+                    >
+                      <option value="all">Description: any</option>
+                      <option value="yes">Has description</option>
+                      <option value="no">No description</option>
+                    </select>
+                    <label className="admin-field-browser__checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={duplicateNamesOnly}
+                        onChange={(e) => {
+                          setDuplicateNamesOnly(e.target.checked);
+                          setPage(1);
+                        }}
+                      />
+                      Duplicate names only
+                    </label>
+                    <label
+                      className="admin-field-browser__checkbox-label"
+                      title="Rank, Comment, Watches, and the rest of what ships on every issue type regardless of project or scheme -- never a customfield_ id, and never something a governance decision about a custom field applies to."
+                    >
+                      <input
+                        type="checkbox"
+                        checked={hideSystemFields}
+                        onChange={(e) => {
+                          setHideSystemFields(e.target.checked);
+                          setPage(1);
+                        }}
+                      />
+                      Hide system fields
+                    </label>
+                  </div>
+                </div>
+
+                <div className="admin-field-browser__filter-group">
+                  <span className="admin-field-browser__filter-group-label">Issues with value</span>
+                  <div className="admin-field-browser__range-inputs">
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="Min"
+                      aria-label="Minimum issues with value"
+                      value={minIssues}
+                      onChange={(e) => setMinIssues(e.target.value)}
+                    />
+                    <span className="admin-field-browser__range-sep">–</span>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="Max"
+                      aria-label="Maximum issues with value"
+                      value={maxIssues}
+                      onChange={(e) => setMaxIssues(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="admin-field-browser__filter-group">
+                  <span className="admin-field-browser__filter-group-label">Active projects</span>
+                  <div className="admin-field-browser__range-inputs">
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="Min"
+                      aria-label="Minimum active projects"
+                      value={minActiveProjects}
+                      onChange={(e) => setMinActiveProjects(e.target.value)}
+                    />
+                    <span className="admin-field-browser__range-sep">–</span>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="Max"
+                      aria-label="Maximum active projects"
+                      value={maxActiveProjects}
+                      onChange={(e) => setMaxActiveProjects(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="admin-field-browser__filter-group">
+                  <span className="admin-field-browser__filter-group-label">Contexts</span>
+                  <div className="admin-field-browser__range-inputs">
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="Min"
+                      aria-label="Minimum contexts"
+                      value={minContexts}
+                      onChange={(e) => setMinContexts(e.target.value)}
+                    />
+                    <span className="admin-field-browser__range-sep">–</span>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="Max"
+                      aria-label="Maximum contexts"
+                      value={maxContexts}
+                      onChange={(e) => setMaxContexts(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
             )}
-          </button>
-
-          {/* Floating filter popover */}
-          {filtersOpen && (
-            <div className="admin-field-browser__filter-panel">
-              <div className="admin-field-browser__filter-group">
-                <span className="admin-field-browser__filter-group-label">Origin &amp; status</span>
-                <div className="admin-field-browser__filter-group-controls">
-                  <select
-                    aria-label="Field origin"
-                    value={fieldOrigin}
-                    onChange={(e) => { setFieldOrigin(e.target.value); setPage(1); }}
-                  >
-                    <option value="all">All fields</option>
-                    <option value="user-created">User-created</option>
-                    <option value="jira-builtin">Jira built-in</option>
-                  </select>
-                  <select
-                    aria-label="Project usage build status"
-                    value={projectUsageFilter}
-                    onChange={(e) => { setProjectUsageFilter(e.target.value); setPage(1); }}
-                  >
-                    <option value="all">Any build status</option>
-                    <option value="not-built">Not built</option>
-                    <option value="built">Built</option>
-                    <option value="building">Building</option>
-                    <option value="incomplete">Incomplete</option>
-                  </select>
-                  <select
-                    aria-label="Has description"
-                    value={hasDescription}
-                    onChange={(e) => { setHasDescription(e.target.value); setPage(1); }}
-                  >
-                    <option value="all">Description: any</option>
-                    <option value="yes">Has description</option>
-                    <option value="no">No description</option>
-                  </select>
-                  <label className="admin-field-browser__checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={duplicateNamesOnly}
-                      onChange={(e) => { setDuplicateNamesOnly(e.target.checked); setPage(1); }}
-                    />
-                    Duplicate names only
-                  </label>
-                  <label className="admin-field-browser__checkbox-label" title="Rank, Comment, Watches, and the rest of what ships on every issue type regardless of project or scheme -- never a customfield_ id, and never something a governance decision about a custom field applies to.">
-                    <input
-                      type="checkbox"
-                      checked={hideSystemFields}
-                      onChange={(e) => { setHideSystemFields(e.target.checked); setPage(1); }}
-                    />
-                    Hide system fields
-                  </label>
-                </div>
-              </div>
-
-              <div className="admin-field-browser__filter-group">
-                <span className="admin-field-browser__filter-group-label">Issues with value</span>
-                <div className="admin-field-browser__range-inputs">
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="Min"
-                    aria-label="Minimum issues with value"
-                    value={minIssues}
-                    onChange={(e) => setMinIssues(e.target.value)}
-                  />
-                  <span className="admin-field-browser__range-sep">–</span>
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="Max"
-                    aria-label="Maximum issues with value"
-                    value={maxIssues}
-                    onChange={(e) => setMaxIssues(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="admin-field-browser__filter-group">
-                <span className="admin-field-browser__filter-group-label">Active projects</span>
-                <div className="admin-field-browser__range-inputs">
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="Min"
-                    aria-label="Minimum active projects"
-                    value={minActiveProjects}
-                    onChange={(e) => setMinActiveProjects(e.target.value)}
-                  />
-                  <span className="admin-field-browser__range-sep">–</span>
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="Max"
-                    aria-label="Maximum active projects"
-                    value={maxActiveProjects}
-                    onChange={(e) => setMaxActiveProjects(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="admin-field-browser__filter-group">
-                <span className="admin-field-browser__filter-group-label">Contexts</span>
-                <div className="admin-field-browser__range-inputs">
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="Min"
-                    aria-label="Minimum contexts"
-                    value={minContexts}
-                    onChange={(e) => setMinContexts(e.target.value)}
-                  />
-                  <span className="admin-field-browser__range-sep">–</span>
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="Max"
-                    aria-label="Maximum contexts"
-                    value={maxContexts}
-                    onChange={(e) => setMaxContexts(e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+          </div>
         </SortFilterBar>
         {activeFilterCount > 0 && (
-          <button
-            type="button"
-            className="admin-field-browser__clear-filters"
-            onClick={clearAllFilters}
-          >
+          <button type="button" className="admin-field-browser__clear-filters" onClick={clearAllFilters}>
             Clear all
           </button>
         )}
@@ -639,7 +825,10 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
             key={chip.key}
             type="button"
             className={`findings-filter-button${findingsFilter === chip.key ? " findings-filter-button--active" : ""}`}
-            onClick={() => { setFindingsFilter(chip.key); setPage(1); }}
+            onClick={() => {
+              setFindingsFilter(chip.key);
+              setPage(1);
+            }}
           >
             <span>{chip.label}</span>
             {typeof chip.count === "number" ? <strong>{chip.count}</strong> : null}
@@ -673,12 +862,7 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
               Clear
             </button>
           )}
-          <button
-            className="primary-button"
-            type="button"
-            onClick={onGoToReport}
-            disabled={!selectedFieldIds.length}
-          >
+          <button className="primary-button" type="button" onClick={onGoToReport} disabled={!selectedFieldIds.length}>
             <Icon name="barChart" size={13} />
             {`Generate report (${selectedFieldIds.length})`}
           </button>
@@ -726,7 +910,9 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
                 automationCounts={automationCounts[field.id]}
                 screenCount={screenCounts.available ? (screenCounts.counts[field.id] ?? 0) : null}
                 filterCount={filterCounts.available ? (filterCounts.counts[field.id] ?? 0) : null}
-                dashboardGadgetCount={dashboardGadgetCounts.available ? (dashboardGadgetCounts.counts[field.id] ?? 0) : null}
+                dashboardGadgetCount={
+                  dashboardGadgetCounts.available ? (dashboardGadgetCounts.counts[field.id] ?? 0) : null
+                }
                 screenSnapshot={screenCounts}
               />
             );

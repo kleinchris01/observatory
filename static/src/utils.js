@@ -62,7 +62,6 @@ export function formatRelativeTime(value) {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-
 export function formatContextList(values, fallback) {
   return values?.length ? values.join(", ") : fallback;
 }
@@ -247,7 +246,10 @@ export function buildFilterUsageRovoPrompt(field, usage) {
   ];
 
   if (usage?.available && usage?.total > 0) {
-    lines.push("", `Observatory currently records ${usage.total} filter${usage.total === 1 ? "" : "s"} referencing this field.`);
+    lines.push(
+      "",
+      `Observatory currently records ${usage.total} filter${usage.total === 1 ? "" : "s"} referencing this field.`,
+    );
   } else if (usage?.available) {
     lines.push("", "Observatory records no saved filter referencing this field. Confirm that.");
   }
@@ -269,7 +271,10 @@ export function buildDashboardUsageRovoPrompt(field, usage) {
   ];
 
   if (usage?.available && usage?.total > 0) {
-    lines.push("", `Observatory currently records ${usage.total} dashboard${usage.total === 1 ? "" : "s"} reached through ${usage.viaFilters} filter${usage.viaFilters === 1 ? "" : "s"}.`);
+    lines.push(
+      "",
+      `Observatory currently records ${usage.total} dashboard${usage.total === 1 ? "" : "s"} reached through ${usage.viaFilters} filter${usage.viaFilters === 1 ? "" : "s"}.`,
+    );
     if (usage.complete === false) {
       lines.push("The gadget configuration walk has not finished, so this may be an undercount.");
     }
@@ -295,9 +300,14 @@ export function buildScreenUsageRovoPrompt(field, result) {
   ];
 
   if (result?.available) {
-    lines.push("", `Observatory currently records ${rows.length} screen${rows.length === 1 ? "" : "s"} carrying this field.`);
+    lines.push(
+      "",
+      `Observatory currently records ${rows.length} screen${rows.length === 1 ? "" : "s"} carrying this field.`,
+    );
     if (result.unresolvedScreens > 0) {
-      lines.push(`${result.unresolvedScreens} screen${result.unresolvedScreens === 1 ? "" : "s"} could not be read in the last build, so this may be incomplete.`);
+      lines.push(
+        `${result.unresolvedScreens} screen${result.unresolvedScreens === 1 ? "" : "s"} could not be read in the last build, so this may be incomplete.`,
+      );
     }
   }
 
@@ -322,7 +332,9 @@ export function buildContextsRovoPrompt(field, details) {
     "",
     `Observatory currently records ${contexts.length} context${contexts.length === 1 ? "" : "s"}${globalCount ? `, ${globalCount} of them global` : ""}.`,
     contextNames.length ? `Sample context names: ${contextNames.join(", ")}.` : "",
-  ].filter(Boolean).join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export function buildAutomationRuleUrl(siteOrigin, ruleId) {
@@ -358,18 +370,48 @@ export function downloadCsv(filename, rows) {
 export const PILLAR_REPORT_NAV = [
   { key: "fields", label: "Fields", icon: "layers", agent: "observatory-field-expert", health: ["fields"] },
   { key: "projects", label: "Projects", icon: "folder", agent: "observatory-project-expert", health: ["projects"] },
-  { key: "workflows", label: "Workflows", icon: "activity", agent: "observatory-workflow-expert", health: ["workflows"] },
-  { key: "issueTypes", label: "Issue types", icon: "tag", agent: "observatory-issuetype-expert", health: ["issueTypes"] },
-  { key: "fieldConfigs", label: "Field schemes", icon: "listChecks", agent: "observatory-fieldconfig-expert", health: ["fieldConfigs"] },
+  {
+    key: "workflows",
+    label: "Workflows",
+    icon: "activity",
+    agent: "observatory-workflow-expert",
+    health: ["workflows"],
+  },
+  {
+    key: "issueTypes",
+    label: "Issue types",
+    icon: "tag",
+    agent: "observatory-issuetype-expert",
+    health: ["issueTypes"],
+  },
+  {
+    key: "fieldConfigs",
+    label: "Field schemes",
+    icon: "listChecks",
+    agent: "observatory-fieldconfig-expert",
+    health: ["fieldConfigs"],
+  },
   { key: "priorities", label: "Priorities", icon: "flag", agent: "observatory-estate-expert", health: ["estate"] },
   { key: "people", label: "People", icon: "user", agent: "observatory-people-expert", health: ["users"] },
   { key: "assets", label: "Assets", icon: "database", agent: "observatory-assets-expert", health: ["assets"] },
-  { key: "access", label: "Access", icon: "shield", agent: "observatory-access-expert", health: ["permissions", "security", "notifications", "roles"] },
+  {
+    key: "access",
+    label: "Access",
+    icon: "shield",
+    agent: "observatory-access-expert",
+    health: ["permissions", "security", "notifications", "roles"],
+  },
   { key: "screens", label: "Screens", icon: "browser", agent: "observatory-screen-expert", health: ["screens"] },
   { key: "filters", label: "Saved filters", icon: "search", agent: null, health: ["filters"] },
   { key: "dashboards", label: "Dashboards", icon: "grid", agent: null, health: ["dashboards"] },
   { key: "boards", label: "Boards", icon: "kanban", agent: null, health: ["boards"] },
-  { key: "automation", label: "Automation", icon: "refreshCw", agent: "observatory-automation-expert", health: ["automation"] },
+  {
+    key: "automation",
+    label: "Automation",
+    icon: "refreshCw",
+    agent: "observatory-automation-expert",
+    health: ["automation"],
+  },
   { key: "changes", label: "Changes", icon: "clock", agent: "observatory-change-expert", health: ["drift"] },
 ];
 
@@ -394,14 +436,19 @@ export function neutralizeFormula(text) {
 export function reportToCsvRows(report) {
   const columns = report?.columns || [];
   const lines = [
-    [`${report?.label || "Pillar"} report`, report?.refreshedAt ? `Snapshot ${report.refreshedAt}` : "Snapshot time unknown"],
+    [
+      `${report?.label || "Pillar"} report`,
+      report?.refreshedAt ? `Snapshot ${report.refreshedAt}` : "Snapshot time unknown",
+    ],
     columns.map((c) => c.label),
   ];
   for (const row of report?.rows || []) {
-    lines.push(columns.map((c) => {
-      const text = formatReportCell(row[c.key], c.kind);
-      return c.kind === "number" ? text : neutralizeFormula(text);
-    }));
+    lines.push(
+      columns.map((c) => {
+        const text = formatReportCell(row[c.key], c.kind);
+        return c.kind === "number" ? text : neutralizeFormula(text);
+      }),
+    );
   }
   return lines;
 }
@@ -465,9 +512,19 @@ export function writeStored(key, value) {
 export function buildScorecardReport(health, { scoredAt = null } = {}) {
   if (!health || !Array.isArray(health.pillars)) {
     return {
-      pillar: "scorecard", label: "Governance scorecard", entity: "dimensions", status: "unavailable",
+      pillar: "scorecard",
+      label: "Governance scorecard",
+      entity: "dimensions",
+      status: "unavailable",
       reason: "Health has not been scored yet. Open the Overview to score it.",
-      refreshedAt: null, columns: [], rows: [], total: 0, truncated: false, flaggedCount: 0, summary: [], notes: [],
+      refreshedAt: null,
+      columns: [],
+      rows: [],
+      total: 0,
+      truncated: false,
+      flaggedCount: 0,
+      summary: [],
+      notes: [],
     };
   }
   const rows = [];
@@ -479,7 +536,7 @@ export function buildScorecardReport(health, { scoredAt = null } = {}) {
         pillarScore: pillar.available ? pillar.score : null,
         dimension: dim.label,
         score: scored ? dim.score : null,
-        detail: scored ? (dim.detail || "") : (dim.reason || "Not measured"),
+        detail: scored ? dim.detail || "" : dim.reason || "Not measured",
         findings: scored && dim.score < SCORECARD_ATTENTION_BELOW ? ["needs-attention"] : [],
       });
     }
@@ -510,10 +567,15 @@ export function buildScorecardReport(health, { scoredAt = null } = {}) {
     summary: [
       { label: "Site score", value: health.score ?? "—", hint: health.grade ? `Grade ${health.grade}` : undefined },
       { label: "Pillars measured", value: `${measuredPillars} / ${health.pillars.length}` },
-      { label: "Dimensions scored", value: `${health.dimensionsScored ?? rows.filter((r) => r.score !== null).length} / ${health.dimensionsTotal ?? rows.length}` },
+      {
+        label: "Dimensions scored",
+        value: `${health.dimensionsScored ?? rows.filter((r) => r.score !== null).length} / ${health.dimensionsTotal ?? rows.length}`,
+      },
       { label: "Needing attention", value: flagged.length, tone: flagged.length > 0 ? "warning" : "success" },
     ],
-    notes: [`Dimensions scoring under ${SCORECARD_ATTENTION_BELOW} are flagged. Unmeasured dimensions are listed with the reason, not scored.`],
+    notes: [
+      `Dimensions scoring under ${SCORECARD_ATTENTION_BELOW} are flagged. Unmeasured dimensions are listed with the reason, not scored.`,
+    ],
   };
 }
 
@@ -524,7 +586,10 @@ export function buildPillarReportRovoPrompt(report) {
   for (const row of report?.rows || []) {
     for (const code of row.findings || []) counts.set(code, (counts.get(code) || 0) + 1);
   }
-  const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([code, n]) => `${code} (${n})`);
+  const top = [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([code, n]) => `${code} (${n})`);
   return buildRovoPrompt({
     task: `Summarise the ${report?.label || "pillar"} report for a Jira admin and say which findings to work on first.`,
     facts: [
@@ -620,8 +685,8 @@ export function groupReportFieldsByType(fields) {
       fieldType,
       fields: [...groupedFields].sort(
         (left, right) =>
-          String(left?.fieldName || "").localeCompare(String(right?.fieldName || ""))
-          || String(left?.fieldId || "").localeCompare(String(right?.fieldId || ""))
+          String(left?.fieldName || "").localeCompare(String(right?.fieldName || "")) ||
+          String(left?.fieldId || "").localeCompare(String(right?.fieldId || "")),
       ),
     }));
 }
@@ -694,7 +759,7 @@ export function summarizeReportData(fields, projects, uniqueIssueCount = null) {
       .sort((left, right) => right.issueCount - left.issueCount || left.fieldName.localeCompare(right.fieldName))
       .slice(0, 8),
     typeTotals: Array.from(typeTotals.values()).sort(
-      (left, right) => right.issueCount - left.issueCount || left.fieldType.localeCompare(right.fieldType)
+      (left, right) => right.issueCount - left.issueCount || left.fieldType.localeCompare(right.fieldType),
     ),
   };
 }
@@ -705,7 +770,9 @@ export function isUsageAvailable(source) {
 
 const SELECT_FIELD_TYPE_KEYWORDS = ["select", "multiselect", "radiobutton", "checkbox", "cascadingselect"];
 export function isSelectType(fieldType) {
-  const normalized = String(fieldType || "").toLowerCase().replace(/[\s\-_]/g, "");
+  const normalized = String(fieldType || "")
+    .toLowerCase()
+    .replace(/[\s\-_]/g, "");
   return SELECT_FIELD_TYPE_KEYWORDS.some((kw) => normalized.includes(kw));
 }
 
@@ -728,25 +795,22 @@ export function mergeFieldMetrics(field, source) {
   const sourceField = source.field || source;
   const configuredProjectCount = Math.max(
     field?.configuredProjectCount ?? field?.usageCount ?? 0,
-    sourceField?.configuredProjectCount ?? source?.configuredProjectCount ?? sourceField?.usageCount ?? 0
+    sourceField?.configuredProjectCount ?? source?.configuredProjectCount ?? sourceField?.usageCount ?? 0,
   );
   const activeProjectCount = Math.max(
     field?.activeProjectCount ?? 0,
-    sourceField?.activeProjectCount ?? source?.activeProjectCount ?? 0
+    sourceField?.activeProjectCount ?? source?.activeProjectCount ?? 0,
   );
   const totalIssueCount = Math.max(
     field?.totalIssueCount ?? 0,
-    sourceField?.totalIssueCount ?? source?.totalIssueCount ?? 0
+    sourceField?.totalIssueCount ?? source?.totalIssueCount ?? 0,
   );
   const derivedProjectUsageBuilt =
     sourceField?.projectUsageBuilt ??
     source?.projectUsageBuilt ??
     (source?.summaryStatus === "ready" ? true : undefined);
   const derivedProjectUsageState =
-    sourceField?.projectUsageState ||
-    source?.projectUsageState ||
-    source?.summaryStatus ||
-    null;
+    sourceField?.projectUsageState || source?.projectUsageState || source?.summaryStatus || null;
 
   return {
     ...field,
@@ -856,7 +920,16 @@ export function buildRovoPrompt({ task, facts = [] }) {
   return lines.join(" ");
 }
 
-export function buildInventoryRovoPrompt({ totalFields, availableTypes, refreshedAt, currentPage, totalPages, query, typeFilter, sortBy }) {
+export function buildInventoryRovoPrompt({
+  totalFields,
+  availableTypes,
+  refreshedAt,
+  currentPage,
+  totalPages,
+  query,
+  typeFilter,
+  sortBy,
+}) {
   return [
     "You are reviewing the Observatory Jira custom field inventory.",
     `Snapshot refreshed at: ${refreshedAt || "unknown"}.`,
@@ -873,7 +946,9 @@ export function buildInventoryRovoPrompt({ totalFields, availableTypes, refreshe
 export function buildFieldRovoPrompt(field, details) {
   const contexts = details?.contexts || [];
   const contextNames = contexts.map((context) => context.name).slice(0, 8);
-  const projectSamples = contexts.flatMap((context) => context.projects?.map((project) => project.key) || []).slice(0, 12);
+  const projectSamples = contexts
+    .flatMap((context) => context.projects?.map((project) => project.key) || [])
+    .slice(0, 12);
   const fieldJql = details?.fieldJql || field.fieldJql;
   const findings = details?.findings || details?.field?.findings || field.findings;
 
@@ -935,7 +1010,6 @@ export function buildReportRovoPrompt({ reportName, fields, projects, pendingFie
   ].join(" ");
 }
 
-
 // True for a Jira custom field, false for a system field.
 //
 // Jira custom fields are always `customfield_NNNNN`; everything else (comment, worklog,
@@ -946,7 +1020,6 @@ export function buildReportRovoPrompt({ reportName, fields, projects, pendingFie
 export function isCustomField(fieldId) {
   return String(fieldId || "").startsWith("customfield_");
 }
-
 
 // ── Client-side table controls ──────────────────────────────────────────────
 //
@@ -963,7 +1036,9 @@ export function isCustomField(fieldId) {
 function readPath(row, path) {
   if (row == null) return undefined;
   if (!String(path).includes(".")) return row[path];
-  return String(path).split(".").reduce((value, key) => (value == null ? undefined : value[key]), row);
+  return String(path)
+    .split(".")
+    .reduce((value, key) => (value == null ? undefined : value[key]), row);
 }
 
 // Case-insensitive and undefined-safe: a row missing the key must not match every search,
@@ -1022,14 +1097,10 @@ export function parseSortToken(token, fallback = { key: null, dir: "asc" }) {
 // Returns a NEW array; never sorts in place. Sorting the caller's array mutates React state
 // held elsewhere, which is the kind of bug that only shows up as a list that will not
 // re-render.
-export function applyTableControls(rows = [], {
-  search = "",
-  searchKeys = [],
-  sort = "",
-  sortKeys = {},
-  filters = [],
-  allValue = "all",
-} = {}) {
+export function applyTableControls(
+  rows = [],
+  { search = "", searchKeys = [], sort = "", sortKeys = {}, filters = [], allValue = "all" } = {},
+) {
   let out = Array.isArray(rows) ? rows : [];
 
   if (String(search ?? "").trim() && searchKeys.length) {

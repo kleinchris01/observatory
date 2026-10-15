@@ -44,11 +44,7 @@ export function macroPaginate(rows, page, pageSize = MACRO_PILLAR_PAGE_SIZE) {
 // agent-identity invocation with no end user -- does not carry one at all.
 export function callerAccountId(context) {
   return (
-    context?.accountId ||
-    context?.principal?.accountId ||
-    context?.context?.accountId ||
-    context?.principal?.id ||
-    null
+    context?.accountId || context?.principal?.accountId || context?.context?.accountId || context?.principal?.id || null
   );
 }
 
@@ -71,7 +67,10 @@ export async function viewerProjects(installationKey, context) {
   if (!fieldMeta?.version) return { available: false, projectIds: new Set(), projectKeys: new Set(), projects: [] };
 
   const all = await listSnapshotProjects(installationKey, fieldMeta.version).catch(() => []);
-  const browsable = await browsableOrAll(context, all.map((p) => p.projectId));
+  const browsable = await browsableOrAll(
+    context,
+    all.map((p) => p.projectId),
+  );
   const projects = all
     .filter((p) => browsable.has(String(p.projectId)))
     .map((p) => ({ projectId: String(p.projectId), projectKey: p.projectKey, projectName: p.projectName }));

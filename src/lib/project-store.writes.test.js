@@ -68,7 +68,10 @@ function mockSqlQueries(rowSets = []) {
     const call = { text: String(text), params: null };
     calls.push(call);
     const runner = {
-      bindParams: (...params) => { call.params = params; return runner; },
+      bindParams: (...params) => {
+        call.params = params;
+        return runner;
+      },
       execute: async () => {
         const next = rowSets[i++];
         return Array.isArray(next) ? { rows: next } : (next ?? { rows: [] });
@@ -100,8 +103,11 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("snapshot lifecycle writes", () => {
   const usage = Array.from({ length: 60 }, (_, i) => ({
-    fieldId: "customfield_1", projectId: String(i), projectKey: `P${i}`,
-    projectName: `Project ${i}`, issueCount: i,
+    fieldId: "customfield_1",
+    projectId: String(i),
+    projectKey: `P${i}`,
+    projectName: `Project ${i}`,
+    issueCount: i,
   }));
 
   test("replaceSnapshotProjectUsage and appendSnapshotProjectUsage write usage rows", async () => {
@@ -307,7 +313,14 @@ describe("retention and migration", () => {
   test("replaceFieldOptionsCache clears the field before rewriting it", async () => {
     const calls = mockSqlQueries();
     await replaceFieldOptionsCache("scope", "customfield_1", [
-      { contextId: "ctx1", contextName: "Global", options: [{ id: "1", value: "A" }, { id: "2", value: "B" }] },
+      {
+        contextId: "ctx1",
+        contextName: "Global",
+        options: [
+          { id: "1", value: "A" },
+          { id: "2", value: "B" },
+        ],
+      },
     ]);
     const del = calls.find((c) => sqlHas(c, "delete from field_options_cache"));
     expect(del).toBeDefined();

@@ -3,13 +3,7 @@
 // Moved verbatim from src/resolvers.js; see docs/resolvers-refactor.md.
 
 import { incrMetric, METRIC_NAMES, getInstallationKey } from "../../lib/jira-api.js";
-import {
-  pillarUnavailable,
-  agentOk,
-  agentNotFound,
-  rankMatches,
-  clampResults,
-} from "../../lib/rovo-agents.js";
+import { pillarUnavailable, agentOk, agentNotFound, rankMatches, clampResults } from "../../lib/rovo-agents.js";
 import { loadWorkflowSchemeProjects } from "../../lib/project-store.js";
 import { findDuplicateStatusGroups, computeSchemeCategoryBalance } from "../../lib/workflow-insights.js";
 import { loadStatusAutomationReferences } from "../../lib/store/automation.js";
@@ -20,23 +14,28 @@ export async function rovoWorkflowSearch(payload, context) {
   try {
     const installationKey = getInstallationKey(context);
     const query = String(payload?.query || "").trim();
-    const kind = String(payload?.kind || "any").trim().toLowerCase();
+    const kind = String(payload?.kind || "any")
+      .trim()
+      .toLowerCase();
     const limit = clampResults(payload?.maxResults, 8, 20);
     if (!query) return { status: "error", message: "A search query is required." };
 
     const wf = await loadWorkflowForAgent(installationKey);
     if (!wf.available) return pillarUnavailable("workflows", wf.snapshotStatus);
 
-    const schemeMatches = kind === "status" ? [] :
-      rankMatches(wf.schemes, query, (s) => [s.name, s.schemeId, s.description], limit);
-    const statusMatches = kind === "scheme" ? [] :
-      rankMatches(wf.statuses, query, (s) => [s.name, s.statusId ?? s.id], limit);
+    const schemeMatches =
+      kind === "status" ? [] : rankMatches(wf.schemes, query, (s) => [s.name, s.schemeId, s.description], limit);
+    const statusMatches =
+      kind === "scheme" ? [] : rankMatches(wf.statuses, query, (s) => [s.name, s.statusId ?? s.id], limit);
 
     return agentOk(wf.refreshedAt, {
       query,
       schemes: schemeMatches.map((s) => ({
-        schemeId: s.schemeId, name: s.name, description: s.description || null,
-        defaultWorkflow: s.defaultWorkflow || null, projectCount: s.projectCount ?? null,
+        schemeId: s.schemeId,
+        name: s.name,
+        description: s.description || null,
+        defaultWorkflow: s.defaultWorkflow || null,
+        projectCount: s.projectCount ?? null,
       })),
       statuses: statusMatches.map((s) => statusRow(s, wf)),
     });
@@ -59,18 +58,22 @@ export async function rovoWorkflowInspect(payload, context) {
     const idLower = identifier.toLowerCase();
 
     const scheme = wf.schemes.find(
-      (s) => String(s.schemeId) === identifier || String(s.name || "").toLowerCase() === idLower
+      (s) => String(s.schemeId) === identifier || String(s.name || "").toLowerCase() === idLower,
     );
     if (scheme) {
       const balance = computeSchemeCategoryBalance([scheme], wf.schemeStatuses, wf.statuses)[0] || null;
       const statusIds = new Set(
-        wf.schemeStatuses.filter((p) => String(p.schemeId) === String(scheme.schemeId)).map((p) => String(p.statusId))
+        wf.schemeStatuses.filter((p) => String(p.schemeId) === String(scheme.schemeId)).map((p) => String(p.statusId)),
       );
-      const projects = await loadWorkflowSchemeProjects(installationKey, wf.meta.version, scheme.schemeId).catch(() => []);
+      const projects = await loadWorkflowSchemeProjects(installationKey, wf.meta.version, scheme.schemeId).catch(
+        () => [],
+      );
       return agentOk(wf.refreshedAt, {
         kind: "scheme",
         scheme: {
-          schemeId: scheme.schemeId, name: scheme.name, description: scheme.description || null,
+          schemeId: scheme.schemeId,
+          name: scheme.name,
+          description: scheme.description || null,
           defaultWorkflow: scheme.defaultWorkflow || null,
         },
         statuses: wf.statuses.filter((s) => statusIds.has(String(s.statusId ?? s.id))).map((s) => statusRow(s, wf)),
@@ -81,16 +84,16 @@ export async function rovoWorkflowInspect(payload, context) {
     }
 
     const status = wf.statuses.find(
-      (s) => String(s.statusId ?? s.id) === identifier || String(s.name || "").toLowerCase() === idLower
+      (s) => String(s.statusId ?? s.id) === identifier || String(s.name || "").toLowerCase() === idLower,
     );
     if (!status) return agentNotFound(wf.refreshedAt, `No workflow scheme or status matched "${identifier}".`);
 
     const sid = String(status.statusId ?? status.id);
     const reachingSchemeIds = new Set(
-      wf.schemeStatuses.filter((p) => String(p.statusId) === sid).map((p) => String(p.schemeId))
+      wf.schemeStatuses.filter((p) => String(p.statusId) === sid).map((p) => String(p.schemeId)),
     );
     const dupGroup = findDuplicateStatusGroups(wf.statuses).find((g) =>
-      g.statuses.some((s) => String(s.statusId ?? s.id) === sid)
+      g.statuses.some((s) => String(s.statusId ?? s.id) === sid),
     );
     const automation = await loadStatusAutomationReferences(installationKey, [status.name]).catch(() => null);
 
@@ -102,7 +105,9 @@ export async function rovoWorkflowInspect(payload, context) {
         .map((s) => ({ schemeId: s.schemeId, name: s.name })),
       reachedBySchemeCount: reachingSchemeIds.size,
       duplicateSiblings: dupGroup
-        ? dupGroup.statuses.filter((s) => String(s.statusId ?? s.id) !== sid).map((s) => ({ statusId: String(s.statusId ?? s.id), name: s.name, kind: dupGroup.kind }))
+        ? dupGroup.statuses
+            .filter((s) => String(s.statusId ?? s.id) !== sid)
+            .map((s) => ({ statusId: String(s.statusId ?? s.id), name: s.name, kind: dupGroup.kind }))
         : [],
       automationChecked: Boolean(automation),
       automationRules: automation?.[status.name.toLowerCase()] || automation?.[status.name] || null,
@@ -145,7 +150,11 @@ export async function rovoWorkflowImpact(payload, context) {
       workflowsChecked: d.workflowNames !== null,
       inWorkflows: d.workflowNames,
       restrictions: d.restrictions?.available
-        ? d.restrictions.restrictions.map((r) => ({ workflow: r.workflowName, restriction: r.description, holder: r.holder?.label || r.holder?.id || null }))
+        ? d.restrictions.restrictions.map((r) => ({
+            workflow: r.workflowName,
+            restriction: r.description,
+            holder: r.holder?.label || r.holder?.id || null,
+          }))
         : null,
       verdict: d.assessment.verdict,
       blockers: d.assessment.blockers,

@@ -41,7 +41,10 @@ beforeEach(() => {
     const entry = { statement: String(statement), params: null };
     issued.push(entry);
     const stub = {
-      bindParams: (...params) => { entry.params = params; return stub; },
+      bindParams: (...params) => {
+        entry.params = params;
+        return stub;
+      },
       execute: () => Promise.resolve({ rows: rowsFor(entry.statement), rowsAffected: 0 }),
     };
     return stub;
@@ -52,11 +55,56 @@ const placeholders = (statement) => (statement.match(/\?/g) || []).length;
 
 describe("replaceWorkflowSnapshot with rules", () => {
   const workflowRules = {
-    workflows: [{ workflowName: "WF", workflowId: "u1", scopeType: "GLOBAL", statusCount: 3, transitionCount: 2, ruleCount: 1, schemeCount: 1 }],
-    transitions: [{ workflowName: "WF", transitionId: "21", transitionName: "Approve", transitionType: "DIRECTED", fromStatusIds: ["3"], toStatusId: "4", ruleCount: 1 }],
-    rules: [{ workflowName: "WF", transitionId: "21", ruleSeq: 0, kind: "validator", ruleKey: "system:validate-field-value", summary: "fieldRequired" }],
-    properties: [{ workflowName: "WF", ownerKind: "status", ownerId: "3", key: "jira.permission.edit.group", value: "g1" }],
-    refs: [{ seq: 0, refType: "field", refId: "customfield_1", refLabel: "Cost", refMissing: false, workflowName: "WF", source: "rule", ownerKind: "transition", ownerId: "21", ruleSeq: 0, propKey: null }],
+    workflows: [
+      {
+        workflowName: "WF",
+        workflowId: "u1",
+        scopeType: "GLOBAL",
+        statusCount: 3,
+        transitionCount: 2,
+        ruleCount: 1,
+        schemeCount: 1,
+      },
+    ],
+    transitions: [
+      {
+        workflowName: "WF",
+        transitionId: "21",
+        transitionName: "Approve",
+        transitionType: "DIRECTED",
+        fromStatusIds: ["3"],
+        toStatusId: "4",
+        ruleCount: 1,
+      },
+    ],
+    rules: [
+      {
+        workflowName: "WF",
+        transitionId: "21",
+        ruleSeq: 0,
+        kind: "validator",
+        ruleKey: "system:validate-field-value",
+        summary: "fieldRequired",
+      },
+    ],
+    properties: [
+      { workflowName: "WF", ownerKind: "status", ownerId: "3", key: "jira.permission.edit.group", value: "g1" },
+    ],
+    refs: [
+      {
+        seq: 0,
+        refType: "field",
+        refId: "customfield_1",
+        refLabel: "Cost",
+        refMissing: false,
+        workflowName: "WF",
+        source: "rule",
+        ownerKind: "transition",
+        ownerId: "21",
+        ruleSeq: 0,
+        propKey: null,
+      },
+    ],
   };
 
   test("binds exactly one parameter per placeholder on every insert", async () => {
@@ -77,12 +125,32 @@ describe("replaceWorkflowSnapshot with rules", () => {
     const transition = issued.find((e) => /INTO snapshot_workflow_transitions/.test(e.statement));
     expect(transition.params).toContain('["3"]');
     const ref = issued.find((e) => /INTO snapshot_workflow_refs/.test(e.statement));
-    expect(ref.params).toEqual(["site", "v1", 0, "field", "customfield_1", "Cost", 0, "WF", "rule", "transition", "21", 0, null]);
+    expect(ref.params).toEqual([
+      "site",
+      "v1",
+      0,
+      "field",
+      "customfield_1",
+      "Cost",
+      0,
+      "WF",
+      "rule",
+      "transition",
+      "21",
+      0,
+      null,
+    ]);
   });
 
   test("clears every rule table for this site only, in bounded deletes", async () => {
     await replaceWorkflowSnapshot("site", "v1", { workflowRules });
-    for (const table of ["snapshot_workflows", "snapshot_workflow_refs", "snapshot_workflow_rules", "snapshot_workflow_properties", "snapshot_workflow_transitions"]) {
+    for (const table of [
+      "snapshot_workflows",
+      "snapshot_workflow_refs",
+      "snapshot_workflow_rules",
+      "snapshot_workflow_properties",
+      "snapshot_workflow_transitions",
+    ]) {
       const del = issued.find((e) => new RegExp(`DELETE FROM ${table}\\b`).test(e.statement));
       expect(del, table).toBeTruthy();
       expect(del.statement).toMatch(/WHERE scope_key = \?/);
@@ -100,19 +168,40 @@ describe("replaceWorkflowSnapshot with rules", () => {
 
 describe("reference lookups", () => {
   test("loadWorkflowRefsFor reads by target with the transition, rule and property joined", async () => {
-    rowsFor = () => [{
-      ref_type: "field", ref_id: "customfield_1", ref_label: "Cost", ref_missing: 0, workflow_name: "WF",
-      source: "rule", owner_kind: "transition", owner_id: "21", rule_seq: 0, prop_key: null,
-      transition_name: "Approve", transition_type: "DIRECTED", from_status_ids: '["3"]', to_status_id: "4",
-      rule_kind: "validator", rule_key: "system:validate-field-value", summary: "fieldRequired", prop_value: null,
-    }];
+    rowsFor = () => [
+      {
+        ref_type: "field",
+        ref_id: "customfield_1",
+        ref_label: "Cost",
+        ref_missing: 0,
+        workflow_name: "WF",
+        source: "rule",
+        owner_kind: "transition",
+        owner_id: "21",
+        rule_seq: 0,
+        prop_key: null,
+        transition_name: "Approve",
+        transition_type: "DIRECTED",
+        from_status_ids: '["3"]',
+        to_status_id: "4",
+        rule_kind: "validator",
+        rule_key: "system:validate-field-value",
+        summary: "fieldRequired",
+        prop_value: null,
+      },
+    ];
     const rows = await loadWorkflowRefsFor("site", "v1", "field", ["customfield_1", "customfield_2"]);
     const read = issued.at(-1);
     expect(read.statement).toMatch(/ref_id IN \(\?, \?\)/);
     expect(read.params).toEqual(["site", "v1", "field", "customfield_1", "customfield_2"]);
     expect(rows[0]).toMatchObject({
-      refId: "customfield_1", refMissing: false, fromStatusIds: ["3"], toStatusId: "4",
-      ruleKind: "validator", ruleSeq: 0, transitionName: "Approve",
+      refId: "customfield_1",
+      refMissing: false,
+      fromStatusIds: ["3"],
+      toStatusId: "4",
+      ruleKind: "validator",
+      ruleSeq: 0,
+      transitionName: "Approve",
     });
   });
 
@@ -122,7 +211,18 @@ describe("reference lookups", () => {
   });
 
   test("a NULL missing flag stays null -- unknown is not 'present'", async () => {
-    rowsFor = () => [{ ref_type: "group", ref_id: "g", ref_missing: null, workflow_name: "WF", source: "property", owner_kind: "status", owner_id: "3", rule_seq: null }];
+    rowsFor = () => [
+      {
+        ref_type: "group",
+        ref_id: "g",
+        ref_missing: null,
+        workflow_name: "WF",
+        source: "property",
+        owner_kind: "status",
+        owner_id: "3",
+        rule_seq: null,
+      },
+    ];
     const [row] = await loadWorkflowRefsByType("site", "v1", ["group"]);
     expect(row.refMissing).toBeNull();
     expect(row.ruleSeq).toBeNull();
@@ -161,9 +261,23 @@ describe("rules page", () => {
   });
 
   test("maps rows and the total", async () => {
-    rowsFor = (statement) => (/COUNT\(\*\)/.test(statement)
-      ? [{ n: 7 }]
-      : [{ workflow_name: "WF", transition_id: "21", rule_seq: 1, rule_kind: "post-function", rule_key: "system:update-field", summary: null, transition_name: null, transition_type: "GLOBAL", from_status_ids: "[]", to_status_id: "1" }]);
+    rowsFor = (statement) =>
+      /COUNT\(\*\)/.test(statement)
+        ? [{ n: 7 }]
+        : [
+            {
+              workflow_name: "WF",
+              transition_id: "21",
+              rule_seq: 1,
+              rule_kind: "post-function",
+              rule_key: "system:update-field",
+              summary: null,
+              transition_name: null,
+              transition_type: "GLOBAL",
+              from_status_ids: "[]",
+              to_status_id: "1",
+            },
+          ];
     const page = await loadWorkflowRulesPage("site", "v1");
     expect(page.total).toBe(7);
     expect(page.rules[0]).toMatchObject({ transitionName: "21", ruleSeq: 1, fromStatusIds: [], kind: "post-function" });
@@ -173,7 +287,9 @@ describe("rules page", () => {
 describe("properties and catalogue", () => {
   test("restricting properties are filtered in SQL to the keys that restrict", async () => {
     await loadRestrictingProperties("site", "v1");
-    expect(issued.at(-1).statement).toMatch(/prop_key LIKE 'jira\.permission\.%' OR prop_key = 'jira\.issue\.editable'/);
+    expect(issued.at(-1).statement).toMatch(
+      /prop_key LIKE 'jira\.permission\.%' OR prop_key = 'jira\.issue\.editable'/,
+    );
   });
 
   test("status properties read one status", async () => {
@@ -184,10 +300,30 @@ describe("properties and catalogue", () => {
   });
 
   test("the workflow catalogue maps counts to numbers", async () => {
-    rowsFor = () => [{ workflow_name: "WF", workflow_id: "u1", scope_type: "GLOBAL", scope_project_id: null, status_count: "3", transition_count: "2", rule_count: "1", scheme_count: "0" }];
-    expect(await loadWorkflowsCatalog("site", "v1")).toEqual([{
-      name: "WF", id: "u1", scopeType: "GLOBAL", scopeProjectId: null, statusCount: 3, transitionCount: 2, ruleCount: 1, schemeCount: 0,
-    }]);
+    rowsFor = () => [
+      {
+        workflow_name: "WF",
+        workflow_id: "u1",
+        scope_type: "GLOBAL",
+        scope_project_id: null,
+        status_count: "3",
+        transition_count: "2",
+        rule_count: "1",
+        scheme_count: "0",
+      },
+    ];
+    expect(await loadWorkflowsCatalog("site", "v1")).toEqual([
+      {
+        name: "WF",
+        id: "u1",
+        scopeType: "GLOBAL",
+        scopeProjectId: null,
+        statusCount: 3,
+        transitionCount: 2,
+        ruleCount: 1,
+        schemeCount: 0,
+      },
+    ]);
   });
 });
 
@@ -211,10 +347,34 @@ describe("meta", () => {
 describe("loadTransitionsTouchingStatus", () => {
   test("matches transitions into or out of the status, exactly, never by substring", async () => {
     rowsFor = () => [
-      { workflow_name: "WF", transition_id: "1", transition_name: "In", transition_type: "DIRECTED", from_status_ids: '["3"]', to_status_id: "1", rule_count: 2 },
-      { workflow_name: "WF", transition_id: "2", transition_name: "Out", transition_type: "DIRECTED", from_status_ids: '["1"]', to_status_id: "4", rule_count: 0 },
+      {
+        workflow_name: "WF",
+        transition_id: "1",
+        transition_name: "In",
+        transition_type: "DIRECTED",
+        from_status_ids: '["3"]',
+        to_status_id: "1",
+        rule_count: 2,
+      },
+      {
+        workflow_name: "WF",
+        transition_id: "2",
+        transition_name: "Out",
+        transition_type: "DIRECTED",
+        from_status_ids: '["1"]',
+        to_status_id: "4",
+        rule_count: 0,
+      },
       // A LIKE hit for "10" that is not status 1.
-      { workflow_name: "WF", transition_id: "3", transition_name: "Other", transition_type: "DIRECTED", from_status_ids: '["10"]', to_status_id: "11", rule_count: 0 },
+      {
+        workflow_name: "WF",
+        transition_id: "3",
+        transition_name: "Other",
+        transition_type: "DIRECTED",
+        from_status_ids: '["10"]',
+        to_status_id: "11",
+        rule_count: 0,
+      },
     ];
     const rows = await loadTransitionsTouchingStatus("site", "v1", 1);
     const read = issued.at(-1);
@@ -226,9 +386,19 @@ describe("loadTransitionsTouchingStatus", () => {
 
 describe("loadWorkflowStructure", () => {
   test("transitions and rules, both scoped, with sorted from-statuses and no summary text", async () => {
-    rowsFor = (st) => (st.includes("FROM snapshot_workflow_transitions")
-      ? [{ workflow_name: "WF", transition_id: 11, transition_name: "Start", transition_type: "DIRECTED", from_status_ids: "3,1", to_status_id: "5" }]
-      : [{ workflow_name: "WF", transition_id: 11, rule_seq: 0, rule_kind: "validator", rule_key: "FieldRequired" }]);
+    rowsFor = (st) =>
+      st.includes("FROM snapshot_workflow_transitions")
+        ? [
+            {
+              workflow_name: "WF",
+              transition_id: 11,
+              transition_name: "Start",
+              transition_type: "DIRECTED",
+              from_status_ids: "3,1",
+              to_status_id: "5",
+            },
+          ]
+        : [{ workflow_name: "WF", transition_id: 11, rule_seq: 0, rule_kind: "validator", rule_key: "FieldRequired" }];
     const out = await loadWorkflowStructure("site", "v1");
     for (const e of issued) {
       expect(e.statement).toContain("WHERE scope_key = ? AND version = ?");
@@ -236,7 +406,9 @@ describe("loadWorkflowStructure", () => {
     }
     expect(issued.some((e) => /summary/.test(e.statement))).toBe(false);
     expect(out).toEqual({
-      transitions: [{ workflowName: "WF", transitionId: "11", name: "Start", type: "DIRECTED", from: ["1", "3"], to: "5" }],
+      transitions: [
+        { workflowName: "WF", transitionId: "11", name: "Start", type: "DIRECTED", from: ["1", "3"], to: "5" },
+      ],
       rules: [{ workflowName: "WF", transitionId: "11", kind: "validator", key: "FieldRequired" }],
     });
   });

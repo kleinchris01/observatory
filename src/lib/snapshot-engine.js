@@ -96,7 +96,9 @@ export function latestChangeAcrossProjects(activeProjects) {
 export function hydrateFieldForGovernance(field, summary, duplicateNameCount = 1, thresholds = {}) {
   const activeProjectCount = Number(summary?.activeProjectCount ?? field?.activeProjectCount ?? 0);
   const totalIssueCount = Number(summary?.totalIssueCount ?? field?.totalIssueCount ?? 0);
-  const configuredProjectCount = Number(field?.configuredProjectCount ?? field?.usageCount ?? summary?.configuredProjectCount ?? 0);
+  const configuredProjectCount = Number(
+    field?.configuredProjectCount ?? field?.usageCount ?? summary?.configuredProjectCount ?? 0,
+  );
   const usageStatus = field?.usageStatus ?? USAGE_STATUS_READY;
   const usageStatusDetail = field?.usageStatusDetail || null;
 
@@ -113,23 +115,27 @@ export function hydrateFieldForGovernance(field, summary, duplicateNameCount = 1
     totalIssueCount,
     isJiraBuiltin: isJiraBuiltinField(field),
     isSystemField,
-    findings: buildGovernanceFindings(field, {
-      configuredProjectCount,
-      totalIssueCount,
-      activeProjectCount,
-      duplicateNameCount,
-      usageStatus,
-      usageStatusDetail,
-      isSystemField,
-      isPlatformProvidedField: platformProvided,
-      contextCount,
-      hasGlobalContext,
-      lastFieldChangeAt: latestChangeAcrossProjects(summary?.activeProjects),
-      // Loaded with the field (loadSnapshotFields). Without it every re-hydration -- Overview,
-      // health, reports, remediation -- undid the archived-projects fix and flagged fields
-      // whose only data is in archived projects as unused.
-      archivedIssueCount: field?.archivedIssueCount ?? 0,
-    }, thresholds),
+    findings: buildGovernanceFindings(
+      field,
+      {
+        configuredProjectCount,
+        totalIssueCount,
+        activeProjectCount,
+        duplicateNameCount,
+        usageStatus,
+        usageStatusDetail,
+        isSystemField,
+        isPlatformProvidedField: platformProvided,
+        contextCount,
+        hasGlobalContext,
+        lastFieldChangeAt: latestChangeAcrossProjects(summary?.activeProjects),
+        // Loaded with the field (loadSnapshotFields). Without it every re-hydration -- Overview,
+        // health, reports, remediation -- undid the archived-projects fix and flagged fields
+        // whose only data is in archived projects as unused.
+        archivedIssueCount: field?.archivedIssueCount ?? 0,
+      },
+      thresholds,
+    ),
   };
 }
 
@@ -168,7 +174,14 @@ export async function queueSnapshotBuild(installationKey, jobToken = null) {
   });
 }
 
-export async function queueFieldSummaryBuild(installationKey, version, fieldId, jobToken, startAt = 0, nextPageToken = "") {
+export async function queueFieldSummaryBuild(
+  installationKey,
+  version,
+  fieldId,
+  jobToken,
+  startAt = 0,
+  nextPageToken = "",
+) {
   if (!installationKey || !version || !fieldId || !jobToken) {
     throw new Error("Invalid field summary queue payload");
   }
@@ -177,7 +190,14 @@ export async function queueFieldSummaryBuild(installationKey, version, fieldId, 
   });
 }
 
-export async function queueFieldUsageDeltaRefresh(installationKey, version, fieldId, jobToken, projectKeys = [], windowHours = 24) {
+export async function queueFieldUsageDeltaRefresh(
+  installationKey,
+  version,
+  fieldId,
+  jobToken,
+  projectKeys = [],
+  windowHours = 24,
+) {
   if (!installationKey || !version || !fieldId || !jobToken) {
     throw new Error("Invalid field usage delta queue payload");
   }
@@ -214,7 +234,14 @@ export async function queueProjectUsageRestore(installationKey, version) {
   });
 }
 
-export async function tryQueueFieldSummaryBuild(installationKey, version, fieldId, jobToken, startAt = 0, nextPageToken = "") {
+export async function tryQueueFieldSummaryBuild(
+  installationKey,
+  version,
+  fieldId,
+  jobToken,
+  startAt = 0,
+  nextPageToken = "",
+) {
   if (!installationKey || !version || !fieldId || !jobToken) {
     return { queued: false, reason: "invalid-payload" };
   }
@@ -225,10 +252,10 @@ export async function tryQueueFieldSummaryBuild(installationKey, version, fieldI
   } catch (error) {
     const message = String(error?.message || "");
     if (
-      message.toLowerCase().includes("too many requests")
-      || message.toLowerCase().includes("cyclic invocation")
-      || message.toLowerCase().includes("limit on cyclic invocation")
-      || message.toLowerCase().includes("400 bad request")
+      message.toLowerCase().includes("too many requests") ||
+      message.toLowerCase().includes("cyclic invocation") ||
+      message.toLowerCase().includes("limit on cyclic invocation") ||
+      message.toLowerCase().includes("400 bad request")
     ) {
       return { queued: false, reason: "queue-backpressure", error };
     }
@@ -242,7 +269,7 @@ export async function queueFieldSummaryContinuationWithRetry(
   fieldId,
   jobToken,
   startAt = 0,
-  nextPageToken = ""
+  nextPageToken = "",
 ) {
   const retryDelaysMs = [0, 1500, 3000, 5000];
   let lastResult = { queued: false, reason: "queue-backpressure" };
@@ -252,14 +279,7 @@ export async function queueFieldSummaryContinuationWithRetry(
       await sleep(retryDelaysMs[attempt]);
     }
 
-    lastResult = await tryQueueFieldSummaryBuild(
-      installationKey,
-      version,
-      fieldId,
-      jobToken,
-      startAt,
-      nextPageToken
-    );
+    lastResult = await tryQueueFieldSummaryBuild(installationKey, version, fieldId, jobToken, startAt, nextPageToken);
 
     if (lastResult.queued) {
       return { queued: true, attempts: attempt + 1 };
@@ -279,7 +299,7 @@ export async function queueFieldUsageDeltaRefreshWithRetry(
   fieldId,
   jobToken,
   projectKeys = [],
-  windowHours = 24
+  windowHours = 24,
 ) {
   const retryDelaysMs = [0, 1500, 3000, 5000];
   let lastResult = { queued: false, reason: "queue-backpressure" };
@@ -290,22 +310,15 @@ export async function queueFieldUsageDeltaRefreshWithRetry(
     }
 
     try {
-      await queueFieldUsageDeltaRefresh(
-        installationKey,
-        version,
-        fieldId,
-        jobToken,
-        projectKeys,
-        windowHours
-      );
+      await queueFieldUsageDeltaRefresh(installationKey, version, fieldId, jobToken, projectKeys, windowHours);
       return { queued: true, attempts: attempt + 1 };
     } catch (error) {
       const message = String(error?.message || "");
       if (
-        message.toLowerCase().includes("too many requests")
-        || message.toLowerCase().includes("cyclic invocation")
-        || message.toLowerCase().includes("limit on cyclic invocation")
-        || message.toLowerCase().includes("400 bad request")
+        message.toLowerCase().includes("too many requests") ||
+        message.toLowerCase().includes("cyclic invocation") ||
+        message.toLowerCase().includes("limit on cyclic invocation") ||
+        message.toLowerCase().includes("400 bad request")
       ) {
         lastResult = { queued: false, reason: "queue-backpressure", error };
         continue;
@@ -316,7 +329,6 @@ export async function queueFieldUsageDeltaRefreshWithRetry(
 
   return { ...lastResult, attempts: retryDelaysMs.length };
 }
-
 
 export async function ensureFieldSummaryJobRunning(installationKey, version, fieldId, summary, snapshotField = null) {
   if (!summary || !version || !fieldId) {
@@ -331,19 +343,22 @@ export async function ensureFieldSummaryJobRunning(installationKey, version, fie
   const refreshedAtMs = summary.refreshedAt ? new Date(summary.refreshedAt).getTime() : 0;
   const startedAtMs = summary.startedAt ? new Date(summary.startedAt).getTime() : 0;
   const queuedIsStale =
-    summary.summaryStatus === "queued" &&
-    refreshedAtMs > 0 &&
-    (now - refreshedAtMs) > FIELD_SUMMARY_QUEUE_STALE_AFTER_MS;
+    summary.summaryStatus === "queued" && refreshedAtMs > 0 && now - refreshedAtMs > FIELD_SUMMARY_QUEUE_STALE_AFTER_MS;
   const buildIsStale =
     summary.summaryStatus === "building" &&
-    ((startedAtMs > 0 && (now - startedAtMs) > FIELD_SUMMARY_BUILD_STALE_AFTER_MS) ||
-      (refreshedAtMs > 0 && (now - refreshedAtMs) > FIELD_SUMMARY_BUILD_STALE_AFTER_MS));
+    ((startedAtMs > 0 && now - startedAtMs > FIELD_SUMMARY_BUILD_STALE_AFTER_MS) ||
+      (refreshedAtMs > 0 && now - refreshedAtMs > FIELD_SUMMARY_BUILD_STALE_AFTER_MS));
 
   if (!queuedIsStale && !buildIsStale) {
     return summary;
   }
 
-  const fieldRecord = snapshotField || summary.field || await loadSnapshotField(installationKey, version, fieldId).catch(fallbackOn("snapshot.field_load_failed", null, { fieldId }));
+  const fieldRecord =
+    snapshotField ||
+    summary.field ||
+    (await loadSnapshotField(installationKey, version, fieldId).catch(
+      fallbackOn("snapshot.field_load_failed", null, { fieldId }),
+    ));
   if (!fieldRecord) {
     return summary;
   }
@@ -378,7 +393,7 @@ export async function ensureFieldSummaryJobRunning(installationKey, version, fie
     fieldId,
     recoveredJobToken,
     recoveredSummary.processedIssueCount || recoveredSummary.nextStartAt || 0,
-    recoveredSummary.nextPageToken || ""
+    recoveredSummary.nextPageToken || "",
   );
 
   if (!queueResult.queued) {
@@ -395,7 +410,7 @@ export async function ensureFieldSummaryJobRunning(installationKey, version, fie
 }
 
 export async function requeueStaleSnapshotBuild(installationKey, meta) {
-  const currentMeta = meta || await readSnapshotMeta(installationKey);
+  const currentMeta = meta || (await readSnapshotMeta(installationKey));
   if (!isSnapshotBuildStale(currentMeta)) {
     return currentMeta;
   }
@@ -425,7 +440,7 @@ export async function processFieldSummaryChunk(
   jobToken,
   startAt = 0,
   nextPageToken = null,
-  maxPages = PROJECT_USAGE_SCAN_PAGES_PER_JOB
+  maxPages = PROJECT_USAGE_SCAN_PAGES_PER_JOB,
 ) {
   const fieldId = snapshotField.id;
   const existing = await loadFieldSummary(scopeKey, fieldId);
@@ -445,16 +460,12 @@ export async function processFieldSummaryChunk(
   }
 
   addJobLog(
-    `Scanning up to ${(PROJECT_USAGE_ISSUE_SCAN_PAGE_SIZE * maxPages).toLocaleString()} matching issues for project usage`
+    `Scanning up to ${(PROJECT_USAGE_ISSUE_SCAN_PAGE_SIZE * maxPages).toLocaleString()} matching issues for project usage`,
   );
 
   let scan;
   try {
-    scan = await getProjectBreakdownByIssueScan(
-      fieldId,
-      nextPageToken || existing.nextPageToken || null,
-      maxPages
-    );
+    scan = await getProjectBreakdownByIssueScan(fieldId, nextPageToken || existing.nextPageToken || null, maxPages);
   } catch (scanError) {
     if (isExpiredPageTokenError(scanError)) {
       addJobLog("Jira page cursor expired; restarting scan from the beginning");
@@ -474,7 +485,9 @@ export async function processFieldSummaryChunk(
   }
   const mergedProjects = mergeProjectUsageCounts(existing.activeProjects || [], scan.projects);
   const processedIssueCount = Number(existing.processedIssueCount || 0) + Number(scan.scannedIssueCount || 0);
-  const estimatedIssueTotal = Number(scan.totalIssues || existing.estimatedIssueTotal || snapshotField.totalIssueCount || 0);
+  const estimatedIssueTotal = Number(
+    scan.totalIssues || existing.estimatedIssueTotal || snapshotField.totalIssueCount || 0,
+  );
   const sourceIssueTotal = Number(snapshotField.totalIssueCount || existing.totalIssueCount || 0);
   const totalIssueCount = mergedProjects.reduce((sum, project) => sum + Number(project.issueCount || 0), 0);
   const isComplete = scan.isComplete || processedIssueCount >= estimatedIssueTotal;
@@ -482,7 +495,7 @@ export async function processFieldSummaryChunk(
   addJobLog(
     estimatedIssueTotal > 0
       ? `Processed ${processedIssueCount.toLocaleString()} of ${estimatedIssueTotal.toLocaleString()} matching issues`
-      : `Processed ${processedIssueCount.toLocaleString()} matching issues`
+      : `Processed ${processedIssueCount.toLocaleString()} matching issues`,
   );
 
   const baseSummary = {
@@ -509,7 +522,7 @@ export async function processFieldSummaryChunk(
 
   if (scan.paginationBroken) {
     addJobLog(
-      `Field scan pagination broke after ${processedIssueCount.toLocaleString()} of ${estimatedIssueTotal.toLocaleString()} issues; Jira did not return a continuation token`
+      `Field scan pagination broke after ${processedIssueCount.toLocaleString()} of ${estimatedIssueTotal.toLocaleString()} issues; Jira did not return a continuation token`,
     );
     await replaceFieldSummary(scopeKey, fieldId, {
       ...baseSummary,
@@ -526,7 +539,7 @@ export async function processFieldSummaryChunk(
   if (isComplete) {
     if (mergedProjects.length === 0 && sourceIssueTotal > 0) {
       addJobLog(
-        `Completed matching-issue scan but found 0 active projects despite ${sourceIssueTotal.toLocaleString()} populated issues`
+        `Completed matching-issue scan but found 0 active projects despite ${sourceIssueTotal.toLocaleString()} populated issues`,
       );
       await replaceFieldSummary(scopeKey, fieldId, {
         ...baseSummary,
@@ -562,12 +575,12 @@ export async function processFieldSummaryChunk(
     fieldId,
     jobToken,
     processedIssueCount,
-    scan.nextPageToken || ""
+    scan.nextPageToken || "",
   );
 
   if (!queueResult.queued) {
     addJobLog(
-      `Automatic continuation could not be scheduled after ${processedIssueCount.toLocaleString()} scanned issues; job remains queued at checkpoint`
+      `Automatic continuation could not be scheduled after ${processedIssueCount.toLocaleString()} scanned issues; job remains queued at checkpoint`,
     );
     await replaceFieldSummary(scopeKey, fieldId, {
       ...baseSummary,
@@ -579,21 +592,30 @@ export async function processFieldSummaryChunk(
 
   if (queueResult.attempts > 1) {
     addJobLog(
-      `Scheduled continuation after ${processedIssueCount.toLocaleString()} scanned issues (${queueResult.attempts} queue attempts)`
+      `Scheduled continuation after ${processedIssueCount.toLocaleString()} scanned issues (${queueResult.attempts} queue attempts)`,
     );
   }
 }
 
 // ----- processFieldUsageDelta -----
 
-export async function processFieldUsageDelta(scopeKey, version, snapshotField, jobToken, projectKeys = [], windowHours = 24) {
+export async function processFieldUsageDelta(
+  scopeKey,
+  version,
+  snapshotField,
+  jobToken,
+  projectKeys = [],
+  windowHours = 24,
+) {
   const fieldId = snapshotField.id;
   const existing = await loadFieldSummary(scopeKey, fieldId);
   if (!existing || existing.jobToken !== jobToken || existing.summaryStatus === "cancelled") {
     return;
   }
 
-  const normalizedProjectKeys = Array.from(new Set((projectKeys || []).map((value) => String(value || "").trim()).filter(Boolean)));
+  const normalizedProjectKeys = Array.from(
+    new Set((projectKeys || []).map((value) => String(value || "").trim()).filter(Boolean)),
+  );
   if (!normalizedProjectKeys.length) {
     await replaceFieldSummary(scopeKey, fieldId, {
       ...existing,
@@ -603,7 +625,10 @@ export async function processFieldUsageDelta(scopeKey, version, snapshotField, j
       lastError: null,
       progressLog: [
         ...(existing.progressLog || []).slice(-80),
-        { t: new Date().toISOString(), msg: `No affected projects were found for the last ${windowHours}h incremental refresh` },
+        {
+          t: new Date().toISOString(),
+          msg: `No affected projects were found for the last ${windowHours}h incremental refresh`,
+        },
       ].slice(-100),
     });
     return;
@@ -615,7 +640,9 @@ export async function processFieldUsageDelta(scopeKey, version, snapshotField, j
     if (progressLog.length > 100) progressLog.shift();
   };
 
-  addJobLog(`Started incremental project-usage refresh for ${snapshotField.name} across ${normalizedProjectKeys.length} affected projects`);
+  addJobLog(
+    `Started incremental project-usage refresh for ${snapshotField.name} across ${normalizedProjectKeys.length} affected projects`,
+  );
   incrMetric(METRIC_NAMES.projectUsageDeltaStarted);
 
   await replaceFieldSummary(scopeKey, fieldId, {
@@ -628,7 +655,9 @@ export async function processFieldUsageDelta(scopeKey, version, snapshotField, j
     progressLog,
   });
 
-  const currentByProjectKey = new Map((existing.activeProjects || []).map((project) => [project.projectKey, { ...project }]));
+  const currentByProjectKey = new Map(
+    (existing.activeProjects || []).map((project) => [project.projectKey, { ...project }]),
+  );
   const refreshedProjects = await mapWithConcurrency(normalizedProjectKeys, 2, async (projectKey) => {
     const usage = await searchProjectFieldUsage(fieldId, projectKey);
     if (usage.issueCount <= 0) {
@@ -636,8 +665,10 @@ export async function processFieldUsageDelta(scopeKey, version, snapshotField, j
     }
     const prior = currentByProjectKey.get(projectKey);
     const project =
-      usage.project
-      || (prior ? { id: prior.projectId, key: prior.projectKey, name: prior.projectName } : { id: projectKey, key: projectKey, name: projectKey });
+      usage.project ||
+      (prior
+        ? { id: prior.projectId, key: prior.projectKey, name: prior.projectName }
+        : { id: projectKey, key: projectKey, name: projectKey });
     return buildProjectUsageRecord({
       project,
       fieldId,
@@ -655,8 +686,10 @@ export async function processFieldUsageDelta(scopeKey, version, snapshotField, j
     currentByProjectKey.set(project.projectKey, project);
   }
 
-  const nextProjects = Array.from(currentByProjectKey.values())
-    .sort((left, right) => Number(right.issueCount || 0) - Number(left.issueCount || 0) || left.projectKey.localeCompare(right.projectKey));
+  const nextProjects = Array.from(currentByProjectKey.values()).sort(
+    (left, right) =>
+      Number(right.issueCount || 0) - Number(left.issueCount || 0) || left.projectKey.localeCompare(right.projectKey),
+  );
   const nextTotalIssueCount = nextProjects.reduce((sum, project) => sum + Number(project.issueCount || 0), 0);
 
   await replaceSnapshotProjectUsageForField(scopeKey, version, fieldId, nextProjects);
@@ -665,7 +698,8 @@ export async function processFieldUsageDelta(scopeKey, version, snapshotField, j
     refreshedAt: new Date().toISOString(),
     field: snapshotField,
     fieldJql: existing.fieldJql || snapshotField.fieldJql || buildOverallFieldJql(fieldId),
-    configuredProjectCount: existing.configuredProjectCount ?? snapshotField.configuredProjectCount ?? snapshotField.usageCount ?? 0,
+    configuredProjectCount:
+      existing.configuredProjectCount ?? snapshotField.configuredProjectCount ?? snapshotField.usageCount ?? 0,
     totalIssueCount: Math.max(nextTotalIssueCount, Number(snapshotField.totalIssueCount || 0)),
     activeProjectCount: nextProjects.length,
     activeProjects: nextProjects,
@@ -674,7 +708,10 @@ export async function processFieldUsageDelta(scopeKey, version, snapshotField, j
     lastError: null,
     progressLog: [
       ...progressLog,
-      { t: new Date().toISOString(), msg: `Incremental refresh complete for ${normalizedProjectKeys.length} affected projects` },
+      {
+        t: new Date().toISOString(),
+        msg: `Incremental refresh complete for ${normalizedProjectKeys.length} affected projects`,
+      },
     ].slice(-100),
   });
   incrMetric(METRIC_NAMES.projectUsageDeltaCompleted);
@@ -685,7 +722,12 @@ import { buildProjectUsageRecord } from "./transform.js";
 
 // ----- isExpiredPageTokenError (used locally) -----
 function isExpiredPageTokenError(error) {
-  return Number(error?.status) === 400 && String(error?.message || "").toLowerCase().includes("next page token");
+  return (
+    Number(error?.status) === 400 &&
+    String(error?.message || "")
+      .toLowerCase()
+      .includes("next page token")
+  );
 }
 
 // ----- fetchFieldCatalog -----
@@ -697,10 +739,7 @@ export async function fetchFieldCatalog() {
     getAllCustomFields(),
     getAllSystemFields().catch(fallbackOn("snapshot.system_fields_load_failed", () => [])),
   ]);
-  return [
-    ...customFields,
-    ...systemFields.map((f) => ({ ...f, isSystemField: true })),
-  ];
+  return [...customFields, ...systemFields.map((f) => ({ ...f, isSystemField: true }))];
 }
 
 // ----- syncFieldCatalog -----
@@ -737,7 +776,15 @@ export async function syncFieldCatalog(installationKey, version) {
       existing.customType !== customType ||
       existing.searcherKey !== searcherKey
     ) {
-      changedFields.push({ id: field.id, name: field.name, description, type: typeLabel, primitiveType, customType, searcherKey });
+      changedFields.push({
+        id: field.id,
+        name: field.name,
+        description,
+        type: typeLabel,
+        primitiveType,
+        customType,
+        searcherKey,
+      });
     }
   }
 
@@ -778,7 +825,11 @@ export async function syncFieldCatalog(installationKey, version) {
     await updateSnapshotFieldMetadata(installationKey, version, changedFields);
   }
 
-  return { newFieldCount: newRecords.length, changedFieldCount: changedFields.length, totalCatalogCount: allFields.length };
+  return {
+    newFieldCount: newRecords.length,
+    changedFieldCount: changedFields.length,
+    totalCatalogCount: allFields.length,
+  };
 }
 
 // ----- refreshGovernanceFindingsForFields -----
@@ -908,7 +959,7 @@ export async function runSnapshot(installationKey, { continuationToken = null } 
       // not a duplicate consumer -- it is this build picking up its own next chunk, and it
       // must be let through even though the row is fresh ("building", just heartbeated).
       const isOwnContinuation = Boolean(
-        continuationToken && existingMeta.jobToken && continuationToken === existingMeta.jobToken
+        continuationToken && existingMeta.jobToken && continuationToken === existingMeta.jobToken,
       );
       if (!isOwnContinuation && !isSnapshotBuildStale(existingMeta)) {
         console.log("runSnapshot: build already in progress, skipping duplicate");
@@ -942,7 +993,7 @@ export async function runSnapshot(installationKey, { continuationToken = null } 
     if (resuming && Array.isArray(existingMeta.progressLog)) {
       progressLog.push(...existingMeta.progressLog.slice(-80));
     }
-    processedCount = resuming ? (existingMeta.processedFields || 0) : 0;
+    processedCount = resuming ? existingMeta.processedFields || 0 : 0;
 
     await writeSnapshotMeta(installationKey, {
       state: "building",
@@ -1043,7 +1094,9 @@ export async function runSnapshot(installationKey, { continuationToken = null } 
         if (timedOut) {
           logEntry(`⏱ ${fieldTag} — count timed out (${elapsed}ms)`);
         } else if (totalIssueCount > 0) {
-          logEntry(`✓ ${fieldTag} — ${field.isSystemField ? "global" : `${configuredProjectCount} projects`}, ${totalIssueCount.toLocaleString()} issues (${elapsed}ms)`);
+          logEntry(
+            `✓ ${fieldTag} — ${field.isSystemField ? "global" : `${configuredProjectCount} projects`}, ${totalIssueCount.toLocaleString()} issues (${elapsed}ms)`,
+          );
         } else if (!field.isSystemField && configuredProjectCount > 0) {
           logEntry(`○ ${fieldTag} — ${configuredProjectCount} projects, 0 issues (${elapsed}ms)`);
         } else {
@@ -1104,7 +1157,10 @@ export async function runSnapshot(installationKey, { continuationToken = null } 
       const doneIds = await getSnapshotProcessedFieldIds(installationKey, version).catch(() => null);
       const doneCount = doneIds ? doneIds.size : processedCount;
       logEntry(`Chunk budget reached — ${doneCount} of ${totalCount} fields done; re-queueing to continue`);
-      if (progressInterval) { clearInterval(progressInterval); progressInterval = null; }
+      if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+      }
 
       await writeSnapshotMeta(installationKey, {
         state: "building",
@@ -1124,7 +1180,12 @@ export async function runSnapshot(installationKey, { continuationToken = null } 
       if (owner?.buildingVersion === version) {
         await queueSnapshotBuild(installationKey, buildToken);
       }
-      logger.info("snapshot.chunk_checkpointed", { installationKey, version, processedFields: doneCount, totalFields: totalCount });
+      logger.info("snapshot.chunk_checkpointed", {
+        installationKey,
+        version,
+        processedFields: doneCount,
+        totalFields: totalCount,
+      });
       return;
     }
 
@@ -1140,7 +1201,9 @@ export async function runSnapshot(installationKey, { continuationToken = null } 
     // This recovers silently from version-transition data loss without overwriting fresh per-field scan results.
     const fillResult = await fillSnapshotProjectUsageFromSummaries(installationKey, version);
     if (fillResult.rowsInserted > 0) {
-      logEntry(`Filled ${fillResult.fieldsRestored} fields (${fillResult.rowsInserted} project rows) from field summaries`);
+      logEntry(
+        `Filled ${fillResult.fieldsRestored} fields (${fillResult.rowsInserted} project rows) from field summaries`,
+      );
     }
 
     // Every field record above was written with active_project_count hardcoded to 0 --
@@ -1210,7 +1273,9 @@ export async function runSnapshot(installationKey, { continuationToken = null } 
     }
     // Before writing back, verify we still own the build slot.
     // A newer build may have taken over — don't clobber its state.
-    const finalMeta = await readSnapshotMeta(installationKey).catch(fallbackOn("snapshot.final_meta_read_failed", null, { installationKey }));
+    const finalMeta = await readSnapshotMeta(installationKey).catch(
+      fallbackOn("snapshot.final_meta_read_failed", null, { installationKey }),
+    );
     const stillOwner = finalMeta?.buildingVersion === version;
 
     if (err?.isCancelError) {

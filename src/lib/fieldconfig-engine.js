@@ -32,11 +32,7 @@ import {
   getFieldConfigurationSchemeProjects,
   mapWithConcurrency,
 } from "./jira-api.js";
-import {
-  ensureProjectStoreReady,
-  writeFieldConfigSnapshotMeta,
-  replaceFieldConfigSnapshot,
-} from "./project-store.js";
+import { ensureProjectStoreReady, writeFieldConfigSnapshotMeta, replaceFieldConfigSnapshot } from "./project-store.js";
 import { analyzeFieldBehaviour } from "./fieldconfig-insights.js";
 
 export const FIELD_CONFIG_BUILD_STALE_MS = 16 * 60 * 1000;
@@ -90,18 +86,20 @@ export function normalizeSchemeField(schemeId, raw) {
   const fieldId = str(raw?.fieldId);
   if (!fieldId) return [];
   const params = raw?.parameters || {};
-  const rows = [{
-    ownerKind: "scheme",
-    ownerId: schemeId,
-    workTypeId: "*",
-    fieldId,
-    associated: true,
-    hidden: null,
-    required: bool(params.isRequired),
-    description: str(params.description),
-    renderer: str(params.rendererType),
-    restrictedTo: (raw?.restrictedToWorkTypes || []).map(String),
-  }];
+  const rows = [
+    {
+      ownerKind: "scheme",
+      ownerId: schemeId,
+      workTypeId: "*",
+      fieldId,
+      associated: true,
+      hidden: null,
+      required: bool(params.isRequired),
+      description: str(params.description),
+      renderer: str(params.rendererType),
+      restrictedTo: (raw?.restrictedToWorkTypes || []).map(String),
+    },
+  ];
   for (const override of raw?.workTypeParameters || []) {
     const workTypeId = str(override?.workTypeId);
     if (!workTypeId) continue;
@@ -148,7 +146,12 @@ export function normalizeConfigItem(configId, raw) {
 // Item walk under a time budget, used configurations first. Returns the rows read and, per
 // configuration, whether its items were read -- an unread configuration is "unmeasured",
 // never "has no required fields".
-export async function walkWithBudget(owners, fetchItems, toRows, { budgetMs = ITEM_WALK_BUDGET_MS, now = Date.now, concurrency = 6 } = {}) {
+export async function walkWithBudget(
+  owners,
+  fetchItems,
+  toRows,
+  { budgetMs = ITEM_WALK_BUDGET_MS, now = Date.now, concurrency = 6 } = {},
+) {
   const started = now();
   const rows = [];
   const read = new Map();
@@ -198,7 +201,7 @@ async function readCurrentModel(projectsById, walkOptions) {
     ordered,
     getFieldSchemeFields,
     (schemeId, items) => items.flatMap((raw) => normalizeSchemeField(schemeId, raw)),
-    walkOptions
+    walkOptions,
   );
 
   return { source: SOURCE.FIELD_SCHEMES, schemes, schemeProjects, configs: [], mappings: [], items: rows, read };
@@ -252,12 +255,14 @@ async function readLegacyModel(projectsById, projects, walkOptions) {
       workTypeId: str(m.issueTypeId) || "default",
       configId: `fc:${m.fieldConfigurationId}`,
     }));
-  if (defaultConfig) mappings.push({ schemeId: LEGACY_DEFAULT_SCHEME_ID, workTypeId: "default", configId: defaultConfig.id });
+  if (defaultConfig)
+    mappings.push({ schemeId: LEGACY_DEFAULT_SCHEME_ID, workTypeId: "default", configId: defaultConfig.id });
 
   const projectRows = await getFieldConfigurationSchemeProjects(projects.map((p) => p.id));
   const schemeProjects = [];
   for (const row of projectRows) {
-    const schemeId = row?.fieldConfigurationScheme?.id != null ? `fcs:${row.fieldConfigurationScheme.id}` : LEGACY_DEFAULT_SCHEME_ID;
+    const schemeId =
+      row?.fieldConfigurationScheme?.id != null ? `fcs:${row.fieldConfigurationScheme.id}` : LEGACY_DEFAULT_SCHEME_ID;
     for (const projectId of row?.projectIds || []) schemeProjects.push(projectRow(schemeId, projectId, projectsById));
   }
 
@@ -268,8 +273,9 @@ async function readLegacyModel(projectsById, projects, walkOptions) {
   const { rows, read } = await walkWithBudget(
     ordered,
     getFieldConfigurationItems,
-    (configId, items) => items.filter((raw) => raw?.id != null && isNotableItem(raw)).map((raw) => normalizeConfigItem(configId, raw)),
-    walkOptions
+    (configId, items) =>
+      items.filter((raw) => raw?.id != null && isNotableItem(raw)).map((raw) => normalizeConfigItem(configId, raw)),
+    walkOptions,
   );
 
   return { source: SOURCE.LEGACY, schemes, schemeProjects, configs, mappings, items: rows, read };
@@ -288,7 +294,9 @@ export async function readFieldBehaviour({ projects, walkOptions } = {}) {
   }
   const legacy = await readLegacyModel(projectsById, projects, walkOptions);
   if (legacy) return { ...legacy, fallbackReason: currentError || "no field schemes on this site" };
-  throw new Error(`Neither field schemes nor field configurations could be read${currentError ? `: ${currentError}` : ""}`);
+  throw new Error(
+    `Neither field schemes nor field configurations could be read${currentError ? `: ${currentError}` : ""}`,
+  );
 }
 
 export async function buildFieldConfigSnapshot(installationKey, { walkOptions } = {}) {
@@ -315,7 +323,11 @@ export async function buildFieldConfigSnapshot(installationKey, { walkOptions } 
         fieldsRead: model.source === SOURCE.FIELD_SCHEMES ? ownerRead(s.id).read : null,
       })),
       schemeProjects: model.schemeProjects,
-      configs: model.configs.map((c) => ({ ...c, itemsRead: ownerRead(c.id).read, totalFieldCount: ownerRead(c.id).fieldCount })),
+      configs: model.configs.map((c) => ({
+        ...c,
+        itemsRead: ownerRead(c.id).read,
+        totalFieldCount: ownerRead(c.id).fieldCount,
+      })),
       mappings: model.mappings,
       items: model.items,
     });
@@ -323,7 +335,10 @@ export async function buildFieldConfigSnapshot(installationKey, { walkOptions } 
     for (const item of model.items) {
       if (item.workTypeId === "*") fieldCount.set(item.ownerId, (fieldCount.get(item.ownerId) || 0) + 1);
     }
-    const schemes = analysis.schemes.map((s) => ({ ...s, fieldCount: model.source === SOURCE.FIELD_SCHEMES ? (fieldCount.get(s.id) || 0) : null }));
+    const schemes = analysis.schemes.map((s) => ({
+      ...s,
+      fieldCount: model.source === SOURCE.FIELD_SCHEMES ? fieldCount.get(s.id) || 0 : null,
+    }));
     const configs = analysis.configs.map((c) => ({ ...c, notableCount: fieldCount.get(c.id) || 0 }));
 
     await replaceFieldConfigSnapshot(installationKey, version, {
@@ -353,10 +368,22 @@ export async function buildFieldConfigSnapshot(installationKey, { walkOptions } 
 
     incrMetric(METRIC_NAMES.fieldConfigSnapshotCompleted);
     logger.info("fieldconfig-snapshot.completed", {
-      version, source: model.source, fallbackReason: model.fallbackReason,
-      schemes: schemes.length, configs: configs.length, items: model.items.length, unread,
+      version,
+      source: model.source,
+      fallbackReason: model.fallbackReason,
+      schemes: schemes.length,
+      configs: configs.length,
+      items: model.items.length,
+      unread,
     });
-    return { version, source: model.source, schemes: schemes.length, configs: configs.length, items: model.items.length, unread };
+    return {
+      version,
+      source: model.source,
+      schemes: schemes.length,
+      configs: configs.length,
+      items: model.items.length,
+      unread,
+    };
   } catch (error) {
     incrMetric(METRIC_NAMES.fieldConfigSnapshotFailed);
     const message = String(error?.message || error);

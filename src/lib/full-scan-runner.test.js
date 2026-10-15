@@ -44,7 +44,10 @@ vi.mock("./asset-engine.js", () => ({ buildAssetSnapshot: vi.fn() }));
 vi.mock("./drift-engine.js", () => ({ buildDriftSnapshot: vi.fn() }));
 
 vi.mock("./filter-engine.js", () => ({ isFilterBuildStale: vi.fn(() => false), queueFilterSnapshotBuild: vi.fn() }));
-vi.mock("./dashboard-engine.js", () => ({ isDashboardBuildStale: vi.fn(() => false), queueDashboardSnapshotBuild: vi.fn() }));
+vi.mock("./dashboard-engine.js", () => ({
+  isDashboardBuildStale: vi.fn(() => false),
+  queueDashboardSnapshotBuild: vi.fn(),
+}));
 vi.mock("./workflow-engine.js", () => ({ buildWorkflowSnapshot: vi.fn(), buildStatusHistorySnapshot: vi.fn() }));
 vi.mock("./screen-engine.js", () => ({ buildScreenSnapshot: vi.fn() }));
 vi.mock("./issuetype-engine.js", () => ({ buildIssueTypeSnapshot: vi.fn() }));
@@ -92,7 +95,14 @@ import {
 import { captureSiteHealthForScan } from "../resolvers.js";
 import { inventorySnapshotQueue } from "./queues.js";
 import { makeJobToken } from "./jira-api.js";
-import { readFullScanMeta, writeFullScanMeta, readFilterSnapshotMeta, readIssueScanMeta, writeIssueScanMeta, recordFullScanRun } from "./project-store.js";
+import {
+  readFullScanMeta,
+  writeFullScanMeta,
+  readFilterSnapshotMeta,
+  readIssueScanMeta,
+  writeIssueScanMeta,
+  recordFullScanRun,
+} from "./project-store.js";
 import { runIssueScanCoordinator } from "./scan-engine.js";
 import { buildWorkflowSnapshot } from "./workflow-engine.js";
 import { buildIssueTypeSnapshot } from "./issuetype-engine.js";
@@ -119,8 +129,7 @@ const running = (over = {}) => ({
   ...over,
 });
 
-const withDone = (keys) =>
-  keys.reduce((stages, key) => markStage(stages, key, { state: "done" }), initialStages());
+const withDone = (keys) => keys.reduce((stages, key) => markStage(stages, key, { state: "done" }), initialStages());
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -141,7 +150,7 @@ describe("starting", () => {
     expect(patch.stages).toHaveLength(fullScanStageCatalog().length);
     expect(patch.stages.every((s) => s.state === "pending")).toBe(true);
     expect(inventorySnapshotQueue.push).toHaveBeenCalledWith(
-      expect.objectContaining({ body: expect.objectContaining({ jobType: "run-full-scan", installationKey: "inst" }) })
+      expect.objectContaining({ body: expect.objectContaining({ jobType: "run-full-scan", installationKey: "inst" }) }),
     );
   });
 
@@ -179,9 +188,11 @@ describe("running a stage", () => {
   });
 
   test("runs the issue-types stage inline through its engine", async () => {
-    readFullScanMeta.mockResolvedValue(running({
-      stages: withDone(["workflows", "screens", "filters", "dashboards", "fields", "status-history"]),
-    }));
+    readFullScanMeta.mockResolvedValue(
+      running({
+        stages: withDone(["workflows", "screens", "filters", "dashboards", "fields", "status-history"]),
+      }),
+    );
 
     await runFullScanStep("inst", { jobToken: "job-token" });
 
@@ -190,9 +201,11 @@ describe("running a stage", () => {
   });
 
   test("runs the field-configs stage inline through its engine", async () => {
-    readFullScanMeta.mockResolvedValue(running({
-      stages: withDone(["workflows", "screens", "filters", "dashboards", "fields", "status-history", "issue-types"]),
-    }));
+    readFullScanMeta.mockResolvedValue(
+      running({
+        stages: withDone(["workflows", "screens", "filters", "dashboards", "fields", "status-history", "issue-types"]),
+      }),
+    );
 
     await runFullScanStep("inst", { jobToken: "job-token" });
 
@@ -203,8 +216,19 @@ describe("running a stage", () => {
   // Two pillars that were scored but never scanned. The stage list alone does not prove the
   // wiring: a key in FULL_SCAN_STAGES with no entry in STAGE_RUNNERS is a stage that cannot
   // run, which is a worse failure than not having the stage at all.
-  const upToBoards = ["workflows", "screens", "filters", "dashboards", "fields",
-    "status-history", "issue-types", "field-configs", "access", "estate", "boards"];
+  const upToBoards = [
+    "workflows",
+    "screens",
+    "filters",
+    "dashboards",
+    "fields",
+    "status-history",
+    "issue-types",
+    "field-configs",
+    "access",
+    "estate",
+    "boards",
+  ];
 
   test("runs the people stage inline through the user engine", async () => {
     readFullScanMeta.mockResolvedValue(running({ stages: withDone(upToBoards) }));
@@ -259,7 +283,7 @@ describe("running a stage", () => {
     // Waiting is a DELAYED re-queue. Without the delay the orchestrator would burn an
     // invocation every few hundred milliseconds asking a long build whether it had finished.
     expect(inventorySnapshotQueue.push).toHaveBeenCalledWith(
-      expect.objectContaining({ delayInSeconds: FULL_SCAN_POLL_DELAY_SECONDS })
+      expect.objectContaining({ delayInSeconds: FULL_SCAN_POLL_DELAY_SECONDS }),
     );
   });
 
@@ -268,9 +292,25 @@ describe("running a stage", () => {
   // row, skipped, and the next poll read that same stale "ready" and marked the stage done
   // one poll interval later -- a whole-site crawl "finishing" in ~31 seconds.
   test("the issue-crawl handoff flips the crawl meta to queued before starting the coordinator", async () => {
-    readFullScanMeta.mockResolvedValue(running({
-      stages: withDone(["workflows", "screens", "filters", "dashboards", "fields", "status-history", "issue-types", "field-configs", "access", "estate", "boards", "people", "assets"]),
-    }));
+    readFullScanMeta.mockResolvedValue(
+      running({
+        stages: withDone([
+          "workflows",
+          "screens",
+          "filters",
+          "dashboards",
+          "fields",
+          "status-history",
+          "issue-types",
+          "field-configs",
+          "access",
+          "estate",
+          "boards",
+          "people",
+          "assets",
+        ]),
+      }),
+    );
 
     const result = await runFullScanStep("inst", { jobToken: "job-token" });
 
@@ -279,8 +319,9 @@ describe("running a stage", () => {
     expect(runIssueScanCoordinator).toHaveBeenCalledWith("inst");
     // Order matters: the coordinator reads the meta on entry, so the "queued" write has to
     // land first.
-    expect(writeIssueScanMeta.mock.invocationCallOrder[0])
-      .toBeLessThan(runIssueScanCoordinator.mock.invocationCallOrder[0]);
+    expect(writeIssueScanMeta.mock.invocationCallOrder[0]).toBeLessThan(
+      runIssueScanCoordinator.mock.invocationCallOrder[0],
+    );
   });
 
   test("a stage that throws is retried, not failed on the first bad run", async () => {
@@ -292,7 +333,9 @@ describe("running a stage", () => {
     // Back to pending with the attempt recorded -- the scan should exhaust its retries
     // before it tells anyone a pillar did not build.
     expect(lastWrite().stages.find((s) => s.key === "workflows")).toMatchObject({
-      state: "pending", attempts: 1, error: expect.stringContaining("401"),
+      state: "pending",
+      attempts: 1,
+      error: expect.stringContaining("401"),
     });
     expect(inventorySnapshotQueue.push).toHaveBeenCalled();
   });
@@ -326,14 +369,18 @@ describe("running a stage", () => {
     await runFullScanStep("inst", { jobToken: "job-token" });
 
     expect(lastWrite().stages.find((s) => s.key === "workflows")).toMatchObject({
-      state: "failed", attempts: MAX_STAGE_ATTEMPTS, error: expect.stringContaining("after"),
+      state: "failed",
+      attempts: MAX_STAGE_ATTEMPTS,
+      error: expect.stringContaining("after"),
     });
     // Independent of the failed stage, the scan carries on with the rest.
     expect(inventorySnapshotQueue.push).toHaveBeenCalled();
   });
 
   test("skips a stage whose dependency failed rather than running it on stale input", async () => {
-    const stages = markStage(withDone(["screens", "filters", "dashboards", "fields"]), "workflows", { state: "failed" });
+    const stages = markStage(withDone(["screens", "filters", "dashboards", "fields"]), "workflows", {
+      state: "failed",
+    });
     readFullScanMeta.mockResolvedValue(running({ stages }));
 
     await runFullScanStep("inst", { jobToken: "job-token" });
@@ -350,7 +397,9 @@ describe("running a stage", () => {
   // stage -- and it must not hot-loop re-queueing itself either. It yields; the running
   // stage's own step advances the scan, and the stall watchdog covers a stage that died.
   test("yields without re-queueing when the next unfinished stage is already running", async () => {
-    const stages = markStage(withDone(["workflows", "screens", "filters", "dashboards"]), "fields", { state: "running" });
+    const stages = markStage(withDone(["workflows", "screens", "filters", "dashboards"]), "fields", {
+      state: "running",
+    });
     readFullScanMeta.mockResolvedValue(running({ currentStage: null, stages }));
 
     const result = await runFullScanStep("inst", { jobToken: "job-token" });
@@ -385,12 +434,14 @@ describe("field snapshot handoff", () => {
     expect(result).toMatchObject({ handedOff: true, stage: "fields" });
     expect(lastWrite().currentStage).toBe("fields");
     expect(inventorySnapshotQueue.push).toHaveBeenCalledWith(
-      expect.objectContaining({ delayInSeconds: FULL_SCAN_POLL_DELAY_SECONDS })
+      expect.objectContaining({ delayInSeconds: FULL_SCAN_POLL_DELAY_SECONDS }),
     );
   });
 
   test("keeps waiting while the build reports progress", async () => {
-    readFullScanMeta.mockResolvedValue(running({ currentStage: "fields", polls: 2, stageProgressSig: "building|40|v1" }));
+    readFullScanMeta.mockResolvedValue(
+      running({ currentStage: "fields", polls: 2, stageProgressSig: "building|40|v1" }),
+    );
     readSnapshotMeta.mockResolvedValue({ state: "building", processedFields: 900, buildingVersion: "v1" });
 
     const result = await runFullScanStep("inst", { jobToken: "job-token" });
@@ -442,7 +493,9 @@ describe("waiting on a handoff stage", () => {
   });
 
   test("resets patience when the sub-build advances, however slowly", async () => {
-    readFullScanMeta.mockResolvedValue(running({ currentStage: "filters", polls: 50, stageProgressSig: "building|10|t1" }));
+    readFullScanMeta.mockResolvedValue(
+      running({ currentStage: "filters", polls: 50, stageProgressSig: "building|10|t1" }),
+    );
     readFilterSnapshotMeta.mockResolvedValue({ state: "building", processed: 900, updatedAt: "t2" });
 
     const result = await runFullScanStep("inst", { jobToken: "job-token" });
@@ -454,7 +507,9 @@ describe("waiting on a handoff stage", () => {
   });
 
   test("marks the stage done once the pillar reports ready, and advances", async () => {
-    readFullScanMeta.mockResolvedValue(running({ currentStage: "filters", stages: withDone(["workflows", "screens"]) }));
+    readFullScanMeta.mockResolvedValue(
+      running({ currentStage: "filters", stages: withDone(["workflows", "screens"]) }),
+    );
     readFilterSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
 
     await runFullScanStep("inst", { jobToken: "job-token" });
@@ -467,7 +522,9 @@ describe("waiting on a handoff stage", () => {
   // when a worker fell over -- is still done, but the caveat rides along so the Scans tab
   // shows it instead of a clean tick over a partial result.
   test("carries a finished handoff stage's caveat onto the done stage", async () => {
-    readFullScanMeta.mockResolvedValue(running({ currentStage: "filters", stages: withDone(["workflows", "screens"]) }));
+    readFullScanMeta.mockResolvedValue(
+      running({ currentStage: "filters", stages: withDone(["workflows", "screens"]) }),
+    );
     readFilterSnapshotMeta.mockResolvedValue({
       state: "ready",
       version: "v1",
@@ -482,7 +539,9 @@ describe("waiting on a handoff stage", () => {
   });
 
   test("retries a frozen handoff stage rather than failing it on the first freeze", async () => {
-    readFullScanMeta.mockResolvedValue(running({ currentStage: "filters", polls: 10_000, stageProgressSig: frozenSig }));
+    readFullScanMeta.mockResolvedValue(
+      running({ currentStage: "filters", polls: 10_000, stageProgressSig: frozenSig }),
+    );
     readFilterSnapshotMeta.mockResolvedValue(frozenFilterMeta);
 
     await runFullScanStep("inst", { jobToken: "job-token" });
@@ -492,7 +551,9 @@ describe("waiting on a handoff stage", () => {
 
   test("a handoff stage that stays frozen through its retries is finally abandoned, not left running", async () => {
     const stages = markStage(initialStages(), "filters", { state: "running", attempts: MAX_STAGE_ATTEMPTS - 1 });
-    readFullScanMeta.mockResolvedValue(running({ currentStage: "filters", polls: 10_000, stageProgressSig: frozenSig, stages }));
+    readFullScanMeta.mockResolvedValue(
+      running({ currentStage: "filters", polls: 10_000, stageProgressSig: frozenSig, stages }),
+    );
     readFilterSnapshotMeta.mockResolvedValue(frozenFilterMeta);
 
     await runFullScanStep("inst", { jobToken: "job-token" });
@@ -504,13 +565,17 @@ describe("waiting on a handoff stage", () => {
   });
 
   test("a handoff whose pillar reports failure is retried, not failed", async () => {
-    readFullScanMeta.mockResolvedValue(running({ currentStage: "filters", stages: withDone(["workflows", "screens"]) }));
+    readFullScanMeta.mockResolvedValue(
+      running({ currentStage: "filters", stages: withDone(["workflows", "screens"]) }),
+    );
     readFilterSnapshotMeta.mockResolvedValue({ state: "failed", lastError: "429 too many requests" });
 
     await runFullScanStep("inst", { jobToken: "job-token" });
 
     expect(lastWrite().stages.find((s) => s.key === "filters")).toMatchObject({
-      state: "pending", attempts: 1, error: expect.stringContaining("429"),
+      state: "pending",
+      attempts: 1,
+      error: expect.stringContaining("429"),
     });
   });
 });
@@ -518,7 +583,11 @@ describe("waiting on a handoff stage", () => {
 describe("the health stage", () => {
   test("records site health through the dependency-injected wrapper, and completes", async () => {
     // Every stage done except health, so the next step runs it.
-    const stages = withDone(fullScanStageCatalog().map((s) => s.key).filter((k) => k !== "health"));
+    const stages = withDone(
+      fullScanStageCatalog()
+        .map((s) => s.key)
+        .filter((k) => k !== "health"),
+    );
     readFullScanMeta.mockResolvedValue(running({ stages }));
 
     await runFullScanStep("inst", { jobToken: "job-token" });
@@ -533,9 +602,13 @@ describe("the health stage", () => {
 describe("finishing", () => {
   const allButHealthDone = () =>
     markStage(
-      withDone(fullScanStageCatalog().map((s) => s.key).filter((k) => k !== "health")),
+      withDone(
+        fullScanStageCatalog()
+          .map((s) => s.key)
+          .filter((k) => k !== "health"),
+      ),
       "health",
-      { state: "failed" }
+      { state: "failed" },
     );
 
   test("sweeps the failed stages back to pending for another whole pass before giving up", async () => {
@@ -570,18 +643,26 @@ describe("finishing", () => {
   });
 
   test("records the finished run for run-over-run comparison", async () => {
-    readFullScanMeta.mockResolvedValue(running({
-      stages: withDone(fullScanStageCatalog().map((s) => s.key)),
-      startedAt: "2026-08-27T10:00:00.000Z",
-      sweep: 1,
-    }));
+    readFullScanMeta.mockResolvedValue(
+      running({
+        stages: withDone(fullScanStageCatalog().map((s) => s.key)),
+        startedAt: "2026-08-27T10:00:00.000Z",
+        sweep: 1,
+      }),
+    );
 
     await runFullScanStep("inst", { jobToken: "job-token" });
 
     expect(recordFullScanRun).toHaveBeenCalledTimes(1);
     const [scope, run] = recordFullScanRun.mock.calls[0];
     expect(scope).toBe("inst");
-    expect(run).toMatchObject({ runId: "job-token", scanType: "full", state: "ready", sweep: 1, startedAt: "2026-08-27T10:00:00.000Z" });
+    expect(run).toMatchObject({
+      runId: "job-token",
+      scanType: "full",
+      state: "ready",
+      sweep: 1,
+      startedAt: "2026-08-27T10:00:00.000Z",
+    });
     expect(run.stages.map((s) => s.key)).toEqual(fullScanStageCatalog().map((s) => s.key));
   });
 
@@ -618,9 +699,19 @@ describe("coverage", () => {
   test("covers every pillar that has a tab, except automation", () => {
     const keys = fullScanStageCatalog().map((s) => s.key);
 
-    expect(keys).toEqual(expect.arrayContaining([
-      "workflows", "screens", "filters", "dashboards", "fields", "status-history", "issue-types", "issues", "health",
-    ]));
+    expect(keys).toEqual(
+      expect.arrayContaining([
+        "workflows",
+        "screens",
+        "filters",
+        "dashboards",
+        "fields",
+        "status-history",
+        "issue-types",
+        "issues",
+        "health",
+      ]),
+    );
     // Automation is excluded deliberately: Jira publishes no API to enumerate rules, so a scan
     // that included it would be claiming coverage it does not have.
     expect(keys).not.toContain("automation");
@@ -658,7 +749,9 @@ describe("quick scan", () => {
     // invocations later, in a different process.
     expect(patch.quickScanWindowHours).toBe(48);
     expect(inventorySnapshotQueue.push).toHaveBeenCalledWith(
-      expect.objectContaining({ body: expect.objectContaining({ jobType: "run-quick-scan", installationKey: "inst" }) })
+      expect.objectContaining({
+        body: expect.objectContaining({ jobType: "run-quick-scan", installationKey: "inst" }),
+      }),
     );
   });
 
@@ -686,10 +779,12 @@ describe("quick scan", () => {
   });
 
   test("hands the issues-delta stage off to the delta job, with the stored window", async () => {
-    readFullScanMeta.mockResolvedValue(runningQuick({
-      stages: withQuickDone(["workflows", "screens", "filters", "dashboards"]),
-      quickScanWindowHours: 72,
-    }));
+    readFullScanMeta.mockResolvedValue(
+      runningQuick({
+        stages: withQuickDone(["workflows", "screens", "filters", "dashboards"]),
+        quickScanWindowHours: 72,
+      }),
+    );
 
     const result = await runQuickScanStep("inst", { jobToken: "job-token" });
 
@@ -730,7 +825,17 @@ describe("quick scan", () => {
 
   test("covers the four structural pillars, collapses fields+issues, and excludes automation", () => {
     const keys = quickScanStageCatalog().map((s) => s.key);
-    expect(keys).toEqual(expect.arrayContaining(["workflows", "screens", "filters", "dashboards", "issue-types", "issues-delta", "health"]));
+    expect(keys).toEqual(
+      expect.arrayContaining([
+        "workflows",
+        "screens",
+        "filters",
+        "dashboards",
+        "issue-types",
+        "issues-delta",
+        "health",
+      ]),
+    );
     expect(keys).not.toContain("fields");
     expect(keys).not.toContain("issues");
     expect(keys).not.toContain("automation");
@@ -761,9 +866,7 @@ describe("stall recovery", () => {
 
   test("re-queues a step for the handoff stage in flight, and counts the attempt", async () => {
     const stages = markStage(withDone(["workflows", "screens"]), "filters", { state: "running" });
-    readFullScanMeta.mockResolvedValue(
-      running({ currentStage: "filters", stages, updatedAt: stalledBeat })
-    );
+    readFullScanMeta.mockResolvedValue(running({ currentStage: "filters", stages, updatedAt: stalledBeat }));
 
     const result = await recoverStalledScan("inst", { now: NOW });
 
@@ -773,12 +876,16 @@ describe("stall recovery", () => {
     // carried through unchanged.
     expect(lastWrite().stages.find((s) => s.key === "filters").state).toBe("running");
     expect(inventorySnapshotQueue.push).toHaveBeenCalledWith(
-      expect.objectContaining({ body: expect.objectContaining({ jobType: "run-full-scan", stage: "filters", jobToken: "job-token" }) })
+      expect.objectContaining({
+        body: expect.objectContaining({ jobType: "run-full-scan", stage: "filters", jobToken: "job-token" }),
+      }),
     );
   });
 
   test("resets an inline stage that died mid-run back to pending before re-kicking", async () => {
-    const stages = markStage(withDone(["workflows", "screens", "filters", "dashboards"]), "fields", { state: "running" });
+    const stages = markStage(withDone(["workflows", "screens", "filters", "dashboards"]), "fields", {
+      state: "running",
+    });
     readFullScanMeta.mockResolvedValue(running({ currentStage: null, stages, updatedAt: stalledBeat }));
 
     await recoverStalledScan("inst", { now: NOW });
@@ -787,14 +894,14 @@ describe("stall recovery", () => {
     // reporting a stage it never actually completed.
     expect(lastWrite().stages.find((s) => s.key === "fields")).toMatchObject({ state: "pending", startedAt: null });
     expect(inventorySnapshotQueue.push).toHaveBeenCalledWith(
-      expect.objectContaining({ body: expect.objectContaining({ stage: null }) })
+      expect.objectContaining({ body: expect.objectContaining({ stage: null }) }),
     );
   });
 
   test("gives up after the recovery budget is spent, failing the run out instead of leaving it running", async () => {
     const stages = markStage(withDone(["workflows", "screens"]), "filters", { state: "running" });
     readFullScanMeta.mockResolvedValue(
-      running({ currentStage: "filters", stages, updatedAt: stalledBeat, recoveryCount: MAX_SCAN_RECOVERIES })
+      running({ currentStage: "filters", stages, updatedAt: stalledBeat, recoveryCount: MAX_SCAN_RECOVERIES }),
     );
 
     const result = await recoverStalledScan("inst", { now: NOW });
@@ -820,14 +927,18 @@ describe("stall recovery", () => {
   // A zombie: the loop keeps writing updatedAt, so the heartbeat is fresh and every
   // progress-based guard resets -- but it started days ago and will never finish.
   test("fails a run out once it passes the total-duration ceiling, fresh heartbeat and all", async () => {
-    const stages = markStage(withDone(["workflows", "screens", "filters", "dashboards"]), "fields", { state: "running" });
-    readFullScanMeta.mockResolvedValue(running({
-      currentStage: null,
-      stages,
-      updatedAt: freshBeat, // loop is alive right now
-      startedAt: new Date(NOW - (MAX_SCAN_TOTAL_MS + 60_000)).toISOString(),
-      recoveryCount: 0, // budget untouched -- progress kept resetting it
-    }));
+    const stages = markStage(withDone(["workflows", "screens", "filters", "dashboards"]), "fields", {
+      state: "running",
+    });
+    readFullScanMeta.mockResolvedValue(
+      running({
+        currentStage: null,
+        stages,
+        updatedAt: freshBeat, // loop is alive right now
+        startedAt: new Date(NOW - (MAX_SCAN_TOTAL_MS + 60_000)).toISOString(),
+        recoveryCount: 0, // budget untouched -- progress kept resetting it
+      }),
+    );
 
     const result = await recoverStalledScan("inst", { now: NOW });
 
@@ -840,11 +951,13 @@ describe("stall recovery", () => {
   });
 
   test("leaves a long-but-under-the-ceiling run alone", async () => {
-    readFullScanMeta.mockResolvedValue(running({
-      currentStage: "issues",
-      updatedAt: freshBeat,
-      startedAt: new Date(NOW - (MAX_SCAN_TOTAL_MS - 60 * 60 * 1000)).toISOString(), // an hour short
-    }));
+    readFullScanMeta.mockResolvedValue(
+      running({
+        currentStage: "issues",
+        updatedAt: freshBeat,
+        startedAt: new Date(NOW - (MAX_SCAN_TOTAL_MS - 60 * 60 * 1000)).toISOString(), // an hour short
+      }),
+    );
 
     const result = await recoverStalledScan("inst", { now: NOW });
 
@@ -865,13 +978,13 @@ describe("stall recovery", () => {
     await recoverStalledScan("inst", { now: NOW });
 
     expect(inventorySnapshotQueue.push).toHaveBeenCalledWith(
-      expect.objectContaining({ body: expect.objectContaining({ jobType: "run-quick-scan" }) })
+      expect.objectContaining({ body: expect.objectContaining({ jobType: "run-quick-scan" }) }),
     );
   });
 
   test("a real stage transition clears the recovery budget", async () => {
     readFullScanMeta.mockResolvedValue(
-      running({ currentStage: "filters", stages: withDone(["workflows", "screens"]), recoveryCount: 2 })
+      running({ currentStage: "filters", stages: withDone(["workflows", "screens"]), recoveryCount: 2 }),
     );
     readFilterSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
 
@@ -886,14 +999,16 @@ describe("stall recovery", () => {
   // as stale rather than letting two loops run stages concurrently and out of order.
   test("rotates the job token so a delayed original step is rejected", async () => {
     makeJobToken.mockReturnValueOnce("recovered-token");
-    const stages = markStage(withDone(["workflows", "screens", "filters", "dashboards"]), "fields", { state: "running" });
+    const stages = markStage(withDone(["workflows", "screens", "filters", "dashboards"]), "fields", {
+      state: "running",
+    });
     readFullScanMeta.mockResolvedValue(running({ currentStage: null, stages, updatedAt: stalledBeat }));
 
     await recoverStalledScan("inst", { now: NOW });
 
     expect(lastWrite().jobToken).toBe("recovered-token");
     expect(inventorySnapshotQueue.push).toHaveBeenCalledWith(
-      expect.objectContaining({ body: expect.objectContaining({ jobToken: "recovered-token" }) })
+      expect.objectContaining({ body: expect.objectContaining({ jobToken: "recovered-token" }) }),
     );
 
     // The delayed original, carrying the old token, is now a stale message.
@@ -918,7 +1033,9 @@ describe("resumeScanRun", () => {
     stages = markStage(stages, "dashboards", { state: "failed", attempts: 3, error: "400 Bad Request" });
     stages = markStage(stages, "fields", { state: "skipped" });
     readFullScanMeta.mockResolvedValue({
-      state: "completed-with-failures", scanType: "full", stages,
+      state: "completed-with-failures",
+      scanType: "full",
+      stages,
       startedAt: new Date(NOW - 5 * 60 * 60 * 1000).toISOString(),
     });
 

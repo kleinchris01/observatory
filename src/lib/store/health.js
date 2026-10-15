@@ -8,12 +8,7 @@
 // is one arrow and no cycle to reason about.
 
 import { sql } from "@forge/sql";
-import {
-  ensureProjectStoreReady,
-  safeParseJson,
-  toNumber,
-  withSqlRetry,
-} from "./core.js";
+import { ensureProjectStoreReady, safeParseJson, toNumber, withSqlRetry } from "./core.js";
 
 // The UTC day a measurement belongs to.
 //
@@ -58,7 +53,9 @@ export async function recordHealthSnapshot(scopeKey, health, at = Date.now()) {
 
     const measuredAt = new Date(at).toISOString();
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO health_history
           (scope_key, measured_on, measured_at, score, grade, dimensions_scored, dimensions_total, dimensions_json)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -69,16 +66,19 @@ export async function recordHealthSnapshot(scopeKey, health, at = Date.now()) {
           dimensions_scored = VALUES(dimensions_scored),
           dimensions_total = VALUES(dimensions_total),
           dimensions_json = VALUES(dimensions_json)
-      `).bindParams(
-        scopeKey,
-        measurementDay(at),
-        measuredAt,
-        health.score,
-        health.grade || null,
-        health.dimensionsScored ?? 0,
-        health.dimensionsTotal ?? 0,
-        JSON.stringify(dimensions)
-      ).execute()
+      `,
+        )
+        .bindParams(
+          scopeKey,
+          measurementDay(at),
+          measuredAt,
+          health.score,
+          health.grade || null,
+          health.dimensionsScored ?? 0,
+          health.dimensionsTotal ?? 0,
+          JSON.stringify(dimensions),
+        )
+        .execute(),
     );
     return { recorded: true };
   } catch (error) {
@@ -98,27 +98,34 @@ export async function loadHealthHistory(scopeKey, { days = 90 } = {}) {
   const capped = Math.max(1, Math.min(365, Math.trunc(Number(days)) || 90));
 
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT measured_on, measured_at, score, grade, dimensions_scored, dimensions_total, dimensions_json
       FROM health_history
       WHERE scope_key = ?
       ORDER BY measured_on DESC
       LIMIT ${capped}
-    `).bindParams(scopeKey).execute()
+    `,
+      )
+      .bindParams(scopeKey)
+      .execute(),
   );
 
-  return (result.rows || []).map((row) => ({
-    day: row.measured_on,
-    measuredAt: row.measured_at,
-    score: toNumber(row.score),
-    grade: row.grade || null,
-    dimensionsScored: toNumber(row.dimensions_scored),
-    dimensionsTotal: toNumber(row.dimensions_total),
-    // {key: score}, flattening both stored shapes: a v1 row is { key: 84 }, a v2 row is
-    // { key: { s: 84, v: 0.03 } }. Consumers plot the score; the raw value is only for the
-    // directional term, read separately by loadPriorHealthDimensions.
-    dimensions: flattenDimensionScores(safeParseJson(row.dimensions_json, {}) || {}),
-  })).reverse();
+  return (result.rows || [])
+    .map((row) => ({
+      day: row.measured_on,
+      measuredAt: row.measured_at,
+      score: toNumber(row.score),
+      grade: row.grade || null,
+      dimensionsScored: toNumber(row.dimensions_scored),
+      dimensionsTotal: toNumber(row.dimensions_total),
+      // {key: score}, flattening both stored shapes: a v1 row is { key: 84 }, a v2 row is
+      // { key: { s: 84, v: 0.03 } }. Consumers plot the score; the raw value is only for the
+      // directional term, read separately by loadPriorHealthDimensions.
+      dimensions: flattenDimensionScores(safeParseJson(row.dimensions_json, {}) || {}),
+    }))
+    .reverse();
 }
 
 function flattenDimensionScores(raw) {
@@ -136,13 +143,18 @@ export async function loadPriorHealthDimensions(scopeKey, { onOrBefore = Date.no
   await ensureProjectStoreReady();
   const before = measurementDay(onOrBefore - 24 * 60 * 60 * 1000);
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT dimensions_json
       FROM health_history
       WHERE scope_key = ? AND measured_on <= ?
       ORDER BY measured_on DESC
       LIMIT 1
-    `).bindParams(scopeKey, before).execute()
+    `,
+      )
+      .bindParams(scopeKey, before)
+      .execute(),
   );
   const raw = safeParseJson(result.rows?.[0]?.dimensions_json, {}) || {};
   const out = {};
@@ -162,8 +174,10 @@ export async function pruneHealthHistory(scopeKey, olderThanDays = 400) {
   await ensureProjectStoreReady();
   const cutoff = measurementDay(Date.now() - Math.max(1, olderThanDays) * 24 * 60 * 60 * 1000);
   const result = await withSqlRetry(() =>
-    sql.prepare("DELETE FROM health_history WHERE scope_key = ? AND measured_on < ?")
-      .bindParams(scopeKey, cutoff).execute()
+    sql
+      .prepare("DELETE FROM health_history WHERE scope_key = ? AND measured_on < ?")
+      .bindParams(scopeKey, cutoff)
+      .execute(),
   );
   return { deleted: toNumber(result?.affectedRows ?? result?.rowsAffected, 0), cutoff };
 }
@@ -177,12 +191,17 @@ export async function pruneHealthHistory(scopeKey, olderThanDays = 400) {
 export async function readFullScanMeta(scopeKey) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT state, job_token, current_stage, stages_json, started_at, completed_at, last_error,
              updated_at, polls, scan_type, quick_scan_window_hours,
              recovery_count, sweep, stage_progress_sig
       FROM full_scan_meta WHERE scope_key = ?
-    `).bindParams(scopeKey).execute()
+    `,
+      )
+      .bindParams(scopeKey)
+      .execute(),
   );
   const row = result.rows?.[0];
   if (!row) return null;
@@ -207,9 +226,10 @@ export async function readFullScanMeta(scopeKey) {
     // The lookback window a quick scan was started with. Not a closure variable: orchestration
     // is queue-driven across many invocations, so the issues-delta stage rereads this from the
     // row at the moment it actually starts, however many steps into the scan that is.
-    quickScanWindowHours: row.quick_scan_window_hours === null || row.quick_scan_window_hours === undefined
-      ? null
-      : toNumber(row.quick_scan_window_hours),
+    quickScanWindowHours:
+      row.quick_scan_window_hours === null || row.quick_scan_window_hours === undefined
+        ? null
+        : toNumber(row.quick_scan_window_hours),
     // Resilience bookkeeping -- how many times the stall watchdog has re-kicked this run
     // without progress, how many full retry sweeps over the stage list it has taken, and the
     // last-seen progress signature of the handoff sub-build in flight (so a slow build is
@@ -228,7 +248,9 @@ export async function writeFullScanMeta(scopeKey, patch = {}) {
   const next = { ...current, ...patch };
 
   await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       INSERT INTO full_scan_meta
         (scope_key, state, job_token, current_stage, stages_json, started_at, completed_at,
          last_error, updated_at, polls, scan_type, quick_scan_window_hours,
@@ -249,25 +271,28 @@ export async function writeFullScanMeta(scopeKey, patch = {}) {
         recovery_count = VALUES(recovery_count),
         sweep = VALUES(sweep),
         stage_progress_sig = VALUES(stage_progress_sig)
-    `).bindParams(
-      scopeKey,
-      next.state || "idle",
-      next.jobToken || null,
-      next.currentStage || null,
-      JSON.stringify(next.stages || []),
-      next.startedAt || null,
-      next.completedAt || null,
-      next.lastError || null,
-      next.updatedAt || null,
-      Number(next.polls) || 0,
-      next.scanType || null,
-      next.quickScanWindowHours === null || next.quickScanWindowHours === undefined
-        ? null
-        : Number(next.quickScanWindowHours),
-      Number(next.recoveryCount) || 0,
-      Number(next.sweep) || 0,
-      next.stageProgressSig || null
-    ).execute()
+    `,
+      )
+      .bindParams(
+        scopeKey,
+        next.state || "idle",
+        next.jobToken || null,
+        next.currentStage || null,
+        JSON.stringify(next.stages || []),
+        next.startedAt || null,
+        next.completedAt || null,
+        next.lastError || null,
+        next.updatedAt || null,
+        Number(next.polls) || 0,
+        next.scanType || null,
+        next.quickScanWindowHours === null || next.quickScanWindowHours === undefined
+          ? null
+          : Number(next.quickScanWindowHours),
+        Number(next.recoveryCount) || 0,
+        Number(next.sweep) || 0,
+        next.stageProgressSig || null,
+      )
+      .execute(),
   );
   return next;
 }
@@ -289,7 +314,9 @@ export async function recordFullScanRun(scopeKey, run = {}) {
 
   try {
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO full_scan_runs
           (scope_key, run_id, scan_type, state, started_at, completed_at, duration_ms,
            failed_count, skipped_count, total_stages, sweep, stages_json, summary_json)
@@ -305,21 +332,24 @@ export async function recordFullScanRun(scopeKey, run = {}) {
           sweep = VALUES(sweep),
           stages_json = VALUES(stages_json),
           summary_json = VALUES(summary_json)
-      `).bindParams(
-        scopeKey,
-        String(run.runId),
-        run.scanType === "quick" ? "quick" : "full",
-        run.state || "ready",
-        run.startedAt || null,
-        run.completedAt || null,
-        Number(run.durationMs) || 0,
-        Number(run.failedCount) || 0,
-        Number(run.skippedCount) || 0,
-        Number(run.totalStages) || 0,
-        Number(run.sweep) || 0,
-        JSON.stringify(run.stages || []),
-        JSON.stringify(run.summary || {})
-      ).execute()
+      `,
+        )
+        .bindParams(
+          scopeKey,
+          String(run.runId),
+          run.scanType === "quick" ? "quick" : "full",
+          run.state || "ready",
+          run.startedAt || null,
+          run.completedAt || null,
+          Number(run.durationMs) || 0,
+          Number(run.failedCount) || 0,
+          Number(run.skippedCount) || 0,
+          Number(run.totalStages) || 0,
+          Number(run.sweep) || 0,
+          JSON.stringify(run.stages || []),
+          JSON.stringify(run.summary || {}),
+        )
+        .execute(),
     );
 
     await pruneFullScanRuns(scopeKey);
@@ -341,14 +371,19 @@ export async function readRecentFullScanRuns(scopeKey, { scanType = null, limit 
   const params = typeClause ? [scopeKey, scanType] : [scopeKey];
 
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT run_id, scan_type, state, started_at, completed_at, duration_ms,
              failed_count, skipped_count, total_stages, sweep, stages_json, summary_json
       FROM full_scan_runs
       WHERE scope_key = ? ${typeClause}
       ORDER BY completed_at DESC
       LIMIT ${capped}
-    `).bindParams(...params).execute()
+    `,
+      )
+      .bindParams(...params)
+      .execute(),
   );
 
   return (result.rows || []).map((row) => ({
@@ -374,20 +409,27 @@ export async function pruneFullScanRuns(scopeKey, keep = FULL_SCAN_RUNS_KEEP) {
   const capped = Math.max(1, Math.min(500, Math.trunc(Number(keep)) || FULL_SCAN_RUNS_KEEP));
 
   const survivors = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT run_id FROM full_scan_runs
       WHERE scope_key = ?
       ORDER BY completed_at DESC
       LIMIT ${capped}
-    `).bindParams(scopeKey).execute()
+    `,
+      )
+      .bindParams(scopeKey)
+      .execute(),
   );
   const keepIds = (survivors.rows || []).map((r) => r.run_id);
   if (keepIds.length < capped) return { deleted: 0 };
 
   const placeholders = keepIds.map(() => "?").join(", ");
   const result = await withSqlRetry(() =>
-    sql.prepare(`DELETE FROM full_scan_runs WHERE scope_key = ? AND run_id NOT IN (${placeholders})`)
-      .bindParams(scopeKey, ...keepIds).execute()
+    sql
+      .prepare(`DELETE FROM full_scan_runs WHERE scope_key = ? AND run_id NOT IN (${placeholders})`)
+      .bindParams(scopeKey, ...keepIds)
+      .execute(),
   );
   return { deleted: toNumber(result?.affectedRows ?? result?.rowsAffected, 0) };
 }

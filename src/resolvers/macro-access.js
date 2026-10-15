@@ -35,7 +35,8 @@ export async function macroAccessDecision(context) {
     if (!groups.length) {
       return {
         allowed: false,
-        reason: "Macro access is restricted but no allowed groups have been configured. Contact your Jira administrator.",
+        reason:
+          "Macro access is restricted but no allowed groups have been configured. Contact your Jira administrator.",
       };
     }
 
@@ -48,10 +49,9 @@ export async function macroAccessDecision(context) {
     const cached = macroAccessCache.get(cacheKey);
     if (cached && cached.expires > Date.now()) return cached.decision;
 
-    const resp = await api.asApp().requestJira(
-      route`/rest/api/3/user/groups?accountId=${accountId}`,
-      { headers: { Accept: "application/json" } }
-    );
+    const resp = await api
+      .asApp()
+      .requestJira(route`/rest/api/3/user/groups?accountId=${accountId}`, { headers: { Accept: "application/json" } });
 
     if (!resp.ok) {
       console.error("checkMacroAccess: group lookup failed", resp.status);
@@ -67,7 +67,8 @@ export async function macroAccessDecision(context) {
       ? { allowed: true }
       : {
           allowed: false,
-          reason: "You don't have permission to view this Observatory. Contact your Jira administrator to request access.",
+          reason:
+            "You don't have permission to view this Observatory. Contact your Jira administrator to request access.",
         };
     macroAccessCache.set(cacheKey, { decision, expires: Date.now() + MACRO_ACCESS_TTL_MS });
     return decision;
@@ -111,6 +112,6 @@ export function withMacroAccessGuard(functions) {
           return fn(req);
         },
       ];
-    })
+    }),
   );
 }

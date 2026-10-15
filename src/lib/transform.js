@@ -112,11 +112,12 @@ export function extractLatestFieldChange(changelogPayload, fieldId) {
     if (typeof node !== "object") return;
 
     if (Array.isArray(node.items) && node.created) {
-      const matches = node.items.some((item) =>
-        item?.fieldId === fieldId ||
-        item?.fieldId === numericId ||
-        item?.field === fieldId ||
-        item?.field === numericId
+      const matches = node.items.some(
+        (item) =>
+          item?.fieldId === fieldId ||
+          item?.fieldId === numericId ||
+          item?.field === fieldId ||
+          item?.field === numericId,
       );
 
       if (matches) {
@@ -132,13 +133,7 @@ export function extractLatestFieldChange(changelogPayload, fieldId) {
   return latest;
 }
 
-export function buildProjectUsageRecord({
-  project,
-  fieldId,
-  issueCount,
-  latestFieldChangeAt,
-  latestIssue,
-}) {
+export function buildProjectUsageRecord({ project, fieldId, issueCount, latestFieldChangeAt, latestIssue }) {
   return {
     projectId: project.id,
     projectKey: project.key,

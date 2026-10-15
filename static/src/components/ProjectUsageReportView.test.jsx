@@ -27,14 +27,18 @@ function reportData(overrides = {}) {
     // Usage hangs off each field as a nested projects[] rather than a separate matrix.
     fields: [
       {
-        fieldId: "customfield_1", fieldName: "Team", fieldType: "select",
+        fieldId: "customfield_1",
+        fieldName: "Team",
+        fieldType: "select",
         projects: [
           { projectId: "10", projectKey: "ALPHA", issueCount: 30 },
           { projectId: "11", projectKey: "BRAVO", issueCount: 12 },
         ],
       },
       {
-        fieldId: "customfield_2", fieldName: "Sprint Goal", fieldType: "text",
+        fieldId: "customfield_2",
+        fieldName: "Sprint Goal",
+        fieldType: "text",
         projects: [{ projectId: "10", projectKey: "ALPHA", issueCount: 10 }],
       },
     ],
@@ -95,9 +99,13 @@ describe("ProjectUsageReportView", () => {
   // A field mid-computation must not be silently folded in with the completed ones, since
   // it would read as "used by no project" rather than "not counted yet".
   test("renders a report carrying still-pending fields", async () => {
-    render(<ProjectUsageReportView {...props({
-      reportData: reportData({ pendingFields: [{ fieldId: "customfield_9", fieldName: "Pending Field" }] }),
-    })} />);
+    render(
+      <ProjectUsageReportView
+        {...props({
+          reportData: reportData({ pendingFields: [{ fieldId: "customfield_9", fieldName: "Pending Field" }] }),
+        })}
+      />,
+    );
 
     expect((await screen.findAllByText("Team")).length).toBeGreaterThan(0);
     // The completed fields still render; pending ones are not counted as zero-usage rows.
@@ -175,7 +183,9 @@ describe("ProjectUsageReportView — filters and layout", () => {
 
     const typeSelects = screen.queryAllByRole("combobox");
     if (typeSelects.length > 0) {
-      const options = within(typeSelects[0]).queryAllByRole("option").map((o) => o.value);
+      const options = within(typeSelects[0])
+        .queryAllByRole("option")
+        .map((o) => o.value);
       if (options.includes("text")) {
         await userEvent.selectOptions(typeSelects[0], "text");
         await waitFor(() => expect(screen.queryAllByText("Team")).toHaveLength(0));
@@ -213,8 +223,7 @@ describe("ProjectUsageReportView — heat map", () => {
     const { container } = render(<ProjectUsageReportView {...props()} />);
     await screen.findAllByText("Team");
 
-    const steps = [...container.querySelectorAll("td[data-heat]")]
-      .map((td) => Number(td.getAttribute("data-heat")));
+    const steps = [...container.querySelectorAll("td[data-heat]")].map((td) => Number(td.getAttribute("data-heat")));
     // 30 issues and 10 issues must not land on the same step.
     expect(new Set(steps).size).toBeGreaterThan(1);
     expect(Math.max(...steps)).toBeLessThanOrEqual(5);

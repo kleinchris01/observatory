@@ -218,9 +218,7 @@ export async function buildScreenSnapshot(installationKey) {
     const { screenRows, tabs, fields } = await collectScreenContents(screens);
 
     const knownScreenIds = new Set(screenRows.map((s) => String(s.id)));
-    const schemeOperations = screenSchemes.flatMap((scheme) =>
-      resolveSchemeOperations(scheme, knownScreenIds)
-    );
+    const schemeOperations = screenSchemes.flatMap((scheme) => resolveSchemeOperations(scheme, knownScreenIds));
 
     const mappingRows = itssMappings.map((m) => ({
       itssId: String(m.issueTypeScreenSchemeId),

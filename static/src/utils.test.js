@@ -291,7 +291,10 @@ describe("downloadCsv", () => {
     URL.createObjectURL = vi.fn().mockReturnValue("blob:mock");
     URL.revokeObjectURL = vi.fn();
 
-    downloadCsv("test.csv", [["a", "b"], ["1", "2"]]);
+    downloadCsv("test.csv", [
+      ["a", "b"],
+      ["1", "2"],
+    ]);
 
     expect(createElementSpy).toHaveBeenCalledWith("a");
     expect(linkEl.download).toBe("test.csv");
@@ -412,9 +415,7 @@ describe("summarizeReportData", () => {
       fieldId: "customfield_2",
       fieldName: "Field B",
       fieldType: "number",
-      projects: [
-        { projectId: "P1", projectKey: "AA", projectName: "Alpha", issueCount: 10 },
-      ],
+      projects: [{ projectId: "P1", projectKey: "AA", projectName: "Alpha", issueCount: 10 }],
     },
   ];
   const projects = [{ projectId: "P1" }, { projectId: "P2" }];
@@ -656,7 +657,9 @@ describe("copyToClipboard", () => {
 
   test("resolves false rather than throwing when execCommand itself throws", async () => {
     setClipboard(undefined);
-    document.execCommand = vi.fn(() => { throw new Error("not supported"); });
+    document.execCommand = vi.fn(() => {
+      throw new Error("not supported");
+    });
 
     await expect(copyToClipboard("customfield_1")).resolves.toBe(false);
   });
@@ -826,7 +829,9 @@ describe("ROVO_AGENTS registry", () => {
     const { readFileSync } = await import("node:fs");
     const { resolve } = await import("node:path");
     const manifest = readFileSync(resolve(process.cwd(), "manifest.yml"), "utf8");
-    const declared = [...manifest.matchAll(/-\s*key:\s*(observatory-[a-z]+-expert)(?![a-z-])/g)].map((m) => m[1]).sort();
+    const declared = [...manifest.matchAll(/-\s*key:\s*(observatory-[a-z]+-expert)(?![a-z-])/g)]
+      .map((m) => m[1])
+      .sort();
     expect(Object.keys(ROVO_AGENTS).sort()).toEqual(declared);
   });
 });
@@ -852,7 +857,7 @@ describe("openRovo", () => {
   test("openFieldExpertRovo still routes to the field agent", async () => {
     await openFieldExpertRovo("hi");
     expect(rovo.open).toHaveBeenCalledWith(
-      expect.objectContaining({ agentKey: "observatory-field-expert", prompt: "hi" })
+      expect.objectContaining({ agentKey: "observatory-field-expert", prompt: "hi" }),
     );
   });
 });
@@ -861,7 +866,10 @@ describe("buildRovoPrompt", () => {
   test("one sentence of task, then labelled evidence", () => {
     const out = buildRovoPrompt({
       task: "Explain this scheme.",
-      facts: [["Name", "Default"], ["Statuses", 12]],
+      facts: [
+        ["Name", "Default"],
+        ["Statuses", 12],
+      ],
     });
     expect(out).toBe("Explain this scheme. Name: Default. Statuses: 12.");
   });
@@ -869,7 +877,13 @@ describe("buildRovoPrompt", () => {
   test("drops empty / null / undefined facts so callers need not guard", () => {
     const out = buildRovoPrompt({
       task: "Explain.",
-      facts: [["A", ""], ["B", null], ["C", undefined], ["D", "kept"], ["E", 0]],
+      facts: [
+        ["A", ""],
+        ["B", null],
+        ["C", undefined],
+        ["D", "kept"],
+        ["E", 0],
+      ],
     });
     expect(out).toBe("Explain. D: kept. E: 0.");
   });
@@ -902,12 +916,16 @@ describe("Jira deep-link builders", () => {
 
   test("id-taking builders encode their id", () => {
     expect(buildScreenUrl(origin, 10)).toBe(`${origin}/secure/admin/ConfigureFieldScreen.jspa?id=10`);
-    expect(buildPermissionSchemeUrl(origin, 20)).toBe(`${origin}/secure/admin/EditPermissions!default.jspa?schemeId=20`);
+    expect(buildPermissionSchemeUrl(origin, 20)).toBe(
+      `${origin}/secure/admin/EditPermissions!default.jspa?schemeId=20`,
+    );
     expect(buildAssetSchemaUrl(origin, 3)).toBe(`${origin}/secure/ObjectSchema.jspa?id=3`);
   });
 
   test("buildWorkflowUrl opens the live workflow by its encoded name, and needs both parts", () => {
-    expect(buildWorkflowUrl(origin, "Build Deviation WF")).toBe(`${origin}/secure/admin/workflows/ViewWorkflowSteps.jspa?workflowMode=live&workflowName=Build%20Deviation%20WF`);
+    expect(buildWorkflowUrl(origin, "Build Deviation WF")).toBe(
+      `${origin}/secure/admin/workflows/ViewWorkflowSteps.jspa?workflowMode=live&workflowName=Build%20Deviation%20WF`,
+    );
     expect(buildWorkflowUrl(origin, "")).toBeNull();
     expect(buildWorkflowUrl(null, "WF")).toBeNull();
   });

@@ -1,7 +1,14 @@
 import React from "react";
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import { ScanDeltaChart, ScanThroughputChart, IssueCrawlLiveView, FullScanPanel, QuickScanPanel, useVisiblePolling } from "./ScansTab";
+import {
+  ScanDeltaChart,
+  ScanThroughputChart,
+  IssueCrawlLiveView,
+  FullScanPanel,
+  QuickScanPanel,
+  useVisiblePolling,
+} from "./ScansTab";
 import userEvent from "@testing-library/user-event";
 import { renderHook, act } from "@testing-library/react";
 
@@ -36,7 +43,7 @@ describe("ScanDeltaChart", () => {
           { delta: 1657, label: "Aug 5" },
           { delta: 900, label: "Aug 3" },
         ]}
-      />
+      />,
     );
     expect(container.querySelectorAll("rect")).toHaveLength(2);
   });
@@ -45,7 +52,12 @@ describe("ScanDeltaChart", () => {
   // fewer issues than the last one is a signal, not a smaller success.
   test("colours a negative delta differently from a positive one", () => {
     const { container } = render(
-      <ScanDeltaChart data={[{ delta: 500, label: "a" }, { delta: -200, label: "b" }]} />
+      <ScanDeltaChart
+        data={[
+          { delta: 500, label: "a" },
+          { delta: -200, label: "b" },
+        ]}
+      />,
     );
     const fills = [...container.querySelectorAll("rect")].map((r) => r.getAttribute("fill"));
     expect(new Set(fills).size).toBe(2);
@@ -55,11 +67,14 @@ describe("ScanDeltaChart", () => {
   // Reserving half the chart for negatives that never occur halves the resolution.
   test("keeps the full height for growth when nothing shrank", () => {
     const { container } = render(
-      <ScanDeltaChart data={[{ delta: 100, label: "a" }, { delta: 50, label: "b" }]} />
+      <ScanDeltaChart
+        data={[
+          { delta: 100, label: "a" },
+          { delta: 50, label: "b" },
+        ]}
+      />,
     );
-    const tallest = Math.max(
-      ...[...container.querySelectorAll("rect")].map((r) => Number(r.getAttribute("height")))
-    );
+    const tallest = Math.max(...[...container.querySelectorAll("rect")].map((r) => Number(r.getAttribute("height"))));
     expect(tallest).toBeGreaterThan(90);
   });
 });
@@ -77,7 +92,7 @@ describe("ScanThroughputChart", () => {
           { minutes: 108, rate: 50, label: "Aug 5" },
           { minutes: 96, rate: 57, label: "Aug 3" },
         ]}
-      />
+      />,
     );
     expect(container.querySelectorAll("rect")).toHaveLength(2);
     expect(container.querySelectorAll("circle")).toHaveLength(2);
@@ -88,13 +103,7 @@ describe("IssueCrawlLiveView run-derived series", () => {
   const noop = () => {};
   const panel = (issueScan) =>
     render(
-      <IssueCrawlLiveView
-        issueScan={issueScan}
-        onResume={noop}
-        onCancel={noop}
-        resuming={false}
-        cancelling={false}
-      />
+      <IssueCrawlLiveView issueScan={issueScan} onResume={noop} onCancel={noop} resuming={false} cancelling={false} />,
     );
 
   // The whole point of the delta chart: totals that barely move still produce a readable
@@ -146,7 +155,13 @@ describe("FullScanPanel — the live pipeline", () => {
       { key: "filters", label: "Saved filter inventory", mode: "handoff" },
     ],
     stages: [
-      { key: "workflows", state: "done", startedAt: "2026-08-27T10:00:00Z", completedAt: "2026-08-27T10:00:12Z", attempts: 1 },
+      {
+        key: "workflows",
+        state: "done",
+        startedAt: "2026-08-27T10:00:00Z",
+        completedAt: "2026-08-27T10:00:12Z",
+        attempts: 1,
+      },
       { key: "screens", state: "running", startedAt: "2026-08-27T10:00:12Z", attempts: 1 },
       { key: "filters", state: "pending", attempts: 0 },
     ],
@@ -173,7 +188,7 @@ describe("FullScanPanel — the live pipeline", () => {
         forceResumingSnapshot={false}
         onSnapshotCleared={noop}
         {...extra}
-      />
+      />,
     );
   }
 
@@ -207,13 +222,21 @@ describe("FullScanPanel — the live pipeline", () => {
   });
 
   test("shows a real percentage on a counted handoff stage", () => {
-    panel({ ...runningStatus, currentStage: "filters", currentStageProgress: { processed: 1200, total: 4115, lastError: null } });
+    panel({
+      ...runningStatus,
+      currentStage: "filters",
+      currentStageProgress: { processed: 1200, total: 4115, lastError: null },
+    });
     expect(screen.getByText(/1,200 of 4,115 \(29%\)/)).toBeInTheDocument();
   });
 
   // The bug from the screenshot: processed past total clamps to a meaningless 100%.
   test("refuses to show 'X of Y' when processed has run past total", () => {
-    panel({ ...runningStatus, currentStage: "filters", currentStageProgress: { processed: 1886, total: 613, lastError: null } });
+    panel({
+      ...runningStatus,
+      currentStage: "filters",
+      currentStageProgress: { processed: 1886, total: 613, lastError: null },
+    });
     expect(screen.queryByText(/1,886 of 613/)).not.toBeInTheDocument();
     expect(screen.getByText(/1,886 processed/)).toBeInTheDocument();
   });
@@ -231,9 +254,7 @@ describe("FullScanPanel — the live pipeline", () => {
       ...runningStatus,
       currentStage: "screens",
       stages: runningStatus.stages.map((s) => (s.key === "screens" ? { ...s, startedAt } : s)),
-      recentRuns: [
-        { runId: "r1", stages: [{ key: "screens", state: "done", durationMs: 600000, count: 700 }] },
-      ],
+      recentRuns: [{ runId: "r1", stages: [{ key: "screens", state: "done", durationMs: 600000, count: 700 }] }],
     });
     const band = container.querySelector(".scan-now");
     expect(within(band).getByText(/~\d+% · estimated from previous runs/)).toBeInTheDocument();
@@ -247,11 +268,11 @@ describe("FullScanPanel — the live pipeline", () => {
       ...runningStatus,
       currentStage: "screens",
       stages: runningStatus.stages.map((s) => (s.key === "screens" ? { ...s, startedAt } : s)),
-      recentRuns: [
-        { runId: "r1", stages: [{ key: "screens", state: "done", durationMs: 60000 }] },
-      ],
+      recentRuns: [{ runId: "r1", stages: [{ key: "screens", state: "done", durationMs: 60000 }] }],
     });
-    expect(within(container.querySelector(".scan-now")).getByText(/~99% · running longer than last time/)).toBeInTheDocument();
+    expect(
+      within(container.querySelector(".scan-now")).getByText(/~99% · running longer than last time/),
+    ).toBeInTheDocument();
   });
 
   // The one case where an honest answer is "we cannot say yet".
@@ -270,9 +291,7 @@ describe("FullScanPanel — the live pipeline", () => {
       ...runningStatus,
       currentStage: "screens",
       stages: runningStatus.stages.map((s) => (s.key === "screens" ? { ...s, startedAt } : s)),
-      recentRuns: [
-        { runId: "r1", stages: [{ key: "screens", state: "done", durationMs: 600000 }] },
-      ],
+      recentRuns: [{ runId: "r1", stages: [{ key: "screens", state: "done", durationMs: 600000 }] }],
     });
     // The bar and its "~% estimated" caption appear exactly once, in the band.
     const band = container.querySelector(".scan-now");
@@ -306,13 +325,31 @@ describe("FullScanPanel — stage detail and run history", () => {
       { key: "issues", label: "Issues & field usage", mode: "handoff" },
     ],
     stages: [
-      { key: "filters", state: "done", startedAt: "2026-08-27T10:00:00Z", completedAt: "2026-08-27T10:01:04Z", attempts: 2 },
-      { key: "issues", state: "done", startedAt: "2026-08-27T10:01:04Z", completedAt: "2026-08-27T10:47:00Z", attempts: 1 },
+      {
+        key: "filters",
+        state: "done",
+        startedAt: "2026-08-27T10:00:00Z",
+        completedAt: "2026-08-27T10:01:04Z",
+        attempts: 2,
+      },
+      {
+        key: "issues",
+        state: "done",
+        startedAt: "2026-08-27T10:01:04Z",
+        completedAt: "2026-08-27T10:47:00Z",
+        attempts: 1,
+      },
     ],
     recentRuns: [
       {
-        runId: "r2", scanType: "full", state: "ready", completedAt: "2026-08-27T10:47:00Z",
-        durationMs: 2_820_000, failedCount: 0, skippedCount: 0, totalStages: 2,
+        runId: "r2",
+        scanType: "full",
+        state: "ready",
+        completedAt: "2026-08-27T10:47:00Z",
+        durationMs: 2_820_000,
+        failedCount: 0,
+        skippedCount: 0,
+        totalStages: 2,
         summary: { filters: 4115, issues: 326528 },
         stages: [
           { key: "filters", state: "done", durationMs: 64000, attempts: 2, count: 4115 },
@@ -320,8 +357,14 @@ describe("FullScanPanel — stage detail and run history", () => {
         ],
       },
       {
-        runId: "r1", scanType: "full", state: "ready", completedAt: "2026-08-24T09:30:00Z",
-        durationMs: 2_460_000, failedCount: 0, skippedCount: 0, totalStages: 2,
+        runId: "r1",
+        scanType: "full",
+        state: "ready",
+        completedAt: "2026-08-24T09:30:00Z",
+        durationMs: 2_460_000,
+        failedCount: 0,
+        skippedCount: 0,
+        totalStages: 2,
         summary: { filters: 4077, issues: 324425 },
         stages: [
           { key: "filters", state: "done", durationMs: 53000, attempts: 1, count: 4077 },
@@ -334,12 +377,23 @@ describe("FullScanPanel — stage detail and run history", () => {
   function panel(status) {
     return render(
       <FullScanPanel
-        status={status} onStart={noop} starting={false}
-        onResumeStalledScan={noop} onAbandonScan={noop} recoveringScan={false} abandoningScan={false}
-        issueScan={null} onResumeIssueScan={noop} onCancelIssueScan={noop}
-        resumingIssueScan={false} cancellingIssueScan={false}
-        snapshot={null} onForceResumeSnapshot={noop} forceResumingSnapshot={false} onSnapshotCleared={noop}
-      />
+        status={status}
+        onStart={noop}
+        starting={false}
+        onResumeStalledScan={noop}
+        onAbandonScan={noop}
+        recoveringScan={false}
+        abandoningScan={false}
+        issueScan={null}
+        onResumeIssueScan={noop}
+        onCancelIssueScan={noop}
+        resumingIssueScan={false}
+        cancellingIssueScan={false}
+        snapshot={null}
+        onForceResumeSnapshot={noop}
+        forceResumingSnapshot={false}
+        onSnapshotCleared={noop}
+      />,
     );
   }
 
@@ -352,7 +406,9 @@ describe("FullScanPanel — stage detail and run history", () => {
 
   test("clicking a rail node selects it and shows its retry count", async () => {
     const { container } = panel(idleStatus);
-    const filtersNode = [...container.querySelectorAll(".stage-rail__node")].find((n) => n.textContent.includes("Saved filter inventory"));
+    const filtersNode = [...container.querySelectorAll(".stage-rail__node")].find((n) =>
+      n.textContent.includes("Saved filter inventory"),
+    );
     await userEvent.click(filtersNode);
     expect(screen.getByText("4,115")).toBeInTheDocument();
     expect(screen.getByText(/\+38 vs last run/)).toBeInTheDocument();
@@ -388,12 +444,22 @@ describe("FullScanPanel — stage detail and run history", () => {
           ],
           recentRuns: [],
         }}
-        onStart={noop} starting={false}
-        onResumeStalledScan={onResumeStalledScan} onAbandonScan={noop} recoveringScan={false} abandoningScan={false}
-        issueScan={null} onResumeIssueScan={noop} onCancelIssueScan={noop}
-        resumingIssueScan={false} cancellingIssueScan={false}
-        snapshot={null} onForceResumeSnapshot={noop} forceResumingSnapshot={false} onSnapshotCleared={noop}
-      />
+        onStart={noop}
+        starting={false}
+        onResumeStalledScan={onResumeStalledScan}
+        onAbandonScan={noop}
+        recoveringScan={false}
+        abandoningScan={false}
+        issueScan={null}
+        onResumeIssueScan={noop}
+        onCancelIssueScan={noop}
+        resumingIssueScan={false}
+        cancellingIssueScan={false}
+        snapshot={null}
+        onForceResumeSnapshot={noop}
+        forceResumingSnapshot={false}
+        onSnapshotCleared={noop}
+      />,
     );
 
     expect(screen.getByText(/1 stage did not build \(Dashboard inventory\)/i)).toBeInTheDocument();
@@ -408,13 +474,21 @@ describe("FullScanPanel — stage detail and run history", () => {
       state: "cancelled",
       catalog: idleStatus.catalog,
       stages: [
-        { key: "filters", state: "done", startedAt: "2026-08-27T10:00:00Z", completedAt: "2026-08-27T10:02:00Z", attempts: 1 },
+        {
+          key: "filters",
+          state: "done",
+          startedAt: "2026-08-27T10:00:00Z",
+          completedAt: "2026-08-27T10:02:00Z",
+          attempts: 1,
+        },
         { key: "issues", state: "skipped", attempts: 0 },
       ],
       recentRuns: [],
       liveStageCounts: { filters: 4115, issues: 326528 },
     });
-    const filtersNode = [...container.querySelectorAll(".stage-rail__node")].find((n) => n.textContent.includes("Saved filter inventory"));
+    const filtersNode = [...container.querySelectorAll(".stage-rail__node")].find((n) =>
+      n.textContent.includes("Saved filter inventory"),
+    );
     await userEvent.click(filtersNode);
     expect(screen.getByText("4,115")).toBeInTheDocument();
   });
@@ -437,7 +511,9 @@ describe("useVisiblePolling", () => {
   test("does not poll at all when there is no active job", () => {
     const fn = vi.fn();
     renderHook(() => useVisiblePolling(false, fn, 1000));
-    act(() => { vi.advanceTimersByTime(5000); });
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
     expect(fn).not.toHaveBeenCalled();
   });
 
@@ -445,7 +521,9 @@ describe("useVisiblePolling", () => {
     const fn = vi.fn();
     renderHook(() => useVisiblePolling(true, fn, 1000));
     fn.mockClear(); // the immediate call on mount
-    act(() => { vi.advanceTimersByTime(3000); });
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
     expect(fn).toHaveBeenCalledTimes(3);
   });
 
@@ -453,9 +531,13 @@ describe("useVisiblePolling", () => {
   test("stops polling when the tab is hidden, even with a job running", () => {
     const fn = vi.fn();
     renderHook(() => useVisiblePolling(true, fn, 1000));
-    act(() => { setVisibility("hidden"); });
+    act(() => {
+      setVisibility("hidden");
+    });
     fn.mockClear();
-    act(() => { vi.advanceTimersByTime(10000); });
+    act(() => {
+      vi.advanceTimersByTime(10000);
+    });
     expect(fn).not.toHaveBeenCalled();
   });
 
@@ -463,9 +545,13 @@ describe("useVisiblePolling", () => {
   test("fetches once immediately on becoming visible again", () => {
     const fn = vi.fn();
     renderHook(() => useVisiblePolling(true, fn, 1000));
-    act(() => { setVisibility("hidden"); });
+    act(() => {
+      setVisibility("hidden");
+    });
     fn.mockClear();
-    act(() => { setVisibility("visible"); });
+    act(() => {
+      setVisibility("visible");
+    });
     expect(fn).toHaveBeenCalledTimes(1);
   });
 
@@ -474,7 +560,9 @@ describe("useVisiblePolling", () => {
     const { unmount } = renderHook(() => useVisiblePolling(true, fn, 1000));
     unmount();
     fn.mockClear();
-    act(() => { vi.advanceTimersByTime(5000); });
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
     expect(fn).not.toHaveBeenCalled();
   });
 });
@@ -486,10 +574,17 @@ describe("QuickScanPanel — schedule persistence", () => {
   const noop = () => {};
   const base = {
     status: { state: "idle", catalog: [], stages: null },
-    onStart: noop, starting: false,
-    onResumeStalledScan: noop, onAbandonScan: noop, recoveringScan: false, abandoningScan: false,
+    onStart: noop,
+    starting: false,
+    onResumeStalledScan: noop,
+    onAbandonScan: noop,
+    recoveringScan: false,
+    abandoningScan: false,
     deltaIssueScan: null,
-    onChangeSchedule: noop, onSaveSchedule: noop, savingSchedule: false, scheduleSaved: false,
+    onChangeSchedule: noop,
+    onSaveSchedule: noop,
+    savingSchedule: false,
+    scheduleSaved: false,
   };
 
   test("flipping Run automatically calls the immediate-save handler, not just onChange", async () => {
@@ -502,7 +597,7 @@ describe("QuickScanPanel — schedule persistence", () => {
         onChangeSchedule={onChangeSchedule}
         onToggleScheduleEnabled={onToggleScheduleEnabled}
         scheduleDirty={false}
-      />
+      />,
     );
 
     await userEvent.click(screen.getByRole("switch"));
@@ -517,7 +612,7 @@ describe("QuickScanPanel — schedule persistence", () => {
         schedule={{ enabled: true, frequency: "weekly", dayOfWeek: 0, hourUtc: 0, windowHours: 168 }}
         onToggleScheduleEnabled={noop}
         scheduleDirty={false}
-      />
+      />,
     );
     expect(screen.queryByText(/Unsaved changes/i)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Save schedule/i })).toBeDisabled();
@@ -528,7 +623,7 @@ describe("QuickScanPanel — schedule persistence", () => {
         schedule={{ enabled: true, frequency: "daily", dayOfWeek: 0, hourUtc: 0, windowHours: 168 }}
         onToggleScheduleEnabled={noop}
         scheduleDirty={true}
-      />
+      />,
     );
     expect(screen.getByText(/Unsaved changes/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Save schedule/i })).toBeEnabled();

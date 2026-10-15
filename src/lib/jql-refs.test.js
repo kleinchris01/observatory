@@ -16,8 +16,11 @@ import {
 
 describe("extractJqlFields", () => {
   test("finds bare, quoted and custom-field operands", () => {
-    expect(extractJqlFields('assignee = bob AND "Story Points" >= 5 AND cf[10001] IS NOT EMPTY'))
-      .toEqual(["assignee", "Story Points", "cf[10001]"]);
+    expect(extractJqlFields('assignee = bob AND "Story Points" >= 5 AND cf[10001] IS NOT EMPTY')).toEqual([
+      "assignee",
+      "Story Points",
+      "cf[10001]",
+    ]);
   });
 
   test("does not mistake keywords for fields", () => {
@@ -29,13 +32,15 @@ describe("extractJqlFields", () => {
 
   test("counts a field named only in ORDER BY", () => {
     // Deleting it reorders every result with no error, which is the harder failure to notice.
-    expect(extractJqlFields('issuetype = Bug ORDER BY "Landed Piece Price" ASC, priority DESC'))
-      .toEqual(["issuetype", "Landed Piece Price", "priority"]);
+    expect(extractJqlFields('issuetype = Bug ORDER BY "Landed Piece Price" ASC, priority DESC')).toEqual([
+      "issuetype",
+      "Landed Piece Price",
+      "priority",
+    ]);
   });
 
   test("does not treat a JQL function as a field", () => {
-    expect(extractJqlFields("assignee = currentUser() AND sprint in openSprints()"))
-      .toEqual(["assignee", "sprint"]);
+    expect(extractJqlFields("assignee = currentUser() AND sprint in openSprints()")).toEqual(["assignee", "sprint"]);
   });
 
   test("collapses a field referenced twice", () => {
@@ -75,8 +80,7 @@ describe("a quoted FIELD and a quoted VALUE are not the same thing", () => {
 
 describe("extractJqlStatuses", () => {
   test("keeps every value in an IN list, not just the first", () => {
-    expect(extractJqlStatuses('status in ("In Progress", "On Ice", Done)'))
-      .toEqual(["In Progress", "On Ice", "Done"]);
+    expect(extractJqlStatuses('status in ("In Progress", "On Ice", Done)')).toEqual(["In Progress", "On Ice", "Done"]);
   });
 
   test("reads a status behind a multi-word operator", () => {
@@ -106,7 +110,7 @@ describe("extractJqlProjects", () => {
 
 describe("scanJql", () => {
   test("pairs each value with the field it belongs to", () => {
-    const { pairs } = scanJql('project = ADVEV AND status in (Open, Done)');
+    const { pairs } = scanJql("project = ADVEV AND status in (Open, Done)");
     expect(pairs).toEqual([
       { field: "project", value: "ADVEV" },
       { field: "status", value: "Open" },
@@ -122,13 +126,11 @@ describe("scanJql", () => {
 
 describe("normalizeJql", () => {
   test("collapses the ways two people write the same search", () => {
-    expect(normalizeJql('project = ADVEV AND status = Done'))
-      .toBe(normalizeJql('project="ADVEV"  and  STATUS = done'));
+    expect(normalizeJql("project = ADVEV AND status = Done")).toBe(normalizeJql('project="ADVEV"  and  STATUS = done'));
   });
 
   test("does not claim two different searches are the same", () => {
-    expect(normalizeJql("project = A AND status = Done"))
-      .not.toBe(normalizeJql("project = B AND status = Done"));
+    expect(normalizeJql("project = A AND status = Done")).not.toBe(normalizeJql("project = B AND status = Done"));
   });
 
   // Reordering an AND chain is safe, but proving that in general means implementing the
@@ -141,7 +143,9 @@ describe("normalizeJql", () => {
 
 describe("extractJqlReferences", () => {
   test("returns the four kinds a filter can depend on", () => {
-    const refs = extractJqlReferences('project = ADVEV AND issuetype = Bug AND status IN ("In Progress", Done) AND "Story Points" >= 5 ORDER BY created DESC');
+    const refs = extractJqlReferences(
+      'project = ADVEV AND issuetype = Bug AND status IN ("In Progress", Done) AND "Story Points" >= 5 ORDER BY created DESC',
+    );
     expect(refs).toEqual({
       fields: ["project", "issuetype", "status", "Story Points", "created"],
       projects: ["ADVEV"],
@@ -161,8 +165,11 @@ describe("extractJqlReferences", () => {
 
 describe("extractJqlIssueTypes", () => {
   test("pulls issue type names, from either alias, deduped", () => {
-    expect(extractJqlIssueTypes('issuetype = Bug OR type = bug OR issuetype IN (Story, Epic)').sort())
-      .toEqual(["Bug", "Epic", "Story"]);
+    expect(extractJqlIssueTypes("issuetype = Bug OR type = bug OR issuetype IN (Story, Epic)").sort()).toEqual([
+      "Bug",
+      "Epic",
+      "Story",
+    ]);
   });
 
   test("ignores a quoted value that merely contains the word", () => {

@@ -36,11 +36,14 @@ describe("findBrokenHierarchy", () => {
 describe("findBrokenReferences", () => {
   test("flags a reference attribute whose target type is gone", () => {
     const types = [{ id: "9", name: "Server" }];
-    const broken = findBrokenReferences([
-      { id: "1", name: "Runs on", referenceObjectTypeId: "9" },
-      { id: "2", name: "Depends on", referenceObjectTypeId: "404" },
-      { id: "3", name: "Hostname", referenceObjectTypeId: null },
-    ], types);
+    const broken = findBrokenReferences(
+      [
+        { id: "1", name: "Runs on", referenceObjectTypeId: "9" },
+        { id: "2", name: "Depends on", referenceObjectTypeId: "404" },
+        { id: "3", name: "Hostname", referenceObjectTypeId: null },
+      ],
+      types,
+    );
     expect(broken.map((a) => a.name)).toEqual(["Depends on"]);
   });
 });
@@ -53,8 +56,8 @@ describe("findBareTypes", () => {
       { id: "11", name: "App", abstract: false },
     ];
     const attributes = [
-      { id: "a", objectTypeId: "9", system: true },   // Server: only a system attr -> bare
-      { id: "b", objectTypeId: "11", system: false },  // App: a real attr -> not bare
+      { id: "a", objectTypeId: "9", system: true }, // Server: only a system attr -> bare
+      { id: "b", objectTypeId: "11", system: false }, // App: a real attr -> not bare
     ];
     expect(findBareTypes(types, attributes).map((t) => t.name)).toEqual(["Server"]);
   });
@@ -152,25 +155,36 @@ describe("summarizeAssetHealth", () => {
       assetsEnabled: true,
     });
     expect(summarizeAssetHealth(summary)).toMatchObject({
-      available: true, assetsEnabled: true, totalSchemas: 1, concreteObjectTypes: 1,
+      available: true,
+      assetsEnabled: true,
+      totalSchemas: 1,
+      concreteObjectTypes: 1,
     });
   });
 
   test("reports not-applicable when Assets is not licensed", () => {
-    expect(summarizeAssetHealth(summarizeAssetInsights({ assetsEnabled: false })))
-      .toEqual({ available: false, assetsEnabled: false });
+    expect(summarizeAssetHealth(summarizeAssetInsights({ assetsEnabled: false }))).toEqual({
+      available: false,
+      assetsEnabled: false,
+    });
   });
 
   test("reports unmeasured (enabled) when Assets is on but nothing is built", () => {
-    expect(summarizeAssetHealth(summarizeAssetInsights({ assetsEnabled: true })))
-      .toEqual({ available: false, assetsEnabled: true });
+    expect(summarizeAssetHealth(summarizeAssetInsights({ assetsEnabled: true }))).toEqual({
+      available: false,
+      assetsEnabled: true,
+    });
   });
 });
 
 describe("summarizeAssetInsights listLimit", () => {
   it("lists every bare type for remediation", () => {
     const objectTypes = Array.from({ length: 60 }, (_, i) => ({ id: `t${i}`, schemaId: "s", name: `T${i}` }));
-    const base = { schemas: [{ id: "s", name: "S", objectTypeCount: 60, objectCount: 1 }], objectTypes, attributes: [] };
+    const base = {
+      schemas: [{ id: "s", name: "S", objectTypeCount: 60, objectCount: 1 }],
+      objectTypes,
+      attributes: [],
+    };
     expect(summarizeAssetInsights(base).bareTypes).toHaveLength(50);
     expect(summarizeAssetInsights({ ...base, listLimit: Infinity }).bareTypes).toHaveLength(60);
   });

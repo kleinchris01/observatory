@@ -55,7 +55,9 @@ export function initiativeSummary(period, label) {
 
 // "2026-Q4 Roles Remediation" and "2026-Q4 - Roles Remediation" are the same item.
 export function normalizeSummary(summary) {
-  return String(summary || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  return String(summary || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
 }
 
 const jqlQuote = (value) => `"${String(value).replace(/["\\]/g, "\\$&")}"`;
@@ -69,7 +71,10 @@ const jqlQuote = (value) => `"${String(value).replace(/["\\]/g, "\\$&")}"`;
 //   recordHierarchyNode(scope, period, node, { issueKey, issueId, adopted })
 //   existing: Map<issueType, issue[]>     -- per-invocation cache of the project's items of a type
 // }
-export async function ensureNode({ scopeKey, period, node, summary, issueType, parentKey = null, projectKey, accountId }, deps) {
+export async function ensureNode(
+  { scopeKey, period, node, summary, issueType, parentKey = null, projectKey, accountId },
+  deps,
+) {
   const recorded = deps.nodes.get(node);
   if (recorded?.issueKey) return { issueKey: recorded.issueKey, created: false, adopted: false };
 
@@ -97,7 +102,11 @@ export async function ensureNode({ scopeKey, period, node, summary, issueType, p
     ...(parentKey ? { parent: { key: parentKey } } : {}),
   };
   const created = await deps.createJiraIssue(fields, { asUser: true });
-  await deps.recordHierarchyNode(scopeKey, period, node, { issueKey: created.key, issueId: created.id, adopted: false });
+  await deps.recordHierarchyNode(scopeKey, period, node, {
+    issueKey: created.key,
+    issueId: created.id,
+    adopted: false,
+  });
   deps.nodes.set(node, { issueKey: created.key });
   deps.existing.get(issueType).push({ key: created.key, id: created.id, fields: { summary } });
   return { issueKey: created.key, created: true, adopted: false };
@@ -105,14 +114,31 @@ export async function ensureNode({ scopeKey, period, node, summary, issueType, p
 
 // The initiative a pillar's epic belongs under, creating (or adopting) the quarter's root first.
 export async function ensureInitiativeFor({ scopeKey, period, pillar, config, projectKey, accountId }, deps) {
-  const root = await ensureNode({
-    scopeKey, period, node: ROOT_NODE, summary: rootSummary(period),
-    issueType: config.rootIssueType || "Product", projectKey, accountId,
-  }, deps);
+  const root = await ensureNode(
+    {
+      scopeKey,
+      period,
+      node: ROOT_NODE,
+      summary: rootSummary(period),
+      issueType: config.rootIssueType || "Product",
+      projectKey,
+      accountId,
+    },
+    deps,
+  );
   const label = initiativeLabelFor(pillar);
-  const initiative = await ensureNode({
-    scopeKey, period, node: initiativeNode(label), summary: initiativeSummary(period, label),
-    issueType: config.initiativeIssueType || "Initiative", parentKey: root.issueKey, projectKey, accountId,
-  }, deps);
+  const initiative = await ensureNode(
+    {
+      scopeKey,
+      period,
+      node: initiativeNode(label),
+      summary: initiativeSummary(period, label),
+      issueType: config.initiativeIssueType || "Initiative",
+      parentKey: root.issueKey,
+      projectKey,
+      accountId,
+    },
+    deps,
+  );
   return { rootKey: root.issueKey, initiativeKey: initiative.issueKey, label };
 }

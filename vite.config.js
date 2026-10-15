@@ -26,9 +26,11 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: isAdmin ? "dist-admin" : "dist",
       emptyOutDir: true,
-      rollupOptions: isAdmin ? {
-        input: { admin: resolve(__dirname, "static/admin.html") },
-      } : undefined,
+      rollupOptions: isAdmin
+        ? {
+            input: { admin: resolve(__dirname, "static/admin.html") },
+          }
+        : undefined,
     },
   };
 });

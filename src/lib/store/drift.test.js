@@ -41,7 +41,10 @@ function harness() {
     const entry = { statement: String(statement), params: null };
     issued.push(entry);
     const stub = {
-      bindParams: (...params) => { entry.params = params; return stub; },
+      bindParams: (...params) => {
+        entry.params = params;
+        return stub;
+      },
       execute: () => Promise.resolve({ rows: nextRows, rowsAffected: nextRows.length }),
     };
     return stub;
@@ -50,7 +53,9 @@ function harness() {
 
 const statements = () => issued.map((e) => e.statement);
 const find = (match) => issued.find((e) => e.statement.includes(match));
-const mockRows = (rows) => { nextRows = rows; };
+const mockRows = (rows) => {
+  nextRows = rows;
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -60,9 +65,13 @@ beforeEach(() => {
 
 describe("loadEntityDigests", () => {
   test("scopes by scope_key + pillar and parses fields_json", async () => {
-    mockRows([{ entity_type: "status", entity_id: "1", label: "Open", digest: "abcd1234", fields_json: '{"name":"Open"}' }]);
+    mockRows([
+      { entity_type: "status", entity_id: "1", label: "Open", digest: "abcd1234", fields_json: '{"name":"Open"}' },
+    ]);
     const rows = await loadEntityDigests("inst", "workflow");
-    expect(rows).toEqual([{ entityType: "status", entityId: "1", label: "Open", digest: "abcd1234", fields: { name: "Open" } }]);
+    expect(rows).toEqual([
+      { entityType: "status", entityId: "1", label: "Open", digest: "abcd1234", fields: { name: "Open" } },
+    ]);
     const q = find("FROM snapshot_entity_digest");
     expect(q.statement).toContain("WHERE scope_key = ? AND pillar = ?");
     expect(q.params).toEqual(["inst", "workflow"]);
@@ -82,7 +91,15 @@ describe("replaceEntityDigests", () => {
     const ins = find("INSERT INTO snapshot_entity_digest");
     // 7 columns, 2 rows -> 14 bound params.
     expect(ins.params).toHaveLength(14);
-    expect(ins.params.slice(0, 7)).toEqual(["inst", "access", "permission-scheme", "1", "Prod", "d1", '{"name":"Prod"}']);
+    expect(ins.params.slice(0, 7)).toEqual([
+      "inst",
+      "access",
+      "permission-scheme",
+      "1",
+      "Prod",
+      "d1",
+      '{"name":"Prod"}',
+    ]);
   });
 
   test("still clears the pillar when handed an empty set", async () => {
@@ -100,7 +117,17 @@ describe("appendConfigChanges", () => {
 
   test("inserts one row per change with 10 columns each", async () => {
     await appendConfigChanges("inst", [
-      { changeId: "v1-00000", detectedAt: "2026-09-03T00:00:00Z", scanVersion: "v1", pillar: "access", entityType: "permission-scheme", entityId: "1", label: "Prod", changeKind: "added", summary: "Permission scheme \"Prod\" added" },
+      {
+        changeId: "v1-00000",
+        detectedAt: "2026-09-03T00:00:00Z",
+        scanVersion: "v1",
+        pillar: "access",
+        entityType: "permission-scheme",
+        entityId: "1",
+        label: "Prod",
+        changeKind: "added",
+        summary: 'Permission scheme "Prod" added',
+      },
     ]);
     const ins = find("INSERT INTO config_change_log");
     expect(ins.params).toHaveLength(10);
@@ -141,7 +168,9 @@ describe("loadConfigChanges", () => {
 
 describe("changeCursorOf", () => {
   test("carries the change id so the next page resumes inside the same pass", () => {
-    expect(changeCursorOf({ detectedAt: "2026-09-01T00:00:00Z", changeId: "v9-00042" })).toBe("2026-09-01T00:00:00Z|v9-00042");
+    expect(changeCursorOf({ detectedAt: "2026-09-01T00:00:00Z", changeId: "v9-00042" })).toBe(
+      "2026-09-01T00:00:00Z|v9-00042",
+    );
   });
 
   test("falls back to the timestamp alone, and to null for no row", () => {
@@ -193,14 +222,28 @@ describe("drift snapshot meta", () => {
   });
 
   test("readDriftSnapshotMeta splits seeded_pillars back into an array", async () => {
-    mockRows([{ state: "ready", version: "v1", last_run_changes: 4, total_changes: 40, seeded_pillars: "fields,access" }]);
+    mockRows([
+      { state: "ready", version: "v1", last_run_changes: 4, total_changes: 40, seeded_pillars: "fields,access" },
+    ]);
     const m = await readDriftSnapshotMeta("inst");
-    expect(m).toMatchObject({ state: "ready", version: "v1", lastRunChanges: 4, totalChanges: 40, seededPillars: ["fields", "access"] });
+    expect(m).toMatchObject({
+      state: "ready",
+      version: "v1",
+      lastRunChanges: 4,
+      totalChanges: 40,
+      seededPillars: ["fields", "access"],
+    });
   });
 
   test("writeDriftSnapshotMeta upserts, joining seededPillars to a CSV", async () => {
     mockRows([]); // readback inside write finds nothing
-    await writeDriftSnapshotMeta("inst", { state: "ready", version: "v2", lastRunChanges: 2, totalChanges: 12, seededPillars: ["fields"] });
+    await writeDriftSnapshotMeta("inst", {
+      state: "ready",
+      version: "v2",
+      lastRunChanges: 2,
+      totalChanges: 12,
+      seededPillars: ["fields"],
+    });
     const up = find("INSERT INTO drift_snapshot_meta");
     expect(up.statement).toContain("ON DUPLICATE KEY UPDATE");
     expect(up.params[0]).toBe("inst");

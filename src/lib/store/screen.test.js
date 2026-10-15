@@ -54,7 +54,10 @@ function harness() {
     const entry = { statement: String(statement), params: null };
     issued.push(entry);
     const stub = {
-      bindParams: (...params) => { entry.params = params; return stub; },
+      bindParams: (...params) => {
+        entry.params = params;
+        return stub;
+      },
       execute: () => Promise.resolve({ rows: nextRows }),
     };
     return stub;
@@ -103,7 +106,9 @@ describe("replaceScreenSnapshot", () => {
 
   test("clears all eight tables before writing", async () => {
     await replaceScreenSnapshot("scope-1", "v1", payload);
-    const deletes = statements().filter((s) => s.trim().startsWith("DELETE")).join(" ");
+    const deletes = statements()
+      .filter((s) => s.trim().startsWith("DELETE"))
+      .join(" ");
 
     for (const table of [
       "snapshot_screens",
@@ -175,7 +180,10 @@ describe("replaceScreenSnapshot", () => {
       // Two rows per table: a single row makes a tuple-vs-column mismatch look identical
       // to a batching bug, and hides any error in how tuples are repeated.
       screens: [{ id: 100 }, { id: 101 }],
-      tabs: [{ screenId: 100, tabId: 1 }, { screenId: 101, tabId: 2 }],
+      tabs: [
+        { screenId: 100, tabId: 1 },
+        { screenId: 101, tabId: 2 },
+      ],
       fields: [
         { screenId: 100, tabId: 1, fieldId: "summary" },
         { screenId: 101, tabId: 2, fieldId: "duedate" },
@@ -205,10 +213,13 @@ describe("replaceScreenSnapshot", () => {
       const columns = columnPart.match(/\(([^)]*)\)/)[1].split(",").length;
       const placeholders = (valuesPart.match(/\?/g) || []).length;
 
-      expect(placeholders, `${table}: ${placeholders} placeholders for ${params.length} bound params`)
-        .toBe(params.length);
-      expect(placeholders % columns, `${table}: ${placeholders} placeholders is not a multiple of ${columns} columns`)
-        .toBe(0);
+      expect(placeholders, `${table}: ${placeholders} placeholders for ${params.length} bound params`).toBe(
+        params.length,
+      );
+      expect(
+        placeholders % columns,
+        `${table}: ${placeholders} placeholders is not a multiple of ${columns} columns`,
+      ).toBe(0);
     }
   });
 
@@ -216,7 +227,11 @@ describe("replaceScreenSnapshot", () => {
   // smaller than everything else to stay clear of the bind-parameter ceiling.
   test("batches fields in smaller chunks than the other tables", async () => {
     const fields = Array.from({ length: 85 }, (_, i) => ({
-      screenId: 1, tabId: 1, fieldId: `f${i}`, tabIndex: 0, fieldIndex: i,
+      screenId: 1,
+      tabId: 1,
+      fieldId: `f${i}`,
+      tabIndex: 0,
+      fieldIndex: i,
     }));
     await replaceScreenSnapshot("scope-1", "v1", { fields });
 
@@ -227,16 +242,27 @@ describe("replaceScreenSnapshot", () => {
 
 describe("reads", () => {
   test("maps a screen row and keeps its unresolved reason", async () => {
-    mockRows([{
-      screen_id: "100", name: "Default", description: "d",
-      tab_count: 2, field_count: 30, tabs_resolved: "unresolved", unresolved_reason: "401",
-    }]);
+    mockRows([
+      {
+        screen_id: "100",
+        name: "Default",
+        description: "d",
+        tab_count: 2,
+        field_count: 30,
+        tabs_resolved: "unresolved",
+        unresolved_reason: "401",
+      },
+    ]);
 
     const { rows } = await loadScreensPage("scope-1", "v1");
 
     expect(rows[0]).toMatchObject({
-      screenId: "100", name: "Default", tabCount: 2, fieldCount: 30,
-      tabsResolved: "unresolved", unresolvedReason: "401",
+      screenId: "100",
+      name: "Default",
+      tabCount: 2,
+      fieldCount: 30,
+      tabsResolved: "unresolved",
+      unresolvedReason: "401",
     });
   });
 
@@ -345,15 +371,15 @@ describe("loadScreensWithFieldsByIds", () => {
       const s = String(statement);
       const rows = s.includes("FROM snapshot_screens")
         ? [
-          { screen_id: "200", name: "Edit", field_count: 2, tabs_resolved: "resolved" },
-          { screen_id: "100", name: "Create", field_count: 1, tabs_resolved: "unresolved" },
-        ]
+            { screen_id: "200", name: "Edit", field_count: 2, tabs_resolved: "resolved" },
+            { screen_id: "100", name: "Create", field_count: 1, tabs_resolved: "unresolved" },
+          ]
         : s.includes("FROM snapshot_screen_fields")
           ? [
-            { screen_id: "100", field_id: "cf_1", field_name: "A", tab_index: 0, field_index: 0 },
-            { screen_id: "200", field_id: "cf_2", field_name: "B", tab_index: 0, field_index: 0 },
-            { screen_id: "200", field_id: "cf_3", field_name: "C", tab_index: 0, field_index: 1 },
-          ]
+              { screen_id: "100", field_id: "cf_1", field_name: "A", tab_index: 0, field_index: 0 },
+              { screen_id: "200", field_id: "cf_2", field_name: "B", tab_index: 0, field_index: 0 },
+              { screen_id: "200", field_id: "cf_3", field_name: "C", tab_index: 0, field_index: 1 },
+            ]
           : [];
       return { bindParams: () => ({ execute: () => Promise.resolve({ rows }) }) };
     });
@@ -444,7 +470,9 @@ describe("loadScreenGovernanceSummary", () => {
   test("maps every aggregate to a number, including when a table is empty", async () => {
     // SUM() over no rows returns NULL in SQL, not 0 -- and NULL reaching the health score
     // as a rate makes the dimension unavailable rather than clean.
-    mockRows([{ total: 0, empty_screens: null, unresolved_screens: null, dangling: null, unused: null, unreached: null }]);
+    mockRows([
+      { total: 0, empty_screens: null, unresolved_screens: null, dangling: null, unused: null, unreached: null },
+    ]);
 
     const summary = await loadScreenGovernanceSummary("scope-1", "v1", { workflowVersion: "w9" });
 
@@ -457,7 +485,6 @@ describe("loadScreenGovernanceSummary", () => {
     }
   });
 });
-
 
 // A screen a workflow transition opens is in daily use while belonging to no screen scheme.
 // Counting it as unreached is not a rounding error -- it is the premise for deleting a
@@ -508,13 +535,23 @@ describe("meta", () => {
   });
 
   test("maps a meta row including the unresolved count", async () => {
-    mockRows([{
-      state: "ready", version: "v1", total_screens: 760, total_schemes: 12,
-      unresolved_screens: 30, refreshed_at: "2026-08-11T00:00:00.000Z", last_error: null,
-    }]);
+    mockRows([
+      {
+        state: "ready",
+        version: "v1",
+        total_screens: 760,
+        total_schemes: 12,
+        unresolved_screens: 30,
+        refreshed_at: "2026-08-11T00:00:00.000Z",
+        last_error: null,
+      },
+    ]);
 
     expect(await readScreenSnapshotMeta("scope-1")).toMatchObject({
-      state: "ready", version: "v1", totalScreens: 760, unresolvedScreens: 30,
+      state: "ready",
+      version: "v1",
+      totalScreens: 760,
+      unresolvedScreens: 30,
     });
   });
 

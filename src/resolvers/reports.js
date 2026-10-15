@@ -40,18 +40,8 @@ import {
   countScreenProjects,
   REPORT_ROW_LIMIT,
 } from "../lib/pillar-reports.js";
-import {
-  parseOql,
-  evaluate as evaluateOql,
-  sortEntities as sortOqlEntities,
-  pinnedPillars,
-} from "../lib/oql.js";
-import {
-  buildOqlCatalog,
-  buildEntityIndex,
-  OQL_PILLARS,
-  CHURN_WINDOW_DAYS,
-} from "../lib/oql-index.js";
+import { parseOql, evaluate as evaluateOql, sortEntities as sortOqlEntities, pinnedPillars } from "../lib/oql.js";
+import { buildOqlCatalog, buildEntityIndex, OQL_PILLARS, CHURN_WINDOW_DAYS } from "../lib/oql-index.js";
 import { computeSiteHealth } from "../lib/health-score.js";
 import {
   buildFieldUsageInsights,
@@ -98,8 +88,9 @@ export async function getPillarUsage({ payload, context }) {
   const spec = USAGE_PILLARS[pillar];
   if (!spec) return { available: false, reason: "unknown-pillar", pillar, items: {} };
   const base = { pillar, basis: spec.basis, windowDays: USAGE_WINDOW_DAYS };
-  const meta = await readUsageMeta(installationKey)
-    .catch(fallbackOn("usage.meta_read_failed", () => null, { installationKey }));
+  const meta = await readUsageMeta(installationKey).catch(
+    fallbackOn("usage.meta_read_failed", () => null, { installationKey }),
+  );
   if (!meta) return { ...base, available: false, reason: "no-crawl", items: {} };
   const tally = await loadUsageTally(installationKey, pillar);
   return {
@@ -161,7 +152,21 @@ export async function getPillarHealth({ payload, context }) {
   // already reports as unavailable -- and unavailable dimensions from other pillars are
   // discarded below anyway, so the returned pillar is byte-identical to what the full
   // computation produced for it.
-  const [workflow, screens, filterOverview, dashboardOverview, issueTypeOverview, userOverview, assetOverview, accessOverview, estateOverview, boardOverview, driftHealth, automationAnalysis, fieldConfigOverview] = await Promise.all([
+  const [
+    workflow,
+    screens,
+    filterOverview,
+    dashboardOverview,
+    issueTypeOverview,
+    userOverview,
+    assetOverview,
+    accessOverview,
+    estateOverview,
+    boardOverview,
+    driftHealth,
+    automationAnalysis,
+    fieldConfigOverview,
+  ] = await Promise.all([
     needs.has("workflow") ? buildWorkflowOverview(installationKey) : Promise.resolve(null),
     needs.has("screens") ? buildScreenOverview(installationKey) : Promise.resolve(null),
     needs.has("filters") ? buildFilterOverview(installationKey) : Promise.resolve(null),
@@ -174,7 +179,9 @@ export async function getPillarHealth({ payload, context }) {
     needs.has("boards") ? buildBoardOverview(installationKey) : Promise.resolve(null),
     needs.has("drift") ? buildDriftHealthOverview(installationKey) : Promise.resolve(null),
     needs.has("automation")
-      ? readAutomationAnalysis(installationKey).catch(fallbackOn("pillar-health.automation_load_failed", () => null, { installationKey }))
+      ? readAutomationAnalysis(installationKey).catch(
+          fallbackOn("pillar-health.automation_load_failed", () => null, { installationKey }),
+        )
       : Promise.resolve(null),
     needs.has("fieldConfigs") ? buildFieldConfigOverview(installationKey) : Promise.resolve(null),
   ]);
@@ -193,21 +200,24 @@ export async function getPillarHealth({ payload, context }) {
         if (needs.has("fieldUsage")) {
           const fields = await loadSnapshotFields(installationKey, meta.version);
           const dup = buildDuplicateNameCountMap(fields);
-          fieldUsage = buildFieldUsageInsights(fields.map((f) =>
-            hydrateFieldForGovernance(f, null, dup.get(normalizeFieldName(f.name)) ?? 1, config.governanceThresholds)
-          ));
+          fieldUsage = buildFieldUsageInsights(
+            fields.map((f) =>
+              hydrateFieldForGovernance(f, null, dup.get(normalizeFieldName(f.name)) ?? 1, config.governanceThresholds),
+            ),
+          );
         }
 
         if (needs.has("projects") || needs.has("adoption")) {
           const withCounts = await attachUniqueIssueCounts(
             installationKey,
-            await listSnapshotProjects(installationKey, meta.version)
+            await listSnapshotProjects(installationKey, meta.version),
           );
           projects = buildProjectInsights(withCounts);
           // Best-effort, like every optional pillar input: a site scanned before issue dates
           // were captured has no activity, and the dimension says so rather than scoring zero.
-          const activity = await loadProjectActivity(installationKey)
-            .catch(fallbackOn("pillar-health.project_activity_load_failed", () => new Map(), { installationKey }));
+          const activity = await loadProjectActivity(installationKey).catch(
+            fallbackOn("pillar-health.project_activity_load_failed", () => new Map(), { installationKey }),
+          );
           adoption = summarizeAdoption(withCounts, activity);
         }
       } catch (error) {
@@ -216,8 +226,9 @@ export async function getPillarHealth({ payload, context }) {
     }
   }
 
-  const screenCross = await readScreenCrossSummary(installationKey)
-    .catch(fallbackOn("macro.screen_cross_read_failed", () => null, { installationKey }));
+  const screenCross = await readScreenCrossSummary(installationKey).catch(
+    fallbackOn("macro.screen_cross_read_failed", () => null, { installationKey }),
+  );
 
   const health = computeSiteHealth({
     fieldUsage,
@@ -252,8 +263,9 @@ export async function getPillarHealth({ payload, context }) {
   // its headline is the score of that pillar alone. Returning it as the site score would be
   // a smaller number wearing a bigger label. The last recorded measurement is the real one,
   // and null when nothing has been recorded -- which is honest rather than approximate.
-  const recorded = await loadHealthHistory(installationKey, { days: 1 })
-    .catch(fallbackOn("pillar-health.history_load_failed", () => [], { installationKey }));
+  const recorded = await loadHealthHistory(installationKey, { days: 1 }).catch(
+    fallbackOn("pillar-health.history_load_failed", () => [], { installationKey }),
+  );
   const latest = recorded[recorded.length - 1] ?? null;
 
   return { pillar, score: latest?.score ?? null, grade: latest?.grade ?? null };
@@ -315,7 +327,10 @@ export async function runOqlQuery({ payload, context }) {
           : buildPillarReport(key, input, { limit: Infinity });
       } catch (error) {
         logger.warn("oql.pillar_load_failed", { installationKey, pillar: key, error: String(error?.message || error) });
-        reports[i] = unavailableReport(key, "This pillar could not be read just now. Try again, or rebuild it from the Scans tab.");
+        reports[i] = unavailableReport(
+          key,
+          "This pillar could not be read just now. Try again, or rebuild it from the Scans tab.",
+        );
       }
     }
   }
@@ -372,21 +387,33 @@ export async function loadPillarReportInput(key, { installationKey, context }) {
     case "fields": {
       const meta = await readSnapshotMeta(installationKey);
       if (!meta?.version) return { unavailable: notBuilt("field") };
-      const [fields, config] = await Promise.all([loadSnapshotFields(installationKey, meta.version), readAdminConfig()]);
+      const [fields, config] = await Promise.all([
+        loadSnapshotFields(installationKey, meta.version),
+        readAdminConfig(),
+      ]);
       const dup = buildDuplicateNameCountMap(fields);
       return {
         refreshedAt: meta.refreshedAt || meta.completedAt,
         fields: fields.map((f) =>
-          hydrateFieldForGovernance(f, null, dup.get(normalizeFieldName(f.name)) ?? 1, config.governanceThresholds)),
+          hydrateFieldForGovernance(f, null, dup.get(normalizeFieldName(f.name)) ?? 1, config.governanceThresholds),
+        ),
       };
     }
     case "projects": {
       const meta = await readSnapshotMeta(installationKey);
       if (!meta?.version) return { unavailable: notBuilt("project") };
-      const projects = await attachUniqueIssueCounts(installationKey, await listSnapshotProjects(installationKey, meta.version));
-      const activity = await loadProjectActivity(installationKey)
-        .catch(fallbackOn("pillar-report.project_activity_load_failed", () => new Map(), { installationKey }));
-      return { refreshedAt: meta.refreshedAt || meta.completedAt, projects, adoption: summarizeAdoption(projects, activity) };
+      const projects = await attachUniqueIssueCounts(
+        installationKey,
+        await listSnapshotProjects(installationKey, meta.version),
+      );
+      const activity = await loadProjectActivity(installationKey).catch(
+        fallbackOn("pillar-report.project_activity_load_failed", () => new Map(), { installationKey }),
+      );
+      return {
+        refreshedAt: meta.refreshedAt || meta.completedAt,
+        projects,
+        adoption: summarizeAdoption(projects, activity),
+      };
     }
     case "workflows": {
       const meta = await readWorkflowSnapshotMeta(installationKey);
@@ -401,7 +428,12 @@ export async function loadPillarReportInput(key, { installationKey, context }) {
       const inventory = await getIssueTypeInventory({ context });
       if (inventory.neverBuilt) return { unavailable: notBuilt("issue type") };
       const schemeItems = await loadIssueTypeSchemeItems(installationKey, inventory.version);
-      return { refreshedAt: inventory.refreshedAt, issueTypes: inventory.issueTypes, schemeItems, usage: inventory.usage };
+      return {
+        refreshedAt: inventory.refreshedAt,
+        issueTypes: inventory.issueTypes,
+        schemeItems,
+        usage: inventory.usage,
+      };
     }
     case "fieldConfigs": {
       const inventory = await getFieldConfigInventory({ context });
@@ -436,7 +468,11 @@ export async function loadPillarReportInput(key, { installationKey, context }) {
       const workflowVersion = transitionAwareWorkflowVersion(workflowMeta);
       const screens = await loadAllScreenPages(installationKey, meta.version, { workflowVersion });
       const unreachedIds = workflowVersion
-        ? new Set((await loadAllScreenPages(installationKey, meta.version, { workflowVersion, filter: "unreached" })).map((r) => String(r.screenId)))
+        ? new Set(
+            (await loadAllScreenPages(installationKey, meta.version, { workflowVersion, filter: "unreached" })).map(
+              (r) => String(r.screenId),
+            ),
+          )
         : null;
       const [operations, mappings, itssProjects] = await Promise.all([
         loadScreenSchemeOperations(installationKey, meta.version),
@@ -467,7 +503,8 @@ export async function loadPillarReportInput(key, { installationKey, context }) {
         readAutomationAnalysis(installationKey).catch(() => null),
         readAutomationPart(installationKey, "directory").catch(() => null),
       ]);
-      if (!directory) return { unavailable: "No automation rules have been imported yet. Import them from the Automation tab." };
+      if (!directory)
+        return { unavailable: "No automation rules have been imported yet. Import them from the Automation tab." };
       return {
         refreshedAt: analysis?.refreshedAt ?? directory.refreshedAt ?? null,
         rules: [...hydrateRuleDirectory(directory).values()],

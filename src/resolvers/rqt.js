@@ -21,14 +21,15 @@ export async function getRqtIndex({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
 
-  const [rqtFields, snapshotMeta, issuesByProject, rqtValueFrequency, issueRqtValues, fieldIssueIndex] = await Promise.all([
-    loadRqtFieldIndex(installationKey),
-    readSnapshotMeta(installationKey),
-    loadRqtIssueKeys(installationKey),
-    loadRqtValueFrequency(installationKey),
-    loadIssueRqtValues(installationKey),
-    loadRqtFieldIssueIndex(installationKey),
-  ]);
+  const [rqtFields, snapshotMeta, issuesByProject, rqtValueFrequency, issueRqtValues, fieldIssueIndex] =
+    await Promise.all([
+      loadRqtFieldIndex(installationKey),
+      readSnapshotMeta(installationKey),
+      loadRqtIssueKeys(installationKey),
+      loadRqtValueFrequency(installationKey),
+      loadIssueRqtValues(installationKey),
+      loadRqtFieldIssueIndex(installationKey),
+    ]);
 
   // Enrich field names from the live snapshot if available
   if (snapshotMeta?.version && rqtFields.length > 0) {
@@ -73,7 +74,9 @@ export async function getRqtIndex({ context }) {
 export async function searchRqtValue({ payload, context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
-  const rqtValue = String(payload?.rqtValue || "").trim().toUpperCase();
+  const rqtValue = String(payload?.rqtValue || "")
+    .trim()
+    .toUpperCase();
   if (!rqtValue) return { issueKeys: [] };
   const issueKeys = await searchRqtValueIssueKeys(installationKey, rqtValue);
   return { issueKeys };

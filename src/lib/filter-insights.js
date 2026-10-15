@@ -48,8 +48,7 @@ export function isSharedWithEveryone(shares = []) {
 // is a claim this module cannot make without the project catalog, so it publishes the count
 // and lets the caller join.
 export function isSharedWithOpenProject(shares = []) {
-  return shares.some((share) =>
-    OPEN_PROJECT_SHARE.has(String(share?.type || "").toLowerCase()) && !share?.roleId);
+  return shares.some((share) => OPEN_PROJECT_SHARE.has(String(share?.type || "").toLowerCase()) && !share?.roleId);
 }
 
 export function daysSince(iso, now = Date.now()) {
@@ -84,7 +83,10 @@ export function classifyOwner(filter) {
 // null -- and "we could not tell" must not be rendered as "never opened", the same rule the
 // status pillar follows for its counts (CONNECT-4091). When it is false, the three
 // last-used findings are suppressed entirely rather than fired on every filter.
-export function analyzeFilter(filter, { now = Date.now(), staleDays = STALE_FILTER_DAYS, lastUsedTracked = true } = {}) {
+export function analyzeFilter(
+  filter,
+  { now = Date.now(), staleDays = STALE_FILTER_DAYS, lastUsedTracked = true } = {},
+) {
   const findings = [];
   const ownerState = classifyOwner(filter);
   const subscriptions = Number(filter?.subscriptionCount) || 0;
@@ -93,9 +95,10 @@ export function analyzeFilter(filter, { now = Date.now(), staleDays = STALE_FILT
     findings.push({
       code: "orphaned-owner",
       severity: subscriptions > 0 ? "high" : "medium",
-      detail: ownerState === "missing"
-        ? "The owning account no longer exists. Jira deletes a filter with its owner, and anything built on it breaks at the same moment."
-        : "Owned by a deactivated account. The filter still works, and disappears if that account is ever deleted.",
+      detail:
+        ownerState === "missing"
+          ? "The owning account no longer exists. Jira deletes a filter with its owner, and anything built on it breaks at the same moment."
+          : "Owned by a deactivated account. The filter still works, and disappears if that account is ever deleted.",
     });
   }
 
@@ -103,13 +106,15 @@ export function analyzeFilter(filter, { now = Date.now(), staleDays = STALE_FILT
     findings.push({
       code: "shared-publicly",
       severity: "high",
-      detail: "Shared globally. On a site that allows anonymous access, anyone on the internet who has the link can run it -- and see every issue it returns.",
+      detail:
+        "Shared globally. On a site that allows anonymous access, anyone on the internet who has the link can run it -- and see every issue it returns.",
     });
   } else if (isSharedWithEveryone(filter?.shares)) {
     findings.push({
       code: "shared-with-everyone",
       severity: "medium",
-      detail: "Shared with every logged-in user. Anyone on the site can run it, including against projects they can browse but were never meant to survey.",
+      detail:
+        "Shared with every logged-in user. Anyone on the site can run it, including against projects they can browse but were never meant to survey.",
     });
   }
 
@@ -168,7 +173,10 @@ export function findDuplicateFilters(filters = []) {
       jql: group[0].jql,
       count: group.length,
       filters: group.map((f) => ({
-        id: f.id, name: f.name, ownerName: f.ownerName ?? null, lastUsedAt: f.lastUsedAt ?? null,
+        id: f.id,
+        name: f.name,
+        ownerName: f.ownerName ?? null,
+        lastUsedAt: f.lastUsedAt ?? null,
       })),
     }))
     .sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
@@ -226,7 +234,10 @@ const SEVERITY_ORDER = { high: 0, medium: 1, low: 2 };
 //
 // Same rule the health score follows: a site with 4,000 filters and 50 orphans is tidier
 // than one with 80 filters and 50 orphans, and scoring counts would rank them the other way.
-export function summarizeFilters(filters = [], { now = Date.now(), projectKeys = null, typeNames = null, staleDays = STALE_FILTER_DAYS } = {}) {
+export function summarizeFilters(
+  filters = [],
+  { now = Date.now(), projectKeys = null, typeNames = null, staleDays = STALE_FILTER_DAYS } = {},
+) {
   // If not one filter on the whole site carries a last-used date, Jira does not track it
   // here -- so the "stale" / "never opened" findings are all noise, and the tab should say
   // "not tracked" rather than assert every filter is dead.
@@ -243,9 +254,11 @@ export function summarizeFilters(filters = [], { now = Date.now(), projectKeys =
 
   const withFindings = analyzed
     .filter((filter) => filter.findings.length > 0)
-    .sort((a, b) =>
-      SEVERITY_ORDER[a.findings[0].severity] - SEVERITY_ORDER[b.findings[0].severity]
-      || String(a.name).localeCompare(String(b.name)));
+    .sort(
+      (a, b) =>
+        SEVERITY_ORDER[a.findings[0].severity] - SEVERITY_ORDER[b.findings[0].severity] ||
+        String(a.name).localeCompare(String(b.name)),
+    );
 
   return {
     // Tri-state, like every other pillar: no snapshot is "not measured", never "no filters".

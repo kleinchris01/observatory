@@ -1,8 +1,30 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
-import { formatTimestamp, formatRelativeTime, formatNumber, buildWorkflowSchemeUrl, buildStatusAdminUrl, buildWorkflowUrl } from "../utils";
+import {
+  formatTimestamp,
+  formatRelativeTime,
+  formatNumber,
+  buildWorkflowSchemeUrl,
+  buildStatusAdminUrl,
+  buildWorkflowUrl,
+} from "../utils";
 import { Icon } from "../components/Icons";
-import { StatTile, StatRow, Panel, EmptyState, PageHeader, SortFilterBar, Chip, RuleLink, AskRovo, JiraLink, FindingRow, PillarHealthPanel, WorkflowUsageList, UsageTriple } from "../components/ui";
+import {
+  StatTile,
+  StatRow,
+  Panel,
+  EmptyState,
+  PageHeader,
+  SortFilterBar,
+  Chip,
+  RuleLink,
+  AskRovo,
+  JiraLink,
+  FindingRow,
+  PillarHealthPanel,
+  WorkflowUsageList,
+  UsageTriple,
+} from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useNavIntent, usePersistentState, usePillarUsage } from "../hooks";
@@ -44,12 +66,7 @@ const CATEGORY_TONE = {
 function SchemeRow({ scheme, expanded, onToggle, projects, truncated }) {
   return (
     <div className={`wf-scheme ${expanded ? "wf-scheme--open" : ""}`}>
-      <button
-        type="button"
-        className="wf-scheme__head"
-        onClick={onToggle}
-        aria-expanded={expanded}
-      >
+      <button type="button" className="wf-scheme__head" onClick={onToggle} aria-expanded={expanded}>
         <div className="wf-scheme__identity">
           <span className="wf-scheme__name">{scheme.name}</span>
           {scheme.description && <span className="wf-scheme__desc">{scheme.description}</span>}
@@ -100,7 +117,9 @@ function SchemeRow({ scheme, expanded, onToggle, projects, truncated }) {
                 {Object.entries(scheme.issueTypeMapping).map(([issueType, workflow]) => (
                   <div key={issueType} className="wf-mapping__row">
                     <span className="wf-mapping__type">{issueType}</span>
-                    <span className="wf-mapping__arrow" aria-hidden="true">→</span>
+                    <span className="wf-mapping__arrow" aria-hidden="true">
+                      →
+                    </span>
                     <span className="wf-mapping__workflow">{workflow}</span>
                   </div>
                 ))}
@@ -155,7 +174,12 @@ function StatusDetail({ detail, siteOrigin }) {
         <Chip tone={VERDICT_TONE[detail.verdict] || "neutral"}>{detail.verdict.replace(/-/g, " ")}</Chip>
         <p className="wf-statusdetail__headline">{detail.headline}</p>
         {detail.blockers.map((b) => (
-          <FindingRow key={`${b.source}-${b.summary}`} tone={BLOCKER_TONE[b.severity] || "info"} title={b.summary} detail={b.detail} />
+          <FindingRow
+            key={`${b.source}-${b.summary}`}
+            tone={BLOCKER_TONE[b.severity] || "info"}
+            title={b.summary}
+            detail={b.detail}
+          />
         ))}
         {detail.gaps.length > 0 && (
           <p className="ui-note">
@@ -179,7 +203,9 @@ function StatusDetail({ detail, siteOrigin }) {
           <ul className="wf-statusrules__list">
             {detail.schemes.map((s) => (
               <li key={s.schemeId} className="wf-statusrules__rule">
-                <JiraLink href={buildWorkflowSchemeUrl(siteOrigin, s.schemeId)} title={`Open ${s.name} in Jira`}>{s.name}</JiraLink>
+                <JiraLink href={buildWorkflowSchemeUrl(siteOrigin, s.schemeId)} title={`Open ${s.name} in Jira`}>
+                  {s.name}
+                </JiraLink>
               </li>
             ))}
           </ul>
@@ -202,7 +228,9 @@ function StatusDetail({ detail, siteOrigin }) {
           <ul className="wf-statusrules__list">
             {detail.workflows.map((name) => (
               <li key={name} className="wf-statusrules__rule">
-                <JiraLink href={buildWorkflowUrl(siteOrigin, name)} title={`Open ${name} in Jira`}>{name}</JiraLink>
+                <JiraLink href={buildWorkflowUrl(siteOrigin, name)} title={`Open ${name} in Jira`}>
+                  {name}
+                </JiraLink>
               </li>
             ))}
           </ul>
@@ -213,8 +241,13 @@ function StatusDetail({ detail, siteOrigin }) {
         <section className="wf-statusrules__group">
           <header className="wf-statusrules__grouphead">
             <Chip>Transitions</Chip>
-            <span className="wf-statusrules__count">{formatNumber(into.length)} in · {formatNumber(out.length)} out</span>
-            <p className="wf-statusrules__hint">How an issue gets here and leaves. A transition with rules has a condition or validator that has to pass first.</p>
+            <span className="wf-statusrules__count">
+              {formatNumber(into.length)} in · {formatNumber(out.length)} out
+            </span>
+            <p className="wf-statusrules__hint">
+              How an issue gets here and leaves. A transition with rules has a condition or validator that has to pass
+              first.
+            </p>
           </header>
           <ul className="ui-wfusage">
             {[...into, ...out].map((t, i) => (
@@ -223,12 +256,16 @@ function StatusDetail({ detail, siteOrigin }) {
                 <span className="ui-wfusage__where">
                   <span className="ui-transition">
                     <span className="ui-transition__name">{t.name}</span>
-                    <span className="ui-transition__path">{t.from.join(", ")} → {t.to || "?"}</span>
+                    <span className="ui-transition__path">
+                      {t.from.join(", ")} → {t.to || "?"}
+                    </span>
                   </span>
                 </span>
                 <span className="ui-wfusage__what">
                   <Chip tone={t.direction === "into" ? "active" : "neutral"}>{t.direction}</Chip>
-                  {t.ruleCount > 0 && <Chip tone="warning">{`${formatNumber(t.ruleCount)} rule${t.ruleCount === 1 ? "" : "s"}`}</Chip>}
+                  {t.ruleCount > 0 && (
+                    <Chip tone="warning">{`${formatNumber(t.ruleCount)} rule${t.ruleCount === 1 ? "" : "s"}`}</Chip>
+                  )}
                 </span>
               </li>
             ))}
@@ -241,12 +278,19 @@ function StatusDetail({ detail, siteOrigin }) {
           <header className="wf-statusrules__grouphead">
             <Chip tone="warning">Restricted while here</Chip>
             <span className="wf-statusrules__count">{formatNumber(restrictions.length)}</span>
-            <p className="wf-statusrules__hint">Status properties that narrow who can edit, comment or act while an issue sits in this status.</p>
+            <p className="wf-statusrules__hint">
+              Status properties that narrow who can edit, comment or act while an issue sits in this status.
+            </p>
           </header>
           <ul className="wf-statusrules__list">
             {restrictions.map((r, i) => (
               <li key={`${r.workflowName}-${r.key}-${i}`} className="wf-statusrules__rule">
-                <span>{r.workflowName}: {r.effect === "not-editable" ? "not editable by anyone" : `${r.permission} only ${r.holder?.label || r.holder?.id || r.holderType}`}</span>
+                <span>
+                  {r.workflowName}:{" "}
+                  {r.effect === "not-editable"
+                    ? "not editable by anyone"
+                    : `${r.permission} only ${r.holder?.label || r.holder?.id || r.holderType}`}
+                </span>
                 {r.holder?.missing && <Chip tone="critical">missing</Chip>}
               </li>
             ))}
@@ -259,7 +303,9 @@ function StatusDetail({ detail, siteOrigin }) {
           <header className="wf-statusrules__grouphead">
             <Chip tone="warning">Named by workflow rules</Chip>
             <span className="wf-statusrules__count">{formatNumber(detail.ruleUsage.total)}</span>
-            <p className="wf-statusrules__hint">A previous-status validator or similar. These stop matching if the status goes.</p>
+            <p className="wf-statusrules__hint">
+              A previous-status validator or similar. These stop matching if the status goes.
+            </p>
           </header>
           <WorkflowUsageList result={detail.ruleUsage} siteOrigin={siteOrigin} />
         </section>
@@ -286,23 +332,39 @@ function StatusRulesPanel({ status, siteOrigin, onClose, load = invoke, issueUsa
       load("getStatusAutomationUsage", { statusName: status.name }).catch(() => null),
       load("getFilterUsage", { kind: "status", label: status.name }).catch(() => null),
       load("getStatusDetail", { statusId: String(status.statusId ?? status.id) }).catch(() => ({ available: false })),
-    ])
-      .then(([rules, filterUsage, statusDetail]) => {
-        if (cancelled) return;
-        setUsage(rules);
-        setFilters(filterUsage);
-        setDetail(statusDetail);
-        setLoading(false);
-      });
-    return () => { cancelled = true; };
+    ]).then(([rules, filterUsage, statusDetail]) => {
+      if (cancelled) return;
+      setUsage(rules);
+      setFilters(filterUsage);
+      setDetail(statusDetail);
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [status.name, status.statusId, status.id, load]);
 
   // Ordered by consequence, not alphabetically. A rule that transitions into this status is
   // the reason it cannot be deleted; the other two break if it is.
   const groups = [
-    { key: "write", label: "Transitions issues into it", tone: "danger", hint: "These keep the status in use. Deleting it breaks them." },
-    { key: "trigger", label: "Runs when an issue enters or leaves it", tone: "warning", hint: "These stop firing if the status is deleted." },
-    { key: "read", label: "Checks it in a condition", tone: "info", hint: "These break if the status is deleted, but do not keep it alive." },
+    {
+      key: "write",
+      label: "Transitions issues into it",
+      tone: "danger",
+      hint: "These keep the status in use. Deleting it breaks them.",
+    },
+    {
+      key: "trigger",
+      label: "Runs when an issue enters or leaves it",
+      tone: "warning",
+      hint: "These stop firing if the status is deleted.",
+    },
+    {
+      key: "read",
+      label: "Checks it in a condition",
+      tone: "info",
+      hint: "These break if the status is deleted, but do not keep it alive.",
+    },
   ];
 
   return (
@@ -310,10 +372,21 @@ function StatusRulesPanel({ status, siteOrigin, onClose, load = invoke, issueUsa
       <div className="wf-statusrules__head">
         <span>
           <h4 className="wf-statusrules__title">{status.name}</h4>
-          <UsageTriple usage={issueUsage} entityId={status.statusId ?? status.id} totalLabel="issues in it now" compact />
+          <UsageTriple
+            usage={issueUsage}
+            entityId={status.statusId ?? status.id}
+            totalLabel="issues in it now"
+            compact
+          />
         </span>
         <span className="wf-statusrules__actions">
-          <JiraLink className="ui-linkbutton" href={buildStatusAdminUrl(siteOrigin)} title="Open the status list in Jira">Statuses in Jira</JiraLink>
+          <JiraLink
+            className="ui-linkbutton"
+            href={buildStatusAdminUrl(siteOrigin)}
+            title="Open the status list in Jira"
+          >
+            Statuses in Jira
+          </JiraLink>
           <AskRovo
             agent="observatory-workflow-expert"
             scope="this status"
@@ -322,11 +395,18 @@ function StatusRulesPanel({ status, siteOrigin, onClose, load = invoke, issueUsa
             buildPrompt={() =>
               buildRovoPrompt({
                 task: `Can the status "${status.name}" be retired? Explain what holds it in place and what to do first.`,
-                facts: [["Status", status.name], ["Verdict", detail?.verdict || "unknown"], ["Workflows containing it", detail?.workflows?.length ?? "unknown"], ["Schemes reaching it", detail?.schemeCount ?? null]],
+                facts: [
+                  ["Status", status.name],
+                  ["Verdict", detail?.verdict || "unknown"],
+                  ["Workflows containing it", detail?.workflows?.length ?? "unknown"],
+                  ["Schemes reaching it", detail?.schemeCount ?? null],
+                ],
               })
             }
           />
-          <button type="button" className="ghost-button" onClick={onClose}>Close</button>
+          <button type="button" className="ghost-button" onClick={onClose}>
+            Close
+          </button>
         </span>
       </div>
 
@@ -344,23 +424,25 @@ function StatusRulesPanel({ status, siteOrigin, onClose, load = invoke, issueUsa
         <EmptyState inline>No automation rule references this status.</EmptyState>
       ) : (
         <div className="wf-statusrules__groups">
-          {groups.filter((group) => usage[group.key]?.count > 0).map((group) => (
-            <section key={group.key} className="wf-statusrules__group">
-              <header className="wf-statusrules__grouphead">
-                <Chip tone={group.tone}>{group.label}</Chip>
-                <span className="wf-statusrules__count">{formatNumber(usage[group.key].count)}</span>
-                <p className="wf-statusrules__hint">{group.hint}</p>
-              </header>
-              <ul className="wf-statusrules__list">
-                {usage[group.key].rules.map((rule) => (
-                  <li key={`${group.key}-${rule.id}`} className="wf-statusrules__rule">
-                    <RuleLink id={rule.id} name={rule.name} siteOrigin={siteOrigin} />
-                    {rule.enabled === false && <Chip tone="neutral">disabled</Chip>}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
+          {groups
+            .filter((group) => usage[group.key]?.count > 0)
+            .map((group) => (
+              <section key={group.key} className="wf-statusrules__group">
+                <header className="wf-statusrules__grouphead">
+                  <Chip tone={group.tone}>{group.label}</Chip>
+                  <span className="wf-statusrules__count">{formatNumber(usage[group.key].count)}</span>
+                  <p className="wf-statusrules__hint">{group.hint}</p>
+                </header>
+                <ul className="wf-statusrules__list">
+                  {usage[group.key].rules.map((rule) => (
+                    <li key={`${group.key}-${rule.id}`} className="wf-statusrules__rule">
+                      <RuleLink id={rule.id} name={rule.name} siteOrigin={siteOrigin} />
+                      {rule.enabled === false && <Chip tone="neutral">disabled</Chip>}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
         </div>
       )}
 
@@ -424,13 +506,22 @@ export function WorkflowInsights({ insights, loading, siteOrigin, load = invoke,
 
   if (!insights.available) {
     return (
-      <EmptyState>{insights.reason === "error"
+      <EmptyState>
+        {insights.reason === "error"
           ? "Could not analyse the workflow inventory."
-          : "Build the workflow inventory first — these findings are derived from it."}</EmptyState>
+          : "Build the workflow inventory first — these findings are derived from it."}
+      </EmptyState>
     );
   }
 
-  const { summary, duplicateGroups = [], orphans: allOrphans = [], balance = [], hasIssueCounts, schemeStatusesAvailable } = insights;
+  const {
+    summary,
+    duplicateGroups = [],
+    orphans: allOrphans = [],
+    balance = [],
+    hasIssueCounts,
+    schemeStatusesAvailable,
+  } = insights;
 
   const ORPHAN_FILTERS = [
     { key: "all", label: "All unreachable", match: () => true },
@@ -453,7 +544,11 @@ export function WorkflowInsights({ insights, loading, siteOrigin, load = invoke,
           label="Duplicate groups"
           value={formatNumber(summary.duplicateGroupCount)}
           tone={summary.duplicateGroupCount > 0 ? "warning" : "neutral"}
-          hint={summary.reducibleStatusCount > 0 ? `${formatNumber(summary.reducibleStatusCount)} statuses removable` : undefined}
+          hint={
+            summary.reducibleStatusCount > 0
+              ? `${formatNumber(summary.reducibleStatusCount)} statuses removable`
+              : undefined
+          }
         />
         <StatTile
           label="Unreachable statuses"
@@ -472,8 +567,8 @@ export function WorkflowInsights({ insights, loading, siteOrigin, load = invoke,
         <p className="wf-insights__note">
           <Icon name="alertTriangle" size={13} />
           <span>
-            No issue counts yet. Run a Universe Scan to learn which of these statuses are
-            actually in use — until then an unreachable status cannot be confirmed safe to delete.
+            No issue counts yet. Run a Universe Scan to learn which of these statuses are actually in use — until then
+            an unreachable status cannot be confirmed safe to delete.
           </span>
         </p>
       )}
@@ -482,13 +577,16 @@ export function WorkflowInsights({ insights, loading, siteOrigin, load = invoke,
         <p className="wf-insights__note">
           <Icon name="alertTriangle" size={13} />
           <span>
-            Jira did not return workflow status data on the last build, so unreachable statuses
-            and scheme balance cannot be assessed. Rebuilding the inventory usually resolves this.
+            Jira did not return workflow status data on the last build, so unreachable statuses and scheme balance
+            cannot be assessed. Rebuilding the inventory usually resolves this.
           </span>
         </p>
       )}
 
-      <Panel title="Duplicate statuses" description="Statuses that almost certainly mean the same thing. Consolidating a group removes every status in it but one.">
+      <Panel
+        title="Duplicate statuses"
+        description="Statuses that almost certainly mean the same thing. Consolidating a group removes every status in it but one."
+      >
         {duplicateGroups.length === 0 ? (
           <EmptyState inline>No duplicate status names found.</EmptyState>
         ) : (
@@ -518,7 +616,15 @@ export function WorkflowInsights({ insights, loading, siteOrigin, load = invoke,
       </Panel>
 
       {schemeStatusesAvailable && (
-        <Panel title="Unreachable statuses" description={<>Defined on the site but not reachable from any workflow scheme. {hasIssueCounts && " Those marked never used have no workflow reaching them and no issue history."}</>}>
+        <Panel
+          title="Unreachable statuses"
+          description={
+            <>
+              Defined on the site but not reachable from any workflow scheme.{" "}
+              {hasIssueCounts && " Those marked never used have no workflow reaching them and no issue history."}
+            </>
+          }
+        >
           {/* The blanket caveat only survives while we genuinely cannot check. Once an
               automation analysis exists, every status here carries its own answer, and a
               warning that applies to all of them would tell a reader nothing about any of
@@ -527,9 +633,8 @@ export function WorkflowInsights({ insights, loading, siteOrigin, load = invoke,
             <p className="wf-insights__note">
               <Icon name="info" size={13} />
               <span>
-                Automation rules are not included: no rule export has been imported, so a rule
-                could still reference a status shown here. Import one on the Automation tab to
-                have these checked individually.
+                Automation rules are not included: no rule export has been imported, so a rule could still reference a
+                status shown here. Import one on the Automation tab to have these checked individually.
               </span>
             </p>
           )}
@@ -543,7 +648,10 @@ export function WorkflowInsights({ insights, loading, siteOrigin, load = invoke,
                   key={option.key}
                   type="button"
                   className={`findings-filter-button${statusFilter === option.key ? " findings-filter-button--active" : ""}`}
-                  onClick={() => { setStatusFilter(option.key); setOpenStatus(null); }}
+                  onClick={() => {
+                    setStatusFilter(option.key);
+                    setOpenStatus(null);
+                  }}
                 >
                   <span>{option.label}</span>
                   <strong>{formatNumber(allOrphans.filter(option.match).length)}</strong>
@@ -608,37 +716,65 @@ export function WorkflowInsights({ insights, loading, siteOrigin, load = invoke,
       )}
 
       {schemeStatusesAvailable && balance.some((entry) => entry.flags.length > 0) && (
-        <Panel title="Scheme balance" description="How each scheme&apos;s statuses distribute across Jira&apos;s three categories.">
+        <Panel
+          title="Scheme balance"
+          description="How each scheme's statuses distribute across Jira's three categories."
+        >
           <div className="wf-balance-list">
-            {balance.filter((entry) => entry.flags.length > 0).map((entry) => (
-              <div key={entry.schemeId} className="wf-balance">
-                <div className="wf-balance__head">
-                  <span className="wf-balance__name">{entry.name}</span>
-                  <span className="wf-balance__projects">
-                    {formatNumber(entry.projectCount)} {entry.projectCount === 1 ? "project" : "projects"}
-                  </span>
+            {balance
+              .filter((entry) => entry.flags.length > 0)
+              .map((entry) => (
+                <div key={entry.schemeId} className="wf-balance">
+                  <div className="wf-balance__head">
+                    <span className="wf-balance__name">{entry.name}</span>
+                    <span className="wf-balance__projects">
+                      {formatNumber(entry.projectCount)} {entry.projectCount === 1 ? "project" : "projects"}
+                    </span>
+                  </div>
+                  <div
+                    className="wf-balance__bar"
+                    role="img"
+                    aria-label={`${entry.todo} To Do, ${entry.inProgress} In Progress, ${entry.done} Done`}
+                  >
+                    {entry.todo > 0 && (
+                      <span className="wf-balance__seg wf-balance__seg--todo" style={{ flexGrow: entry.todo }}>
+                        {entry.todo}
+                      </span>
+                    )}
+                    {entry.inProgress > 0 && (
+                      <span
+                        className="wf-balance__seg wf-balance__seg--progress"
+                        style={{ flexGrow: entry.inProgress }}
+                      >
+                        {entry.inProgress}
+                      </span>
+                    )}
+                    {entry.done > 0 && (
+                      <span className="wf-balance__seg wf-balance__seg--done" style={{ flexGrow: entry.done }}>
+                        {entry.done}
+                      </span>
+                    )}
+                    {entry.uncategorised > 0 && (
+                      <span className="wf-balance__seg wf-balance__seg--none" style={{ flexGrow: entry.uncategorised }}>
+                        {entry.uncategorised}
+                      </span>
+                    )}
+                  </div>
+                  <ul className="wf-balance__flags">
+                    {entry.flags.map((flag) => (
+                      <li key={flag.code} className={`wf-balance__flag wf-balance__flag--${flag.severity}`}>
+                        {flag.message}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-                <div className="wf-balance__bar" role="img"
-                  aria-label={`${entry.todo} To Do, ${entry.inProgress} In Progress, ${entry.done} Done`}>
-                  {entry.todo > 0 && <span className="wf-balance__seg wf-balance__seg--todo" style={{ flexGrow: entry.todo }}>{entry.todo}</span>}
-                  {entry.inProgress > 0 && <span className="wf-balance__seg wf-balance__seg--progress" style={{ flexGrow: entry.inProgress }}>{entry.inProgress}</span>}
-                  {entry.done > 0 && <span className="wf-balance__seg wf-balance__seg--done" style={{ flexGrow: entry.done }}>{entry.done}</span>}
-                  {entry.uncategorised > 0 && <span className="wf-balance__seg wf-balance__seg--none" style={{ flexGrow: entry.uncategorised }}>{entry.uncategorised}</span>}
-                </div>
-                <ul className="wf-balance__flags">
-                  {entry.flags.map((flag) => (
-                    <li key={flag.code} className={`wf-balance__flag wf-balance__flag--${flag.severity}`}>{flag.message}</li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+              ))}
           </div>
         </Panel>
       )}
     </div>
   );
 }
-
 
 // ── Status distribution charts ──────────────────────────────────────────────
 //
@@ -668,8 +804,7 @@ function CategoryBar({ statuses }) {
   return (
     <div className="wf-chart">
       <div className="wf-chart__title">Status categories</div>
-      <div className="wf-catbar" role="img"
-        aria-label={segments.map((s) => `${counts[s.key]} ${s.key}`).join(", ")}>
+      <div className="wf-catbar" role="img" aria-label={segments.map((s) => `${counts[s.key]} ${s.key}`).join(", ")}>
         {segments.map((seg) => (
           <span
             key={seg.key}
@@ -707,13 +842,13 @@ function DepartedChart({ statuses }) {
   return (
     <div className="wf-chart">
       <div className="wf-chart__title">Most passed through, then left</div>
-      <p className="wf-chart__desc">
-        Issues that entered a status and moved on. Empty now, heavily used before.
-      </p>
+      <p className="wf-chart__desc">Issues that entered a status and moved on. Empty now, heavily used before.</p>
       <div className="wf-barlist">
         {ranked.map((status) => (
           <div key={status.id} className="wf-barlist__row">
-            <span className="wf-barlist__label" title={status.name}>{status.name}</span>
+            <span className="wf-barlist__label" title={status.name}>
+              {status.name}
+            </span>
             <span className="wf-barlist__track">
               <span className="wf-barlist__bar" style={{ width: `${(status.departedCount / max) * 100}%` }} />
             </span>
@@ -756,28 +891,43 @@ export function WorkflowTab({ intent = null, siteOrigin = "" }) {
     if (view !== "insights") return undefined;
     let cancelled = false;
     invoke("getPillarHealth", { pillar: "workflows" })
-      .then((result) => { if (!cancelled) setPillar(result?.pillar || null); })
-      .catch(() => { if (!cancelled) setPillar(null); });
-    return () => { cancelled = true; };
+      .then((result) => {
+        if (!cancelled) setPillar(result?.pillar || null);
+      })
+      .catch(() => {
+        if (!cancelled) setPillar(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [view]);
 
-  const load = React.useCallback(async ({ forceRefresh = false } = {}) => {
-    if (forceRefresh) setBuilding(true); else setLoading(true);
-    setError(null);
-    try {
-      const res = await invoke("getWorkflowInventory", {
-        page, pageSize: PAGE_SIZE, search: deferredSearch, forceRefresh,
-      });
-      setData(res);
-    } catch (err) {
-      setError(err?.message || "Failed to load the workflow inventory.");
-    } finally {
-      setLoading(false);
-      setBuilding(false);
-    }
-  }, [page, deferredSearch]);
+  const load = React.useCallback(
+    async ({ forceRefresh = false } = {}) => {
+      if (forceRefresh) setBuilding(true);
+      else setLoading(true);
+      setError(null);
+      try {
+        const res = await invoke("getWorkflowInventory", {
+          page,
+          pageSize: PAGE_SIZE,
+          search: deferredSearch,
+          forceRefresh,
+        });
+        setData(res);
+      } catch (err) {
+        setError(err?.message || "Failed to load the workflow inventory.");
+      } finally {
+        setLoading(false);
+        setBuilding(false);
+      }
+    },
+    [page, deferredSearch],
+  );
 
-  React.useEffect(() => { load(); }, [load]);
+  React.useEffect(() => {
+    load();
+  }, [load]);
 
   // The build runs in the queue consumer, not in the resolver, so getWorkflowInventory
   // returns immediately with state "building" and no version yet. Poll until it settles --
@@ -790,19 +940,28 @@ export function WorkflowTab({ intent = null, siteOrigin = "" }) {
     const timer = setTimeout(async () => {
       try {
         const res = await invoke("getWorkflowInventory", {
-          page, pageSize: PAGE_SIZE, search: deferredSearch, forceRefresh: false,
+          page,
+          pageSize: PAGE_SIZE,
+          search: deferredSearch,
+          forceRefresh: false,
         });
         if (!cancelled) setData(res);
       } catch {
         // Keep the last good state on a transient poll failure; the next tick retries.
       }
     }, BUILD_POLL_MS);
-    return () => { cancelled = true; clearTimeout(timer); };
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [data, page, deferredSearch]);
 
   // Same debounce the field browser uses, so typing does not fire a resolver per keypress.
   React.useEffect(() => {
-    const t = setTimeout(() => { setDeferredSearch(search); setPage(1); }, 350);
+    const t = setTimeout(() => {
+      setDeferredSearch(search);
+      setPage(1);
+    }, 350);
     return () => clearTimeout(t);
   }, [search]);
 
@@ -815,10 +974,18 @@ export function WorkflowTab({ intent = null, siteOrigin = "" }) {
     let cancelled = false;
     setInsightsLoading(true);
     invoke("getWorkflowInsights", {})
-      .then((res) => { if (!cancelled) setInsights(res); })
-      .catch(() => { if (!cancelled) setInsights({ available: false, reason: "error" }); })
-      .finally(() => { if (!cancelled) setInsightsLoading(false); });
-    return () => { cancelled = true; };
+      .then((res) => {
+        if (!cancelled) setInsights(res);
+      })
+      .catch(() => {
+        if (!cancelled) setInsights({ available: false, reason: "error" });
+      })
+      .finally(() => {
+        if (!cancelled) setInsightsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [view, refreshedAt]);
 
   const snapshot = data?.snapshotStatus;
@@ -851,7 +1018,11 @@ export function WorkflowTab({ intent = null, siteOrigin = "" }) {
       next = next.filter((s) => (s.statusCategory || "Uncategorised") === statusCategory);
     }
     if (term) {
-      next = next.filter((s) => String(s.name || "").toLowerCase().includes(term));
+      next = next.filter((s) =>
+        String(s.name || "")
+          .toLowerCase()
+          .includes(term),
+      );
     }
     if (statusUsage === "active") {
       next = next.filter((s) => (s.issueCount ?? 0) > 0);
@@ -891,7 +1062,10 @@ export function WorkflowTab({ intent = null, siteOrigin = "" }) {
     setMeasuring(true);
     try {
       const res = await invoke("getWorkflowInventory", {
-        page, pageSize: PAGE_SIZE, search: deferredSearch, measureHistory: true,
+        page,
+        pageSize: PAGE_SIZE,
+        search: deferredSearch,
+        measureHistory: true,
       });
       setData(res);
     } catch (err) {
@@ -918,10 +1092,8 @@ export function WorkflowTab({ intent = null, siteOrigin = "" }) {
       icon: "alertTriangle",
       badge: insights?.summary
         ? formatNumber(
-          insights.summary.duplicateGroupCount
-          + insights.summary.orphanCount
-          + insights.summary.flaggedSchemeCount
-        )
+            insights.summary.duplicateGroupCount + insights.summary.orphanCount + insights.summary.flaggedSchemeCount,
+          )
         : null,
     },
   ];
@@ -953,7 +1125,9 @@ export function WorkflowTab({ intent = null, siteOrigin = "" }) {
       options: [
         { value: "all", label: "All categories" },
         ...[...statusesByCategory.entries()].map(([category, items]) => ({
-          value: category, label: category, count: items.length,
+          value: category,
+          label: category,
+          count: items.length,
         })),
       ],
     });
@@ -983,7 +1157,10 @@ export function WorkflowTab({ intent = null, siteOrigin = "" }) {
                     ["Workflow schemes", snapshot?.totalSchemes ?? null],
                     ["Status catalogue size", insights?.statusTotals?.catalogCount ?? null],
                     ["Near-duplicate status groups", insights?.summary?.duplicateGroupCount ?? null],
-                    ["Unreachable statuses", insights?.summary?.reducibleStatusCount ?? insights?.summary?.orphanCount ?? null],
+                    [
+                      "Unreachable statuses",
+                      insights?.summary?.reducibleStatusCount ?? insights?.summary?.orphanCount ?? null,
+                    ],
                     ["Schemes flagged for category balance", insights?.summary?.flaggedSchemeCount ?? null],
                   ],
                 })
@@ -1002,7 +1179,11 @@ export function WorkflowTab({ intent = null, siteOrigin = "" }) {
         }
       />
 
-      {error && <div className="danger-zone__error" role="alert">{error}</div>}
+      {error && (
+        <div className="danger-zone__error" role="alert">
+          {error}
+        </div>
+      )}
       {snapshot?.lastError && (
         <div className="danger-zone__error">
           <Icon name="alertTriangle" size={13} /> {snapshot.lastError}
@@ -1010,194 +1191,226 @@ export function WorkflowTab({ intent = null, siteOrigin = "" }) {
       )}
 
       {neverBuilt ? (
-        <EmptyState>No workflow inventory yet. Build one to see every workflow scheme on the site and
-          the projects each governs.</EmptyState>
+        <EmptyState>
+          No workflow inventory yet. Build one to see every workflow scheme on the site and the projects each governs.
+        </EmptyState>
       ) : (
         <>
           {/* Sidebar sub-nav, matching Screens, Automation, Scans, Reports and Config.
               This tab was the only one running its sub-navigation as horizontal pills, which
               is why moving between it and any other tab felt like changing product. */}
           <SubNavLayout items={navItems} activeKey={view} onSelect={setView}>
-          {view === "insights" ? (
-            <>
-              <PillarHealthPanel pillar={pillar} />
-              <WorkflowInsights insights={insights} loading={insightsLoading} siteOrigin={siteOrigin} intent={intent} />
-            </>
-          ) : view === "rules" ? (
-            <WorkflowRulesView siteOrigin={siteOrigin} intent={intent} />
-          ) : view === "restrictions" ? (
-            <WorkflowRestrictionsView siteOrigin={siteOrigin} />
-          ) : view === "workflow-list" ? (
-            <WorkflowCatalogView siteOrigin={siteOrigin} intent={intent} />
-          ) : loading ? (
-            <EmptyState>Loading…</EmptyState>
-          ) : view === "schemes" ? (
-            <>
-              <SortFilterBar
-                search={search}
-                onSearchChange={setSearch}
-                searchLabel="Search workflow schemes"
-                searchPlaceholder="Search schemes…"
-                resultCount={data?.totalCount ?? schemes.length}
-                totalCount={data?.totalCount ?? schemes.length}
-                onClear={() => setSearch("")}
-              />
+            {view === "insights" ? (
+              <>
+                <PillarHealthPanel pillar={pillar} />
+                <WorkflowInsights
+                  insights={insights}
+                  loading={insightsLoading}
+                  siteOrigin={siteOrigin}
+                  intent={intent}
+                />
+              </>
+            ) : view === "rules" ? (
+              <WorkflowRulesView siteOrigin={siteOrigin} intent={intent} />
+            ) : view === "restrictions" ? (
+              <WorkflowRestrictionsView siteOrigin={siteOrigin} />
+            ) : view === "workflow-list" ? (
+              <WorkflowCatalogView siteOrigin={siteOrigin} intent={intent} />
+            ) : loading ? (
+              <EmptyState>Loading…</EmptyState>
+            ) : view === "schemes" ? (
+              <>
+                <SortFilterBar
+                  search={search}
+                  onSearchChange={setSearch}
+                  searchLabel="Search workflow schemes"
+                  searchPlaceholder="Search schemes…"
+                  resultCount={data?.totalCount ?? schemes.length}
+                  totalCount={data?.totalCount ?? schemes.length}
+                  onClear={() => setSearch("")}
+                />
 
-              {schemes.length === 0 ? (
-                <EmptyState>{deferredSearch ? `No schemes match “${deferredSearch}”.` : "No workflow schemes found."}</EmptyState>
-              ) : (
-                <div className="wf-scheme-list">
-                  {schemes.map((scheme) => (
-                    <SchemeRow
-                      key={scheme.id}
-                      scheme={scheme}
-                      expanded={openSchemeId === scheme.id}
-                      onToggle={() => setOpenSchemeId(openSchemeId === scheme.id ? null : scheme.id)}
-                      projects={scheme.projects}
-                      truncated={scheme.projectsTruncated}
-                    />
-                  ))}
-                </div>
-              )}
-
-              {(data?.totalPages || 1) > 1 && (
-                <div className="wf-pagination">
-                  <button
-                    className="secondary-button secondary-button--small"
-                    type="button"
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={page <= 1}
-                  >
-                    Previous
-                  </button>
-                  <span className="wf-pagination__label">
-                    Page {data.page} of {data.totalPages}
-                  </span>
-                  <button
-                    className="secondary-button secondary-button--small"
-                    type="button"
-                    onClick={() => setPage((p) => Math.min(data.totalPages, p + 1))}
-                    disabled={page >= (data?.totalPages || 1)}
-                  >
-                    Next
-                  </button>
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              <SortFilterBar
-                search={statusSearch}
-                onSearchChange={setStatusSearch}
-                searchLabel="Filter statuses by name"
-                searchPlaceholder="Filter statuses…"
-                sort={statusSort}
-                onSortChange={setStatusSort}
-                sortOptions={STATUS_SORT_OPTIONS}
-                filters={statusFilters}
-                resultCount={visibleStatuses.length}
-                totalCount={statuses.length}
-                onClear={() => { setStatusSearch(""); setStatusUsage("all"); setStatusCategory("all"); }}
-              >
-                {/* An action, not a filter, so it sits in the toolbar's slot rather than
-                    being mistaken for one of the selects beside it. */}
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={measureHistory}
-                  disabled={measuring || !snapshot?.version}
-                  title="Runs one JQL history query per status. Takes a few minutes; no issue re-scan needed."
-                >
-                  <Icon name="clock" size={13} />
-                  {measuring ? "Queued…" : statusCounts.hasHistoryCounts ? "Re-measure history" : "Measure history"}
-                </button>
-              </SortFilterBar>
-
-              {!statusCounts.hasCurrentCounts && (
-                <p className="wf-insights__note">
-                  <Icon name="alertTriangle" size={13} />
-                  <span>
-                    No current issue counts yet — run a Universe Scan to see how many issues
-                    sit in each status today.
-                  </span>
-                </p>
-              )}
-              {!statusCounts.hasHistoryCounts && (
-                <p className="wf-insights__note">
-                  <Icon name="info" size={13} />
-                  <span>
-                    Historical usage not measured yet. &ldquo;Measure history&rdquo; asks Jira how
-                    many issues have <em>ever</em> been in each status — a few minutes, and far
-                    cheaper than re-scanning every issue.
-                  </span>
-                </p>
-              )}
-
-              {statuses.length > 0 && (
-                <div className="wf-charts">
-                  <CategoryBar statuses={statuses} />
-                  <DepartedChart statuses={statuses} />
-                </div>
-              )}
-
-              {/* A key, not decoration. Three bare numbers on 433 cards is unreadable
-                  without one, and the em dash for "not measured" is meaningless unless
-                  it is spelled out somewhere. */}
-              <div className="wf-key">
-                <span className="wf-key__group">
-                  <span className="wf-key__item"><b>1,234</b> in it now</span>
-                  <span className="wf-key__item wf-key__item--muted"><b>1,234</b> ever entered</span>
-                  <span className="wf-key__item wf-key__item--departed"><b>−1,234</b> passed through and left</span>
-                  <span className="wf-key__item wf-key__item--unknown"><b>—</b> not measured</span>
-                </span>
-              </div>
-
-              {grouped.map(([category, items]) => (
-                <section key={category} className="wf-catgroup">
-                  {/* The category becomes a heading instead of a label repeated on every
-                      card. Same information, 433 fewer repetitions. */}
-                  <h4 className="wf-catgroup__head">
-                    <span className={`wf-status__dot wf-status__dot--${CATEGORY_TONE[category] || "other"}`} aria-hidden="true" />
-                    {category}
-                    <span className="wf-catgroup__count">{formatNumber(items.length)}</span>
-                  </h4>
-                  <div className="wf-status-grid">
-                    {items.map((status) => (
-                      <button
-                        type="button"
-                        key={status.id}
-                        className={`wf-status wf-status--button${openStatus?.id === status.id ? " wf-status--open" : ""}`}
-                        aria-expanded={openStatus?.id === status.id}
-                        onClick={() => setOpenStatus(openStatus?.id === status.id ? null : status)}
-                      >
-                        <span className="wf-status__name" title={status.name}>{status.name}</span>
-                        <span className="wf-status__metrics">
-                          {/* Null renders as an em dash, never as 0: an unmeasured status
-                              must not look like an unused one. */}
-                          <span className="wf-status__metric" title="Issues currently in this status">
-                            {status.issueCount === null ? "—" : formatNumber(status.issueCount)}
-                          </span>
-                          <span className="wf-status__metric wf-status__metric--muted" title="Issues that have ever been in this status">
-                            {status.everCount === null ? "—" : formatNumber(status.everCount)}
-                          </span>
-                          <span className="wf-status__metric wf-status__metric--departed" title="Issues that passed through and left">
-                            {status.departedCount > 0 ? `−${formatNumber(status.departedCount)}` : ""}
-                          </span>
-                        </span>
-                      </button>
+                {schemes.length === 0 ? (
+                  <EmptyState>
+                    {deferredSearch ? `No schemes match “${deferredSearch}”.` : "No workflow schemes found."}
+                  </EmptyState>
+                ) : (
+                  <div className="wf-scheme-list">
+                    {schemes.map((scheme) => (
+                      <SchemeRow
+                        key={scheme.id}
+                        scheme={scheme}
+                        expanded={openSchemeId === scheme.id}
+                        onToggle={() => setOpenSchemeId(openSchemeId === scheme.id ? null : scheme.id)}
+                        projects={scheme.projects}
+                        truncated={scheme.projectsTruncated}
+                      />
                     ))}
                   </div>
-                  {openStatus && items.some((s) => s.id === openStatus.id) && (
-                    <StatusRulesPanel status={openStatus} siteOrigin={siteOrigin} onClose={() => setOpenStatus(null)} issueUsage={statusIssueUsage} />
-                  )}
-                </section>
-              ))}
+                )}
 
-              {visibleStatuses.length === 0 && (
-                <EmptyState>No statuses match these filters.</EmptyState>
-              )}
-            </>
-          )}
+                {(data?.totalPages || 1) > 1 && (
+                  <div className="wf-pagination">
+                    <button
+                      className="secondary-button secondary-button--small"
+                      type="button"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page <= 1}
+                    >
+                      Previous
+                    </button>
+                    <span className="wf-pagination__label">
+                      Page {data.page} of {data.totalPages}
+                    </span>
+                    <button
+                      className="secondary-button secondary-button--small"
+                      type="button"
+                      onClick={() => setPage((p) => Math.min(data.totalPages, p + 1))}
+                      disabled={page >= (data?.totalPages || 1)}
+                    >
+                      Next
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <SortFilterBar
+                  search={statusSearch}
+                  onSearchChange={setStatusSearch}
+                  searchLabel="Filter statuses by name"
+                  searchPlaceholder="Filter statuses…"
+                  sort={statusSort}
+                  onSortChange={setStatusSort}
+                  sortOptions={STATUS_SORT_OPTIONS}
+                  filters={statusFilters}
+                  resultCount={visibleStatuses.length}
+                  totalCount={statuses.length}
+                  onClear={() => {
+                    setStatusSearch("");
+                    setStatusUsage("all");
+                    setStatusCategory("all");
+                  }}
+                >
+                  {/* An action, not a filter, so it sits in the toolbar's slot rather than
+                    being mistaken for one of the selects beside it. */}
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={measureHistory}
+                    disabled={measuring || !snapshot?.version}
+                    title="Runs one JQL history query per status. Takes a few minutes; no issue re-scan needed."
+                  >
+                    <Icon name="clock" size={13} />
+                    {measuring ? "Queued…" : statusCounts.hasHistoryCounts ? "Re-measure history" : "Measure history"}
+                  </button>
+                </SortFilterBar>
+
+                {!statusCounts.hasCurrentCounts && (
+                  <p className="wf-insights__note">
+                    <Icon name="alertTriangle" size={13} />
+                    <span>
+                      No current issue counts yet — run a Universe Scan to see how many issues sit in each status today.
+                    </span>
+                  </p>
+                )}
+                {!statusCounts.hasHistoryCounts && (
+                  <p className="wf-insights__note">
+                    <Icon name="info" size={13} />
+                    <span>
+                      Historical usage not measured yet. &ldquo;Measure history&rdquo; asks Jira how many issues have{" "}
+                      <em>ever</em> been in each status — a few minutes, and far cheaper than re-scanning every issue.
+                    </span>
+                  </p>
+                )}
+
+                {statuses.length > 0 && (
+                  <div className="wf-charts">
+                    <CategoryBar statuses={statuses} />
+                    <DepartedChart statuses={statuses} />
+                  </div>
+                )}
+
+                {/* A key, not decoration. Three bare numbers on 433 cards is unreadable
+                  without one, and the em dash for "not measured" is meaningless unless
+                  it is spelled out somewhere. */}
+                <div className="wf-key">
+                  <span className="wf-key__group">
+                    <span className="wf-key__item">
+                      <b>1,234</b> in it now
+                    </span>
+                    <span className="wf-key__item wf-key__item--muted">
+                      <b>1,234</b> ever entered
+                    </span>
+                    <span className="wf-key__item wf-key__item--departed">
+                      <b>−1,234</b> passed through and left
+                    </span>
+                    <span className="wf-key__item wf-key__item--unknown">
+                      <b>—</b> not measured
+                    </span>
+                  </span>
+                </div>
+
+                {grouped.map(([category, items]) => (
+                  <section key={category} className="wf-catgroup">
+                    {/* The category becomes a heading instead of a label repeated on every
+                      card. Same information, 433 fewer repetitions. */}
+                    <h4 className="wf-catgroup__head">
+                      <span
+                        className={`wf-status__dot wf-status__dot--${CATEGORY_TONE[category] || "other"}`}
+                        aria-hidden="true"
+                      />
+                      {category}
+                      <span className="wf-catgroup__count">{formatNumber(items.length)}</span>
+                    </h4>
+                    <div className="wf-status-grid">
+                      {items.map((status) => (
+                        <button
+                          type="button"
+                          key={status.id}
+                          className={`wf-status wf-status--button${openStatus?.id === status.id ? " wf-status--open" : ""}`}
+                          aria-expanded={openStatus?.id === status.id}
+                          onClick={() => setOpenStatus(openStatus?.id === status.id ? null : status)}
+                        >
+                          <span className="wf-status__name" title={status.name}>
+                            {status.name}
+                          </span>
+                          <span className="wf-status__metrics">
+                            {/* Null renders as an em dash, never as 0: an unmeasured status
+                              must not look like an unused one. */}
+                            <span className="wf-status__metric" title="Issues currently in this status">
+                              {status.issueCount === null ? "—" : formatNumber(status.issueCount)}
+                            </span>
+                            <span
+                              className="wf-status__metric wf-status__metric--muted"
+                              title="Issues that have ever been in this status"
+                            >
+                              {status.everCount === null ? "—" : formatNumber(status.everCount)}
+                            </span>
+                            <span
+                              className="wf-status__metric wf-status__metric--departed"
+                              title="Issues that passed through and left"
+                            >
+                              {status.departedCount > 0 ? `−${formatNumber(status.departedCount)}` : ""}
+                            </span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    {openStatus && items.some((s) => s.id === openStatus.id) && (
+                      <StatusRulesPanel
+                        status={openStatus}
+                        siteOrigin={siteOrigin}
+                        onClose={() => setOpenStatus(null)}
+                        issueUsage={statusIssueUsage}
+                      />
+                    )}
+                  </section>
+                ))}
+
+                {visibleStatuses.length === 0 && <EmptyState>No statuses match these filters.</EmptyState>}
+              </>
+            )}
           </SubNavLayout>
         </>
       )}

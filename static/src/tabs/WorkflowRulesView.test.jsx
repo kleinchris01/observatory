@@ -14,23 +14,33 @@ const GROUP_ID = "5a2c1b9e-0f3d-4c6a-9e1b-7d8f2a3c4b5e";
 const rulePage = {
   available: true,
   total: 1,
-  rules: [{
-    workflowName: "Build Deviation WF",
-    transition: { id: "21", name: "Approve", type: "DIRECTED", from: [{ id: "3", name: "In Review" }], to: { id: "4", name: "Approved" } },
-    kind: "validator",
-    key: "system:validate-field-value",
-    label: "Field value check",
-    summary: "fieldRequired",
-    refs: [
-      { type: "field", id: "customfield_15731", label: "Onsite Modification", missing: false },
-      { type: "field", id: "customfield_404", label: null, missing: true },
-    ],
-  }],
+  rules: [
+    {
+      workflowName: "Build Deviation WF",
+      transition: {
+        id: "21",
+        name: "Approve",
+        type: "DIRECTED",
+        from: [{ id: "3", name: "In Review" }],
+        to: { id: "4", name: "Approved" },
+      },
+      kind: "validator",
+      key: "system:validate-field-value",
+      label: "Field value check",
+      summary: "fieldRequired",
+      refs: [
+        { type: "field", id: "customfield_15731", label: "Onsite Modification", missing: false },
+        { type: "field", id: "customfield_404", label: null, missing: true },
+      ],
+    },
+  ],
 };
 
 describe("WorkflowRulesView", () => {
   let load;
-  beforeEach(() => { load = vi.fn().mockResolvedValue(rulePage); });
+  beforeEach(() => {
+    load = vi.fn().mockResolvedValue(rulePage);
+  });
 
   test("shows the workflow, the transition, the statuses it runs between and what the rule names", async () => {
     render(<WorkflowRulesView siteOrigin={ORIGIN} load={load} />);
@@ -42,8 +52,9 @@ describe("WorkflowRulesView", () => {
     expect(screen.getByText("Field value check")).toBeInTheDocument();
     expect(screen.getByText("Onsite Modification")).toBeInTheDocument();
     expect(screen.getByText("customfield_404 (missing)")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Build Deviation WF" }).getAttribute("href"))
-      .toContain("workflowName=Build%20Deviation%20WF");
+    expect(screen.getByRole("link", { name: "Build Deviation WF" }).getAttribute("href")).toContain(
+      "workflowName=Build%20Deviation%20WF",
+    );
   });
 
   test("searches by what a rule points at, debounced, and resets to the first page", async () => {
@@ -52,7 +63,12 @@ describe("WorkflowRulesView", () => {
     await screen.findByText("Approve");
 
     await user.type(screen.getByRole("searchbox"), "Onsite");
-    await waitFor(() => expect(load).toHaveBeenLastCalledWith("getWorkflowRules", expect.objectContaining({ query: "Onsite", offset: 0 })));
+    await waitFor(() =>
+      expect(load).toHaveBeenLastCalledWith(
+        "getWorkflowRules",
+        expect.objectContaining({ query: "Onsite", offset: 0 }),
+      ),
+    );
   });
 
   test("narrows by kind and to rules naming something missing", async () => {
@@ -62,12 +78,19 @@ describe("WorkflowRulesView", () => {
 
     await user.selectOptions(screen.getByLabelText("Kind"), "validator");
     await user.selectOptions(screen.getByLabelText("References"), "broken");
-    await waitFor(() => expect(load).toHaveBeenLastCalledWith("getWorkflowRules", expect.objectContaining({ kind: "validator", brokenOnly: true })));
+    await waitFor(() =>
+      expect(load).toHaveBeenLastCalledWith(
+        "getWorkflowRules",
+        expect.objectContaining({ kind: "validator", brokenOnly: true }),
+      ),
+    );
   });
 
   test("arrives from the Overview finding already filtered to broken references", async () => {
     render(<WorkflowRulesView siteOrigin={ORIGIN} load={load} intent={{ view: "rules", filter: "broken" }} />);
-    await waitFor(() => expect(load).toHaveBeenCalledWith("getWorkflowRules", expect.objectContaining({ brokenOnly: true })));
+    await waitFor(() =>
+      expect(load).toHaveBeenCalledWith("getWorkflowRules", expect.objectContaining({ brokenOnly: true })),
+    );
   });
 
   test("a snapshot that predates rule capture asks for a rebuild instead of showing nothing", async () => {
@@ -82,7 +105,9 @@ describe("WorkflowRulesView", () => {
     render(<WorkflowRulesView siteOrigin={ORIGIN} load={load} />);
     await screen.findByText("Page 1 of 3");
     await user.click(screen.getByRole("button", { name: "Next" }));
-    await waitFor(() => expect(load).toHaveBeenLastCalledWith("getWorkflowRules", expect.objectContaining({ offset: 50 })));
+    await waitFor(() =>
+      expect(load).toHaveBeenLastCalledWith("getWorkflowRules", expect.objectContaining({ offset: 50 })),
+    );
   });
 
   test("says what failed", async () => {
@@ -98,20 +123,39 @@ const restrictions = {
   summary: { editLockedStatuses: 2, workflows: 2, missingHolders: 1 },
   restrictions: [
     {
-      workflowName: "Build Deviation WF", ownerKind: "status", status: { id: "3", name: "In Review" },
-      key: "jira.permission.edit.group", value: GROUP_ID, effect: "restrict-permission", permission: "edit",
-      holderType: "group", holder: { type: "group", id: GROUP_ID, label: "Plant Engineers", missing: false },
+      workflowName: "Build Deviation WF",
+      ownerKind: "status",
+      status: { id: "3", name: "In Review" },
+      key: "jira.permission.edit.group",
+      value: GROUP_ID,
+      effect: "restrict-permission",
+      permission: "edit",
+      holderType: "group",
+      holder: { type: "group", id: GROUP_ID, label: "Plant Engineers", missing: false },
       description: `Edit: only group ${GROUP_ID}`,
     },
     {
-      workflowName: "Build Deviation WF", ownerKind: "status", status: { id: "4", name: "Approved" },
-      key: "jira.issue.editable", value: "false", effect: "not-editable", permission: "edit",
-      holderType: null, holder: null, description: "Issues cannot be edited in this status",
+      workflowName: "Build Deviation WF",
+      ownerKind: "status",
+      status: { id: "4", name: "Approved" },
+      key: "jira.issue.editable",
+      value: "false",
+      effect: "not-editable",
+      permission: "edit",
+      holderType: null,
+      holder: null,
+      description: "Issues cannot be edited in this status",
     },
     {
-      workflowName: "Legacy WF", ownerKind: "status", status: { id: "5", name: "Closed" },
-      key: "jira.permission.comment.group", value: "gone", effect: "restrict-permission", permission: "comment",
-      holderType: "group", holder: { type: "group", id: "gone", label: null, missing: true },
+      workflowName: "Legacy WF",
+      ownerKind: "status",
+      status: { id: "5", name: "Closed" },
+      key: "jira.permission.comment.group",
+      value: "gone",
+      effect: "restrict-permission",
+      permission: "comment",
+      holderType: "group",
+      holder: { type: "group", id: "gone", label: null, missing: true },
       description: "Comment: only group gone",
     },
   ],
@@ -145,12 +189,27 @@ describe("WorkflowRestrictionsView", () => {
   });
 
   test("an estate with no restrictions says so in words", async () => {
-    render(<WorkflowRestrictionsView load={vi.fn().mockResolvedValue({ ...restrictions, total: 0, restrictions: [], summary: { editLockedStatuses: 0, workflows: 0, missingHolders: 0 } })} />);
+    render(
+      <WorkflowRestrictionsView
+        load={vi
+          .fn()
+          .mockResolvedValue({
+            ...restrictions,
+            total: 0,
+            restrictions: [],
+            summary: { editLockedStatuses: 0, workflows: 0, missingHolders: 0 },
+          })}
+      />,
+    );
     expect(await screen.findByText(/No workflow restricts editing/)).toBeInTheDocument();
   });
 
   test("no snapshot is not 'no restrictions'", async () => {
-    render(<WorkflowRestrictionsView load={vi.fn().mockResolvedValue({ available: false, reason: "no-snapshot", restrictions: [] })} />);
+    render(
+      <WorkflowRestrictionsView
+        load={vi.fn().mockResolvedValue({ available: false, reason: "no-snapshot", restrictions: [] })}
+      />,
+    );
     expect(await screen.findByText(/No workflow inventory yet/)).toBeInTheDocument();
   });
 });
@@ -159,12 +218,29 @@ const insights = {
   available: true,
   totals: { workflows: 3, teamManaged: 1, rules: 14, brokenRules: 1, brokenProperties: 0, inactive: 1 },
   workflows: [
-    { name: "Build Deviation WF", scopeType: "GLOBAL", statusCount: 6, transitionCount: 9, ruleCount: 12, schemeCount: 2 },
+    {
+      name: "Build Deviation WF",
+      scopeType: "GLOBAL",
+      statusCount: 6,
+      transitionCount: 9,
+      ruleCount: 12,
+      schemeCount: 2,
+    },
     { name: "Old WF", scopeType: "GLOBAL", statusCount: 3, transitionCount: 2, ruleCount: 2, schemeCount: 0 },
     { name: "Team WF", scopeType: "PROJECT", statusCount: 3, transitionCount: 3, ruleCount: 0, schemeCount: 0 },
   ],
   inactive: [{ name: "Old WF", scopeType: "GLOBAL", schemeCount: 0 }],
-  brokenRefs: [{ type: "field", id: "customfield_404", workflowName: "Build Deviation WF", source: "rule", transitionId: "21", status: null, propKey: null }],
+  brokenRefs: [
+    {
+      type: "field",
+      id: "customfield_404",
+      workflowName: "Build Deviation WF",
+      source: "rule",
+      transitionId: "21",
+      status: null,
+      propKey: null,
+    },
+  ],
 };
 
 describe("WorkflowCatalogView", () => {
@@ -187,7 +263,13 @@ describe("WorkflowCatalogView", () => {
   });
 
   test("arrives from the Overview showing only inactive workflows", async () => {
-    render(<WorkflowCatalogView siteOrigin={ORIGIN} load={vi.fn().mockResolvedValue(insights)} intent={{ filter: "inactive" }} />);
+    render(
+      <WorkflowCatalogView
+        siteOrigin={ORIGIN}
+        load={vi.fn().mockResolvedValue(insights)}
+        intent={{ filter: "inactive" }}
+      />,
+    );
     await screen.findByText("Old WF");
     expect(screen.queryByText("Team WF")).not.toBeInTheDocument();
     expect(screen.getByText(/^1 of 3/)).toBeInTheDocument();

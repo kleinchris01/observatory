@@ -27,11 +27,14 @@ const args = Object.fromEntries(
   process.argv.slice(2).reduce((acc, a, i, all) => {
     if (a.startsWith("--")) acc.push([a.slice(2), all[i + 1] && !all[i + 1].startsWith("--") ? all[i + 1] : true]);
     return acc;
-  }, [])
+  }, []),
 );
 const SRC = path.join(ROOT, "src/resolvers.js");
 const target = path.join(ROOT, args.to);
-const names = String(args.names || "").split(",").map((s) => s.trim()).filter(Boolean);
+const names = String(args.names || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 if (!args.to || !names.length) throw new Error("--to and --names are required");
 if (fs.existsSync(target)) throw new Error(`${args.to} already exists; move a module's declarations in one run`);
 
@@ -47,12 +50,16 @@ for (const n of names) {
 }
 // Nameless top-level statements (e.g. `Object.assign(TABLE, {...})`) cannot be named, so they
 // are picked by the line their code starts on: --statements 1561,1720.
-const statementLines = String(args.statements || "").split(",").map((n) => Number(n.trim())).filter(Boolean);
+const statementLines = String(args.statements || "")
+  .split(",")
+  .map((n) => Number(n.trim()))
+  .filter(Boolean);
 const lineOf = (pos) => text.slice(0, pos).split("\n").length;
 for (const line of statementLines) {
   const st = stmts.find((s) => !s.names.length && !s.isImport && lineOf(s.node.start) === line);
   if (!st) throw new Error(`No nameless top-level statement starts on line ${line}`);
-  if (st.node.type !== "ExpressionStatement") throw new Error(`Line ${line} is a ${st.node.type}; only expression statements can be moved this way`);
+  if (st.node.type !== "ExpressionStatement")
+    throw new Error(`Line ${line} is a ${st.node.type}; only expression statements can be moved this way`);
   moving.add(st);
 }
 for (const st of moving) {
@@ -60,7 +67,11 @@ for (const st of moving) {
   if (missing.length) throw new Error(`${st.names[0]} is declared together with ${missing.join(", ")}; name them too`);
 }
 const moved = stmts.filter((s) => moving.has(s)); // original order
-const leaveComments = new Set(String(args["leave-comments"] || "").split(",").filter(Boolean));
+const leaveComments = new Set(
+  String(args["leave-comments"] || "")
+    .split(",")
+    .filter(Boolean),
+);
 for (const st of moved) {
   if (!st.names.some((n) => leaveComments.has(n))) continue;
   const lead = text.slice(st.start, st.node.start);
@@ -71,10 +82,19 @@ for (const st of moved) {
 // carrying a comment that belongs to the file or to a neighbour. Report each so a person
 // decides, via --leave-comments, before anything is written.
 const multiGroup = moved
-  .map((st) => ({ st, groups: text.slice(st.start, st.node.start).trimEnd().split(/\n\s*\n/).filter((g) => g.trim()) }))
+  .map((st) => ({
+    st,
+    groups: text
+      .slice(st.start, st.node.start)
+      .trimEnd()
+      .split(/\n\s*\n/)
+      .filter((g) => g.trim()),
+  }))
   .filter(({ groups }) => groups.length > 1);
 for (const { st, groups } of multiGroup) {
-  console.warn(`! ${st.names[0]} carries ${groups.length} comment groups; all move unless --leave-comments ${st.names[0]}:`);
+  console.warn(
+    `! ${st.names[0]} carries ${groups.length} comment groups; all move unless --leave-comments ${st.names[0]}:`,
+  );
   for (const g of groups) console.warn(`    | ${g.trim().split("\n")[0].slice(0, 100)}`);
 }
 if (multiGroup.length && !args["accept-comments"] && !args["dry-run"]) {
@@ -82,13 +102,20 @@ if (multiGroup.length && !args["accept-comments"] && !args["dry-run"]) {
 }
 
 const leftBehind = new Map();
-for (const st of moved) for (const r of st.refs) if (!moving.has(owner.get(r))) {
-  if (!leftBehind.has(r)) leftBehind.set(r, new Set());
-  leftBehind.get(r).add(st.names[0]);
-}
+for (const st of moved)
+  for (const r of st.refs)
+    if (!moving.has(owner.get(r))) {
+      if (!leftBehind.has(r)) leftBehind.set(r, new Set());
+      leftBehind.get(r).add(st.names[0]);
+    }
 if (leftBehind.size) {
-  const lines = [...leftBehind].map(([dep, users]) => `  ${dep} (line ${text.slice(0, owner.get(dep).node.start).split("\n").length}) <- ${[...users].join(", ")}`);
-  throw new Error(`Moved code depends on declarations that would stay in resolvers.js (import cycle):\n${lines.join("\n")}`);
+  const lines = [...leftBehind].map(
+    ([dep, users]) =>
+      `  ${dep} (line ${text.slice(0, owner.get(dep).node.start).split("\n").length}) <- ${[...users].join(", ")}`,
+  );
+  throw new Error(
+    `Moved code depends on declarations that would stay in resolvers.js (import cycle):\n${lines.join("\n")}`,
+  );
 }
 
 // ---- The new module -----------------------------------------------------------------------
@@ -123,7 +150,9 @@ const body = moved.map((st) => {
   const code = text.slice(st.node.start, st.end);
   return comments + (st.exported || !st.names.length ? code : `export ${code}`);
 });
-const header = args.header ? `// ${args.header}\n//\n// Moved verbatim from src/resolvers.js; see docs/resolvers-refactor.md.\n\n` : "";
+const header = args.header
+  ? `// ${args.header}\n//\n// Moved verbatim from src/resolvers.js; see docs/resolvers-refactor.md.\n\n`
+  : "";
 const moduleText = `${header}${importLines.join("\n")}\n\n${body.join("\n\n")}\n`;
 
 // ---- resolvers.js -------------------------------------------------------------------------
@@ -139,7 +168,12 @@ for (const st of [...moved].reverse()) {
 }
 
 const movedNames = moved.flatMap((s) => s.names);
-const stillUsed = new Set(stmts.filter((s) => !moving.has(s)).flatMap((s) => [...s.refs]).filter((r) => movedNames.includes(r)));
+const stillUsed = new Set(
+  stmts
+    .filter((s) => !moving.has(s))
+    .flatMap((s) => [...s.refs])
+    .filter((r) => movedNames.includes(r)),
+);
 const wasPublic = moved.filter((s) => s.exported).flatMap((s) => s.names);
 const modPath = `./${path.relative(path.dirname(SRC), target).replace(/\\/g, "/")}`;
 const newLines = [];
@@ -164,7 +198,9 @@ for (const st of after.stmts.filter((s) => s.isImport)) {
   if (!dead.length) continue;
   const declText = out.slice(node.start, node.end);
   if (/\/\/|\/\*/.test(declText)) {
-    console.warn(`! left unused imports in place (comment inside): ${dead.map((d) => d.local.name).join(", ")} from ${node.source.value}`);
+    console.warn(
+      `! left unused imports in place (comment inside): ${dead.map((d) => d.local.name).join(", ")} from ${node.source.value}`,
+    );
     continue;
   }
   const live = node.specifiers.filter((sp) => referenced.has(sp.local.name));
@@ -176,25 +212,36 @@ for (const st of after.stmts.filter((s) => s.isImport)) {
     const parts = [];
     if (def) parts.push(def.local.name);
     if (ns) parts.push(`* as ${ns.local.name}`);
-    if (named.length) parts.push(declText.includes("\n") ? `{\n${named.map((n) => `  ${n},`).join("\n")}\n}` : `{ ${named.join(", ")} }`);
+    if (named.length)
+      parts.push(
+        declText.includes("\n") ? `{\n${named.map((n) => `  ${n},`).join("\n")}\n}` : `{ ${named.join(", ")} }`,
+      );
     replacement = `import ${parts.join(", ")} from "${node.source.value}";`;
   }
   edits.push({ start: node.start, end: node.end, replacement, dead: dead.map((d) => d.local.name) });
 }
 for (const e of edits.sort((x, y) => y.start - x.start)) {
   let { start, end } = e;
-  if (!e.replacement) { start = out.lastIndexOf("\n", start - 1) + 1; end = out.indexOf("\n", end) + 1; }
+  if (!e.replacement) {
+    start = out.lastIndexOf("\n", start - 1) + 1;
+    end = out.indexOf("\n", end) + 1;
+  }
   out = out.slice(0, start) + e.replacement + out.slice(end);
 }
 
 // ---- Report / write -----------------------------------------------------------------------
 const lineCount = (t) => t.split("\n").length;
-console.log(`moving ${movedNames.length} declarations (${moved.reduce((n, s) => n + lineCount(text.slice(s.start, s.end)), 0)} lines) -> ${args.to}`);
+console.log(
+  `moving ${movedNames.length} declarations (${moved.reduce((n, s) => n + lineCount(text.slice(s.start, s.end)), 0)} lines) -> ${args.to}`,
+);
 console.log(`  imports in new module: ${[...bySource.keys()].map(rel).join(", ") || "none"}`);
 console.log(`  imported back into resolvers.js: ${keep.join(", ") || "none"}`);
 console.log(`  re-exported from resolvers.js: ${wasPublic.join(", ") || "none"}`);
 for (const e of edits) console.log(`  dropped unused import(s): ${e.dead.join(", ")}`);
 console.log(`  resolvers.js: ${lineCount(text)} -> ${lineCount(out)} lines`);
-if (args["dry-run"]) { console.log("(dry run: nothing written)"); process.exit(0); }
+if (args["dry-run"]) {
+  console.log("(dry run: nothing written)");
+  process.exit(0);
+}
 writeSource(target, moduleText, crlf);
 writeSource(SRC, out, crlf);

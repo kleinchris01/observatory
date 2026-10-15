@@ -24,14 +24,23 @@ describe("shapeFilter", () => {
     const shaped = shapeFilter(raw());
 
     expect(shaped.filter).toMatchObject({
-      id: "10001", name: "Open bugs", ownerAccountId: "a1", ownerActive: true,
-      subscriptionCount: 0, favouritedCount: 3, sharedWithEveryone: false, shareCount: 0,
+      id: "10001",
+      name: "Open bugs",
+      ownerAccountId: "a1",
+      ownerActive: true,
+      subscriptionCount: 0,
+      favouritedCount: 3,
+      sharedWithEveryone: false,
+      shareCount: 0,
       lastUsedAt: "2026-08-01T00:00:00.000Z",
     });
     // The dependency join: this is what stops a field forty filters search on being reported
     // as unused.
-    expect(shaped.refs.filter((r) => r.kind === "field").map((r) => r.label))
-      .toEqual(["project", "status", "Story Points"]);
+    expect(shaped.refs.filter((r) => r.kind === "field").map((r) => r.label)).toEqual([
+      "project",
+      "status",
+      "Story Points",
+    ]);
     expect(shaped.refs.filter((r) => r.kind === "project").map((r) => r.label)).toEqual(["ADVEV"]);
     expect(shaped.refs.filter((r) => r.kind === "status").map((r) => r.label)).toEqual(["In Progress"]);
   });
@@ -40,7 +49,9 @@ describe("shapeFilter", () => {
   // from an account that exists and is switched off -- the first takes the filter with it.
   test("keeps owner state tri-valued", () => {
     expect(shapeFilter(raw()).filter.ownerActive).toBe(true);
-    expect(shapeFilter(raw({ owner: { accountId: "a", displayName: "B", active: false } })).filter.ownerActive).toBe(false);
+    expect(shapeFilter(raw({ owner: { accountId: "a", displayName: "B", active: false } })).filter.ownerActive).toBe(
+      false,
+    );
     expect(shapeFilter(raw({ owner: null })).filter.ownerActive).toBeNull();
   });
 
@@ -60,12 +71,14 @@ describe("shapeFilter", () => {
 
   test("reads a share target from whichever key names it", () => {
     // Jira nests the target under a key named after the type, so this reads a union.
-    const shaped = shapeFilter(raw({
-      sharePermissions: [
-        { type: "project", project: { id: "1", name: "ADVEV" } },
-        { type: "group", group: { groupId: "g1", name: "jira-users" } },
-      ],
-    }));
+    const shaped = shapeFilter(
+      raw({
+        sharePermissions: [
+          { type: "project", project: { id: "1", name: "ADVEV" } },
+          { type: "group", group: { groupId: "g1", name: "jira-users" } },
+        ],
+      }),
+    );
     expect(shaped.shares.map((s) => s.targetName)).toEqual(["ADVEV", "jira-users"]);
   });
 
@@ -99,7 +112,12 @@ describe("isFilterBuildStale", () => {
   });
 
   test("is stale once no invocation could still be alive", () => {
-    expect(isFilterBuildStale({ state: "building", startedAt: new Date(now - FILTER_BUILD_STALE_MS - 1000).toISOString() }, now)).toBe(true);
+    expect(
+      isFilterBuildStale(
+        { state: "building", startedAt: new Date(now - FILTER_BUILD_STALE_MS - 1000).toISOString() },
+        now,
+      ),
+    ).toBe(true);
   });
 
   test("treats a building row with no start time as stale", () => {

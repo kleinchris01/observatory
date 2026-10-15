@@ -51,7 +51,9 @@ vi.mock("./jira-api.js", () => ({
   getFieldConfiguredProjectCount: vi.fn().mockResolvedValue(0),
   getAllCustomFields: vi.fn().mockResolvedValue([]),
   getAllSystemFields: vi.fn().mockResolvedValue([]),
-  getProjectBreakdownByIssueScan: vi.fn().mockResolvedValue({ projects: [], isComplete: true, scannedIssueCount: 0, totalIssues: 0, nextPageToken: null }),
+  getProjectBreakdownByIssueScan: vi
+    .fn()
+    .mockResolvedValue({ projects: [], isComplete: true, scannedIssueCount: 0, totalIssues: 0, nextPageToken: null }),
   searchProjectFieldUsage: vi.fn().mockResolvedValue({ issueCount: 0, project: null, latestIssue: null }),
   withTimeout: vi.fn().mockImplementation((promise) => promise),
   sanitizeCacheKeyPart: vi.fn().mockImplementation((v) => v),
@@ -99,9 +101,13 @@ vi.mock("./analysis.js", () => ({
   USAGE_STATUS_READY: "ready",
   USAGE_STATUS_UNAVAILABLE: "unavailable",
   mergeProjectUsageCounts: vi.fn().mockReturnValue([]),
-  summarizeProjectUsageCapacity: vi.fn().mockReturnValue({ runningJobCount: 0, runningIssueBudget: 0, runningJobs: [] }),
+  summarizeProjectUsageCapacity: vi
+    .fn()
+    .mockReturnValue({ runningJobCount: 0, runningIssueBudget: 0, runningJobs: [] }),
   normalizeFieldName: vi.fn().mockImplementation((name) => (name || "").toLowerCase().trim()),
-  buildGovernanceFindings: vi.fn().mockReturnValue({ reasons: [], tags: {}, priorityScore: 0, adminAttention: false, categories: [] }),
+  buildGovernanceFindings: vi
+    .fn()
+    .mockReturnValue({ reasons: [], tags: {}, priorityScore: 0, adminAttention: false, categories: [] }),
   buildInventoryRecord: vi.fn().mockImplementation((field, metrics) => ({
     id: field.id,
     name: field.name,
@@ -157,7 +163,10 @@ describe("hydrateFieldForGovernance keeps archived data (14 Oct 2026)", () => {
   test("passes the row's archived issue count to the governance rules", async () => {
     const { buildGovernanceFindings } = await import("./analysis.js");
     buildGovernanceFindings.mockClear();
-    hydrateFieldForGovernance({ id: "customfield_500", name: "Hiring Manager", configuredProjectCount: 3, archivedIssueCount: 2340 }, null);
+    hydrateFieldForGovernance(
+      { id: "customfield_500", name: "Hiring Manager", configuredProjectCount: 3, archivedIssueCount: 2340 },
+      null,
+    );
     expect(buildGovernanceFindings.mock.calls[0][1]).toMatchObject({ archivedIssueCount: 2340 });
     hydrateFieldForGovernance({ id: "customfield_501", name: "Never archived" }, null);
     expect(buildGovernanceFindings.mock.calls[1][1]).toMatchObject({ archivedIssueCount: 0 });
@@ -206,7 +215,7 @@ describe("hydrateFieldForGovernance", () => {
     expect(buildGovernanceFindings).toHaveBeenCalledWith(
       field,
       expect.objectContaining({ lastFieldChangeAt: "2026-06-01T00:00:00.000Z" }),
-      {}
+      {},
     );
   });
 
@@ -219,7 +228,7 @@ describe("hydrateFieldForGovernance", () => {
     expect(buildGovernanceFindings).toHaveBeenCalledWith(
       field,
       expect.objectContaining({ lastFieldChangeAt: null }),
-      {}
+      {},
     );
   });
 
@@ -268,23 +277,22 @@ describe("hydrateFieldForGovernance", () => {
     expect(buildGovernanceFindings).toHaveBeenCalledWith(
       field,
       expect.objectContaining({ hasGlobalContext: true }),
-      {}
+      {},
     );
   });
 
   it("counts contexts from summary.contexts array", () => {
     const field = { id: "customfield_1", name: "F" };
     const summary = {
-      contexts: [{ id: "1", isGlobal: false }, { id: "2", isGlobal: false }],
+      contexts: [
+        { id: "1", isGlobal: false },
+        { id: "2", isGlobal: false },
+      ],
     };
 
     hydrateFieldForGovernance(field, summary);
 
-    expect(buildGovernanceFindings).toHaveBeenCalledWith(
-      field,
-      expect.objectContaining({ contextCount: 2 }),
-      {}
-    );
+    expect(buildGovernanceFindings).toHaveBeenCalledWith(field, expect.objectContaining({ contextCount: 2 }), {});
   });
 
   it("forwards thresholds to buildGovernanceFindings", () => {
@@ -350,7 +358,7 @@ describe("syncFieldCatalog", () => {
     expect(store.appendSnapshotFields).toHaveBeenCalledWith(
       INSTALLATION_KEY,
       "v1",
-      expect.arrayContaining([expect.objectContaining({ usageStatus: "unavailable" })])
+      expect.arrayContaining([expect.objectContaining({ usageStatus: "unavailable" })]),
     );
     expect(store.updateSnapshotFieldMetadata).not.toHaveBeenCalled();
   });
@@ -387,7 +395,15 @@ describe("syncFieldCatalog", () => {
     jiraApi.getAllCustomFields.mockResolvedValue([{ id: "customfield_1", name: "Renamed Field" }]);
     jiraApi.getAllSystemFields.mockResolvedValue([]);
     store.loadSnapshotFields.mockResolvedValue([
-      { id: "customfield_1", name: "Old Name", description: "", type: "unknown", primitiveType: null, customType: null, searcherKey: null },
+      {
+        id: "customfield_1",
+        name: "Old Name",
+        description: "",
+        type: "unknown",
+        primitiveType: null,
+        customType: null,
+        searcherKey: null,
+      },
     ]);
 
     const result = await syncFieldCatalog(INSTALLATION_KEY, "v1");
@@ -398,7 +414,7 @@ describe("syncFieldCatalog", () => {
     expect(store.updateSnapshotFieldMetadata).toHaveBeenCalledWith(
       INSTALLATION_KEY,
       "v1",
-      expect.arrayContaining([expect.objectContaining({ id: "customfield_1", name: "Renamed Field" })])
+      expect.arrayContaining([expect.objectContaining({ id: "customfield_1", name: "Renamed Field" })]),
     );
     expect(store.appendSnapshotFields).not.toHaveBeenCalled();
   });
@@ -406,7 +422,15 @@ describe("syncFieldCatalog", () => {
   it("does nothing when the catalog exactly matches what's already stored", async () => {
     const store = await getProjectStoreMock();
     const jiraApi = await getJiraApiMock();
-    const existing = { id: "customfield_1", name: "Same", description: "", type: "unknown", primitiveType: "unknown", customType: null, searcherKey: null };
+    const existing = {
+      id: "customfield_1",
+      name: "Same",
+      description: "",
+      type: "unknown",
+      primitiveType: "unknown",
+      customType: null,
+      searcherKey: null,
+    };
     jiraApi.getAllCustomFields.mockResolvedValue([{ id: "customfield_1", name: "Same" }]);
     jiraApi.getAllSystemFields.mockResolvedValue([]);
     store.loadSnapshotFields.mockResolvedValue([existing]);
@@ -446,11 +470,9 @@ describe("refreshGovernanceFindingsForFields", () => {
     const result = await refreshGovernanceFindingsForFields(INSTALLATION_KEY, "v1", ["customfield_1"]);
 
     expect(result).toEqual({ updatedCount: 1 });
-    expect(store.updateSnapshotFieldFindings).toHaveBeenCalledWith(
-      INSTALLATION_KEY,
-      "v1",
-      [expect.objectContaining({ id: "customfield_1" })]
-    );
+    expect(store.updateSnapshotFieldFindings).toHaveBeenCalledWith(INSTALLATION_KEY, "v1", [
+      expect.objectContaining({ id: "customfield_1" }),
+    ]);
   });
 
   it("feeds each field's rolled-up last-change date into its governance findings", async () => {
@@ -464,17 +486,20 @@ describe("refreshGovernanceFindingsForFields", () => {
 
     await refreshGovernanceFindingsForFields(INSTALLATION_KEY, "v1", ["customfield_1", "customfield_2"]);
 
-    expect(store.loadFieldLastChangeMap).toHaveBeenCalledWith(INSTALLATION_KEY, "v1", ["customfield_1", "customfield_2"]);
+    expect(store.loadFieldLastChangeMap).toHaveBeenCalledWith(INSTALLATION_KEY, "v1", [
+      "customfield_1",
+      "customfield_2",
+    ]);
     expect(mockFindings).toHaveBeenCalledWith(
       expect.objectContaining({ id: "customfield_1" }),
-      expect.objectContaining({ lastFieldChangeAt: "2023-01-01T00:00:00.000Z" })
+      expect.objectContaining({ lastFieldChangeAt: "2023-01-01T00:00:00.000Z" }),
     );
     // A field with no recorded change date must be passed null, never left undefined —
     // the staleness rule treats null as "unknown" and undefined would read the same,
     // but pinning it keeps the contract explicit.
     expect(mockFindings).toHaveBeenCalledWith(
       expect.objectContaining({ id: "customfield_2" }),
-      expect.objectContaining({ lastFieldChangeAt: null })
+      expect.objectContaining({ lastFieldChangeAt: null }),
     );
   });
 
@@ -497,20 +522,24 @@ describe("refreshGovernanceFindingsForFields", () => {
 
 describe("latestChangeAcrossProjects", () => {
   it("returns the newest timestamp across projects", () => {
-    expect(latestChangeAcrossProjects([
-      { latestFieldChangeAt: "2024-01-01T00:00:00.000Z" },
-      { latestFieldChangeAt: "2026-05-05T00:00:00.000Z" },
-      { latestFieldChangeAt: "2025-02-02T00:00:00.000Z" },
-    ])).toBe("2026-05-05T00:00:00.000Z");
+    expect(
+      latestChangeAcrossProjects([
+        { latestFieldChangeAt: "2024-01-01T00:00:00.000Z" },
+        { latestFieldChangeAt: "2026-05-05T00:00:00.000Z" },
+        { latestFieldChangeAt: "2025-02-02T00:00:00.000Z" },
+      ]),
+    ).toBe("2026-05-05T00:00:00.000Z");
   });
 
   it("ignores projects with missing or unparseable dates", () => {
-    expect(latestChangeAcrossProjects([
-      { latestFieldChangeAt: null },
-      { latestFieldChangeAt: "nonsense" },
-      { latestFieldChangeAt: "2024-03-03T00:00:00.000Z" },
-      {},
-    ])).toBe("2024-03-03T00:00:00.000Z");
+    expect(
+      latestChangeAcrossProjects([
+        { latestFieldChangeAt: null },
+        { latestFieldChangeAt: "nonsense" },
+        { latestFieldChangeAt: "2024-03-03T00:00:00.000Z" },
+        {},
+      ]),
+    ).toBe("2024-03-03T00:00:00.000Z");
   });
 
   it("returns null for empty, missing, or all-dateless input", () => {
@@ -577,10 +606,10 @@ describe("requeueStaleSnapshotBuild", () => {
 
     expect(store.writeSnapshotMeta).toHaveBeenCalledWith(
       INSTALLATION_KEY,
-      expect.objectContaining({ state: "queued" })
+      expect.objectContaining({ state: "queued" }),
     );
     expect(queues.inventorySnapshotQueue.push).toHaveBeenCalledWith(
-      expect.objectContaining({ body: expect.objectContaining({ jobType: "run-snapshot" }) })
+      expect.objectContaining({ body: expect.objectContaining({ jobType: "run-snapshot" }) }),
     );
   });
 
@@ -684,8 +713,12 @@ describe("runSnapshot", () => {
     jiraApi.getAllSystemFields.mockResolvedValue([]);
     store.readFullScanMeta.mockResolvedValue(null);
     let capturedVersion = null;
-    store.writeSnapshotMeta.mockImplementation(async (_key, data) => { if (data.buildingVersion) capturedVersion = data.buildingVersion; });
-    store.readSnapshotMeta.mockResolvedValueOnce(null).mockImplementation(async () => ({ buildingVersion: capturedVersion }));
+    store.writeSnapshotMeta.mockImplementation(async (_key, data) => {
+      if (data.buildingVersion) capturedVersion = data.buildingVersion;
+    });
+    store.readSnapshotMeta
+      .mockResolvedValueOnce(null)
+      .mockImplementation(async () => ({ buildingVersion: capturedVersion }));
 
     const runPromise = runSnapshot(INSTALLATION_KEY);
     vi.runAllTimers();
@@ -708,15 +741,20 @@ describe("runSnapshot", () => {
     jiraApi.getAllSystemFields.mockResolvedValue([]);
     store.readFullScanMeta.mockResolvedValue({ state: "running", scanType: "full" });
     let capturedVersion = null;
-    store.writeSnapshotMeta.mockImplementation(async (_key, data) => { if (data.buildingVersion) capturedVersion = data.buildingVersion; });
-    store.readSnapshotMeta.mockResolvedValueOnce(null).mockImplementation(async () => ({ buildingVersion: capturedVersion }));
+    store.writeSnapshotMeta.mockImplementation(async (_key, data) => {
+      if (data.buildingVersion) capturedVersion = data.buildingVersion;
+    });
+    store.readSnapshotMeta
+      .mockResolvedValueOnce(null)
+      .mockImplementation(async () => ({ buildingVersion: capturedVersion }));
 
     const runPromise = runSnapshot(INSTALLATION_KEY);
     vi.runAllTimers();
     await runPromise;
 
-    const deltaPushed = queues.inventorySnapshotQueue.push.mock.calls
-      .some((c) => c[0]?.body?.jobType === "run-delta-issue-scan");
+    const deltaPushed = queues.inventorySnapshotQueue.push.mock.calls.some(
+      (c) => c[0]?.body?.jobType === "run-delta-issue-scan",
+    );
     expect(deltaPushed).toBe(false);
   });
 
@@ -823,9 +861,7 @@ describe("runSnapshot", () => {
 
     // Should have written building state but then exited without writing ready/failed
     const writeCalls = store.writeSnapshotMeta.mock.calls;
-    const readyOrFailed = writeCalls.filter(
-      (c) => c[1].state === "ready" || c[1].state === "failed"
-    );
+    const readyOrFailed = writeCalls.filter((c) => c[1].state === "ready" || c[1].state === "failed");
     expect(readyOrFailed).toHaveLength(0);
   });
 
@@ -880,9 +916,7 @@ describe("runSnapshot", () => {
     const store = await getProjectStoreMock();
     const jiraApi = await getJiraApiMock();
 
-    jiraApi.getAllCustomFields.mockResolvedValue([
-      { id: "customfield_1", name: "Field One" },
-    ]);
+    jiraApi.getAllCustomFields.mockResolvedValue([{ id: "customfield_1", name: "Field One" }]);
     jiraApi.getAllSystemFields.mockResolvedValue([]);
     // -1 is the "timed out / unavailable" sentinel, distinct from a genuine 0
     jiraApi.getFieldConfiguredProjectCount.mockResolvedValue(-1);
@@ -913,9 +947,7 @@ describe("runSnapshot", () => {
     const store = await getProjectStoreMock();
     const jiraApi = await getJiraApiMock();
 
-    jiraApi.getAllCustomFields.mockResolvedValue([
-      { id: "customfield_1", name: "Field One" },
-    ]);
+    jiraApi.getAllCustomFields.mockResolvedValue([{ id: "customfield_1", name: "Field One" }]);
     jiraApi.getAllSystemFields.mockResolvedValue([]);
     jiraApi.getFieldConfiguredProjectCount.mockResolvedValue(3);
     jiraApi.getFieldTotalIssueCount.mockResolvedValue(-1);
@@ -942,9 +974,7 @@ describe("runSnapshot", () => {
     const store = await getProjectStoreMock();
     const jiraApi = await getJiraApiMock();
 
-    jiraApi.getAllCustomFields.mockResolvedValue([
-      { id: "customfield_1", name: "Field One" },
-    ]);
+    jiraApi.getAllCustomFields.mockResolvedValue([{ id: "customfield_1", name: "Field One" }]);
     jiraApi.getAllSystemFields.mockResolvedValue([]);
     jiraApi.getFieldConfiguredProjectCount.mockResolvedValue(0);
 
@@ -1199,27 +1229,15 @@ describe("tryQueueFieldSummaryBuild", () => {
     const queues = await getQueuesMock();
     queues.inventorySnapshotQueue.push.mockResolvedValue({});
 
-    const result = await tryQueueFieldSummaryBuild(
-      INSTALLATION_KEY,
-      "v1",
-      "customfield_1",
-      "tok-1"
-    );
+    const result = await tryQueueFieldSummaryBuild(INSTALLATION_KEY, "v1", "customfield_1", "tok-1");
     expect(result).toEqual({ queued: true });
   });
 
   it("returns queue-backpressure reason when push throws too-many-requests error", async () => {
     const queues = await getQueuesMock();
-    queues.inventorySnapshotQueue.push.mockRejectedValue(
-      new Error("Too Many Requests: queue limit exceeded")
-    );
+    queues.inventorySnapshotQueue.push.mockRejectedValue(new Error("Too Many Requests: queue limit exceeded"));
 
-    const result = await tryQueueFieldSummaryBuild(
-      INSTALLATION_KEY,
-      "v1",
-      "customfield_1",
-      "tok-1"
-    );
+    const result = await tryQueueFieldSummaryBuild(INSTALLATION_KEY, "v1", "customfield_1", "tok-1");
     expect(result.queued).toBe(false);
     expect(result.reason).toBe("queue-backpressure");
   });
@@ -1228,9 +1246,9 @@ describe("tryQueueFieldSummaryBuild", () => {
     const queues = await getQueuesMock();
     queues.inventorySnapshotQueue.push.mockRejectedValue(new Error("Network failure"));
 
-    await expect(
-      tryQueueFieldSummaryBuild(INSTALLATION_KEY, "v1", "customfield_1", "tok-1")
-    ).rejects.toThrow("Network failure");
+    await expect(tryQueueFieldSummaryBuild(INSTALLATION_KEY, "v1", "customfield_1", "tok-1")).rejects.toThrow(
+      "Network failure",
+    );
   });
 });
 
@@ -1245,12 +1263,7 @@ describe("queueFieldSummaryContinuationWithRetry", () => {
     const queues = await getQueuesMock();
     queues.inventorySnapshotQueue.push.mockResolvedValue({});
 
-    const result = await queueFieldSummaryContinuationWithRetry(
-      INSTALLATION_KEY,
-      "v1",
-      "customfield_1",
-      "tok-1"
-    );
+    const result = await queueFieldSummaryContinuationWithRetry(INSTALLATION_KEY, "v1", "customfield_1", "tok-1");
     expect(result.queued).toBe(true);
     expect(result.attempts).toBe(1);
   });
@@ -1259,16 +1272,9 @@ describe("queueFieldSummaryContinuationWithRetry", () => {
     const queues = await getQueuesMock();
     const jiraApi = await getJiraApiMock();
 
-    queues.inventorySnapshotQueue.push
-      .mockRejectedValueOnce(new Error("Too Many Requests"))
-      .mockResolvedValue({});
+    queues.inventorySnapshotQueue.push.mockRejectedValueOnce(new Error("Too Many Requests")).mockResolvedValue({});
 
-    const result = await queueFieldSummaryContinuationWithRetry(
-      INSTALLATION_KEY,
-      "v1",
-      "customfield_1",
-      "tok-1"
-    );
+    const result = await queueFieldSummaryContinuationWithRetry(INSTALLATION_KEY, "v1", "customfield_1", "tok-1");
     expect(result.queued).toBe(true);
     expect(result.attempts).toBe(2);
     expect(jiraApi.sleep).toHaveBeenCalled();
@@ -1276,16 +1282,9 @@ describe("queueFieldSummaryContinuationWithRetry", () => {
 
   it("exhausts retries and returns queued: false", async () => {
     const queues = await getQueuesMock();
-    queues.inventorySnapshotQueue.push.mockRejectedValue(
-      new Error("Too Many Requests: backpressure")
-    );
+    queues.inventorySnapshotQueue.push.mockRejectedValue(new Error("Too Many Requests: backpressure"));
 
-    const result = await queueFieldSummaryContinuationWithRetry(
-      INSTALLATION_KEY,
-      "v1",
-      "customfield_1",
-      "tok-1"
-    );
+    const result = await queueFieldSummaryContinuationWithRetry(INSTALLATION_KEY, "v1", "customfield_1", "tok-1");
     expect(result.queued).toBe(false);
     expect(result.reason).toBe("queue-backpressure");
   });
@@ -1294,8 +1293,18 @@ describe("queueFieldSummaryContinuationWithRetry", () => {
 describe("refreshGovernanceFindingsForFields — archived data", () => {
   it("passes each field's archived values into its findings, so it is not called unused", async () => {
     const store = await getProjectStoreMock();
-    store.loadSnapshotFields.mockResolvedValue([{ id: "customfield_9", name: "Hiring Manager", configuredProjectCount: 0, totalIssueCount: 0, activeProjectCount: 0 }]);
-    store.loadArchivedFieldUsage.mockResolvedValueOnce(new Map([["customfield_9", [{ projectId: "20001", issueCount: 40 }]]]));
+    store.loadSnapshotFields.mockResolvedValue([
+      {
+        id: "customfield_9",
+        name: "Hiring Manager",
+        configuredProjectCount: 0,
+        totalIssueCount: 0,
+        activeProjectCount: 0,
+      },
+    ]);
+    store.loadArchivedFieldUsage.mockResolvedValueOnce(
+      new Map([["customfield_9", [{ projectId: "20001", issueCount: 40 }]]]),
+    );
     await refreshGovernanceFindingsForFields(INSTALLATION_KEY, "v1", ["customfield_9"]);
     const [, , updates] = store.updateSnapshotFieldFindings.mock.calls.at(-1);
     expect(updates[0].findings.reasons.map((r) => r.code)).not.toContain("orphaned");

@@ -52,7 +52,6 @@ export const FILTER_BUILD_STALE_MS = 16 * 60 * 1000;
 export const FILTER_CHUNK_PAGES = 10;
 export const FILTER_PAGE_SIZE = 50;
 
-
 // True when a build was started but can no longer be running.
 //
 // Delegates to the shared implementation so every pillar answers this question the same way.
@@ -78,9 +77,7 @@ export function shapeFilter(raw) {
   // Jira returns subscriptions as { size, items } on some payloads and a bare array on
   // others. Both mean the same thing and neither is documented as canonical.
   const subscriptions = raw?.subscriptions;
-  const subscriptionCount = Array.isArray(subscriptions)
-    ? subscriptions.length
-    : Number(subscriptions?.size) || 0;
+  const subscriptionCount = Array.isArray(subscriptions) ? subscriptions.length : Number(subscriptions?.size) || 0;
 
   const shares = Array.isArray(raw?.sharePermissions) ? raw.sharePermissions : [];
   const owner = raw?.owner ?? null;

@@ -149,7 +149,14 @@ describe("isSqlRateLimitError", () => {
 
 // Shaped the way @forge/sql's ForgeSQLAPIError constructs itself: message and code hoisted,
 // everything the service sent that it could not name folded into `context`.
-function forgeSqlError({ message = "Unknown SQL execution error", code = "UNKNOWN_ERROR", suggestion, context, status, traceId } = {}) {
+function forgeSqlError({
+  message = "Unknown SQL execution error",
+  code = "UNKNOWN_ERROR",
+  suggestion,
+  context,
+  status,
+  traceId,
+} = {}) {
   const error = new Error(message);
   error.name = "ForgeSQLError";
   error.code = code;
@@ -172,9 +179,11 @@ describe("describeSqlError", () => {
 
   test("serialises the whole context rather than picking known keys out of it", () => {
     // The next unfamiliar failure will put its cause in a field nobody has thought of yet.
-    const detail = describeSqlError(forgeSqlError({
-      context: { responseText: "Data too long for column 'context' at row 14", somethingNew: "keep me" },
-    }));
+    const detail = describeSqlError(
+      forgeSqlError({
+        context: { responseText: "Data too long for column 'context' at row 14", somethingNew: "keep me" },
+      }),
+    );
 
     expect(detail).toContain("Data too long for column");
     expect(detail).toContain("somethingNew");
@@ -249,10 +258,11 @@ describe("withSqlRetry", () => {
   });
 
   test("retries on RATE_LIMIT_EXCEEDED and eventually resolves", async () => {
-    vi.spyOn(globalThis, "setTimeout").mockImplementation((fn) => { fn(); return 0; });
-    const op = vi.fn()
-      .mockRejectedValueOnce({ code: "RATE_LIMIT_EXCEEDED" })
-      .mockResolvedValue("ok");
+    vi.spyOn(globalThis, "setTimeout").mockImplementation((fn) => {
+      fn();
+      return 0;
+    });
+    const op = vi.fn().mockRejectedValueOnce({ code: "RATE_LIMIT_EXCEEDED" }).mockResolvedValue("ok");
     expect(await withSqlRetry(op)).toBe("ok");
     expect(op).toHaveBeenCalledTimes(2);
   });
@@ -268,17 +278,22 @@ describe("withSqlRetry", () => {
   test("enriches the error on its way out, at the one point every SQL call passes through", async () => {
     // 333 call sites reach SQL through this wrapper. Attaching the detail anywhere else
     // would mean editing every engine's catch block and still missing the next one written.
-    const op = vi.fn().mockRejectedValue(forgeSqlError({
-      traceId: "trace-9",
-      context: { responseText: "Data too long for column 'context' at row 14" },
-    }));
+    const op = vi.fn().mockRejectedValue(
+      forgeSqlError({
+        traceId: "trace-9",
+        context: { responseText: "Data too long for column 'context' at row 14" },
+      }),
+    );
 
     await expect(withSqlRetry(op)).rejects.toThrow(/Data too long for column/);
     await expect(withSqlRetry(op)).rejects.toThrow(/trace=trace-9/);
   });
 
   test("a rate-limited error that exhausts its retries is enriched too", async () => {
-    vi.spyOn(globalThis, "setTimeout").mockImplementation((fn) => { fn(); return 0; });
+    vi.spyOn(globalThis, "setTimeout").mockImplementation((fn) => {
+      fn();
+      return 0;
+    });
     const op = vi.fn().mockRejectedValue(forgeSqlError({ code: "RATE_LIMIT_EXCEEDED", traceId: "trace-10" }));
 
     await expect(withSqlRetry(op)).rejects.toThrow(/trace=trace-10/);
@@ -286,7 +301,10 @@ describe("withSqlRetry", () => {
   });
 
   test("throws after exhausting all retries on persistent rate limiting", async () => {
-    vi.spyOn(globalThis, "setTimeout").mockImplementation((fn) => { fn(); return 0; });
+    vi.spyOn(globalThis, "setTimeout").mockImplementation((fn) => {
+      fn();
+      return 0;
+    });
     const rateLimitError = { code: "RATE_LIMIT_EXCEEDED" };
     const op = vi.fn().mockRejectedValue(rateLimitError);
     await expect(withSqlRetry(op)).rejects.toMatchObject({ code: "RATE_LIMIT_EXCEEDED" });
@@ -298,10 +316,12 @@ describe("withSqlRetry", () => {
 
 describe("loadFieldLastChangeMap", () => {
   test("maps field ids to their newest change timestamp", async () => {
-    mockSqlQueries([[
-      { field_id: "customfield_1", last_change_at: "2024-01-01T00:00:00.000Z" },
-      { field_id: "customfield_2", last_change_at: "2026-06-01T00:00:00.000Z" },
-    ]]);
+    mockSqlQueries([
+      [
+        { field_id: "customfield_1", last_change_at: "2024-01-01T00:00:00.000Z" },
+        { field_id: "customfield_2", last_change_at: "2026-06-01T00:00:00.000Z" },
+      ],
+    ]);
 
     const map = await loadFieldLastChangeMap("scope", "v1", ["customfield_1", "customfield_2"]);
 
@@ -363,11 +383,13 @@ describe("loadFieldLastChangeMap", () => {
   });
 
   test("skips rows with a missing field id or null aggregate", async () => {
-    mockSqlQueries([[
-      { field_id: "customfield_1", last_change_at: null },
-      { field_id: null, last_change_at: "2026-01-01T00:00:00.000Z" },
-      { field_id: "customfield_3", last_change_at: "2026-02-02T00:00:00.000Z" },
-    ]]);
+    mockSqlQueries([
+      [
+        { field_id: "customfield_1", last_change_at: null },
+        { field_id: null, last_change_at: "2026-01-01T00:00:00.000Z" },
+        { field_id: "customfield_3", last_change_at: "2026-02-02T00:00:00.000Z" },
+      ],
+    ]);
 
     const map = await loadFieldLastChangeMap("scope", "v1", null);
 

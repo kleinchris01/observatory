@@ -65,17 +65,14 @@ export const NAMED_HOLDER_TYPES = new Set(["user", "group", "projectRole", "appl
 function holderFromGrant(holder = {}) {
   const type = String(holder.type || "unknown");
   // Jira returns the id under different keys per type; `value` is the durable one.
-  const value = holder.value
-    ?? holder.parameter
-    ?? holder.group?.groupId
-    ?? holder.user?.accountId
-    ?? holder.projectRole?.id
-    ?? "";
-  const label = holder.group?.name
-    ?? holder.user?.displayName
-    ?? holder.projectRole?.name
-    ?? holder.field?.name
-    ?? (typeof holder.parameter === "string" ? holder.parameter : null);
+  const value =
+    holder.value ?? holder.parameter ?? holder.group?.groupId ?? holder.user?.accountId ?? holder.projectRole?.id ?? "";
+  const label =
+    holder.group?.name ??
+    holder.user?.displayName ??
+    holder.projectRole?.name ??
+    holder.field?.name ??
+    (typeof holder.parameter === "string" ? holder.parameter : null);
   return { holderType: type, holderValue: value == null ? "" : String(value), holderLabel: label || null };
 }
 
@@ -183,14 +180,16 @@ export async function buildAccessSnapshot(installationKey) {
     }
 
     // ── Issue-security schemes ──────────────────────────────────────────────
-    const secSchemes = rawSecSchemes.filter((s) => s?.id != null).map((s) => ({
-      schemeType: "security",
-      id: String(s.id),
-      name: s.name || null,
-      description: s.description || null,
-      isDefault: false,
-      defaultLevelId: s.defaultSecurityLevelId == null ? null : String(s.defaultSecurityLevelId),
-    }));
+    const secSchemes = rawSecSchemes
+      .filter((s) => s?.id != null)
+      .map((s) => ({
+        schemeType: "security",
+        id: String(s.id),
+        name: s.name || null,
+        description: s.description || null,
+        isDefault: false,
+        defaultLevelId: s.defaultSecurityLevelId == null ? null : String(s.defaultSecurityLevelId),
+      }));
     const levels = [];
     const perScheme = await mapWithConcurrency(secSchemes, 4, async (scheme) => {
       const [rawLevels, rawMembers] = await Promise.all([
@@ -198,16 +197,18 @@ export async function buildAccessSnapshot(installationKey) {
         getIssueSecurityLevelMembers(scheme.id).catch(() => []),
       ]);
       const levelNameById = new Map();
-      const lvlRows = (rawLevels || []).filter((l) => l?.id != null).map((l) => {
-        levelNameById.set(String(l.id), l.name || String(l.id));
-        return {
-          schemeId: scheme.id,
-          id: String(l.id),
-          name: l.name || null,
-          description: l.description || null,
-          isDefault: String(l.id) === String(scheme.defaultLevelId),
-        };
-      });
+      const lvlRows = (rawLevels || [])
+        .filter((l) => l?.id != null)
+        .map((l) => {
+          levelNameById.set(String(l.id), l.name || String(l.id));
+          return {
+            schemeId: scheme.id,
+            id: String(l.id),
+            name: l.name || null,
+            description: l.description || null,
+            isDefault: String(l.id) === String(scheme.defaultLevelId),
+          };
+        });
       const memberRows = (rawMembers || []).map((m) => {
         const h = holderFromGrant(m.holder || {});
         const ctx = String(m.issueSecurityLevelId ?? m.levelId ?? "");
@@ -231,8 +232,7 @@ export async function buildAccessSnapshot(installationKey) {
     for (const row of secProjectRows || []) {
       const schemeId = String(row?.issueSecuritySchemeId ?? row?.id ?? "");
       if (!schemeId) continue;
-      const ids = Array.isArray(row.projectIds) ? row.projectIds
-        : (row.projectId != null ? [row.projectId] : []);
+      const ids = Array.isArray(row.projectIds) ? row.projectIds : row.projectId != null ? [row.projectId] : [];
       for (const pid of ids) {
         const project = projectsById.get(String(pid));
         schemeProjects.push({
@@ -246,14 +246,16 @@ export async function buildAccessSnapshot(installationKey) {
     }
 
     // ── Notification schemes ────────────────────────────────────────────────
-    const notifSchemes = rawNotifSchemes.filter((s) => s?.id != null).map((s) => ({
-      schemeType: "notification",
-      id: String(s.id),
-      name: s.name || null,
-      description: s.description || null,
-      isDefault: /^default notification scheme$/i.test(String(s.name || "")),
-      defaultLevelId: null,
-    }));
+    const notifSchemes = rawNotifSchemes
+      .filter((s) => s?.id != null)
+      .map((s) => ({
+        schemeType: "notification",
+        id: String(s.id),
+        name: s.name || null,
+        description: s.description || null,
+        isDefault: /^default notification scheme$/i.test(String(s.name || "")),
+        defaultLevelId: null,
+      }));
     for (const scheme of rawNotifSchemes) {
       if (scheme?.id == null) continue;
       holders.push(...notificationEventsToHolders(scheme));
@@ -265,8 +267,7 @@ export async function buildAccessSnapshot(installationKey) {
     for (const row of notifProjectRows || []) {
       const schemeId = String(row?.notificationSchemeId ?? row?.notificationScheme?.id ?? row?.id ?? "");
       if (!schemeId) continue;
-      const ids = Array.isArray(row.projectIds) ? row.projectIds
-        : (row.projectId != null ? [row.projectId] : []);
+      const ids = Array.isArray(row.projectIds) ? row.projectIds : row.projectId != null ? [row.projectId] : [];
       for (const pid of ids) {
         const project = projectsById.get(String(pid));
         schemeProjects.push({
@@ -286,14 +287,16 @@ export async function buildAccessSnapshot(installationKey) {
     // as the other three types: scheme_type "project-role", scheme_id = roleId,
     // context = projectId. This is what makes "which roles is Ann in" one existing query.
     const rawRoles = await getAllProjectRoles().catch(() => []);
-    const roleSchemes = rawRoles.filter((r) => r?.id != null).map((r) => ({
-      schemeType: "project-role",
-      id: String(r.id),
-      name: r.name || null,
-      description: r.description || null,
-      isDefault: false,
-      defaultLevelId: null,
-    }));
+    const roleSchemes = rawRoles
+      .filter((r) => r?.id != null)
+      .map((r) => ({
+        schemeType: "project-role",
+        id: String(r.id),
+        name: r.name || null,
+        description: r.description || null,
+        isDefault: false,
+        defaultLevelId: null,
+      }));
     const roleNameById = new Map(roleSchemes.map((r) => [r.id, r.name]));
 
     if (roleSchemes.length) {
@@ -310,8 +313,8 @@ export async function buildAccessSnapshot(installationKey) {
               context: String(p.id),
               contextLabel: p.key || String(p.id),
               holderType: actor.type,
-              holderValue: actor.type === "user" ? (actor.accountId || "") : (actor.groupId || actor.id || ""),
-              holderLabel: actor.type === "user" ? actor.displayName : (actor.groupName || actor.displayName),
+              holderValue: actor.type === "user" ? actor.accountId || "" : actor.groupId || actor.id || "",
+              holderLabel: actor.type === "user" ? actor.displayName : actor.groupName || actor.displayName,
             });
           }
           // A role present on the project with nobody in it: record the (role, project) pair
@@ -361,7 +364,13 @@ export async function buildAccessSnapshot(installationKey) {
       levels: levels.length,
       schemeProjects: schemeProjects.length,
     });
-    return { version, permission: permSchemes.length, security: secSchemes.length, notification: notifSchemes.length, projectRole: roleSchemes.length };
+    return {
+      version,
+      permission: permSchemes.length,
+      security: secSchemes.length,
+      notification: notifSchemes.length,
+      projectRole: roleSchemes.length,
+    };
   } catch (error) {
     incrMetric(METRIC_NAMES.accessSnapshotFailed);
     const message = String(error?.message || error);

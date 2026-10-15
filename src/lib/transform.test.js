@@ -21,15 +21,11 @@ describe("custom field transform helpers", () => {
   });
 
   test("builds the per-project JQL", () => {
-    expect(buildFieldJql("customfield_12345", "DEMO")).toBe(
-      "project = \"DEMO\" AND cf[12345] is not EMPTY"
-    );
+    expect(buildFieldJql("customfield_12345", "DEMO")).toBe('project = "DEMO" AND cf[12345] is not EMPTY');
   });
 
   test("buildFieldJql uses bare field id for non-custom fields", () => {
-    expect(buildFieldJql("summary", "DEMO")).toBe(
-      "project = \"DEMO\" AND summary is not EMPTY"
-    );
+    expect(buildFieldJql("summary", "DEMO")).toBe('project = "DEMO" AND summary is not EMPTY');
   });
 
   test("buildFieldJql escapes double quotes in project key", () => {
@@ -139,8 +135,11 @@ describe("custom field transform helpers", () => {
   test("buildProjectUsageRecord handles no latestIssue", () => {
     const project = { id: "1", key: "AA", name: "Alpha" };
     const record = buildProjectUsageRecord({
-      project, fieldId: "customfield_1", issueCount: 0,
-      latestFieldChangeAt: null, latestIssue: null,
+      project,
+      fieldId: "customfield_1",
+      issueCount: 0,
+      latestFieldChangeAt: null,
+      latestIssue: null,
     });
     expect(record.latestIssueKey).toBeNull();
     expect(record.latestIssueUpdatedAt).toBeNull();
@@ -174,7 +173,14 @@ describe("custom field transform helpers", () => {
   });
 
   test("extractLatestFieldChange returns null when field not present in changelog", () => {
-    const payload = { issueChangeLogs: [{ issueId: "1", changeHistories: [{ created: "2026-01-01T00:00:00Z", items: [{ fieldId: "customfield_99" }] }] }] };
+    const payload = {
+      issueChangeLogs: [
+        {
+          issueId: "1",
+          changeHistories: [{ created: "2026-01-01T00:00:00Z", items: [{ fieldId: "customfield_99" }] }],
+        },
+      ],
+    };
     expect(extractLatestFieldChange(payload, "customfield_12345")).toBeNull();
   });
 
@@ -188,7 +194,12 @@ describe("custom field transform helpers", () => {
       { id: "2", name: "Specific", isGlobalContext: false, isAnyIssueType: false },
       { id: "1", name: "Global", isGlobalContext: true, isAnyIssueType: true },
     ];
-    const summary = summarizeContexts({ contexts, projectMappings: [], issueTypeMappings: [], projectLookup: new Map() });
+    const summary = summarizeContexts({
+      contexts,
+      projectMappings: [],
+      issueTypeMappings: [],
+      projectLookup: new Map(),
+    });
     expect(summary[0].isGlobalContext).toBe(true);
   });
 

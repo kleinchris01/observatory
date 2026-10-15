@@ -86,7 +86,11 @@ export async function archivedEvidenceForFields(installationKey, fieldIds) {
     try {
       // A missing summary only means "global context unknown"; the associations still answer.
       let summary = null;
-      try { summary = await loadFieldSummary(installationKey, fieldId); } catch { summary = null; }
+      try {
+        summary = await loadFieldSummary(installationKey, fieldId);
+      } catch {
+        summary = null;
+      }
       if (summary?.hasGlobalContext) {
         reach = list.projects;
       } else {
@@ -128,8 +132,10 @@ export async function getDeletionSafety({ payload, context }) {
   if (!fieldMeta?.version) {
     return {
       available: false,
-      reason: "No field snapshot has been built yet, so there is nothing to assess. Run a full scan from the Scans tab.",
-      fields: [], total: 0,
+      reason:
+        "No field snapshot has been built yet, so there is nothing to assess. Run a full scan from the Scans tab.",
+      fields: [],
+      total: 0,
     };
   }
 
@@ -151,7 +157,7 @@ export async function getDeletionSafety({ payload, context }) {
   const byId = new Map((catalog || []).map((f) => [String(f.id), f]));
   const rqtById = new Map((rqtRows || []).map((r) => [String(r.fieldId ?? r.field_id), r]));
   const invisibleById = new Map(
-    (crossSummary?.available ? crossSummary.invisibleData : []).map((f) => [String(f.fieldId), f])
+    (crossSummary?.available ? crossSummary.invisibleData : []).map((f) => [String(f.fieldId), f]),
   );
 
   const automationIndex = automationParts?.fields ?? null;
@@ -163,13 +169,15 @@ export async function getDeletionSafety({ payload, context }) {
       })
     : null;
 
-  const archivedById = await archivedEvidenceForFields(installationKey, fieldIds)
-    .catch(fallbackOn("deletion_safety.archived_failed", () => null, { installationKey }));
+  const archivedById = await archivedEvidenceForFields(installationKey, fieldIds).catch(
+    fallbackOn("deletion_safety.archived_failed", () => null, { installationKey }),
+  );
 
   // Workflow rules naming these fields: one indexed read for the whole batch. Null when no
   // snapshot has captured rules, which the assessor reports as a gap rather than a pass.
-  const workflowEvidence = await loadFieldWorkflowEvidence(installationKey, fieldIds)
-    .catch(fallbackOn("deletion_safety.workflow_rules_failed", () => null, { installationKey }));
+  const workflowEvidence = await loadFieldWorkflowEvidence(installationKey, fieldIds).catch(
+    fallbackOn("deletion_safety.workflow_rules_failed", () => null, { installationKey }),
+  );
 
   const assessments = [];
   for (const fieldId of fieldIds) {
@@ -181,13 +189,18 @@ export async function getDeletionSafety({ payload, context }) {
     // Automation matches by NAME, which is how the index is keyed. An entry found is real
     // evidence; an entry missing is only evidence when the index is complete and current,
     // which is what automationEvidence decides.
-    const entry = (automationIndex?.entries ?? [])
-      .find((e) => String(e.label ?? "").toLowerCase() === String(field.name ?? "").toLowerCase());
+    const entry = (automationIndex?.entries ?? []).find(
+      (e) => String(e.label ?? "").toLowerCase() === String(field.name ?? "").toLowerCase(),
+    );
 
     const [screens, filters, dashboards] = await Promise.all([
       screenMeta?.version
         ? loadScreensForField(installationKey, screenMeta.version, fieldId)
-            .then((rows) => ({ available: true, screens: rows, unresolvedScreens: Number(screenMeta.unresolvedScreens) || 0 }))
+            .then((rows) => ({
+              available: true,
+              screens: rows,
+              unresolvedScreens: Number(screenMeta.unresolvedScreens) || 0,
+            }))
             .catch(() => null)
         : Promise.resolve(null),
       filterMeta?.version && nameKnown
@@ -197,39 +210,50 @@ export async function getDeletionSafety({ payload, context }) {
         : Promise.resolve(null),
       dashMeta?.version && nameKnown
         ? getDashboardUsage({ payload: { label: field.name }, context })
-            .then((d) => (d?.available
-              ? { available: true, count: Number(d.total) || 0, names: (d.dashboards || []).map((x) => x.name).filter(Boolean) }
-              : null))
+            .then((d) =>
+              d?.available
+                ? {
+                    available: true,
+                    count: Number(d.total) || 0,
+                    names: (d.dashboards || []).map((x) => x.name).filter(Boolean),
+                  }
+                : null,
+            )
             .catch(() => null)
         : Promise.resolve(null),
     ]);
 
-    assessments.push(assessFieldDeletion({
-      field,
-      usage: catalogAvailable && byId.has(fieldId)
-        ? { totalIssueCount: field.totalIssueCount, activeProjectCount: field.activeProjectCount }
-        : null,
-      screens,
-      automation: nameKnown && (entry || automationEvidence)
-        ? {
-            available: Boolean(automationParts?.analysis),
-            writeCount: entry?.writeCount ?? 0,
-            readCount: entry?.readCount ?? 0,
-            triggerCount: entry?.triggerCount ?? 0,
-            evidence: automationEvidence,
-          }
-        : null,
-      filters,
-      dashboards,
-      rqt: rqtById.size > 0 || rqtRows
-        ? { available: true, issueCount: Number(rqtById.get(fieldId)?.issueCount) || 0 }
-        : null,
-      invisibleData: invisibleById.get(fieldId) || null,
-      workflowRules: workflowEvidence?.get(fieldId) ?? null,
-      archived: archivedById
-        ? archivedById.get(fieldId) || null
-        : { available: false, reason: "Archived projects could not be checked for this field." },
-    }));
+    assessments.push(
+      assessFieldDeletion({
+        field,
+        usage:
+          catalogAvailable && byId.has(fieldId)
+            ? { totalIssueCount: field.totalIssueCount, activeProjectCount: field.activeProjectCount }
+            : null,
+        screens,
+        automation:
+          nameKnown && (entry || automationEvidence)
+            ? {
+                available: Boolean(automationParts?.analysis),
+                writeCount: entry?.writeCount ?? 0,
+                readCount: entry?.readCount ?? 0,
+                triggerCount: entry?.triggerCount ?? 0,
+                evidence: automationEvidence,
+              }
+            : null,
+        filters,
+        dashboards,
+        rqt:
+          rqtById.size > 0 || rqtRows
+            ? { available: true, issueCount: Number(rqtById.get(fieldId)?.issueCount) || 0 }
+            : null,
+        invisibleData: invisibleById.get(fieldId) || null,
+        workflowRules: workflowEvidence?.get(fieldId) ?? null,
+        archived: archivedById
+          ? archivedById.get(fieldId) || null
+          : { available: false, reason: "Archived projects could not be checked for this field." },
+      }),
+    );
   }
 
   return {

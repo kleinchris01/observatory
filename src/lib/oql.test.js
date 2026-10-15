@@ -5,14 +5,60 @@ import { buildOqlCatalog } from "./oql-index.js";
 const catalog = buildOqlCatalog({ findingCodes: ["empty", "unreached", "no-owner"] });
 const NOW = new Date("2026-09-28T12:00:00.000Z");
 
-const E = (over) => ({ pillar: "screens", id: "1", name: "Screen", usage: "medium", impact: "medium", discoveries: [], ...over });
+const E = (over) => ({
+  pillar: "screens",
+  id: "1",
+  name: "Screen",
+  usage: "medium",
+  impact: "medium",
+  discoveries: [],
+  ...over,
+});
 const ENTITIES = [
   E({ id: "1", name: "Bug Create", usage: "low", impact: "high", fields: 40, projects: 1 }),
-  E({ id: "2", name: "Default Screen", usage: "high", impact: "high", fields: 30, projects: 80, discoveries: ["unreached"] }),
+  E({
+    id: "2",
+    name: "Default Screen",
+    usage: "high",
+    impact: "high",
+    fields: 30,
+    projects: 80,
+    discoveries: ["unreached"],
+  }),
   E({ id: "3", name: "Resolve Issue", usage: "low", impact: "low", fields: 2, projects: 0, discoveries: ["empty"] }),
-  { pillar: "filters", id: "10", name: "My open bugs", usage: "low", impact: "high", discoveries: [], owner: "Sam", ownerActive: false, subscriptions: 3, lastUsed: "2026-01-01T00:00:00.000Z" },
-  { pillar: "filters", id: "11", name: "Team board", usage: "high", impact: "low", discoveries: [], owner: null, ownerActive: null, subscriptions: 0, lastUsed: "2026-09-20T00:00:00.000Z" },
-  { pillar: "priorities", id: "20", name: "Blocker", usage: "unmeasured", impact: "unmeasured", discoveries: [], kind: "Priority" },
+  {
+    pillar: "filters",
+    id: "10",
+    name: "My open bugs",
+    usage: "low",
+    impact: "high",
+    discoveries: [],
+    owner: "Sam",
+    ownerActive: false,
+    subscriptions: 3,
+    lastUsed: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    pillar: "filters",
+    id: "11",
+    name: "Team board",
+    usage: "high",
+    impact: "low",
+    discoveries: [],
+    owner: null,
+    ownerActive: null,
+    subscriptions: 0,
+    lastUsed: "2026-09-20T00:00:00.000Z",
+  },
+  {
+    pillar: "priorities",
+    id: "20",
+    name: "Blocker",
+    usage: "unmeasured",
+    impact: "unmeasured",
+    discoveries: [],
+    kind: "Priority",
+  },
 ];
 
 const ids = (text) => {
@@ -33,7 +79,11 @@ describe("tokenize", () => {
   });
   it("rejects an unterminated string unless lenient", () => {
     expect(() => tokenize('name = "abc')).toThrow(/never closed/);
-    expect(tokenize('name = "abc', { lenient: true }).at(-1)).toMatchObject({ type: "string", open: true, value: "abc" });
+    expect(tokenize('name = "abc', { lenient: true }).at(-1)).toMatchObject({
+      type: "string",
+      open: true,
+      value: "abc",
+    });
   });
 });
 
@@ -116,7 +166,11 @@ describe("parseOql / runOql", () => {
 
 describe("errors", () => {
   it("names an unknown field and suggests the nearest", () => {
-    expect(error("pilar = screens")).toEqual({ message: 'Unknown field "pilar". Did you mean "pillar"?', start: 0, end: 5 });
+    expect(error("pilar = screens")).toEqual({
+      message: 'Unknown field "pilar". Did you mean "pillar"?',
+      start: 0,
+      end: 5,
+    });
   });
   it("names an unknown enumerated value and suggests the nearest", () => {
     expect(error("usage = lo").message).toBe('"lo" is not a usage. Did you mean "low"?');

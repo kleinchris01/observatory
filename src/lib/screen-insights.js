@@ -40,7 +40,7 @@ export function resolvedProjectIds(coverage = []) {
   return new Set(
     coverage
       .filter((c) => Number(c.unresolvedScreens || 0) === 0 && Number(c.screenCount || 0) > 0)
-      .map((c) => String(c.projectId))
+      .map((c) => String(c.projectId)),
   );
 }
 
@@ -120,13 +120,19 @@ export function isClutterMeasurable({ populatedPairs = null, pairsComplete = tru
 }
 
 export function findFormClutter({
-  reachability, usage = [], resolved, fields = null, maxIssues = 0,
-  populatedPairs = null, unmeasuredFieldIds = new Set(),
+  reachability,
+  usage = [],
+  resolved,
+  fields = null,
+  maxIssues = 0,
+  populatedPairs = null,
+  unmeasuredFieldIds = new Set(),
 } = {}) {
-  const populated = populatedPairs || new Set(
-    usage.filter((u) => (Number(u.issueCount) || 0) > Number(maxIssues))
-      .map((u) => `${u.projectId}|${u.fieldId}`)
-  );
+  const populated =
+    populatedPairs ||
+    new Set(
+      usage.filter((u) => (Number(u.issueCount) || 0) > Number(maxIssues)).map((u) => `${u.projectId}|${u.fieldId}`),
+    );
   const measuredProjects = new Set();
   for (const key of populated) measuredProjects.add(key.split("|")[0]);
   for (const u of usage) measuredProjects.add(String(u.projectId));
@@ -204,9 +210,10 @@ export function summarizeScreenFieldCross({
   if (!available) {
     return {
       available: false,
-      reason: projectsTotal === 0
-        ? "No screen inventory has been built yet, so no field can be crossed against it."
-        : "No project's screen chain resolved completely in the last build, so reachability cannot be claimed for any of them.",
+      reason:
+        projectsTotal === 0
+          ? "No screen inventory has been built yet, so no field can be crossed against it."
+          : "No project's screen chain resolved completely in the last build, so reachability cannot be claimed for any of them.",
       projectsTotal,
       projectsResolved,
       usageTruncated,
@@ -219,7 +226,15 @@ export function summarizeScreenFieldCross({
   const invisibleData = findInvisibleData({ usage, reachability, resolved, fields });
   const clutterMeasurable = isClutterMeasurable({ populatedPairs, pairsComplete, usageTruncated });
   const formClutter = clutterMeasurable
-    ? findFormClutter({ reachability, usage, resolved, fields, maxIssues: clutterMaxIssues, populatedPairs, unmeasuredFieldIds })
+    ? findFormClutter({
+        reachability,
+        usage,
+        resolved,
+        fields,
+        maxIssues: clutterMaxIssues,
+        populatedPairs,
+        unmeasuredFieldIds,
+      })
     : [];
   const unreachableFields = findUnreachableFields({ reachability, fieldIds, fields });
 
@@ -237,7 +252,8 @@ export function summarizeScreenFieldCross({
     for (const [key, ops] of reachability) {
       const [projectId, fieldId] = key.split("|");
       if (!ops.onCreate || !resolved.has(projectId)) continue;
-      if (isClutterCandidate({ projectId, fieldId, fields, unmeasuredFieldIds, measuredProjects })) createPlacements += 1;
+      if (isClutterCandidate({ projectId, fieldId, fields, unmeasuredFieldIds, measuredProjects }))
+        createPlacements += 1;
     }
   }
 

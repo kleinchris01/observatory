@@ -19,10 +19,11 @@ function fakeCtx() {
 let getContextSpy;
 
 beforeEach(() => {
-  getContextSpy = vi
-    .spyOn(HTMLCanvasElement.prototype, "getContext")
-    .mockImplementation(() => fakeCtx());
-  vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
+  getContextSpy = vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => fakeCtx());
+  vi.stubGlobal(
+    "requestAnimationFrame",
+    vi.fn(() => 1),
+  );
 });
 
 afterEach(() => {

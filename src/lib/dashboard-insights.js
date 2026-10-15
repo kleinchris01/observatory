@@ -12,7 +12,6 @@
 // Pure functions over already-loaded rows, like filter-insights.js: no I/O, so the resolver
 // decides what to load and this decides what it means.
 
-
 // A dashboard with no gadgets renders as an empty grid. Not a defect on its own -- somebody
 // may be mid-build -- which is why it is reported as cleanup rather than as a problem.
 export const EMPTY_DASHBOARD_GADGETS = 0;
@@ -77,9 +76,10 @@ export function analyzeDashboard(dashboard) {
       // Weighted by blast radius rather than by owner state alone: a dashboard fifty people
       // have favourited disappearing is a different event from a private one doing so.
       severity: popularity >= 5 ? "high" : "medium",
-      detail: ownerState === "missing"
-        ? "The owning account no longer exists. Jira deletes a dashboard with its owner, and anything linking to it breaks at the same moment."
-        : "Owned by a deactivated account. It still works, and disappears if that account is ever deleted.",
+      detail:
+        ownerState === "missing"
+          ? "The owning account no longer exists. Jira deletes a dashboard with its owner, and anything linking to it breaks at the same moment."
+          : "Owned by a deactivated account. It still works, and disappears if that account is ever deleted.",
     });
   }
 
@@ -87,7 +87,8 @@ export function analyzeDashboard(dashboard) {
     findings.push({
       code: "shared-publicly",
       severity: "high",
-      detail: "Shared globally. On a site that allows anonymous access, anyone on the internet with the link can open it and read every gadget on it.",
+      detail:
+        "Shared globally. On a site that allows anonymous access, anyone on the internet with the link can open it and read every gadget on it.",
     });
   }
 
@@ -95,7 +96,8 @@ export function analyzeDashboard(dashboard) {
     findings.push({
       code: "editable-by-everyone",
       severity: "medium",
-      detail: "Any logged-in user can rearrange this dashboard for everybody who uses it, and the owner will not be told.",
+      detail:
+        "Any logged-in user can rearrange this dashboard for everybody who uses it, and the owner will not be told.",
     });
   }
 
@@ -118,13 +120,24 @@ export function analyzeDashboard(dashboard) {
   const privateFilters = shared ? gadgets.filter((g) => g.filterState === "private") : [];
   if (missing.length || privateFilters.length) {
     const parts = [];
-    if (missing.length) parts.push(`${missing.length} gadget${missing.length === 1 ? " reads a filter" : "s read filters"} that no longer exist${missing.length === 1 ? "s" : ""} or that this app cannot see at all`);
-    if (privateFilters.length) parts.push(`${privateFilters.length} read${privateFilters.length === 1 ? "s a" : ""} private filter${privateFilters.length === 1 ? "" : "s"} only ${privateFilters.length === 1 ? "its owner" : "their owners"} can open`);
+    if (missing.length)
+      parts.push(
+        `${missing.length} gadget${missing.length === 1 ? " reads a filter" : "s read filters"} that no longer exist${missing.length === 1 ? "s" : ""} or that this app cannot see at all`,
+      );
+    if (privateFilters.length)
+      parts.push(
+        `${privateFilters.length} read${privateFilters.length === 1 ? "s a" : ""} private filter${privateFilters.length === 1 ? "" : "s"} only ${privateFilters.length === 1 ? "its owner" : "their owners"} can open`,
+      );
     findings.push({
       code: "broken-gadget",
       severity: missing.length ? "high" : "medium",
       detail: `${parts.join("; ")}. Everyone else opening this dashboard sees an error in place of ${missing.length + privateFilters.length === 1 ? "that gadget" : "those gadgets"}.`,
-      gadgets: [...missing, ...privateFilters].map((g) => ({ id: g.id, title: g.title, filterId: g.filterId, filterState: g.filterState })),
+      gadgets: [...missing, ...privateFilters].map((g) => ({
+        id: g.id,
+        title: g.title,
+        filterId: g.filterId,
+        filterState: g.filterState,
+      })),
     });
   }
 
@@ -155,14 +168,17 @@ export function summarizeDashboards(dashboards = []) {
   // Whether the gadget walk reached everything. A partial walk can still say a dashboard HAS
   // gadgets; it cannot say one has none, so the empty count is suppressed rather than
   // under-reported.
-  const gadgetsKnown = dashboards.length > 0 && dashboards.every((d) => d.gadgetCount !== null && d.gadgetCount !== undefined);
+  const gadgetsKnown =
+    dashboards.length > 0 && dashboards.every((d) => d.gadgetCount !== null && d.gadgetCount !== undefined);
 
   const withFindings = analyzed
     .filter((dashboard) => dashboard.findings.length > 0)
-    .sort((a, b) =>
-      SEVERITY_ORDER[a.findings[0].severity] - SEVERITY_ORDER[b.findings[0].severity]
-      || (Number(b.popularity) || 0) - (Number(a.popularity) || 0)
-      || String(a.name).localeCompare(String(b.name)));
+    .sort(
+      (a, b) =>
+        SEVERITY_ORDER[a.findings[0].severity] - SEVERITY_ORDER[b.findings[0].severity] ||
+        (Number(b.popularity) || 0) - (Number(a.popularity) || 0) ||
+        String(a.name).localeCompare(String(b.name)),
+    );
 
   return {
     // Tri-state, like every other pillar: no snapshot is "not measured", never "no dashboards".
@@ -175,7 +191,9 @@ export function summarizeDashboards(dashboards = []) {
     // The denominator: dashboards with at least one filter gadget whose filter was probed.
     // Zero on a snapshot built before the probe, which makes the dimension unavailable
     // rather than a clean pass nobody measured.
-    filterGadgetDashboards: dashboards.filter((d) => (d.gadgets || []).some((g) => g.filterId && g.filterState && g.filterState !== "unknown")).length,
+    filterGadgetDashboards: dashboards.filter((d) =>
+      (d.gadgets || []).some((g) => g.filterId && g.filterState && g.filterState !== "unknown"),
+    ).length,
     publishedUnusedCount: analyzed.filter((d) => has(d, "published-unused")).length,
     emptyCount: gadgetsKnown ? analyzed.filter((d) => has(d, "empty")).length : null,
     gadgetsKnown,

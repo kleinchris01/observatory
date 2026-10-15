@@ -32,10 +32,7 @@ const exposed = new Set([
   ...[...configSource.matchAll(/\bk="([a-zA-Z]+)"/g)].map((m) => m[1]),
 ]);
 
-const defined = new Set([
-  ...Object.keys(DEFAULT_HEALTH_TOLERANCES),
-  ...Object.keys(DEFAULT_HEALTH_TARGETS),
-]);
+const defined = new Set([...Object.keys(DEFAULT_HEALTH_TOLERANCES), ...Object.keys(DEFAULT_HEALTH_TARGETS)]);
 
 describe("governance rules page", () => {
   test("every rule that affects the score is tunable", () => {
@@ -61,8 +58,7 @@ describe("governance rules page", () => {
 
 describe("health pillars", () => {
   test("filters and dashboards each have at least four scored rules", () => {
-    const forPillar = (name) =>
-      [...scoreSource.matchAll(new RegExp(`pillar: "${name}"`, "g"))].length;
+    const forPillar = (name) => [...scoreSource.matchAll(new RegExp(`pillar: "${name}"`, "g"))].length;
 
     // The complaint that started this: the page showed nothing for either, because each pillar
     // was a single combined "hygiene" dimension behind a single hidden tolerance.

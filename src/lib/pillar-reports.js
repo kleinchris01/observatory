@@ -22,12 +22,7 @@
 
 import { findDuplicateTypeNames, findOrphanTypes } from "./issuetype-insights.js";
 import { findDuplicateStatusGroups } from "./workflow-insights.js";
-import {
-  findBareTypes,
-  findBrokenHierarchy,
-  findBrokenReferences,
-  findEmptyObjectTypes,
-} from "./asset-insights.js";
+import { findBareTypes, findBrokenHierarchy, findBrokenReferences, findEmptyObjectTypes } from "./asset-insights.js";
 import { analyzeDashboard } from "./dashboard-insights.js";
 
 // A report is a download, not a page -- but it still crosses the Forge invoke boundary as
@@ -47,7 +42,12 @@ export const PILLAR_REPORTS = [
   { key: "priorities", label: "Priorities & resolutions", entity: "values", health: ["estate"] },
   { key: "people", label: "People", entity: "licensed users", health: ["users"] },
   { key: "assets", label: "Assets", entity: "object types", health: ["assets"] },
-  { key: "access", label: "Access", entity: "schemes and roles", health: ["permissions", "security", "notifications", "roles"] },
+  {
+    key: "access",
+    label: "Access",
+    entity: "schemes and roles",
+    health: ["permissions", "security", "notifications", "roles"],
+  },
   { key: "screens", label: "Screens", entity: "screens", health: ["screens"] },
   { key: "filters", label: "Saved filters", entity: "filters", health: ["filters"] },
   { key: "dashboards", label: "Dashboards", entity: "dashboards", health: ["dashboards"] },
@@ -90,13 +90,19 @@ export function unavailableReport(key, reason) {
   };
 }
 
-export function finalizeReport(key, { refreshedAt = null, columns = [], rows = [], summary = [], notes = [] }, { limit = REPORT_ROW_LIMIT } = {}) {
+export function finalizeReport(
+  key,
+  { refreshedAt = null, columns = [], rows = [], summary = [], notes = [] },
+  { limit = REPORT_ROW_LIMIT } = {},
+) {
   const def = describe(key);
   const hasFindings = def.findings !== false;
 
-  const normalized = rows.map((row) => (hasFindings
-    ? { ...row, findings: Array.isArray(row.findings) ? [...new Set(row.findings.filter(Boolean))] : [] }
-    : row));
+  const normalized = rows.map((row) =>
+    hasFindings
+      ? { ...row, findings: Array.isArray(row.findings) ? [...new Set(row.findings.filter(Boolean))] : [] }
+      : row,
+  );
 
   // Stable: within the flagged and unflagged halves, the builder's own order stands.
   const ordered = hasFindings
@@ -130,7 +136,11 @@ export function finalizeReport(key, { refreshedAt = null, columns = [], rows = [
     ],
     notes: [
       ...notes,
-      ...(truncated ? [`Showing the first ${limit.toLocaleString("en-US")} of ${ordered.length.toLocaleString("en-US")} ${def.entity}, flagged rows first.`] : []),
+      ...(truncated
+        ? [
+            `Showing the first ${limit.toLocaleString("en-US")} of ${ordered.length.toLocaleString("en-US")} ${def.entity}, flagged rows first.`,
+          ]
+        : []),
     ],
   };
 }
@@ -180,9 +190,7 @@ function buildFieldsReport({ refreshedAt, fields = [] }) {
       { key: "issues", label: "Issues with values", kind: "number" },
     ],
     rows,
-    summary: [
-      { label: "Never populated", value: count(rows, (r) => !r.system && r.issues === 0), tone: "warning" },
-    ],
+    summary: [{ label: "Never populated", value: count(rows, (r) => !r.system && r.issues === 0), tone: "warning" }],
   };
 }
 
@@ -202,14 +210,12 @@ function buildProjectsReport({ refreshedAt, projects = [], adoption = null }) {
       issuesPerDay: a?.measured ? round(a.issuesPerDay, 2) : null,
       adoption: a?.score ?? null,
       lastIssueCreated: a?.lastIssueCreatedAt ?? null,
-      findings: [
-        judgeable && a.fellOff ? "fell-off" : null,
-        judgeable && a.neverAdopted ? "never-adopted" : null,
-      ],
+      findings: [judgeable && a.fellOff ? "fell-off" : null, judgeable && a.neverAdopted ? "never-adopted" : null],
     };
   });
   const notes = [];
-  if (!adoption?.available) notes.push("Adoption is unmeasured: no issue activity has been captured. Run a Universal Scan.");
+  if (!adoption?.available)
+    notes.push("Adoption is unmeasured: no issue activity has been captured. Run a Universal Scan.");
   else if (adoption.dataStale) notes.push("Adoption flags are suppressed: the activity data behind them is stale.");
   return {
     refreshedAt,
@@ -232,7 +238,8 @@ function buildWorkflowsReport({ refreshedAt, schemes = [], statusCount = null })
     id: s.id,
     name: s.name,
     defaultWorkflow: s.defaultWorkflow || null,
-    mappedIssueTypes: s.issueTypeMapping && typeof s.issueTypeMapping === "object" ? Object.keys(s.issueTypeMapping).length : 0,
+    mappedIssueTypes:
+      s.issueTypeMapping && typeof s.issueTypeMapping === "object" ? Object.keys(s.issueTypeMapping).length : 0,
     projects: Number(s.projectCount) || 0,
     findings: [(Number(s.projectCount) || 0) === 0 ? "unused-scheme" : null],
   }));
@@ -268,7 +275,8 @@ function buildIssueTypesReport({ refreshedAt, issueTypes = [], schemeItems = [],
     ],
   }));
   const notes = [];
-  if (usage && usage.measurement !== "measured") notes.push("Issue counts are not fully measured yet; blank means unmeasured, not zero.");
+  if (usage && usage.measurement !== "measured")
+    notes.push("Issue counts are not fully measured yet; blank means unmeasured, not zero.");
   return {
     refreshedAt,
     columns: [
@@ -291,7 +299,10 @@ function buildFieldConfigsReport({ refreshedAt, sourceLabel = null, schemes = []
   const schemeProjects = new Map(schemes.map((s) => [s.id, Number(s.projectCount) || 0]));
   for (const c of configs) {
     const schemeIds = new Set((c.routes || []).map((r) => r.schemeId));
-    configProjects.set(c.id, [...schemeIds].reduce((n, id) => n + (schemeProjects.get(id) || 0), 0));
+    configProjects.set(
+      c.id,
+      [...schemeIds].reduce((n, id) => n + (schemeProjects.get(id) || 0), 0),
+    );
   }
   const rows = [
     ...schemes.map((s) => ({
@@ -334,7 +345,9 @@ function buildFieldConfigsReport({ refreshedAt, sourceLabel = null, schemes = []
       { label: "Schemes", value: schemes.length },
       ...(configs.length ? [{ label: "Field configurations", value: configs.length }] : []),
     ],
-    notes: summary?.unmeasured ? [`${summary.unmeasured} could not be read on the last build; their field counts are blank.`] : [],
+    notes: summary?.unmeasured
+      ? [`${summary.unmeasured} could not be read on the last build; their field counts are blank.`]
+      : [],
   };
 }
 
@@ -362,7 +375,10 @@ function buildPrioritiesReport({ refreshedAt, resolutions = [], priorities = [] 
       { key: "issues", label: "Issues", kind: "number" },
       { key: "description", label: "Description", kind: "text" },
     ],
-    rows: [...priorities.map(toRow("Priority", dupPriorities)), ...resolutions.map(toRow("Resolution", dupResolutions))],
+    rows: [
+      ...priorities.map(toRow("Priority", dupPriorities)),
+      ...resolutions.map(toRow("Resolution", dupResolutions)),
+    ],
     summary: [
       { label: "Priorities", value: priorities.length },
       { label: "Resolutions", value: resolutions.length },
@@ -452,7 +468,9 @@ function buildAssetsReport({ refreshedAt, schemas = [], objectTypes = [], attrib
     ],
     rows,
     summary: [{ label: "Schemas", value: schemas.length }],
-    notes: typeCounts.length ? [] : ["Object counts have not been crawled; the Objects column is blank rather than zero."],
+    notes: typeCounts.length
+      ? []
+      : ["Object counts have not been crawled; the Objects column is blank rather than zero."],
   };
 }
 
@@ -631,10 +649,7 @@ function buildBoardsReport({ refreshedAt, boards = [] }) {
     location: b.locationKey || b.locationName || null,
     filterId: b.filterId || null,
     columns: Number(b.columnCount) || (b.columns || []).length,
-    findings: [
-      !b.configReadable ? "config-unreadable" : null,
-      ...(b.issues || []),
-    ],
+    findings: [!b.configReadable ? "config-unreadable" : null, ...(b.issues || [])],
   }));
   return {
     refreshedAt,
@@ -665,7 +680,9 @@ function buildAutomationReport({ refreshedAt, rules = [], findingsPreview = [], 
   // The stored analysis keeps only the highest-severity findings. Saying so is the
   // difference between "these rules are clean" and "these rules were not listed".
   if (findingsTotal > findingsPreview.length) {
-    notes.push(`Findings are listed for the ${findingsPreview.length} highest-severity rules of ${findingsTotal} flagged; open the Automation tab for the rest.`);
+    notes.push(
+      `Findings are listed for the ${findingsPreview.length} highest-severity rules of ${findingsTotal} flagged; open the Automation tab for the rest.`,
+    );
   }
   return {
     refreshedAt,

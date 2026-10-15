@@ -11,9 +11,7 @@
 // knownStatusIds: a Set of status ids that exist in the status catalog, or null when the
 //   workflow inventory has not been built.
 export function indexFiltersById(filters) {
-  return filters
-    ? new Map(filters.map((f) => [String(f.id ?? f.filterId ?? ""), f]).filter(([k]) => k))
-    : null;
+  return filters ? new Map(filters.map((f) => [String(f.id ?? f.filterId ?? ""), f]).filter(([k]) => k)) : null;
 }
 
 // One board's finding codes. Exported so a caller that needs every board's findings (the
@@ -39,12 +37,12 @@ export function boardIssues(b, filterById = null, knownStatusIds = null) {
 export function summarizeBoardInsights({ boards = [], filters = null, knownStatusIds = null } = {}) {
   const filterById = indexFiltersById(filters);
 
-  let noFilter = 0;             // config readable, but no backing filter named
-  let missingFilter = 0;        // names a filter id that is not in the snapshot -> deleted
-  let inactiveFilterOwner = 0;  // backing filter's owner is deactivated
+  let noFilter = 0; // config readable, but no backing filter named
+  let missingFilter = 0; // names a filter id that is not in the snapshot -> deleted
+  let inactiveFilterOwner = 0; // backing filter's owner is deactivated
   let unmappedColumnBoards = 0; // >=1 column with no status mapped
-  let staleColumnBoards = 0;    // >=1 column maps a status id that no longer exists
-  let unreadable = 0;           // Jira refused the board's configuration (team-managed 404s)
+  let staleColumnBoards = 0; // >=1 column maps a status id that no longer exists
+  let unreadable = 0; // Jira refused the board's configuration (team-managed 404s)
 
   const flagged = [];
 

@@ -192,206 +192,226 @@ export const dashboardBuildSpec = {
     const chunkErrors = Number(cursor?.chunkErrors) || 0;
 
     try {
-    if (phase === "list") {
-      let startAt = Number(cursor?.startAt) || 0;
-      let total = Number(cursor?.total) || 0;
-      let skippedPages = Number(cursor?.skippedPages) || 0;
-      let fetched = 0;
-      let listDone = false;
+      if (phase === "list") {
+        let startAt = Number(cursor?.startAt) || 0;
+        let total = Number(cursor?.total) || 0;
+        let skippedPages = Number(cursor?.skippedPages) || 0;
+        let fetched = 0;
+        let listDone = false;
 
-      const dashboards = [];
-      const shares = [];
+        const dashboards = [];
+        const shares = [];
 
-      for (let page = 0; page < DASHBOARD_CHUNK_PAGES; page++) {
-        incrMetric(METRIC_NAMES.jiraRequest);
-        let data;
-        try {
-          data = await getDashboardPage(startAt, DASHBOARD_PAGE_SIZE);
-        } catch (error) {
-          // Transient (429, 5xx): rethrow so the chunk-level retry re-runs this same offset
-          // -- worth retrying. Non-retryable (a 400 dashboard/search returns permanently past
-          // an offset): skip this page and advance, the way a malformed entry is skipped
-          // below. One bad page must not restart the whole pillar from zero.
-          if (shouldRetry(error)) throw error;
-          skippedPages += 1;
-          logger.warn("dashboard-snapshot.page_skipped", {
-            installationKey, startAt, skippedPages, error: String(error?.message || error),
-          });
-          if (skippedPages > MAX_DASHBOARD_SKIPPED_PAGES) {
-            throw new Error(
-              `dashboard/search unreadable after ${skippedPages} skipped pages: ${String(error?.message || error).slice(0, 180)}`
-            );
+        for (let page = 0; page < DASHBOARD_CHUNK_PAGES; page++) {
+          incrMetric(METRIC_NAMES.jiraRequest);
+          let data;
+          try {
+            data = await getDashboardPage(startAt, DASHBOARD_PAGE_SIZE);
+          } catch (error) {
+            // Transient (429, 5xx): rethrow so the chunk-level retry re-runs this same offset
+            // -- worth retrying. Non-retryable (a 400 dashboard/search returns permanently past
+            // an offset): skip this page and advance, the way a malformed entry is skipped
+            // below. One bad page must not restart the whole pillar from zero.
+            if (shouldRetry(error)) throw error;
+            skippedPages += 1;
+            logger.warn("dashboard-snapshot.page_skipped", {
+              installationKey,
+              startAt,
+              skippedPages,
+              error: String(error?.message || error),
+            });
+            if (skippedPages > MAX_DASHBOARD_SKIPPED_PAGES) {
+              throw new Error(
+                `dashboard/search unreadable after ${skippedPages} skipped pages: ${String(error?.message || error).slice(0, 180)}`,
+              );
+            }
+            startAt += DASHBOARD_PAGE_SIZE;
+            if (total > 0 && startAt >= total) {
+              listDone = true;
+              break;
+            }
+            continue;
           }
-          startAt += DASHBOARD_PAGE_SIZE;
-          if (total > 0 && startAt >= total) { listDone = true; break; }
-          continue;
+          const values = Array.isArray(data?.values) ? data.values : [];
+          total = Number(data?.total ?? total) || total;
+
+          for (const entry of values) {
+            const shaped = shapeDashboard(entry);
+            // A dashboard with no id is not a dashboard. Skipped rather than thrown on: one
+            // malformed entry must not cost the rest.
+            if (!shaped) continue;
+            dashboards.push(shaped.dashboard);
+            shares.push(...shaped.shares);
+          }
+
+          fetched += values.length;
+          startAt += values.length;
+
+          if (!values.length || data?.isLast === true || (total > 0 && startAt >= total)) {
+            listDone = true;
+            break;
+          }
         }
-        const values = Array.isArray(data?.values) ? data.values : [];
-        total = Number(data?.total ?? total) || total;
 
-        for (const entry of values) {
-          const shaped = shapeDashboard(entry);
-          // A dashboard with no id is not a dashboard. Skipped rather than thrown on: one
-          // malformed entry must not cost the rest.
-          if (!shaped) continue;
-          dashboards.push(shaped.dashboard);
-          shares.push(...shaped.shares);
+        if (dashboards.length) {
+          await appendDashboardSnapshot(installationKey, version, { dashboards, shares });
         }
 
-        fetched += values.length;
-        startAt += values.length;
-
-        if (!values.length || data?.isLast === true || (total > 0 && startAt >= total)) {
-          listDone = true;
-          break;
-        }
-      }
-
-      if (dashboards.length) {
-        await appendDashboardSnapshot(installationKey, version, { dashboards, shares });
-      }
-
-      // Enumeration finished only moves to the next phase -- it is not the build finishing.
-      // listTotal is carried forward so the later phases can report a cumulative
-      // totalExpected: without it, progress reads as "3,836 of 613" -- work summed across
-      // three phases against a denominator that only counted the first.
-      return {
-        done: false,
-        processed: fetched,
-        totalExpected: total,
-        cursor: listDone
-          ? { phase: "gadgets", listTotal: total, skippedPages }
-          : { phase: "list", startAt, total, skippedPages },
-      };
-    }
-
-    // Phase two: fill in gadget counts, a batch at a time.
-    //
-    // Driven off the stored rows rather than a remembered list, so the batch survives being
-    // carried across invocations in a TEXT cursor -- and so a redelivered message re-reads
-    // what is actually still missing rather than trusting a stale list.
-    if (phase === "gadgets") {
-      const listTotal = Number(cursor?.listTotal) || Number(meta?.totalExpected) || 0;
-      const skippedPages = Number(cursor?.skippedPages) || 0;
-      const pending = await loadDashboardIdsNeedingGadgets(installationKey, version, DASHBOARD_GADGET_CHUNK);
-
-      if (!pending.length) {
-        // Gadgets are all walked; now read what each one points at. Take a one-off count of
-        // the gadgets so phase three has a real denominator instead of borrowing phase one's.
-        const { total: gadgetTotal } = await countGadgetConfigCoverage(installationKey, version);
+        // Enumeration finished only moves to the next phase -- it is not the build finishing.
+        // listTotal is carried forward so the later phases can report a cumulative
+        // totalExpected: without it, progress reads as "3,836 of 613" -- work summed across
+        // three phases against a denominator that only counted the first.
         return {
           done: false,
-          processed: 0,
-          totalExpected: listTotal * 2 + gadgetTotal,
-          cursor: { phase: "configs", walked: Number(cursor?.walked) || 0, listTotal, gadgetTotal, skippedPages },
-          extra: { walked: Number(cursor?.walked) || 0, skippedPages },
+          processed: fetched,
+          totalExpected: total,
+          cursor: listDone
+            ? { phase: "gadgets", listTotal: total, skippedPages }
+            : { phase: "list", startAt, total, skippedPages },
         };
       }
 
-    const gadgets = [];
-    let walked = Number(cursor?.walked) || 0;
+      // Phase two: fill in gadget counts, a batch at a time.
+      //
+      // Driven off the stored rows rather than a remembered list, so the batch survives being
+      // carried across invocations in a TEXT cursor -- and so a redelivered message re-reads
+      // what is actually still missing rather than trusting a stale list.
+      if (phase === "gadgets") {
+        const listTotal = Number(cursor?.listTotal) || Number(meta?.totalExpected) || 0;
+        const skippedPages = Number(cursor?.skippedPages) || 0;
+        const pending = await loadDashboardIdsNeedingGadgets(installationKey, version, DASHBOARD_GADGET_CHUNK);
 
-    const results = await mapWithConcurrency(pending, DASHBOARD_FETCH_CONCURRENCY, async (dashboardId) => {
-      try {
-        const list = await getDashboardGadgets(dashboardId);
-        return { id: dashboardId, gadgets: list.map((g) => shapeGadget(dashboardId, g)).filter(Boolean) };
-      } catch (error) {
-        // Per dashboard rather than fatal: the one that failed keeps gadgetCount null and
-        // reads as unmeasured, and the rest still land.
-        logger.warn("dashboard-snapshot.gadget_walk_failed", {
-          installationKey, dashboardId, error: String(error?.message || error),
+        if (!pending.length) {
+          // Gadgets are all walked; now read what each one points at. Take a one-off count of
+          // the gadgets so phase three has a real denominator instead of borrowing phase one's.
+          const { total: gadgetTotal } = await countGadgetConfigCoverage(installationKey, version);
+          return {
+            done: false,
+            processed: 0,
+            totalExpected: listTotal * 2 + gadgetTotal,
+            cursor: { phase: "configs", walked: Number(cursor?.walked) || 0, listTotal, gadgetTotal, skippedPages },
+            extra: { walked: Number(cursor?.walked) || 0, skippedPages },
+          };
+        }
+
+        const gadgets = [];
+        let walked = Number(cursor?.walked) || 0;
+
+        const results = await mapWithConcurrency(pending, DASHBOARD_FETCH_CONCURRENCY, async (dashboardId) => {
+          try {
+            const list = await getDashboardGadgets(dashboardId);
+            return { id: dashboardId, gadgets: list.map((g) => shapeGadget(dashboardId, g)).filter(Boolean) };
+          } catch (error) {
+            // Per dashboard rather than fatal: the one that failed keeps gadgetCount null and
+            // reads as unmeasured, and the rest still land.
+            logger.warn("dashboard-snapshot.gadget_walk_failed", {
+              installationKey,
+              dashboardId,
+              error: String(error?.message || error),
+            });
+            return { id: dashboardId, gadgets: null };
+          }
         });
-        return { id: dashboardId, gadgets: null };
+
+        const counts = [];
+        for (const result of results) {
+          // A null gadget list still records a count of null, which is what marks the dashboard
+          // walked-and-unreadable rather than leaving it to be retried forever.
+          counts.push({ id: result.id, gadgetCount: result.gadgets ? result.gadgets.length : null });
+          if (!result.gadgets) continue;
+          walked += 1;
+          gadgets.push(...result.gadgets);
+        }
+
+        await appendDashboardSnapshot(installationKey, version, { gadgets, gadgetCounts: counts });
+
+        return {
+          done: false,
+          processed: pending.length,
+          totalExpected: listTotal ? listTotal * 2 : undefined,
+          cursor: { phase: "gadgets", walked, listTotal, skippedPages },
+          extra: { walked, skippedPages },
+        };
       }
-    });
 
-    const counts = [];
-    for (const result of results) {
-      // A null gadget list still records a count of null, which is what marks the dashboard
-      // walked-and-unreadable rather than leaving it to be retried forever.
-      counts.push({ id: result.id, gadgetCount: result.gadgets ? result.gadgets.length : null });
-      if (!result.gadgets) continue;
-      walked += 1;
-      gadgets.push(...result.gadgets);
-    }
+      // ── Phase three: what each gadget points at ─────────────────────────────
+      //
+      // This is the whole reason the dashboard pillar can answer "which dashboards break if this
+      // field goes". A dashboard on its own is a list of gadget titles; "Filter Results: Open
+      // Bugs" is a string, and matching it against filter names would produce a dependency graph
+      // that is right most of the time -- which is the worst kind, because every claim this app
+      // makes about what depends on what is load-bearing for a deletion decision.
+      const listTotal = Number(cursor?.listTotal) || 0;
+      const gadgetTotal = Number(cursor?.gadgetTotal) || 0;
+      const skippedPages = Number(cursor?.skippedPages) || 0;
+      // undefined, not 0, when a pre-change cursor is resumed with neither figure -- the build
+      // runner then keeps whatever totalExpected the meta already has rather than zeroing it.
+      const cumulativeTotal = listTotal || gadgetTotal ? listTotal * 2 + gadgetTotal : undefined;
 
-    await appendDashboardSnapshot(installationKey, version, { gadgets, gadgetCounts: counts });
+      const pendingConfigs = await loadGadgetsNeedingConfig(installationKey, version, DASHBOARD_CONFIG_CHUNK);
+
+      if (!pendingConfigs.length) {
+        return {
+          done: true,
+          processed: 0,
+          totalExpected: cumulativeTotal,
+          extra: { walked: Number(cursor?.walked) || 0, listTotal, skippedPages },
+        };
+      }
+
+      const configs = await mapWithConcurrency(pendingConfigs, DASHBOARD_FETCH_CONCURRENCY, async (g) => {
+        try {
+          const filterId = await getGadgetFilterId(g.dashboardId, g.gadgetId);
+          return { ...g, filterId };
+        } catch (error) {
+          // Per gadget, not fatal. A gadget whose properties cannot be read is recorded as
+          // walked-with-no-filter rather than retried forever -- the alternative is a build that
+          // never terminates because one gadget 403s.
+          logger.warn("dashboard-snapshot.gadget_config_failed", {
+            installationKey,
+            dashboardId: g.dashboardId,
+            gadgetId: g.gadgetId,
+            error: String(error?.message || error),
+          });
+          return { ...g, filterId: null };
+        }
+      });
+
+      // Whether each gadget's filter can still be read. Once per distinct filter in this chunk:
+      // a dozen gadgets on one filter are one question, not twelve.
+      const filterIds = [
+        ...new Set(
+          configs
+            .map((c) => c.filterId)
+            .filter(Boolean)
+            .map(String),
+        ),
+      ];
+      const states = new Map();
+      await mapWithConcurrency(filterIds, DASHBOARD_FETCH_CONCURRENCY, async (id) => {
+        states.set(id, await probeFilter(id).catch(() => "unknown"));
+      });
+      for (const config of configs) {
+        if (config.filterId) config.filterState = states.get(String(config.filterId)) || "unknown";
+      }
+
+      await recordGadgetConfigs(installationKey, version, configs);
 
       return {
         done: false,
-        processed: pending.length,
-        totalExpected: listTotal ? listTotal * 2 : undefined,
-        cursor: { phase: "gadgets", walked, listTotal, skippedPages },
-        extra: { walked, skippedPages },
-      };
-    }
-
-    // ── Phase three: what each gadget points at ─────────────────────────────
-    //
-    // This is the whole reason the dashboard pillar can answer "which dashboards break if this
-    // field goes". A dashboard on its own is a list of gadget titles; "Filter Results: Open
-    // Bugs" is a string, and matching it against filter names would produce a dependency graph
-    // that is right most of the time -- which is the worst kind, because every claim this app
-    // makes about what depends on what is load-bearing for a deletion decision.
-    const listTotal = Number(cursor?.listTotal) || 0;
-    const gadgetTotal = Number(cursor?.gadgetTotal) || 0;
-    const skippedPages = Number(cursor?.skippedPages) || 0;
-    // undefined, not 0, when a pre-change cursor is resumed with neither figure -- the build
-    // runner then keeps whatever totalExpected the meta already has rather than zeroing it.
-    const cumulativeTotal = listTotal || gadgetTotal ? listTotal * 2 + gadgetTotal : undefined;
-
-    const pendingConfigs = await loadGadgetsNeedingConfig(installationKey, version, DASHBOARD_CONFIG_CHUNK);
-
-    if (!pendingConfigs.length) {
-      return {
-        done: true,
-        processed: 0,
+        processed: configs.length,
         totalExpected: cumulativeTotal,
-        extra: { walked: Number(cursor?.walked) || 0, listTotal, skippedPages },
+        cursor: { phase: "configs", walked: Number(cursor?.walked) || 0, listTotal, gadgetTotal, skippedPages },
+        extra: { walked: Number(cursor?.walked) || 0, skippedPages },
       };
-    }
-
-    const configs = await mapWithConcurrency(pendingConfigs, DASHBOARD_FETCH_CONCURRENCY, async (g) => {
-      try {
-        const filterId = await getGadgetFilterId(g.dashboardId, g.gadgetId);
-        return { ...g, filterId };
-      } catch (error) {
-        // Per gadget, not fatal. A gadget whose properties cannot be read is recorded as
-        // walked-with-no-filter rather than retried forever -- the alternative is a build that
-        // never terminates because one gadget 403s.
-        logger.warn("dashboard-snapshot.gadget_config_failed", {
-          installationKey, dashboardId: g.dashboardId, gadgetId: g.gadgetId,
-          error: String(error?.message || error),
-        });
-        return { ...g, filterId: null };
-      }
-    });
-
-    // Whether each gadget's filter can still be read. Once per distinct filter in this chunk:
-    // a dozen gadgets on one filter are one question, not twelve.
-    const filterIds = [...new Set(configs.map((c) => c.filterId).filter(Boolean).map(String))];
-    const states = new Map();
-    await mapWithConcurrency(filterIds, DASHBOARD_FETCH_CONCURRENCY, async (id) => {
-      states.set(id, await probeFilter(id).catch(() => "unknown"));
-    });
-    for (const config of configs) {
-      if (config.filterId) config.filterState = states.get(String(config.filterId)) || "unknown";
-    }
-
-    await recordGadgetConfigs(installationKey, version, configs);
-
-    return {
-      done: false,
-      processed: configs.length,
-      totalExpected: cumulativeTotal,
-      cursor: { phase: "configs", walked: Number(cursor?.walked) || 0, listTotal, gadgetTotal, skippedPages },
-      extra: { walked: Number(cursor?.walked) || 0, skippedPages },
-    };
     } catch (error) {
       const message = String(error?.message || error);
       if (chunkErrors + 1 < MAX_DASHBOARD_CHUNK_ERRORS) {
         logger.warn("dashboard-snapshot.chunk_retry", {
-          installationKey, phase, attempt: chunkErrors + 1, error: message,
+          installationKey,
+          phase,
+          attempt: chunkErrors + 1,
+          error: message,
         });
         // Re-queue the SAME chunk, carrying the phase's cursor forward untouched (plus the
         // bumped counter) so nothing already done is lost. A successful chunk returns a

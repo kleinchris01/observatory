@@ -93,13 +93,34 @@ function writeSeverity(summary) {
 
   let s = 0;
   const bits = [];
-  if (transitions) { s += Math.min(0.5, transitions * 0.25); bits.push(`${transitions} transition${transitions === 1 ? "" : "s"}`); }
-  if (fieldWrites) { s += Math.min(0.4, fieldWrites * 0.06); bits.push(`${fieldWrites} field write${fieldWrites === 1 ? "" : "s"}`); }
-  if (kinds.has("create-issue")) { s += 0.4; bits.push("creates issues"); }
-  if (kinds.has("delete-issue")) { s += 0.6; bits.push("deletes issues"); }
-  if (kinds.has("outbound-http")) { s += 0.5; bits.push("calls an external service"); }
-  if (kinds.has("send-email")) { s += 0.25; bits.push("sends email"); }
-  if (kinds.has("assign")) { s += 0.1; bits.push("reassigns issues"); }
+  if (transitions) {
+    s += Math.min(0.5, transitions * 0.25);
+    bits.push(`${transitions} transition${transitions === 1 ? "" : "s"}`);
+  }
+  if (fieldWrites) {
+    s += Math.min(0.4, fieldWrites * 0.06);
+    bits.push(`${fieldWrites} field write${fieldWrites === 1 ? "" : "s"}`);
+  }
+  if (kinds.has("create-issue")) {
+    s += 0.4;
+    bits.push("creates issues");
+  }
+  if (kinds.has("delete-issue")) {
+    s += 0.6;
+    bits.push("deletes issues");
+  }
+  if (kinds.has("outbound-http")) {
+    s += 0.5;
+    bits.push("calls an external service");
+  }
+  if (kinds.has("send-email")) {
+    s += 0.25;
+    bits.push("sends email");
+  }
+  if (kinds.has("assign")) {
+    s += 0.1;
+    bits.push("reassigns issues");
+  }
 
   return {
     value: clamp01(s / 1.3),
@@ -116,15 +137,16 @@ function fanoutScore(summary, outDegree, inLoop) {
   }
   if (!summary.canOtherRuleTrigger) {
     return outDegree > 0
-      ? { value: 0.1, detail: "\"Allow other rules to trigger\" is off, but its writes match another rule's trigger." }
+      ? { value: 0.1, detail: '"Allow other rules to trigger" is off, but its writes match another rule\'s trigger.' }
       : { value: 0.03, detail: "Cannot wake other rules." };
   }
   const value = clamp01(0.3 + outDegree * 0.12);
   return {
     value,
-    detail: outDegree > 0
-      ? `Wakes ${outDegree} other rule${outDegree === 1 ? "" : "s"} directly.`
-      : "Can wake other rules, though none currently match its writes.",
+    detail:
+      outDegree > 0
+        ? `Wakes ${outDegree} other rule${outDegree === 1 ? "" : "s"} directly.`
+        : "Can wake other rules, though none currently match its writes.",
   };
 }
 
@@ -169,11 +191,23 @@ export function scoreRuleBlastRadius(summary, context = {}) {
 
   // 2. Cadence ──────────────────────────────────────────────────────────────
   const cadence = cadenceScore(summary.triggerType);
-  factors.push({ key: "cadence", label: "Trigger cadence", weight: 0.15, value: round2(cadence.value), detail: cadence.detail });
+  factors.push({
+    key: "cadence",
+    label: "Trigger cadence",
+    weight: 0.15,
+    value: round2(cadence.value),
+    detail: cadence.detail,
+  });
 
   // 3. Writes ───────────────────────────────────────────────────────────────
   const writes = writeSeverity(summary);
-  factors.push({ key: "writes", label: "Action weight", weight: 0.25, value: round2(writes.value), detail: writes.detail });
+  factors.push({
+    key: "writes",
+    label: "Action weight",
+    weight: 0.25,
+    value: round2(writes.value),
+    detail: writes.detail,
+  });
 
   // 4. Fan-out ──────────────────────────────────────────────────────────────
   const fanout = fanoutScore(summary, outDegree, inLoop);
@@ -184,12 +218,18 @@ export function scoreRuleBlastRadius(summary, context = {}) {
   const modifiers = [];
   if (!summary.enabled) {
     score *= 0.35;
-    modifiers.push({ key: "disabled", detail: "Rule is disabled; this is its latent blast radius if switched back on." });
+    modifiers.push({
+      key: "disabled",
+      detail: "Rule is disabled; this is its latent blast radius if switched back on.",
+    });
   }
   const credential = (summary.risks || []).some((r) => r.code === "embedded-credential");
   if (credential && score < 55) {
     score = 55;
-    modifiers.push({ key: "credential-floor", detail: "Stores a plaintext credential; the exposure alone makes this at least cross-project." });
+    modifiers.push({
+      key: "credential-floor",
+      detail: "Stores a plaintext credential; the exposure alone makes this at least cross-project.",
+    });
   }
 
   score = Math.max(0, Math.min(100, Math.round(score)));

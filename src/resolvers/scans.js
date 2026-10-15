@@ -116,7 +116,9 @@ export async function clearSnapshot({ payload, context }) {
   });
 
   const result = await clearAllSnapshotData(installationKey);
-  console.log(`clearSnapshot: deleted ${result.totalRowsDeleted} rows across ${Object.keys(result.deleted).length} tables`);
+  console.log(
+    `clearSnapshot: deleted ${result.totalRowsDeleted} rows across ${Object.keys(result.deleted).length} tables`,
+  );
 
   return { cleared: true, ...result };
 }
@@ -207,7 +209,11 @@ export async function handoffStageProgress(installationKey, currentStage) {
     if (currentStage === "filters") {
       const m = await readFilterSnapshotMeta(installationKey);
       if (!m) return null;
-      return { processed: Number(m.processed) || 0, total: Number(m.totalExpected) || 0, lastError: m.lastError || null };
+      return {
+        processed: Number(m.processed) || 0,
+        total: Number(m.totalExpected) || 0,
+        lastError: m.lastError || null,
+      };
     }
     if (currentStage === "dashboards") {
       const m = await readDashboardSnapshotMeta(installationKey);
@@ -221,7 +227,11 @@ export async function handoffStageProgress(installationKey, currentStage) {
         configs: "resolving what each gadget points at",
       };
       let phase = null;
-      try { phase = JSON.parse(m.buildCursor || "null")?.phase || null; } catch { phase = null; }
+      try {
+        phase = JSON.parse(m.buildCursor || "null")?.phase || null;
+      } catch {
+        phase = null;
+      }
       return {
         processed: Number(m.processed) || 0,
         total: Number(m.totalExpected) || 0,
@@ -259,9 +269,7 @@ export function maybeRecoverStalledScan(installationKey, meta) {
   const overLimit = startedMs && now - startedMs > MAX_SCAN_TOTAL_MS;
   if (!stalled && !overLimit) return;
 
-  recoverStalledScan(installationKey).catch(
-    fallbackOn("scan.autorecover_failed", null, { installationKey })
-  );
+  recoverStalledScan(installationKey).catch(fallbackOn("scan.autorecover_failed", null, { installationKey }));
 }
 
 // Recent runs for run-over-run deltas, plus what each pillar currently holds.
@@ -273,10 +281,12 @@ export function maybeRecoverStalledScan(installationKey, meta) {
 // erroring if either read fails.
 export async function scanRunHistory(installationKey, scanType) {
   const [recentRuns, liveStageCounts] = await Promise.all([
-    readRecentFullScanRuns(installationKey, { scanType, limit: 8 })
-      .catch(fallbackOn("scan.recent_runs_read_failed", [], { installationKey })),
-    readStageProducedCounts(installationKey, scanType)
-      .catch(fallbackOn("scan.live_counts_read_failed", {}, { installationKey })),
+    readRecentFullScanRuns(installationKey, { scanType, limit: 8 }).catch(
+      fallbackOn("scan.recent_runs_read_failed", [], { installationKey }),
+    ),
+    readStageProducedCounts(installationKey, scanType).catch(
+      fallbackOn("scan.live_counts_read_failed", {}, { installationKey }),
+    ),
   ]);
   return { recentRuns, liveStageCounts };
 }
@@ -287,29 +297,29 @@ export async function getFullScanStatus({ context }) {
   incrMetric(METRIC_NAMES.resolver);
   const installationKey = getInstallationKey(context);
   const meta = await readFullScanMeta(installationKey).catch(
-    fallbackOn("full_scan.meta_read_failed", null, { installationKey })
+    fallbackOn("full_scan.meta_read_failed", null, { installationKey }),
   );
 
   // A row with no scanType at all predates the quick-scan split and is treated as a full
   // scan's own row, so a scan started just before this shipped still renders correctly.
   const isFull = !meta?.scanType || meta.scanType === "full";
-  const currentStage = isFull ? (meta?.currentStage || null) : null;
+  const currentStage = isFull ? meta?.currentStage || null : null;
   if (isFull) maybeRecoverStalledScan(installationKey, meta);
   const { recentRuns, liveStageCounts } = await scanRunHistory(installationKey, "full");
 
   return {
     catalog: fullScanStageCatalog(),
-    state: isFull ? (meta?.state || "idle") : "idle",
+    state: isFull ? meta?.state || "idle" : "idle",
     stages: isFull && meta?.stages?.length ? meta.stages : null,
     currentStage,
     currentStageProgress: currentStage ? await handoffStageProgress(installationKey, currentStage) : null,
-    startedAt: isFull ? (meta?.startedAt || null) : null,
-    completedAt: isFull ? (meta?.completedAt || null) : null,
-    updatedAt: isFull ? (meta?.updatedAt || null) : null,
-    lastError: isFull ? (meta?.lastError || null) : null,
+    startedAt: isFull ? meta?.startedAt || null : null,
+    completedAt: isFull ? meta?.completedAt || null : null,
+    updatedAt: isFull ? meta?.updatedAt || null : null,
+    lastError: isFull ? meta?.lastError || null : null,
     // How many full retry passes over the stage list this run has taken. Surfaced so the
     // page can show "sweep 2 of 2" rather than the rail silently resetting.
-    sweep: isFull ? (Number(meta?.sweep) || 0) : 0,
+    sweep: isFull ? Number(meta?.sweep) || 0 : 0,
     recentRuns,
     liveStageCounts,
     // So the panel can say "a quick scan is running" rather than rendering an idle full-scan
@@ -331,7 +341,10 @@ export async function startQuickSiteScan({ payload, context }) {
     return { started: false, error: "Read-only mode is enabled. Disable it before running a scan." };
   }
 
-  const windowHours = Number(payload?.windowHours) || Number(adminConfig.quickScanSchedule?.windowHours) || DELTA_ISSUE_SCAN_DEFAULT_WINDOW_HOURS;
+  const windowHours =
+    Number(payload?.windowHours) ||
+    Number(adminConfig.quickScanSchedule?.windowHours) ||
+    DELTA_ISSUE_SCAN_DEFAULT_WINDOW_HOURS;
   return startQuickScan(installationKey, { quickScanWindowHours: windowHours });
 }
 
@@ -341,11 +354,11 @@ export async function getQuickScanStatus({ context }) {
   incrMetric(METRIC_NAMES.resolver);
   const installationKey = getInstallationKey(context);
   const meta = await readFullScanMeta(installationKey).catch(
-    fallbackOn("quick_scan.meta_read_failed", null, { installationKey })
+    fallbackOn("quick_scan.meta_read_failed", null, { installationKey }),
   );
 
   const isQuick = meta?.scanType === "quick";
-  const currentStage = isQuick ? (meta?.currentStage || null) : null;
+  const currentStage = isQuick ? meta?.currentStage || null : null;
   if (isQuick) maybeRecoverStalledScan(installationKey, meta);
   const { recentRuns, liveStageCounts } = await scanRunHistory(installationKey, "quick");
 
@@ -354,15 +367,15 @@ export async function getQuickScanStatus({ context }) {
     // Only reported as belonging to THIS scan type when the shared meta row actually says so
     // -- a full scan's stages must never render on the quick scan panel just because it is
     // the most recent thing to have used the shared row.
-    state: isQuick ? (meta?.state || "idle") : "idle",
+    state: isQuick ? meta?.state || "idle" : "idle",
     stages: isQuick && meta?.stages?.length ? meta.stages : null,
     currentStage,
     currentStageProgress: currentStage ? await handoffStageProgress(installationKey, currentStage) : null,
-    startedAt: meta?.scanType === "quick" ? (meta?.startedAt || null) : null,
-    completedAt: meta?.scanType === "quick" ? (meta?.completedAt || null) : null,
-    updatedAt: meta?.scanType === "quick" ? (meta?.updatedAt || null) : null,
-    lastError: meta?.scanType === "quick" ? (meta?.lastError || null) : null,
-    sweep: isQuick ? (Number(meta?.sweep) || 0) : 0,
+    startedAt: meta?.scanType === "quick" ? meta?.startedAt || null : null,
+    completedAt: meta?.scanType === "quick" ? meta?.completedAt || null : null,
+    updatedAt: meta?.scanType === "quick" ? meta?.updatedAt || null : null,
+    lastError: meta?.scanType === "quick" ? meta?.lastError || null : null,
+    sweep: isQuick ? Number(meta?.sweep) || 0 : 0,
     recentRuns,
     liveStageCounts,
     windowHours: meta?.scanType === "quick" ? meta?.quickScanWindowHours : null,
@@ -411,7 +424,9 @@ export async function startIssueScan({ context }) {
       state: "failed",
       completedAt: new Date().toISOString(),
       lastError: `Queue push failed: ${pushError?.message || String(pushError)}`,
-      progressLog: [{ t: new Date().toISOString(), msg: `Failed to queue scan: ${pushError?.message || String(pushError)}` }],
+      progressLog: [
+        { t: new Date().toISOString(), msg: `Failed to queue scan: ${pushError?.message || String(pushError)}` },
+      ],
     }).catch(ignoreWith("scan.queue_failure_write_failed", { installationKey }));
     throw pushError;
   }
@@ -453,12 +468,16 @@ export async function resumeIssueScan({ context }) {
   const queueErrors = [];
   let anyRequeued = false;
   for (let workerId = 0; workerId < ISSUE_SCAN_WORKERS; workerId++) {
-    const worker = await readIssueScanWorker(installationKey, workerId).catch(fallbackOn("scan.worker_read_failed", null, { workerId }));
+    const worker = await readIssueScanWorker(installationKey, workerId).catch(
+      fallbackOn("scan.worker_read_failed", null, { workerId }),
+    );
     if (!worker || worker.status === "done") continue;
     anyRequeued = true;
     // Reset failed workers back to queued so they can run again
     if (worker.status === "failed") {
-      await updateIssueScanWorker(installationKey, workerId, { status: "queued", lastError: null }).catch(ignoreWith("scan.worker_requeue_write_failed", { workerId }));
+      await updateIssueScanWorker(installationKey, workerId, { status: "queued", lastError: null }).catch(
+        ignoreWith("scan.worker_requeue_write_failed", { workerId }),
+      );
     }
     try {
       await queueIssueScanWorker(installationKey, workerId);
@@ -469,7 +488,9 @@ export async function resumeIssueScan({ context }) {
 
   if (queueErrors.length > 0) {
     const errMsg = `Resume partially failed: ${queueErrors.join("; ")}`;
-    await writeIssueScanMeta(installationKey, { state: "failed", lastError: errMsg }).catch(ignoreWith("scan.resume_failure_write_failed", { installationKey }));
+    await writeIssueScanMeta(installationKey, { state: "failed", lastError: errMsg }).catch(
+      ignoreWith("scan.resume_failure_write_failed", { installationKey }),
+    );
     throw new Error(errMsg);
   }
 
@@ -514,7 +535,7 @@ export function isScanStuck(meta, now = Date.now()) {
   const startedAt = new Date(meta.startedAt).getTime();
   // With no usable timestamp at all there is nothing to measure silence against, so the
   // scan is left alone rather than failed on a guess.
-  const last = stamps.length ? Math.max(...stamps) : (Number.isFinite(startedAt) ? startedAt : null);
+  const last = stamps.length ? Math.max(...stamps) : Number.isFinite(startedAt) ? startedAt : null;
   if (last === null) return false;
   return now - last > STUCK_SCAN_MS;
 }
@@ -535,7 +556,10 @@ export async function getIssueScanStatus({ context }) {
       lastError: `No progress for over ${minutes} minutes; marked failed. Resume from checkpoint to continue.`,
       progressLog: [
         ...(meta.progressLog || []).slice(-180),
-        { t: new Date().toISOString(), msg: `Scan stalled — no progress for over ${minutes} minutes. Marked failed; resume to retry from the saved checkpoint.` },
+        {
+          t: new Date().toISOString(),
+          msg: `Scan stalled — no progress for over ${minutes} minutes. Marked failed; resume to retry from the saved checkpoint.`,
+        },
       ],
     }).catch(ignoreWith("scan.stuck_write_failed", { installationKey }));
     meta = await readIssueScanMeta(installationKey);
@@ -598,7 +622,7 @@ export async function runDeltaIssueScanJob(installationKey, windowHours = DELTA_
     const existing = await readIssueScanMeta(deltaScopeKey);
     if (existing?.state === "building") {
       const startedMs = existing.startedAt ? new Date(existing.startedAt).getTime() : 0;
-      if (startedMs && (Date.now() - startedMs) < 10 * 60 * 1000) {
+      if (startedMs && Date.now() - startedMs < 10 * 60 * 1000) {
         console.log("runDeltaIssueScanJob: already in progress, skipping");
         return;
       }
@@ -626,7 +650,9 @@ export async function runDeltaIssueScanJob(installationKey, windowHours = DELTA_
     }
 
     const totalDeltaPages = Math.ceil(totalDeltaIssues / ISSUE_SCAN_PAGE_SIZE);
-    logEntry(`${totalDeltaIssues.toLocaleString()} issues created/updated in last ${windowDays}d (${totalDeltaPages} pages)`);
+    logEntry(
+      `${totalDeltaIssues.toLocaleString()} issues created/updated in last ${windowDays}d (${totalDeltaPages} pages)`,
+    );
 
     await writeIssueScanMeta(deltaScopeKey, {
       state: "building",
@@ -730,7 +756,9 @@ export async function runDeltaIssueScanJob(installationKey, windowHours = DELTA_
       logEntry(`Delta cap reached (${DELTA_ISSUE_SCAN_MAX_PAGES} pages) â€” results may be partial`);
     }
 
-    logEntry(`Scanned ${issuesScanned.toLocaleString()} delta issues â€” ${fieldProjectCounts.size} fields across ${affectedProjects.size} projects`);
+    logEntry(
+      `Scanned ${issuesScanned.toLocaleString()} delta issues â€” ${fieldProjectCounts.size} fields across ${affectedProjects.size} projects`,
+    );
 
     if (rqtFieldHits.size > 0) {
       await upsertRqtFieldHits(installationKey, rqtFieldHits).catch((e) => {
@@ -766,7 +794,12 @@ export async function runDeltaIssueScanJob(installationKey, windowHours = DELTA_
             method: "POST",
             body: JSON.stringify({ jql: `project = "${safeKey}"`, maxResults: 0, fields: [] }),
           });
-          return { projectId, projectKey: proj.key, projectName: proj.name, uniqueIssueCount: Number(countData?.total ?? 0) };
+          return {
+            projectId,
+            projectKey: proj.key,
+            projectName: proj.name,
+            uniqueIssueCount: Number(countData?.total ?? 0),
+          };
         } catch {
           return null;
         }
@@ -784,7 +817,13 @@ export async function runDeltaIssueScanJob(installationKey, windowHours = DELTA_
       const touchedPairs = [];
       for (const [fieldId, byProject] of fieldProjectCounts) {
         for (const [projectId, proj] of byProject) {
-          touchedPairs.push({ fieldId, projectId, projectKey: proj.key, projectName: proj.name, deltaCount: proj.count });
+          touchedPairs.push({
+            fieldId,
+            projectId,
+            projectKey: proj.key,
+            projectName: proj.name,
+            deltaCount: proj.count,
+          });
         }
       }
       touchedPairs.sort((a, b) => b.deltaCount - a.deltaCount);
@@ -795,31 +834,35 @@ export async function runDeltaIssueScanJob(installationKey, windowHours = DELTA_
 
       logEntry(`Running ${cappedPairs.length} fieldÃ—project count queries...`);
 
-      const usageRows = await mapWithConcurrency(cappedPairs, 6, async ({ fieldId, projectId, projectKey, projectName }) => {
-        try {
-          const numericId = getFieldNumericId(fieldId);
-          const fieldSelector = numericId ? `cf[${numericId}]` : fieldId;
-          const safeKey = projectKey.replace(/"/g, '\\"');
-          const countData = await jiraRequest(route`/rest/api/3/search/jql`, {
-            method: "POST",
-            body: JSON.stringify({
-              jql: `project = "${safeKey}" AND ${fieldSelector} is not EMPTY`,
-              maxResults: 0,
-              fields: [],
-            }),
-          });
-          return {
-            fieldId,
-            projectId,
-            projectKey,
-            projectName,
-            issueCount: Number(countData?.total ?? 0),
-            jql: buildFieldJql(fieldId, projectKey),
-          };
-        } catch {
-          return null;
-        }
-      });
+      const usageRows = await mapWithConcurrency(
+        cappedPairs,
+        6,
+        async ({ fieldId, projectId, projectKey, projectName }) => {
+          try {
+            const numericId = getFieldNumericId(fieldId);
+            const fieldSelector = numericId ? `cf[${numericId}]` : fieldId;
+            const safeKey = projectKey.replace(/"/g, '\\"');
+            const countData = await jiraRequest(route`/rest/api/3/search/jql`, {
+              method: "POST",
+              body: JSON.stringify({
+                jql: `project = "${safeKey}" AND ${fieldSelector} is not EMPTY`,
+                maxResults: 0,
+                fields: [],
+              }),
+            });
+            return {
+              fieldId,
+              projectId,
+              projectKey,
+              projectName,
+              issueCount: Number(countData?.total ?? 0),
+              jql: buildFieldJql(fieldId, projectKey),
+            };
+          } catch {
+            return null;
+          }
+        },
+      );
 
       const validRows = usageRows.filter(Boolean).filter((r) => r.issueCount > 0);
       fieldProjectPairsUpdated = await upsertDeltaFieldProjectUsage(installationKey, snapshotMeta.version, validRows);
@@ -842,13 +885,15 @@ export async function runDeltaIssueScanJob(installationKey, windowHours = DELTA_
       fieldProjectPairsUpdated,
       progressLog: [...progressLog],
     });
-
   } catch (error) {
     await writeIssueScanMeta(deltaScopeKey, {
       state: "failed",
       completedAt: new Date().toISOString(),
       lastError: error?.message || String(error),
-      progressLog: [...progressLog, { t: new Date().toISOString(), msg: `Delta scan failed: ${error?.message || error}` }],
+      progressLog: [
+        ...progressLog,
+        { t: new Date().toISOString(), msg: `Delta scan failed: ${error?.message || error}` },
+      ],
     }).catch(ignoreWith("delta.failure_write_failed", { installationKey }));
     console.error("runDeltaIssueScanJob failed:", error?.message || error);
   }

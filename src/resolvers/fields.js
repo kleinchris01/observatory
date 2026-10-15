@@ -54,12 +54,7 @@ import {
 } from "../lib/analysis.js";
 import { buildFieldJql, buildOverallFieldJql, getFieldNumericId } from "../lib/transform.js";
 import { fallbackOn } from "../lib/logger.js";
-import {
-  requireNonEmptyString,
-  requirePositiveInt,
-  requireBoundedInt,
-  optionalString,
-} from "../lib/validate.js";
+import { requireNonEmptyString, requirePositiveInt, requireBoundedInt, optionalString } from "../lib/validate.js";
 import { readAdminConfig } from "./admin-config.js";
 
 // ----- Inventory UI helpers -----
@@ -75,7 +70,8 @@ export async function getFieldInventory({ payload, context }) {
     const filters = payload || {};
     // Input validation
     if (filters.page !== undefined && filters.page !== null) requirePositiveInt(filters.page, "page");
-    if (filters.pageSize !== undefined && filters.pageSize !== null) requireBoundedInt(filters.pageSize, "pageSize", 1, 100);
+    if (filters.pageSize !== undefined && filters.pageSize !== null)
+      requireBoundedInt(filters.pageSize, "pageSize", 1, 100);
     optionalString(filters.sort, "sort");
     optionalString(filters.fieldType, "fieldType");
     optionalString(filters.search, "search");
@@ -99,10 +95,7 @@ export async function getFieldInventory({ payload, context }) {
     const hasDescription = filters.hasDescription || "all";
     const hideSystemFields = Boolean(filters.hideSystemFields);
 
-    const [meta_initial, adminConfig] = await Promise.all([
-      readSnapshotMeta(installationKey),
-      readAdminConfig(),
-    ]);
+    const [meta_initial, adminConfig] = await Promise.all([readSnapshotMeta(installationKey), readAdminConfig()]);
     let meta = meta_initial;
 
     if (filters.forceRefresh && meta?.state === "building") {
@@ -152,16 +145,17 @@ export async function getFieldInventory({ payload, context }) {
 
     const buildTotal = meta?.totalFields || 0;
     const buildProcessed = meta?.processedFields || 0;
-    const buildProgress = (meta?.state === "building" || meta?.state === "queued")
-      ? {
-          status: meta.state,
-          startedAt: meta?.startedAt || null,
-          totalFields: buildTotal,
-          processedFields: buildProcessed,
-          percent: buildTotal > 0 ? Math.round((buildProcessed / buildTotal) * 100) : 0,
-          progressLog: meta?.progressLog || [],
-        }
-      : null;
+    const buildProgress =
+      meta?.state === "building" || meta?.state === "queued"
+        ? {
+            status: meta.state,
+            startedAt: meta?.startedAt || null,
+            totalFields: buildTotal,
+            processedFields: buildProcessed,
+            percent: buildTotal > 0 ? Math.round((buildProcessed / buildTotal) * 100) : 0,
+            progressLog: meta?.progressLog || [],
+          }
+        : null;
 
     // No snapshot data at all yet â€” return empty while the first build runs
     if (!meta?.version) {
@@ -183,8 +177,12 @@ export async function getFieldInventory({ payload, context }) {
     // Load from last good version â€” works for "ready", "building" (shows stale), and "failed"
     const [snapshotFields, fieldSummaries, issueSumsMap] = await Promise.all([
       loadSnapshotFields(installationKey, meta.version),
-      listFieldSummaries(installationKey, 5000).catch(fallbackOn("inventory.summaries_load_failed", () => [], { installationKey })),
-      loadSnapshotFieldIssueSums(installationKey, meta.version).catch(fallbackOn("inventory.issue_sums_load_failed", () => new Map(), { installationKey })),
+      listFieldSummaries(installationKey, 5000).catch(
+        fallbackOn("inventory.summaries_load_failed", () => [], { installationKey }),
+      ),
+      loadSnapshotFieldIssueSums(installationKey, meta.version).catch(
+        fallbackOn("inventory.issue_sums_load_failed", () => new Map(), { installationKey }),
+      ),
     ]);
     const summaryByFieldId = new Map(fieldSummaries.map((summary) => [summary.fieldId, summary]));
     const duplicateNameCounts = buildDuplicateNameCountMap(snapshotFields);
@@ -192,21 +190,31 @@ export async function getFieldInventory({ payload, context }) {
       const summary = summaryByFieldId.get(field.id);
       const derivedIssueCount = summary?.totalIssueCount || field.totalIssueCount || issueSumsMap.get(field.id) || 0;
       if (!summary) {
-        return hydrateFieldForGovernance({
-          ...field,
-          totalIssueCount: derivedIssueCount,
-          projectUsageBuilt: derivedIssueCount <= 0,
-          projectUsageState: derivedIssueCount <= 0 ? "not-needed" : "unbuilt",
-        }, null, duplicateNameCounts.get(normalizeFieldName(field.name)) ?? 1, adminConfig.governanceThresholds);
+        return hydrateFieldForGovernance(
+          {
+            ...field,
+            totalIssueCount: derivedIssueCount,
+            projectUsageBuilt: derivedIssueCount <= 0,
+            projectUsageState: derivedIssueCount <= 0 ? "not-needed" : "unbuilt",
+          },
+          null,
+          duplicateNameCounts.get(normalizeFieldName(field.name)) ?? 1,
+          adminConfig.governanceThresholds,
+        );
       }
       const inferredBuilt = summary.summaryStatus === "ready";
-      return hydrateFieldForGovernance({
-        ...field,
-        activeProjectCount: summary.activeProjectCount ?? field.activeProjectCount,
-        totalIssueCount: derivedIssueCount,
-        projectUsageBuilt: inferredBuilt,
-        projectUsageState: summary.summaryStatus || (inferredBuilt ? "ready" : "unbuilt"),
-      }, summary, duplicateNameCounts.get(normalizeFieldName(field.name)) ?? 1, adminConfig.governanceThresholds);
+      return hydrateFieldForGovernance(
+        {
+          ...field,
+          activeProjectCount: summary.activeProjectCount ?? field.activeProjectCount,
+          totalIssueCount: derivedIssueCount,
+          projectUsageBuilt: inferredBuilt,
+          projectUsageState: summary.summaryStatus || (inferredBuilt ? "ready" : "unbuilt"),
+        },
+        summary,
+        duplicateNameCounts.get(normalizeFieldName(field.name)) ?? 1,
+        adminConfig.governanceThresholds,
+      );
     });
 
     const optionMatches = optionQuery ? await searchFieldOptionsCache(installationKey, optionQuery, 5000) : null;
@@ -216,19 +224,36 @@ export async function getFieldInventory({ payload, context }) {
       : allFields;
     const filteredFields = sortInventoryFields(
       applyFindingsFilter(
-        filterInventoryFields(optionFilteredFields, query, type, projectUsageFilter, maxIssuesWithValue, fieldOrigin, minIssuesWithValue, {
-          minActiveProjects, maxActiveProjects, minContexts, maxContexts, duplicateNamesOnly, hasDescription, hideSystemFields,
-        }),
-        findingsFilter
+        filterInventoryFields(
+          optionFilteredFields,
+          query,
+          type,
+          projectUsageFilter,
+          maxIssuesWithValue,
+          fieldOrigin,
+          minIssuesWithValue,
+          {
+            minActiveProjects,
+            maxActiveProjects,
+            minContexts,
+            maxContexts,
+            duplicateNamesOnly,
+            hasDescription,
+            hideSystemFields,
+          },
+        ),
+        findingsFilter,
       ),
-      sortBy
+      sortBy,
     );
 
     const total = filteredFields.length;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
     const page = Math.min(requestedPage, totalPages);
     const startIndex = (page - 1) * pageSize;
-    const availableTypes = Array.from(new Set(allFields.map((f) => f.type))).filter(Boolean).sort();
+    const availableTypes = Array.from(new Set(allFields.map((f) => f.type)))
+      .filter(Boolean)
+      .sort();
 
     return {
       refreshedAt: meta.refreshedAt,
@@ -264,7 +289,10 @@ export async function buildFieldConfigInventory({ context }) {
 
   const adminConfig = await readAdminConfig();
   if (adminConfig.readOnlyMode) {
-    return { queued: false, error: "Read-only mode is enabled. Disable it before building the field scheme inventory." };
+    return {
+      queued: false,
+      error: "Read-only mode is enabled. Disable it before building the field scheme inventory.",
+    };
   }
 
   await queueFieldConfigSnapshotBuild(installationKey);
@@ -287,7 +315,15 @@ export async function getFieldDetails({ payload, context }) {
     if (!meta?.version) throw new Error("No completed snapshot available â€” build one first.");
 
     const offset = (usagePage - 1) * usagePageSize;
-    const [snapshotField, projectUsageRows, projectCount, rawFieldSummary, projectUsageIssueSum, issueTypeUsage, userValueUsage] = await Promise.all([
+    const [
+      snapshotField,
+      projectUsageRows,
+      projectCount,
+      rawFieldSummary,
+      projectUsageIssueSum,
+      issueTypeUsage,
+      userValueUsage,
+    ] = await Promise.all([
       loadSnapshotField(installationKey, meta.version, fieldId),
       loadSnapshotProjectUsage(installationKey, meta.version, fieldId, usagePageSize, offset),
       countSnapshotProjectUsage(installationKey, meta.version, fieldId),
@@ -299,7 +335,11 @@ export async function getFieldDetails({ payload, context }) {
       // The field x user axis: how many distinct people hold a value, and the top holders.
       // Only populated for user-picker fields (and assignee/reporter). Names are resolved
       // against the licensed-user roster below so a deleted account still shows something.
-      loadFieldUserUsage(installationKey, meta.version, fieldId).catch(() => ({ distinctUsers: 0, issueTotal: 0, top: [] })),
+      loadFieldUserUsage(installationKey, meta.version, fieldId).catch(() => ({
+        distinctUsers: 0,
+        issueTotal: 0,
+        top: [],
+      })),
     ]);
 
     if (!snapshotField) throw new Error(`Field not found in snapshot: ${fieldId}`);
@@ -308,9 +348,7 @@ export async function getFieldDetails({ payload, context }) {
     // account that is no longer licensed -- a picker still pointing at someone who has left.
     if (userValueUsage?.top?.length) {
       const userMeta = await readUserSnapshotMeta(installationKey).catch(() => null);
-      const roster = userMeta?.version
-        ? await loadUsers(installationKey, userMeta.version).catch(() => [])
-        : [];
+      const roster = userMeta?.version ? await loadUsers(installationKey, userMeta.version).catch(() => []) : [];
       const rosterById = new Map(roster.map((u) => [u.accountId, u]));
       userValueUsage.top = userValueUsage.top.map((row) => {
         const person = rosterById.get(row.accountId);
@@ -326,7 +364,7 @@ export async function getFieldDetails({ payload, context }) {
       meta.version,
       fieldId,
       rawFieldSummary,
-      snapshotField
+      snapshotField,
     );
 
     let finalProjectRows = projectUsageRows;
@@ -338,21 +376,19 @@ export async function getFieldDetails({ payload, context }) {
       fieldSummary.summaryStatus === "ready" &&
       (fieldSummary.activeProjectCount > 0 || snapshotField.activeProjectCount > 0) &&
       (!Array.isArray(fieldSummary.activeProjects) || fieldSummary.activeProjects.length === 0) &&
-      projectCount === 0
+      projectCount === 0,
     );
 
     if (fieldSummary && !hasBrokenReadySummary) {
       if (projectCount === 0 && Array.isArray(fieldSummary.activeProjects) && fieldSummary.activeProjects.length > 0) {
         finalProjectCount = fieldSummary.activeProjectCount || fieldSummary.activeProjects.length;
-        finalProjectRows = fieldSummary.activeProjects
-          .slice(offset, offset + usagePageSize)
-          .map((project) => ({
-            projectId: project.projectId,
-            projectKey: project.projectKey,
-            projectName: project.projectName,
-            issueCount: project.issueCount,
-            jql: project.jql,
-          }));
+        finalProjectRows = fieldSummary.activeProjects.slice(offset, offset + usagePageSize).map((project) => ({
+          projectId: project.projectId,
+          projectKey: project.projectKey,
+          projectName: project.projectName,
+          issueCount: project.issueCount,
+          jql: project.jql,
+        }));
       } else if (fieldSummary.activeProjectCount > 0) {
         finalProjectCount = fieldSummary.activeProjectCount;
       }
@@ -379,14 +415,16 @@ export async function getFieldDetails({ payload, context }) {
       }
     }
 
-    const duplicateNameCounts = buildDuplicateNameCountMap(
-      await loadSnapshotFields(installationKey, meta.version)
+    const duplicateNameCounts = buildDuplicateNameCountMap(await loadSnapshotFields(installationKey, meta.version));
+    const hydratedField = hydrateFieldForGovernance(
+      {
+        ...snapshotField,
+        activeProjectCount: finalProjectCount,
+        totalIssueCount: fieldSummary?.totalIssueCount || snapshotField.totalIssueCount || projectUsageIssueSum || 0,
+      },
+      fieldSummary,
+      duplicateNameCounts.get(normalizeFieldName(snapshotField.name)) ?? 1,
     );
-    const hydratedField = hydrateFieldForGovernance({
-      ...snapshotField,
-      activeProjectCount: finalProjectCount,
-      totalIssueCount: fieldSummary?.totalIssueCount || snapshotField.totalIssueCount || projectUsageIssueSum || 0,
-    }, fieldSummary, duplicateNameCounts.get(normalizeFieldName(snapshotField.name)) ?? 1);
 
     // Never surface a project's identity to a viewer who lacks Browse Projects
     // on it in Jira. finalProjectCount/pagination totals are left as-is (a bare
@@ -395,7 +433,7 @@ export async function getFieldDetails({ payload, context }) {
     // is filtered here.
     const browsableProjectIds = await getBrowsableProjectIds(
       context?.accountId,
-      finalProjectRows.map((row) => row.projectId)
+      finalProjectRows.map((row) => row.projectId),
     );
     finalProjectRows = finalProjectRows.filter((row) => browsableProjectIds.has(String(row.projectId)));
 
@@ -470,26 +508,36 @@ export async function getFilteredFieldIds({ payload, context }) {
   const hasDescription = payload?.hasDescription || "all";
   const hideSystemFields = Boolean(payload?.hideSystemFields);
   const snapshotFields = await loadSnapshotFields(installationKey, meta.version);
-  const fieldSummaries = await listFieldSummaries(installationKey, 5000).catch(fallbackOn("resolver.summaries_load_failed", () => [], { installationKey }));
+  const fieldSummaries = await listFieldSummaries(installationKey, 5000).catch(
+    fallbackOn("resolver.summaries_load_failed", () => [], { installationKey }),
+  );
   const summaryByFieldId = new Map(fieldSummaries.map((summary) => [summary.fieldId, summary]));
   const duplicateNameCounts = buildDuplicateNameCountMap(snapshotFields);
   const allFields = snapshotFields.map((field) => {
     const summary = summaryByFieldId.get(field.id);
     if (!summary) {
-      return hydrateFieldForGovernance({
-        ...field,
-        projectUsageBuilt: Number(field.totalIssueCount || 0) <= 0,
-        projectUsageState: Number(field.totalIssueCount || 0) <= 0 ? "not-needed" : "unbuilt",
-      }, null, duplicateNameCounts.get(normalizeFieldName(field.name)) ?? 1);
+      return hydrateFieldForGovernance(
+        {
+          ...field,
+          projectUsageBuilt: Number(field.totalIssueCount || 0) <= 0,
+          projectUsageState: Number(field.totalIssueCount || 0) <= 0 ? "not-needed" : "unbuilt",
+        },
+        null,
+        duplicateNameCounts.get(normalizeFieldName(field.name)) ?? 1,
+      );
     }
     const inferredBuilt = summary.summaryStatus === "ready";
-    return hydrateFieldForGovernance({
-      ...field,
-      activeProjectCount: summary.activeProjectCount ?? field.activeProjectCount,
-      totalIssueCount: summary.totalIssueCount ?? field.totalIssueCount,
-      projectUsageBuilt: inferredBuilt,
-      projectUsageState: summary.summaryStatus || (inferredBuilt ? "ready" : "unbuilt"),
-    }, summary, duplicateNameCounts.get(normalizeFieldName(field.name)) ?? 1);
+    return hydrateFieldForGovernance(
+      {
+        ...field,
+        activeProjectCount: summary.activeProjectCount ?? field.activeProjectCount,
+        totalIssueCount: summary.totalIssueCount ?? field.totalIssueCount,
+        projectUsageBuilt: inferredBuilt,
+        projectUsageState: summary.summaryStatus || (inferredBuilt ? "ready" : "unbuilt"),
+      },
+      summary,
+      duplicateNameCounts.get(normalizeFieldName(field.name)) ?? 1,
+    );
   });
   const optionMatches = optionQuery ? await searchFieldOptionsCache(installationKey, optionQuery, 5000) : null;
   const optionMatchedFieldIds = optionMatches ? new Set(optionMatches.map((match) => match.fieldId)) : null;
@@ -498,12 +546,27 @@ export async function getFilteredFieldIds({ payload, context }) {
     : allFields;
   const filtered = sortInventoryFields(
     applyFindingsFilter(
-      filterInventoryFields(optionFilteredFields, query, type, projectUsageFilter, maxIssuesWithValue, fieldOrigin, minIssuesWithValue, {
-        minActiveProjects, maxActiveProjects, minContexts, maxContexts, duplicateNamesOnly, hasDescription, hideSystemFields,
-      }),
-      findingsFilter
+      filterInventoryFields(
+        optionFilteredFields,
+        query,
+        type,
+        projectUsageFilter,
+        maxIssuesWithValue,
+        fieldOrigin,
+        minIssuesWithValue,
+        {
+          minActiveProjects,
+          maxActiveProjects,
+          minContexts,
+          maxContexts,
+          duplicateNamesOnly,
+          hasDescription,
+          hideSystemFields,
+        },
+      ),
+      findingsFilter,
     ),
-    sortBy
+    sortBy,
   );
   return { fieldIds: filtered.map((field) => field.id) };
 }
@@ -571,7 +634,11 @@ export async function getFieldOptions({ payload, context }) {
           const safeValue = opt.value.replace(/"/g, '\\"');
           const data = await jiraRequest(route`/rest/api/3/search/jql`, {
             method: "POST",
-            body: JSON.stringify({ jql: `${projectFilter} AND ${fieldSelector} = "${safeValue}"`, maxResults: 0, fields: [] }),
+            body: JSON.stringify({
+              jql: `${projectFilter} AND ${fieldSelector} = "${safeValue}"`,
+              maxResults: 0,
+              fields: [],
+            }),
           });
           return { id: opt.id, issueCount: Number(data?.total ?? 0) };
         } catch {

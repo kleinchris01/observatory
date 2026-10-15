@@ -11,12 +11,7 @@ import {
   getCloudId,
   getAllJiraProjects,
 } from "../lib/jira-api.js";
-import {
-  readIssueTypeSnapshotMeta,
-  loadIssueTypes,
-  readUserSnapshotMeta,
-  loadUsers,
-} from "../lib/project-store.js";
+import { readIssueTypeSnapshotMeta, loadIssueTypes, readUserSnapshotMeta, loadUsers } from "../lib/project-store.js";
 import { analyzeCascadeGraph, MAX_CHAIN_DEPTH } from "../lib/cascade-graph.js";
 import { assessAutomationEvidence, DEFAULT_ANALYSIS_STALE_AFTER_DAYS } from "../lib/automation-analysis.js";
 import {
@@ -87,9 +82,9 @@ export async function getAutomationInsights({ context }) {
       // A preview for the overview. The Findings section fetches the full list separately;
       // sending 675 rows with the first paint would slow every visit to pay for one section.
       findingsPreview: analysis.findingsPreview ?? [],
-      findingsTotal: analysis.findingsTotal ?? (analysis.findingsPreview?.length ?? 0),
+      findingsTotal: analysis.findingsTotal ?? analysis.findingsPreview?.length ?? 0,
       cascades: analysis.cascades ?? [],
-      cascadesTotal: analysis.cascadesTotal ?? (analysis.cascades?.length ?? 0),
+      cascadesTotal: analysis.cascadesTotal ?? analysis.cascades?.length ?? 0,
       selfTriggeringTotal: analysis.selfTriggeringTotal ?? 0,
       // The three cross-rule checks. Null, not zero, on an analysis saved before they were
       // stored: those imports were never measured for them, and the tab says so.
@@ -128,7 +123,7 @@ export function crossRuleSection(analysis) {
   for (const key of CROSS_RULE_KEYS) {
     const measured = Array.isArray(analysis[key]);
     out[key] = measured ? analysis[key] : [];
-    out[`${key}Total`] = measured ? (Number(analysis[`${key}Total`]) || analysis[key].length) : null;
+    out[`${key}Total`] = measured ? Number(analysis[`${key}Total`]) || analysis[key].length : null;
   }
   return out;
 }
@@ -324,8 +319,7 @@ export async function saveAutomationIndex({ payload, context }) {
 export const SQL_ONLY_AUTOMATION_PARTS = new Set(["cascades", "blast"]);
 
 export function isAutomationIndexPart(part) {
-  return Object.prototype.hasOwnProperty.call(AUTOMATION_PARTS, part)
-    || SQL_ONLY_AUTOMATION_PARTS.has(part);
+  return Object.prototype.hasOwnProperty.call(AUTOMATION_PARTS, part) || SQL_ONLY_AUTOMATION_PARTS.has(part);
 }
 
 // A page of cascades, filtered.
@@ -475,8 +469,9 @@ export async function getStatusAutomationUsage({ payload, context }) {
     const statusName = String(payload?.statusName ?? "").trim();
     if (!statusName) throw new Error("statusName is required");
 
-    const hit = await loadAutomationReferencesFor(installationKey, "status", statusName)
-      .catch(fallbackOn("automation.sql_status_reference_read_failed", () => null, { installationKey }));
+    const hit = await loadAutomationReferencesFor(installationKey, "status", statusName).catch(
+      fallbackOn("automation.sql_status_reference_read_failed", () => null, { installationKey }),
+    );
 
     // No analysis and no references are different answers. "No rule touches this status" is
     // permission to delete it; "we have not looked" is not, and this pillar exists because
@@ -582,11 +577,12 @@ export async function getAutomationIndex({ payload, context }) {
     if (!document) return { available: false, part, reason: "no-index" };
 
     const rawEntries = document.entries ?? [];
-    const entries = part === "issueTypes"
-      ? await resolveIssueTypeIndexLabels(installationKey, rawEntries)
-      : part === "users"
-        ? await resolveUserIndexLabels(installationKey, rawEntries)
-        : rawEntries;
+    const entries =
+      part === "issueTypes"
+        ? await resolveIssueTypeIndexLabels(installationKey, rawEntries)
+        : part === "users"
+          ? await resolveUserIndexLabels(installationKey, rawEntries)
+          : rawEntries;
 
     return {
       available: true,
@@ -634,8 +630,9 @@ export async function getAutomationFieldUsage({ payload, context }) {
     // imported before the tables existed still has its KVS copies and no rows, and would
     // otherwise be told "not referenced" -- the exact false reassurance this pillar exists
     // to prevent. The fallback goes when a re-import is guaranteed, not before.
-    const sqlHit = await loadAutomationReferencesFor(installationKey, "field", fieldName || fieldId)
-      .catch(fallbackOn("automation.sql_reference_read_failed", () => null, { installationKey }));
+    const sqlHit = await loadAutomationReferencesFor(installationKey, "field", fieldName || fieldId).catch(
+      fallbackOn("automation.sql_reference_read_failed", () => null, { installationKey }),
+    );
 
     if (sqlHit?.total > 0) {
       const group = (direction) => {
@@ -685,7 +682,7 @@ export async function getAutomationFieldUsage({ payload, context }) {
       (directory?.rules ?? []).map(([id, name, enabled, triggerType]) => [
         id,
         { id, name, enabled: enabled === 1, triggerType: triggerType || null },
-      ])
+      ]),
     );
     // A rule missing from the directory still counts. Dropping it would understate the
     // dependency, which is the one direction this must never err in.
@@ -781,9 +778,7 @@ export async function probeAutomationApi({ context }) {
     { scope: "global", path: "/rest/cb-automation/latest/project/GLOBAL/rule" },
     { scope: "global", path: "/rest/cb-automation/latest/rule" },
     { scope: "global", path: "/rest/api/3/automation/rule" },
-    ...(projectId
-      ? [{ scope: "project", path: `/rest/cb-automation/latest/project/${projectId}/rule` }]
-      : []),
+    ...(projectId ? [{ scope: "project", path: `/rest/cb-automation/latest/project/${projectId}/rule` }] : []),
   ];
 
   // The automation API lives on api.atlassian.com, not on the site. Every site-relative
@@ -792,8 +787,16 @@ export async function probeAutomationApi({ context }) {
   const cloudId = getCloudId(context);
   if (cloudId) {
     candidates.push(
-      { scope: "global", via: "stargate", path: `https://api.atlassian.com/automation/public/jira/${cloudId}/rest/v1/rule` },
-      { scope: "global", via: "stargate", path: `https://api.atlassian.com/automation/public/jira/${cloudId}/rest/v1/rule/search` },
+      {
+        scope: "global",
+        via: "stargate",
+        path: `https://api.atlassian.com/automation/public/jira/${cloudId}/rest/v1/rule`,
+      },
+      {
+        scope: "global",
+        via: "stargate",
+        path: `https://api.atlassian.com/automation/public/jira/${cloudId}/rest/v1/rule/search`,
+      },
       // Gateway-relative as well, in case Stargate prefixes the host itself. One of the
       // two forms will be accepted and the other will say why it was not.
       { scope: "global", via: "stargate", path: `/automation/public/jira/${cloudId}/rest/v1/rule` },
@@ -808,8 +811,14 @@ export async function probeAutomationApi({ context }) {
     const looksLikeRules = /"(rules|values|id)"\s*:/.test(result.sample || "");
     results.push({ ...result, scope, via: via || "site", looksLikeRules });
     logger.info("automation-probe.result", {
-      scope, via: via || "site", path: result.path, status: result.status,
-      ok: result.ok, ms: result.ms, looksLikeRules, sample: result.sample,
+      scope,
+      via: via || "site",
+      path: result.path,
+      status: result.status,
+      ok: result.ok,
+      ms: result.ms,
+      looksLikeRules,
+      sample: result.sample,
     });
   }
 
@@ -851,6 +860,6 @@ export function ruleDirectoryMap(directory) {
     (directory?.rules ?? []).map(([id, name, enabled, triggerType, projectCount]) => [
       id,
       { id, name, enabled: enabled === 1, triggerType: triggerType || null, projectCount },
-    ])
+    ]),
   );
 }

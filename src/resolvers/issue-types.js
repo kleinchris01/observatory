@@ -113,7 +113,7 @@ export async function getIssueTypeInventory({ context }) {
   }
   const schemesResolved = schemes.map((s) => ({
     ...s,
-    defaultIssueTypeName: s.defaultIssueTypeId ? (typeById.get(String(s.defaultIssueTypeId))?.name || null) : null,
+    defaultIssueTypeName: s.defaultIssueTypeId ? typeById.get(String(s.defaultIssueTypeId))?.name || null : null,
     issueTypes: membersByScheme.get(s.schemeId) || [],
     projects: (projectsByScheme.get(s.schemeId) || []).sort((a, b) => a.projectKey.localeCompare(b.projectKey)),
   }));
@@ -134,7 +134,8 @@ export async function getIssueTypeInventory({ context }) {
         if (!mappingsByItss.has(m.itssId)) mappingsByItss.set(m.itssId, []);
         mappingsByItss.get(m.itssId).push({
           issueTypeId: m.issueTypeId,
-          issueTypeName: m.issueTypeId === "default" ? "All unmapped types" : (typeById.get(String(m.issueTypeId))?.name || null),
+          issueTypeName:
+            m.issueTypeId === "default" ? "All unmapped types" : typeById.get(String(m.issueTypeId))?.name || null,
           screenSchemeId: m.screenSchemeId,
           isDefault: m.isDefault,
         });

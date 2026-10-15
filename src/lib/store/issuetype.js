@@ -9,21 +9,15 @@
 // a partial version.
 
 import { sql } from "@forge/sql";
-import {
-  chunkArray,
-  ensureProjectStoreReady,
-  toNumber,
-  withSqlRetry,
-} from "./core.js";
+import { chunkArray, ensureProjectStoreReady, toNumber, withSqlRetry } from "./core.js";
 
 const DEFAULT_BATCH_SIZE = 50;
 
-export async function replaceIssueTypeSnapshot(scopeKey, version, {
-  issueTypes = [],
-  schemes = [],
-  schemeItems = [],
-  schemeProjects = [],
-} = {}) {
+export async function replaceIssueTypeSnapshot(
+  scopeKey,
+  version,
+  { issueTypes = [], schemes = [], schemeItems = [], schemeProjects = [] } = {},
+) {
   await ensureProjectStoreReady();
 
   // Scoped deletes, every one of them. An unscoped DELETE in a multi-tenant Forge app
@@ -35,69 +29,105 @@ export async function replaceIssueTypeSnapshot(scopeKey, version, {
     "snapshot_issue_type_scheme_items",
     "snapshot_issue_type_scheme_projects",
   ]) {
-    await withSqlRetry(() =>
-      sql.prepare(`DELETE FROM ${table} WHERE scope_key = ?`).bindParams(scopeKey).execute()
-    );
+    await withSqlRetry(() => sql.prepare(`DELETE FROM ${table} WHERE scope_key = ?`).bindParams(scopeKey).execute());
   }
 
   for (const batch of chunkArray(issueTypes, DEFAULT_BATCH_SIZE)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((t) => [
-      scopeKey, version, String(t.id), t.name || null, t.description || null,
-      t.subtask ? 1 : 0, Number.isFinite(Number(t.hierarchyLevel)) ? Number(t.hierarchyLevel) : 0,
+      scopeKey,
+      version,
+      String(t.id),
+      t.name || null,
+      t.description || null,
+      t.subtask ? 1 : 0,
+      Number.isFinite(Number(t.hierarchyLevel)) ? Number(t.hierarchyLevel) : 0,
       t.scopeProjectId == null ? null : String(t.scopeProjectId),
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_issue_types
           (scope_key, version, issue_type_id, name, description, subtask, hierarchy_level, scope_project_id)
         VALUES ${valuesSql}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
   for (const batch of chunkArray(schemes, DEFAULT_BATCH_SIZE)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((s) => [
-      scopeKey, version, String(s.id), s.name || null, s.description || null,
+      scopeKey,
+      version,
+      String(s.id),
+      s.name || null,
+      s.description || null,
       s.defaultIssueTypeId == null ? null : String(s.defaultIssueTypeId),
-      s.isDefault ? 1 : 0, s.projectCount ?? 0,
+      s.isDefault ? 1 : 0,
+      s.projectCount ?? 0,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_issue_type_schemes
           (scope_key, version, scheme_id, name, description, default_issue_type_id, is_default, project_count)
         VALUES ${valuesSql}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
   for (const batch of chunkArray(schemeItems, DEFAULT_BATCH_SIZE)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((it) => [
-      scopeKey, version, String(it.schemeId), String(it.issueTypeId), it.itemIndex ?? 0,
+      scopeKey,
+      version,
+      String(it.schemeId),
+      String(it.issueTypeId),
+      it.itemIndex ?? 0,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_issue_type_scheme_items
           (scope_key, version, scheme_id, issue_type_id, item_index)
         VALUES ${valuesSql}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
   for (const batch of chunkArray(schemeProjects, DEFAULT_BATCH_SIZE)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((p) => [
-      scopeKey, version, String(p.schemeId), String(p.projectId),
-      p.projectKey || null, p.projectName || null,
+      scopeKey,
+      version,
+      String(p.schemeId),
+      String(p.projectId),
+      p.projectKey || null,
+      p.projectName || null,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_issue_type_scheme_projects
           (scope_key, version, scheme_id, project_id, project_key, project_name)
         VALUES ${valuesSql}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 }
@@ -107,12 +137,17 @@ export async function replaceIssueTypeSnapshot(scopeKey, version, {
 export async function loadIssueTypes(scopeKey, version) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT issue_type_id, name, description, subtask, hierarchy_level, scope_project_id
       FROM snapshot_issue_types
       WHERE scope_key = ? AND version = ?
       ORDER BY hierarchy_level DESC, name ASC, issue_type_id ASC
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     id: row.issue_type_id,
@@ -129,12 +164,17 @@ export async function loadIssueTypes(scopeKey, version) {
 export async function loadIssueTypeSchemes(scopeKey, version) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT scheme_id, name, description, default_issue_type_id, is_default, project_count
       FROM snapshot_issue_type_schemes
       WHERE scope_key = ? AND version = ?
       ORDER BY project_count DESC, name ASC
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     schemeId: row.scheme_id,
@@ -152,12 +192,17 @@ export async function loadIssueTypeSchemes(scopeKey, version) {
 export async function loadIssueTypeSchemeItems(scopeKey, version) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT scheme_id, issue_type_id, item_index
       FROM snapshot_issue_type_scheme_items
       WHERE scope_key = ? AND version = ?
       ORDER BY scheme_id ASC, item_index ASC
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     schemeId: row.scheme_id,
@@ -169,11 +214,16 @@ export async function loadIssueTypeSchemeItems(scopeKey, version) {
 export async function loadIssueTypeSchemeProjects(scopeKey, version) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT scheme_id, project_id, project_key, project_name
       FROM snapshot_issue_type_scheme_projects
       WHERE scope_key = ? AND version = ?
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     schemeId: row.scheme_id,
@@ -188,7 +238,9 @@ export async function loadIssueTypeSchemeProjects(scopeKey, version) {
 export async function loadIssueTypeSchemeForProject(scopeKey, version, projectId) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT s.scheme_id, s.name, s.description, s.default_issue_type_id, s.is_default,
              t.issue_type_id, t.name AS type_name, t.subtask, t.hierarchy_level, i.item_index
       FROM snapshot_issue_type_scheme_projects p
@@ -200,7 +252,10 @@ export async function loadIssueTypeSchemeForProject(scopeKey, version, projectId
         ON t.scope_key = p.scope_key AND t.version = p.version AND t.issue_type_id = i.issue_type_id
       WHERE p.scope_key = ? AND p.version = ? AND p.project_id = ?
       ORDER BY i.item_index ASC
-    `).bindParams(scopeKey, version, String(projectId)).execute()
+    `,
+      )
+      .bindParams(scopeKey, version, String(projectId))
+      .execute(),
   );
   const rows = result.rows || [];
   if (!rows.length) return null;
@@ -229,7 +284,9 @@ export async function loadIssueTypeGovernanceSummary(scopeKey, version) {
   await ensureProjectStoreReady();
 
   const types = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT
         COUNT(*) AS total,
         SUM(CASE WHEN subtask = 1 THEN 1 ELSE 0 END) AS subtasks,
@@ -237,25 +294,35 @@ export async function loadIssueTypeGovernanceSummary(scopeKey, version) {
         COUNT(DISTINCT hierarchy_level) AS hierarchy_levels
       FROM snapshot_issue_types
       WHERE scope_key = ? AND version = ?
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
 
   // A scheme no project is assigned to allows types nowhere -- the "unused scheme" finding.
   const schemes = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT
         COUNT(*) AS total,
         SUM(CASE WHEN project_count = 0 THEN 1 ELSE 0 END) AS unused
       FROM snapshot_issue_type_schemes
       WHERE scope_key = ? AND version = ?
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
 
   // Types on no scheme at all: present in the catalog, allowed by nothing, so no project can
   // ever create one. Sub-tasks are excluded only when the site has no sub-task-bearing
   // scheme -- otherwise a legitimately-unused sub-task type reads the same as a real orphan.
   const orphanTypes = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT COUNT(*) AS orphan
       FROM snapshot_issue_types t
       WHERE t.scope_key = ? AND t.version = ?
@@ -263,7 +330,10 @@ export async function loadIssueTypeGovernanceSummary(scopeKey, version) {
           SELECT 1 FROM snapshot_issue_type_scheme_items i
           WHERE i.scope_key = t.scope_key AND i.version = t.version AND i.issue_type_id = t.issue_type_id
         )
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
 
   const typeRow = types.rows?.[0] || {};
@@ -285,11 +355,16 @@ export async function loadIssueTypeGovernanceSummary(scopeKey, version) {
 export async function readIssueTypeSnapshotMeta(scopeKey) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT state, version, started_at, completed_at, refreshed_at,
              total_types, total_schemes, last_error
       FROM issue_type_snapshot_meta WHERE scope_key = ?
-    `).bindParams(scopeKey).execute()
+    `,
+      )
+      .bindParams(scopeKey)
+      .execute(),
   );
   const row = result.rows?.[0];
   if (!row) return null;
@@ -313,7 +388,9 @@ export async function writeIssueTypeSnapshotMeta(scopeKey, patch = {}) {
   const next = { ...current, ...patch };
 
   await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       INSERT INTO issue_type_snapshot_meta
         (scope_key, state, version, started_at, completed_at, refreshed_at,
          total_types, total_schemes, last_error)
@@ -327,16 +404,19 @@ export async function writeIssueTypeSnapshotMeta(scopeKey, patch = {}) {
         total_types = VALUES(total_types),
         total_schemes = VALUES(total_schemes),
         last_error = VALUES(last_error)
-    `).bindParams(
-      scopeKey,
-      next.state || "idle",
-      next.version || null,
-      next.startedAt || null,
-      next.completedAt || null,
-      next.refreshedAt || null,
-      next.totalTypes ?? 0,
-      next.totalSchemes ?? 0,
-      next.lastError || null
-    ).execute()
+    `,
+      )
+      .bindParams(
+        scopeKey,
+        next.state || "idle",
+        next.version || null,
+        next.startedAt || null,
+        next.completedAt || null,
+        next.refreshedAt || null,
+        next.totalTypes ?? 0,
+        next.totalSchemes ?? 0,
+        next.lastError || null,
+      )
+      .execute(),
   );
 }

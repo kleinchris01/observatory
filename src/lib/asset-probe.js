@@ -29,8 +29,10 @@ function assetsBase(workspaceId) {
 export function workspaceReason(probe) {
   const scopeGap = probe.status === 401 || /scope does not match/i.test(probe.sample || "");
   if (scopeGap) {
-    return "The workspace endpoint returned 401 (scope does not match) — the app is missing "
-      + "the scope for /rest/servicedeskapi/assets/workspace. Redeploy with it and upgrade the install.";
+    return (
+      "The workspace endpoint returned 401 (scope does not match) — the app is missing " +
+      "the scope for /rest/servicedeskapi/assets/workspace. Redeploy with it and upgrade the install."
+    );
   }
   if (probe.ok) {
     return "The workspace endpoint answered but named no workspace — Assets may not be provisioned on this site.";
@@ -47,7 +49,7 @@ export function firstWorkspaceId(sample) {
   } catch {
     return null;
   }
-  const list = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.values) ? parsed.values : [parsed]);
+  const list = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.values) ? parsed.values : [parsed];
   for (const entry of list) {
     const id = entry?.workspaceId || entry?.id;
     if (id) return String(id);
@@ -59,8 +61,11 @@ export function firstWorkspaceId(sample) {
 // error envelope or an HTML login page. Kept loose on purpose -- the point is to tell a real
 // answer from a 200-that-is-not-JSON, not to validate the schema.
 function looksLikeAssets(sample) {
-  return /"(objectSchemas|objectTypeAttributes|objectschema|workspaceId|globalId|referenceTypes|typeName)"\s*[:[]/i.test(sample || "")
-    || /^\s*\[\s*\{/.test(sample || "");
+  return (
+    /"(objectSchemas|objectTypeAttributes|objectschema|workspaceId|globalId|referenceTypes|typeName)"\s*[:[]/i.test(
+      sample || "",
+    ) || /^\s*\[\s*\{/.test(sample || "")
+  );
 }
 
 // Discover the workspace, then hit the handful of structure endpoints the pillar would be
@@ -72,19 +77,22 @@ export async function probeAssetsApi() {
   const workspaceProbe = await probeEndpoint(WORKSPACE_PATH);
   const workspaceId = workspaceProbe.ok ? firstWorkspaceId(workspaceProbe.sample) : null;
 
-  const results = [{
-    step: "workspace",
-    path: WORKSPACE_PATH,
-    via: "site",
-    status: workspaceProbe.status,
-    ok: workspaceProbe.ok,
-    ms: workspaceProbe.ms,
-    sample: workspaceProbe.sample,
-  }];
+  const results = [
+    {
+      step: "workspace",
+      path: WORKSPACE_PATH,
+      via: "site",
+      status: workspaceProbe.status,
+      ok: workspaceProbe.ok,
+      ms: workspaceProbe.ms,
+      sample: workspaceProbe.sample,
+    },
+  ];
 
   if (!workspaceId) {
     logger.info("assets-probe.summary", {
-      reachable: 0, workspaceId: null,
+      reachable: 0,
+      workspaceId: null,
       reason: workspaceProbe.status === 200 ? "no-workspace-in-payload" : `workspace-${workspaceProbe.status}`,
     });
     return {
@@ -107,8 +115,13 @@ export async function probeAssetsApi() {
   for (const candidate of candidates) {
     const probe = await probeStargateEndpoint(candidate.path);
     results.push({
-      step: candidate.step, path: candidate.path, via: "stargate",
-      status: probe.status, ok: probe.ok, ms: probe.ms, sample: probe.sample,
+      step: candidate.step,
+      path: candidate.path,
+      via: "stargate",
+      status: probe.status,
+      ok: probe.ok,
+      ms: probe.ms,
+      sample: probe.sample,
       looksLikeAssets: looksLikeAssets(probe.sample),
     });
   }
@@ -124,8 +137,13 @@ export async function probeAssetsApi() {
     ]) {
       const probe = await probeStargateEndpoint(candidate.path);
       results.push({
-        step: candidate.step, path: candidate.path, via: "stargate",
-        status: probe.status, ok: probe.ok, ms: probe.ms, sample: probe.sample,
+        step: candidate.step,
+        path: candidate.path,
+        via: "stargate",
+        status: probe.status,
+        ok: probe.ok,
+        ms: probe.ms,
+        sample: probe.sample,
         looksLikeAssets: looksLikeAssets(probe.sample),
       });
     }
@@ -133,7 +151,9 @@ export async function probeAssetsApi() {
 
   const reachable = results.filter((r) => r.via === "stargate" && r.ok && r.looksLikeAssets);
   logger.info("assets-probe.summary", {
-    workspaceId, probed: results.length, reachable: reachable.length,
+    workspaceId,
+    probed: results.length,
+    reachable: reachable.length,
     reachablePaths: reachable.map((r) => r.path),
   });
 
@@ -156,7 +176,13 @@ export function firstSchemaId(sample) {
   } catch {
     return null;
   }
-  const list = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.objectSchemas) ? parsed.objectSchemas : (Array.isArray(parsed?.values) ? parsed.values : []));
+  const list = Array.isArray(parsed)
+    ? parsed
+    : Array.isArray(parsed?.objectSchemas)
+      ? parsed.objectSchemas
+      : Array.isArray(parsed?.values)
+        ? parsed.values
+        : [];
   const id = list[0]?.id;
   return id != null ? String(id) : null;
 }

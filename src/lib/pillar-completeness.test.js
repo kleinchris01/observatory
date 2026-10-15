@@ -42,10 +42,14 @@ describe("every scored pillar is wired into everything", () => {
   test("nothing points at a pillar that does not exist", () => {
     const known = new Set(HEALTH_PILLARS.map((p) => p.key));
     const strays = [
-      ...Object.keys(PILLAR_WEIGHTS).filter((k) => !known.has(k)).map((k) => `PILLAR_WEIGHTS.${k}`),
+      ...Object.keys(PILLAR_WEIGHTS)
+        .filter((k) => !known.has(k))
+        .map((k) => `PILLAR_WEIGHTS.${k}`),
       ...[...driftCovers].filter((k) => !known.has(k)).map((k) => `DRIFT_PILLARS health ${k}`),
       ...[...playbookPillars].filter((k) => !known.has(k)).map((k) => `playbook pillar ${k}`),
-      ...Object.keys(INITIATIVE_LABELS).filter((k) => !known.has(k)).map((k) => `INITIATIVE_LABELS.${k}`),
+      ...Object.keys(INITIATIVE_LABELS)
+        .filter((k) => !known.has(k))
+        .map((k) => `INITIATIVE_LABELS.${k}`),
     ];
     expect(strays).toEqual([]);
   });

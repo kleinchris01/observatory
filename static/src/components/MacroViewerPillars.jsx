@@ -25,11 +25,23 @@ function Pagination({ page, totalPages, onPage }) {
   if (totalPages <= 1) return null;
   return (
     <div className="pagination-bar">
-      <button type="button" className="secondary-button secondary-button--small" onClick={() => onPage(page - 1)} disabled={page <= 1}>
+      <button
+        type="button"
+        className="secondary-button secondary-button--small"
+        onClick={() => onPage(page - 1)}
+        disabled={page <= 1}
+      >
         Previous
       </button>
-      <span>Page {page} of {totalPages}</span>
-      <button type="button" className="secondary-button secondary-button--small" onClick={() => onPage(page + 1)} disabled={page >= totalPages}>
+      <span>
+        Page {page} of {totalPages}
+      </span>
+      <button
+        type="button"
+        className="secondary-button secondary-button--small"
+        onClick={() => onPage(page + 1)}
+        disabled={page >= totalPages}
+      >
         Next
       </button>
     </div>
@@ -46,21 +58,33 @@ function MacroListPillar({ resolver, title, icon, searchPlaceholder, siteOrigin,
   const [error, setError] = React.useState("");
 
   React.useEffect(() => {
-    const t = setTimeout(() => { setDebounced(query); setPage(1); }, 300);
+    const t = setTimeout(() => {
+      setDebounced(query);
+      setPage(1);
+    }, 300);
     return () => clearTimeout(t);
   }, [query]);
 
   React.useEffect(() => {
     let cancelled = false;
-    setLoading(true); setError("");
+    setLoading(true);
+    setError("");
     invoke(resolver, { query: debounced, page })
-      .then((result) => { if (!cancelled) setData(result); })
-      .catch((err) => { if (!cancelled) setError(err?.message || "Could not load this view."); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+      .then((result) => {
+        if (!cancelled) setData(result);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err?.message || "Could not load this view.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [resolver, debounced, page]);
 
-  const rows = data ? (pluck(data) || []) : [];
+  const rows = data ? pluck(data) || [] : [];
 
   return (
     <Panel title={title} icon={icon}>
@@ -80,9 +104,7 @@ function MacroListPillar({ resolver, title, icon, searchPlaceholder, siteOrigin,
           Nothing to show yet — the {title.toLowerCase()} inventory has not been built. Ask a Jira admin to run a scan.
         </EmptyState>
       ) : !rows.length ? (
-        <EmptyState inline>
-          {debounced ? `Nothing matches "${debounced}".` : emptyText}
-        </EmptyState>
+        <EmptyState inline>{debounced ? `Nothing matches "${debounced}".` : emptyText}</EmptyState>
       ) : (
         <>
           <p className="macro-pillar__count">
@@ -91,9 +113,7 @@ function MacroListPillar({ resolver, title, icon, searchPlaceholder, siteOrigin,
               : `${formatNumber(data.matchedTotal)} of ${formatNumber(data.total)}`}
             {data.snapshotRefreshedAt && ` · data from ${formatRelativeTime(data.snapshotRefreshedAt)}`}
           </p>
-          <ul className="macro-pillar__list">
-            {rows.map((row) => renderRow(row, siteOrigin))}
-          </ul>
+          <ul className="macro-pillar__list">{rows.map((row) => renderRow(row, siteOrigin))}</ul>
           <Pagination page={data.page} totalPages={data.totalPages} onPage={setPage} />
         </>
       )}
@@ -104,7 +124,13 @@ function MacroListPillar({ resolver, title, icon, searchPlaceholder, siteOrigin,
 function jiraLink(href, label) {
   if (!href) return <span className="macro-pillar__name">{label}</span>;
   return (
-    <a className="macro-pillar__name" href={href} target="_blank" rel="noreferrer" onClick={(e) => handleJiraLinkClick(e, href)}>
+    <a
+      className="macro-pillar__name"
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      onClick={(e) => handleJiraLinkClick(e, href)}
+    >
       {label}
     </a>
   );
@@ -125,12 +151,14 @@ export function MacroFiltersView({ siteOrigin }) {
           <div className="macro-pillar__row-head">
             {jiraLink(f.viewUrl || (origin ? `${origin}/issues/?filter=${f.id}` : null), f.name)}
             {f.owner && <span className="macro-pillar__owner">{f.owner}</span>}
-            {(f.projects || []).map((p) => <Chip key={p} tone="neutral">{p}</Chip>)}
+            {(f.projects || []).map((p) => (
+              <Chip key={p} tone="neutral">
+                {p}
+              </Chip>
+            ))}
           </div>
           {f.jql && <code className="macro-pillar__jql">{f.jql}</code>}
-          {(f.fields || []).length > 0 && (
-            <p className="macro-pillar__fields">Uses: {f.fields.join(", ")}</p>
-          )}
+          {(f.fields || []).length > 0 && <p className="macro-pillar__fields">Uses: {f.fields.join(", ")}</p>}
         </li>
       )}
     />
@@ -153,11 +181,11 @@ export function MacroDashboardsView({ siteOrigin }) {
             {jiraLink(d.viewUrl || (origin ? `${origin}/jira/dashboards/${d.id}` : null), d.name)}
             {d.owner && <span className="macro-pillar__owner">{d.owner}</span>}
             {d.sharedToProject && <Chip tone="neutral">shared to your project</Chip>}
-            <Chip tone="neutral">{formatNumber(d.gadgetCount || 0)} {d.gadgetCount === 1 ? "gadget" : "gadgets"}</Chip>
+            <Chip tone="neutral">
+              {formatNumber(d.gadgetCount || 0)} {d.gadgetCount === 1 ? "gadget" : "gadgets"}
+            </Chip>
           </div>
-          {(d.fields || []).length > 0 && (
-            <p className="macro-pillar__fields">Depends on: {d.fields.join(", ")}</p>
-          )}
+          {(d.fields || []).length > 0 && <p className="macro-pillar__fields">Depends on: {d.fields.join(", ")}</p>}
         </li>
       )}
     />
@@ -172,10 +200,18 @@ export function MacroWorkflowsView() {
   React.useEffect(() => {
     let cancelled = false;
     invoke("getMacroWorkflows", {})
-      .then((r) => { if (!cancelled) setData(r); })
-      .catch((err) => { if (!cancelled) setError(err?.message || "Could not load workflows."); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+      .then((r) => {
+        if (!cancelled) setData(r);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err?.message || "Could not load workflows.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
@@ -189,7 +225,9 @@ export function MacroWorkflowsView() {
       ) : !data?.available ? (
         <EmptyState inline>No workflow inventory has been built. Ask a Jira admin to run a scan.</EmptyState>
       ) : !data.schemes.length ? (
-        <EmptyState inline>None of the projects you can browse resolve to a workflow scheme in this snapshot.</EmptyState>
+        <EmptyState inline>
+          None of the projects you can browse resolve to a workflow scheme in this snapshot.
+        </EmptyState>
       ) : (
         <>
           <div className="macro-workflows__schemes">
@@ -197,11 +235,18 @@ export function MacroWorkflowsView() {
               <div key={scheme.schemeId} className="macro-workflows__scheme">
                 <div className="macro-workflows__scheme-head">
                   <span className="macro-pillar__name">{scheme.name}</span>
-                  {(scheme.projects || []).map((p) => <Chip key={p} tone="neutral">{p}</Chip>)}
+                  {(scheme.projects || []).map((p) => (
+                    <Chip key={p} tone="neutral">
+                      {p}
+                    </Chip>
+                  ))}
                 </div>
                 <div className="macro-workflows__statuses">
                   {scheme.statuses.map((s) => (
-                    <span key={s.id} className={`macro-status macro-status--${(s.category || "").toLowerCase().replace(/\s+/g, "-")}`}>
+                    <span
+                      key={s.id}
+                      className={`macro-status macro-status--${(s.category || "").toLowerCase().replace(/\s+/g, "-")}`}
+                    >
                       {s.name}
                     </span>
                   ))}
@@ -211,7 +256,8 @@ export function MacroWorkflowsView() {
           </div>
 
           <p className="macro-pillar__count" style={{ marginTop: 16 }}>
-            {formatNumber(data.statuses.length)} distinct {data.statuses.length === 1 ? "status" : "statuses"} across your projects
+            {formatNumber(data.statuses.length)} distinct {data.statuses.length === 1 ? "status" : "statuses"} across
+            your projects
             {data.snapshotRefreshedAt && ` · data from ${formatRelativeTime(data.snapshotRefreshedAt)}`}
           </p>
         </>
@@ -227,9 +273,15 @@ function useMacroPillar(resolver) {
   React.useEffect(() => {
     let cancelled = false;
     invoke(resolver, {})
-      .then((data) => { if (!cancelled) setState({ loading: false, data }); })
-      .catch((err) => { if (!cancelled) setState({ loading: false, error: err?.message || "Could not load this section." }); });
-    return () => { cancelled = true; };
+      .then((data) => {
+        if (!cancelled) setState({ loading: false, data });
+      })
+      .catch((err) => {
+        if (!cancelled) setState({ loading: false, error: err?.message || "Could not load this section." });
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [resolver]);
   return state;
 }
@@ -298,12 +350,19 @@ export function MacroScreensView() {
                     <li key={screen.screenId} className="macro-screens__row">
                       <span className="macro-pillar__name">{screen.name}</span>
                       <span className="macro-screens__ops">
-                        {screen.operations.map((op) => <Chip key={op} tone="neutral">{op}</Chip>)}
+                        {screen.operations.map((op) => (
+                          <Chip key={op} tone="neutral">
+                            {op}
+                          </Chip>
+                        ))}
                       </span>
                       {screen.unreadable ? (
                         // Never "0 fields" for a screen nobody could read. The viewer is the
                         // person about to ask why their form looks different from this page.
-                        <Chip tone="warning" title="This screen could not be read in the last scan, so its field count is unknown.">
+                        <Chip
+                          tone="warning"
+                          title="This screen could not be read in the last scan, so its field count is unknown."
+                        >
                           not readable
                         </Chip>
                       ) : (
@@ -348,16 +407,24 @@ export function MacroIssueTypesView() {
             <div key={scheme.schemeId} className="macro-workflows__scheme">
               <div className="macro-workflows__scheme-head">
                 <span className="macro-pillar__name">{scheme.name}</span>
-                {scheme.projects.map((key) => <Chip key={key} tone="neutral">{key}</Chip>)}
+                {scheme.projects.map((key) => (
+                  <Chip key={key} tone="neutral">
+                    {key}
+                  </Chip>
+                ))}
               </div>
               <div className="macro-workflows__statuses">
                 {scheme.issueTypes.map((type) => (
                   <span
                     key={type.id}
                     className="macro-status macro-status--to-do"
-                    title={type.missing ? "This scheme names a type that no longer exists in the catalogue." : undefined}
+                    title={
+                      type.missing ? "This scheme names a type that no longer exists in the catalogue." : undefined
+                    }
                   >
-                    {type.name || `#${type.id}`}{type.subtask ? " (sub-task)" : ""}{type.missing ? " — missing" : ""}
+                    {type.name || `#${type.id}`}
+                    {type.subtask ? " (sub-task)" : ""}
+                    {type.missing ? " — missing" : ""}
                   </span>
                 ))}
               </div>
@@ -375,11 +442,7 @@ export function MacroBoardsView() {
   const state = useMacroPillar("getMacroBoards");
 
   return (
-    <Panel
-      title="Boards"
-      icon="activity"
-      description="The boards your projects own, and what each one is built on."
-    >
+    <Panel title="Boards" icon="activity" description="The boards your projects own, and what each one is built on.">
       <ViewerScopeNote projectCount={state.data?.projectCount ?? 0} />
       <PillarBody
         state={state}
@@ -403,9 +466,7 @@ export function MacroBoardsView() {
                 // Team-managed boards routinely refuse their configuration endpoint. Listing
                 // the board and saying its detail is unknown beats dropping it, which would
                 // read as "you have no board here" to the person looking at one.
-                <p className="macro-pillar__count">
-                  Its configuration could not be read, so its columns are unknown.
-                </p>
+                <p className="macro-pillar__count">Its configuration could not be read, so its columns are unknown.</p>
               )}
             </li>
           ))}

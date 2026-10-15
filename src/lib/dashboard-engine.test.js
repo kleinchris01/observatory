@@ -21,8 +21,14 @@ describe("shapeDashboard", () => {
     const shaped = shapeDashboard(raw());
 
     expect(shaped.dashboard).toMatchObject({
-      id: "10100", name: "Delivery overview", ownerAccountId: "a1", ownerActive: true,
-      popularity: 7, sharedWithEveryone: false, editableByEveryone: false, shareCount: 1,
+      id: "10100",
+      name: "Delivery overview",
+      ownerAccountId: "a1",
+      ownerActive: true,
+      popularity: 7,
+      sharedWithEveryone: false,
+      editableByEveryone: false,
+      shareCount: 1,
     });
     expect(shaped.shares).toHaveLength(1);
     expect(shaped.shares[0]).toMatchObject({ kind: "view", type: "project", targetName: "ADVEV" });
@@ -36,17 +42,21 @@ describe("shapeDashboard", () => {
 
   test("keeps owner state tri-valued", () => {
     expect(shapeDashboard(raw()).dashboard.ownerActive).toBe(true);
-    expect(shapeDashboard(raw({ owner: { accountId: "a", displayName: "B", active: false } })).dashboard.ownerActive).toBe(false);
+    expect(
+      shapeDashboard(raw({ owner: { accountId: "a", displayName: "B", active: false } })).dashboard.ownerActive,
+    ).toBe(false);
     // Jira omits `owner` entirely once the account is deleted, which is the case that takes
     // the dashboard with it.
     expect(shapeDashboard(raw({ owner: null })).dashboard.ownerActive).toBeNull();
   });
 
   test("separates view permissions from edit permissions", () => {
-    const shaped = shapeDashboard(raw({
-      sharePermissions: [{ type: "loggedin" }],
-      editPermissions: [{ type: "group", group: { groupId: "g1", name: "admins" } }],
-    }));
+    const shaped = shapeDashboard(
+      raw({
+        sharePermissions: [{ type: "loggedin" }],
+        editPermissions: [{ type: "group", group: { groupId: "g1", name: "admins" } }],
+      }),
+    );
 
     expect(shaped.dashboard.sharedWithEveryone).toBe(true);
     expect(shaped.dashboard.editableByEveryone).toBe(false);
@@ -84,10 +94,19 @@ describe("shapeGadget", () => {
   test("keeps the handle a later pass will join on", () => {
     // Gadget CONFIGURATION -- which filter it reads -- needs per-gadget properties. The
     // module key is stored so that join can be added without a re-enumeration.
-    const gadget = shapeGadget("10100", { id: 1, title: "Filter Results", moduleKey: "com.atlassian:filter-results", position: { row: 0, column: 1 } });
+    const gadget = shapeGadget("10100", {
+      id: 1,
+      title: "Filter Results",
+      moduleKey: "com.atlassian:filter-results",
+      position: { row: 0, column: 1 },
+    });
     expect(gadget).toMatchObject({
-      dashboardId: "10100", id: "1", title: "Filter Results",
-      moduleKey: "com.atlassian:filter-results", row: 0, column: 1,
+      dashboardId: "10100",
+      id: "1",
+      title: "Filter Results",
+      moduleKey: "com.atlassian:filter-results",
+      row: 0,
+      column: 1,
     });
   });
 
@@ -106,11 +125,18 @@ describe("isDashboardBuildStale", () => {
   const now = Date.parse("2026-08-21T12:00:00Z");
 
   test("is not stale while a build could still be running", () => {
-    expect(isDashboardBuildStale({ state: "building", startedAt: new Date(now - 60_000).toISOString() }, now)).toBe(false);
+    expect(isDashboardBuildStale({ state: "building", startedAt: new Date(now - 60_000).toISOString() }, now)).toBe(
+      false,
+    );
   });
 
   test("is stale once no invocation could still be alive", () => {
-    expect(isDashboardBuildStale({ state: "building", startedAt: new Date(now - DASHBOARD_BUILD_STALE_MS - 1000).toISOString() }, now)).toBe(true);
+    expect(
+      isDashboardBuildStale(
+        { state: "building", startedAt: new Date(now - DASHBOARD_BUILD_STALE_MS - 1000).toISOString() },
+        now,
+      ),
+    ).toBe(true);
   });
 
   test("treats a building row with no start time as stale", () => {
@@ -169,7 +195,11 @@ describe("dashboardBuildSpec.runChunk — phase-aware progress", () => {
   test("the gadget phase doubles the denominator — one walk per dashboard on top of listing", async () => {
     store.loadDashboardIdsNeedingGadgets.mockResolvedValue(["1", "2"]);
     jira.getDashboardGadgets.mockResolvedValue([]);
-    const r = await spec.runChunk({ installationKey: "i", version: "v", cursor: { phase: "gadgets", listTotal: 613, walked: 0 } });
+    const r = await spec.runChunk({
+      installationKey: "i",
+      version: "v",
+      cursor: { phase: "gadgets", listTotal: 613, walked: 0 },
+    });
     expect(r.totalExpected).toBe(1226);
     expect(r.cursor).toMatchObject({ phase: "gadgets", listTotal: 613 });
   });
@@ -185,7 +215,11 @@ describe("dashboardBuildSpec.runChunk — phase-aware progress", () => {
   test("the config phase keeps the cumulative denominator steady across its chunks", async () => {
     store.loadGadgetsNeedingConfig.mockResolvedValue([{ dashboardId: "1", gadgetId: "g1" }]);
     store.recordGadgetConfigs.mockResolvedValue({ recorded: 1 });
-    const r = await spec.runChunk({ installationKey: "i", version: "v", cursor: { phase: "configs", walked: 0, listTotal: 613, gadgetTotal: 4000 } });
+    const r = await spec.runChunk({
+      installationKey: "i",
+      version: "v",
+      cursor: { phase: "configs", walked: 0, listTotal: 613, gadgetTotal: 4000 },
+    });
     expect(r.totalExpected).toBe(5226);
     expect(r.done).toBe(false);
   });
@@ -193,7 +227,9 @@ describe("dashboardBuildSpec.runChunk — phase-aware progress", () => {
   test("probes each distinct gadget filter once, and records its state on every gadget using it", async () => {
     const api = await import("./jira-api.js");
     store.loadGadgetsNeedingConfig.mockResolvedValue([
-      { dashboardId: "1", gadgetId: "g1" }, { dashboardId: "1", gadgetId: "g2" }, { dashboardId: "2", gadgetId: "g3" },
+      { dashboardId: "1", gadgetId: "g1" },
+      { dashboardId: "1", gadgetId: "g2" },
+      { dashboardId: "2", gadgetId: "g3" },
     ]);
     api.getGadgetFilterId.mockImplementation(async (_d, g) => (g === "g3" ? null : "500"));
     api.probeFilter.mockResolvedValueOnce("missing");
@@ -204,7 +240,9 @@ describe("dashboardBuildSpec.runChunk — phase-aware progress", () => {
     expect(api.probeFilter).toHaveBeenCalledTimes(1);
     const [, , recorded] = store.recordGadgetConfigs.mock.calls.at(-1);
     expect(recorded.map((c) => [c.gadgetId, c.filterId, c.filterState])).toEqual([
-      ["g1", "500", "missing"], ["g2", "500", "missing"], ["g3", null, undefined],
+      ["g1", "500", "missing"],
+      ["g2", "500", "missing"],
+      ["g3", null, undefined],
     ]);
     api.getGadgetFilterId.mockImplementation(async () => null);
   });
@@ -218,7 +256,11 @@ describe("dashboardBuildSpec.runChunk — phase-aware progress", () => {
 
   test("the finished build records how many dashboards it found, so the scan page can show it", async () => {
     store.loadGadgetsNeedingConfig.mockResolvedValue([]);
-    const done = await spec.runChunk({ installationKey: "i", version: "v", cursor: { phase: "configs", walked: 7, listTotal: 613, gadgetTotal: 4000 } });
+    const done = await spec.runChunk({
+      installationKey: "i",
+      version: "v",
+      cursor: { phase: "configs", walked: 7, listTotal: 613, gadgetTotal: 4000 },
+    });
     expect(done.done).toBe(true);
     expect(spec.finalize({ result: done })).toMatchObject({ totalDashboards: 613, gadgetsWalked: 7 });
   });
@@ -240,7 +282,11 @@ describe("dashboardBuildSpec.runChunk — a failing chunk retries before it fail
   test("a 503 on the search page re-queues the same chunk instead of throwing", async () => {
     jira.getDashboardPage.mockRejectedValue(retryable(503));
 
-    const r = await spec.runChunk({ installationKey: "i", version: "v", cursor: { phase: "list", startAt: 50, total: 613 } });
+    const r = await spec.runChunk({
+      installationKey: "i",
+      version: "v",
+      cursor: { phase: "list", startAt: 50, total: 613 },
+    });
 
     expect(r.done).toBe(false);
     expect(r.cursor).toMatchObject({ phase: "list", startAt: 50, total: 613, chunkErrors: 1 });
@@ -254,7 +300,7 @@ describe("dashboardBuildSpec.runChunk — a failing chunk retries before it fail
     expect(near.cursor.chunkErrors).toBe(3);
 
     await expect(
-      spec.runChunk({ installationKey: "i", version: "v", cursor: { phase: "list", chunkErrors: 3 } })
+      spec.runChunk({ installationKey: "i", version: "v", cursor: { phase: "list", chunkErrors: 3 } }),
     ).rejects.toThrow(/503/);
   });
 
@@ -276,7 +322,11 @@ describe("dashboardBuildSpec.runChunk — a failing chunk retries before it fail
       .mockRejectedValueOnce(new Error("Jira request failed (400): bad startAt"))
       .mockResolvedValue({ values: [], total: 613, isLast: true });
 
-    const r = await spec.runChunk({ installationKey: "i", version: "v", cursor: { phase: "list", startAt: 100, total: 613 } });
+    const r = await spec.runChunk({
+      installationKey: "i",
+      version: "v",
+      cursor: { phase: "list", startAt: 100, total: 613 },
+    });
 
     expect(r.done).toBe(false);
     // No chunkErrors -- this is not a retry. The bad page is stepped over and enumeration
@@ -288,7 +338,8 @@ describe("dashboardBuildSpec.runChunk — a failing chunk retries before it fail
   test("skipped-page count rides the cursor through every phase to the scan page", async () => {
     store.loadGadgetsNeedingConfig.mockResolvedValue([]);
     const done = await spec.runChunk({
-      installationKey: "i", version: "v",
+      installationKey: "i",
+      version: "v",
       cursor: { phase: "configs", walked: 7, listTotal: 613, gadgetTotal: 4000, skippedPages: 3 },
     });
     expect(done.done).toBe(true);
@@ -300,7 +351,11 @@ describe("dashboardBuildSpec.runChunk — a failing chunk retries before it fail
 
     // total unknown (0), so the offset guard never ends the phase -- only the skip ceiling does.
     await expect(
-      spec.runChunk({ installationKey: "i", version: "v", cursor: { phase: "list", skippedPages: 20, chunkErrors: 3 } })
+      spec.runChunk({
+        installationKey: "i",
+        version: "v",
+        cursor: { phase: "list", skippedPages: 20, chunkErrors: 3 },
+      }),
     ).rejects.toThrow(/unreadable/);
   });
 });

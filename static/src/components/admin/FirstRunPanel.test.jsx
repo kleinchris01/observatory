@@ -26,7 +26,15 @@ const state = (over = {}) => ({
   dismissed: false,
   remaining: 2,
   scanRunning: false,
-  steps: [step(), step({ key: "evidence-rule", title: 'Understand "not measured"', kind: "acknowledged", detail: "Zero only ever means a scan looked and found none." })],
+  steps: [
+    step(),
+    step({
+      key: "evidence-rule",
+      title: 'Understand "not measured"',
+      kind: "acknowledged",
+      detail: "Zero only ever means a scan looked and found none.",
+    }),
+  ],
   arrivals: { available: false, landed: [], pending: [] },
   ...over,
 });
@@ -74,7 +82,9 @@ describe("FirstRunPanel", () => {
   });
 
   test("acknowledging sends the key and re-reads the state", async () => {
-    invoke.mockImplementation((fn) => fn === "getFirstRunState" ? Promise.resolve(state()) : Promise.resolve({ ok: true }));
+    invoke.mockImplementation((fn) =>
+      fn === "getFirstRunState" ? Promise.resolve(state()) : Promise.resolve({ ok: true }),
+    );
     render(<FirstRunPanel onNavigate={vi.fn()} />);
 
     await userEvent.click(await screen.findByRole("button", { name: "Got it" }));
@@ -84,7 +94,9 @@ describe("FirstRunPanel", () => {
   });
 
   test("dismissing sends the dismissal", async () => {
-    invoke.mockImplementation((fn) => fn === "getFirstRunState" ? Promise.resolve(state()) : Promise.resolve({ ok: true }));
+    invoke.mockImplementation((fn) =>
+      fn === "getFirstRunState" ? Promise.resolve(state()) : Promise.resolve({ ok: true }),
+    );
     render(<FirstRunPanel onNavigate={vi.fn()} />);
 
     await userEvent.click(await screen.findByRole("button", { name: "Dismiss" }));
@@ -93,9 +105,9 @@ describe("FirstRunPanel", () => {
   });
 
   test("a failed write leaves the panel as it was", async () => {
-    invoke.mockImplementation((fn) => fn === "getFirstRunState"
-      ? Promise.resolve(state())
-      : Promise.reject(new Error("kvs down")));
+    invoke.mockImplementation((fn) =>
+      fn === "getFirstRunState" ? Promise.resolve(state()) : Promise.reject(new Error("kvs down")),
+    );
     render(<FirstRunPanel onNavigate={vi.fn()} />);
 
     await userEvent.click(await screen.findByRole("button", { name: "Got it" }));
@@ -115,11 +127,13 @@ describe("FirstRunPanel", () => {
   });
 
   test("a done step keeps its title but drops its explanation and its prompts", async () => {
-    invoke.mockResolvedValue(state({
-      remaining: 0,
-      show: true,
-      steps: [step({ done: true, cta: { label: "Go to Scans", tab: "scans" } })],
-    }));
+    invoke.mockResolvedValue(
+      state({
+        remaining: 0,
+        show: true,
+        steps: [step({ done: true, cta: { label: "Go to Scans", tab: "scans" } })],
+      }),
+    );
     render(<FirstRunPanel onNavigate={vi.fn()} />);
 
     expect(await screen.findByText("Run the first scan")).toBeInTheDocument();
@@ -139,12 +153,44 @@ describe("ArrivalsList", () => {
   const arrivals = (over = {}) => ({
     available: true,
     landed: [
-      { key: "screens", label: "Screens", state: "done", completedAt: "2026-01-01T11:00:00.000Z", produced: 40, countable: true, error: null },
-      { key: "health", label: "Health", state: "done", completedAt: "2026-01-01T10:00:00.000Z", produced: null, countable: false, error: null },
+      {
+        key: "screens",
+        label: "Screens",
+        state: "done",
+        completedAt: "2026-01-01T11:00:00.000Z",
+        produced: 40,
+        countable: true,
+        error: null,
+      },
+      {
+        key: "health",
+        label: "Health",
+        state: "done",
+        completedAt: "2026-01-01T10:00:00.000Z",
+        produced: null,
+        countable: false,
+        error: null,
+      },
     ],
     pending: [
-      { key: "issues", label: "Issues", state: "running", completedAt: null, produced: null, countable: false, error: null },
-      { key: "filters", label: "Filters", state: "failed", completedAt: null, produced: null, countable: false, error: "Jira said 503" },
+      {
+        key: "issues",
+        label: "Issues",
+        state: "running",
+        completedAt: null,
+        produced: null,
+        countable: false,
+        error: null,
+      },
+      {
+        key: "filters",
+        label: "Filters",
+        state: "failed",
+        completedAt: null,
+        produced: null,
+        countable: false,
+        error: "Jira said 503",
+      },
     ],
     ...over,
   });
@@ -193,7 +239,9 @@ describe("ArrivalsList", () => {
   });
 
   test("an unavailable arrivals read renders nothing", () => {
-    const { container } = render(<ArrivalsList arrivals={{ available: false, landed: [], pending: [] }} onNavigate={vi.fn()} />);
+    const { container } = render(
+      <ArrivalsList arrivals={{ available: false, landed: [], pending: [] }} onNavigate={vi.fn()} />,
+    );
     expect(container).toBeEmptyDOMElement();
   });
 });

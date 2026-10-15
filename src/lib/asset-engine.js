@@ -101,15 +101,14 @@ export function normalizeAttribute(raw, schemaId) {
     objectTypeId: raw?.objectType?.id != null ? String(raw.objectType.id) : null,
     schemaId: String(schemaId),
     name: raw?.name || null,
-    dataType: ATTRIBUTE_TYPE_LABELS[typeCode]
-      || raw?.defaultType?.name
-      || (Number.isFinite(typeCode) ? `type-${typeCode}` : "unknown"),
+    dataType:
+      ATTRIBUTE_TYPE_LABELS[typeCode] ||
+      raw?.defaultType?.name ||
+      (Number.isFinite(typeCode) ? `type-${typeCode}` : "unknown"),
     // Only set for an object-reference attribute: the object type it points at. A value not
     // in this snapshot's type set is a broken reference -- the Assets analogue of a filter
     // scoped to a deleted project.
-    referenceObjectTypeId: isReference && raw?.referenceObjectTypeId != null
-      ? String(raw.referenceObjectTypeId)
-      : null,
+    referenceObjectTypeId: isReference && raw?.referenceObjectTypeId != null ? String(raw.referenceObjectTypeId) : null,
     editable: raw?.editable !== false,
     system: Boolean(raw?.system),
   };
@@ -143,8 +142,10 @@ export async function buildAssetSnapshot(installationKey) {
     });
 
     if (!workspaceId) {
-      return finishUnavailable(installationKey,
-        "This site has no Assets workspace — Assets (JSM Premium/Enterprise) is not enabled here.");
+      return finishUnavailable(
+        installationKey,
+        "This site has no Assets workspace — Assets (JSM Premium/Enterprise) is not enabled here.",
+      );
     }
 
     const base = assetsBase(workspaceId);
@@ -153,12 +154,13 @@ export async function buildAssetSnapshot(installationKey) {
     let rawSchemas;
     try {
       const listed = await requestAtlassianJson(`${base}/objectschema/list`);
-      rawSchemas = Array.isArray(listed) ? listed : (listed?.values || listed?.objectSchemas || []);
+      rawSchemas = Array.isArray(listed) ? listed : listed?.values || listed?.objectSchemas || [];
     } catch (error) {
       if (isAssetsUnavailable(error)) {
-        const reason = error.status === 401 || error.status === 403
-          ? `The Assets API returned ${error.status}. Assets is provisioned (the workspace resolved), but this app is not authorised to read it — grant the Observatory app an Assets read role in Assets → Configuration → Roles, then rebuild.`
-          : `The Assets API returned ${error.status ?? "no response"} — Assets is not enabled on this site (it needs JSM Premium/Enterprise).`;
+        const reason =
+          error.status === 401 || error.status === 403
+            ? `The Assets API returned ${error.status}. Assets is provisioned (the workspace resolved), but this app is not authorised to read it — grant the Observatory app an Assets read role in Assets → Configuration → Roles, then rebuild.`
+            : `The Assets API returned ${error.status ?? "no response"} — Assets is not enabled on this site (it needs JSM Premium/Enterprise).`;
         return finishUnavailable(installationKey, reason);
       }
       throw error;
@@ -174,8 +176,8 @@ export async function buildAssetSnapshot(installationKey) {
         requestAtlassianJson(`${base}/objectschema/${schema.id}/objecttypes/flat`).catch(() => []),
         requestAtlassianJson(`${base}/objectschema/${schema.id}/attributes`).catch(() => []),
       ]);
-      const typeList = Array.isArray(rawTypes) ? rawTypes : (rawTypes?.values || []);
-      const attrList = Array.isArray(rawAttrs) ? rawAttrs : (rawAttrs?.values || []);
+      const typeList = Array.isArray(rawTypes) ? rawTypes : rawTypes?.values || [];
+      const attrList = Array.isArray(rawAttrs) ? rawAttrs : rawAttrs?.values || [];
       return {
         objectTypes: typeList.filter((t) => t?.id != null).map((t) => normalizeObjectType(t, schema.id)),
         attributes: attrList.filter((a) => a?.id != null).map((a) => normalizeAttribute(a, schema.id)),
@@ -203,8 +205,11 @@ export async function buildAssetSnapshot(installationKey) {
 
     incrMetric(METRIC_NAMES.assetSnapshotCompleted);
     logger.info("asset-snapshot.completed", {
-      version, workspaceId,
-      schemas: schemas.length, objectTypes: objectTypes.length, attributes: attributes.length,
+      version,
+      workspaceId,
+      schemas: schemas.length,
+      objectTypes: objectTypes.length,
+      attributes: attributes.length,
     });
     return { version, schemas: schemas.length, objectTypes: objectTypes.length, attributes: attributes.length };
   } catch (error) {
@@ -300,8 +305,7 @@ export async function buildAssetTypeCounts(installationKey) {
     }
 
     const base = assetsBase(structureMeta.workspaceId);
-    const objectTypes = (await loadAssetObjectTypes(installationKey, structureMeta.version))
-      .filter((t) => !t.abstract);
+    const objectTypes = (await loadAssetObjectTypes(installationKey, structureMeta.version)).filter((t) => !t.abstract);
 
     let measured = 0;
     let unmeasured = 0;
@@ -310,7 +314,12 @@ export async function buildAssetTypeCounts(installationKey) {
       try {
         const payload = await requestAtlassianJson(`${base}/object/aql`, {
           method: "POST",
-          body: { qlQuery: buildObjectTypeCountQuery(type.schemaId, type.name), page: 1, resultPerPage: 1, includeAttributes: false },
+          body: {
+            qlQuery: buildObjectTypeCountQuery(type.schemaId, type.name),
+            page: 1,
+            resultPerPage: 1,
+            includeAttributes: false,
+          },
         });
         const count = parseAqlTotalCount(payload);
         if (count === null) {
@@ -322,7 +331,9 @@ export async function buildAssetTypeCounts(installationKey) {
       } catch (error) {
         unmeasured++;
         logger.warn("asset-type-count.type_failed", {
-          installationKey, objectTypeId: type.id, error: String(error?.message || error),
+          installationKey,
+          objectTypeId: type.id,
+          error: String(error?.message || error),
         });
         return null;
       }

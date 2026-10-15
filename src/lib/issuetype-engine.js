@@ -110,9 +110,7 @@ export async function buildIssueTypeSnapshot(installationKey) {
     // retiring every scheme on the site.
     const schemeProjectRows = await getIssueTypeSchemeProjects(projects.map((p) => p.id));
 
-    const issueTypes = (rawTypes || [])
-      .filter((t) => t?.id != null)
-      .map(normalizeIssueType);
+    const issueTypes = (rawTypes || []).filter((t) => t?.id != null).map(normalizeIssueType);
 
     // Ordered membership. Jira returns the /mapping rows already in an admin's chosen order;
     // item_index is assigned per scheme as they stream past so the order survives the round

@@ -34,8 +34,8 @@ function emit(level, event, data = {}) {
 
 export const logger = {
   debug: (event, data) => emit("debug", event, data),
-  info:  (event, data) => emit("info",  event, data),
-  warn:  (event, data) => emit("warn",  event, data),
+  info: (event, data) => emit("info", event, data),
+  warn: (event, data) => emit("warn", event, data),
   error: (event, data) => emit("error", event, data),
 };
 

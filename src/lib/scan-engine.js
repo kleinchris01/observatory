@@ -153,7 +153,12 @@ function isQueuePushRejection(error) {
 const ISSUE_SCAN_WORKER_PUSH_ATTEMPTS = 8;
 
 export function isExpiredPageTokenError(error) {
-  return Number(error?.status) === 400 && String(error?.message || "").toLowerCase().includes("next page token");
+  return (
+    Number(error?.status) === 400 &&
+    String(error?.message || "")
+      .toLowerCase()
+      .includes("next page token")
+  );
 }
 
 export async function queueIssueScanChunk(installationKey, progressLog = [], nextStartAt = 0) {
@@ -177,7 +182,7 @@ export async function queueIssueScanChunk(installationKey, progressLog = [], nex
       ];
       await writeIssueScanMeta(installationKey, {
         state: "queued",
-        nextStartAt: nextStartAt || (Date.now() + delayMs),
+        nextStartAt: nextStartAt || Date.now() + delayMs,
         lastError: null,
         progressLog: queuedLog,
       }).catch(ignoreWith("scan.backpressure_meta_write_failed", { installationKey }));
@@ -216,7 +221,7 @@ export async function queueIssueScanWorker(installationKey, workerId, { delaySec
         if (isQueuePushRejection(error)) error.isQueueBackpressureExhausted = true;
         throw error;
       }
-      const backoffMs = Math.min(45000, 3000 * (2 ** (attempt - 1))) + Math.floor(Math.random() * 1000);
+      const backoffMs = Math.min(45000, 3000 * 2 ** (attempt - 1)) + Math.floor(Math.random() * 1000);
       logger.warn("scan.worker_requeue_backpressure", { installationKey, workerId, attempt, backoffMs });
       await sleep(backoffMs);
     }
@@ -248,7 +253,8 @@ export async function reviveStalledIssueScanWorkers(installationKey) {
 
   const workers = await Promise.all(
     Array.from({ length: ISSUE_SCAN_WORKERS }, (_, workerId) =>
-      readIssueScanWorker(installationKey, workerId).catch(() => null))
+      readIssueScanWorker(installationKey, workerId).catch(() => null),
+    ),
   );
 
   let revived = 0;
@@ -261,8 +267,9 @@ export async function reviveStalledIssueScanWorkers(installationKey) {
     try {
       // Clear the marker first so a second watchdog tick a moment later does not re-queue the
       // same worker while its restart message is still in flight.
-      await updateIssueScanWorker(installationKey, workerId, { lastError: null })
-        .catch(ignoreWith("scan.worker_revive_marker_clear_failed", { workerId }));
+      await updateIssueScanWorker(installationKey, workerId, { lastError: null }).catch(
+        ignoreWith("scan.worker_revive_marker_clear_failed", { workerId }),
+      );
       await queueIssueScanWorker(installationKey, workerId, { delaySeconds: 1 + workerId });
       revived += 1;
       logger.warn("scan.worker_revived", { installationKey, workerId });
@@ -300,17 +307,19 @@ export async function refreshArchivedProjects(installationKey, snapshotVersion) 
     projects = await getArchivedJiraProjects();
   } catch (error) {
     const message = String(error?.message || error).slice(0, 300);
-    await replaceArchivedProjects(installationKey, [], { available: false, error: message })
-      .catch(ignoreWith("scan.archived_meta_write_failed", { installationKey }));
+    await replaceArchivedProjects(installationKey, [], { available: false, error: message }).catch(
+      ignoreWith("scan.archived_meta_write_failed", { installationKey }),
+    );
     logger.warn("scan.archived_projects_unreadable", { installationKey, error: message });
     return { available: false, count: 0, copied: 0, error: message };
   }
   try {
     await replaceArchivedProjects(installationKey, projects, { available: true });
     const ids = projects.map((p) => p.id);
-    const { copied } = snapshotVersion && ids.length
-      ? await preserveArchivedFieldUsage(installationKey, snapshotVersion, ids)
-      : { copied: 0 };
+    const { copied } =
+      snapshotVersion && ids.length
+        ? await preserveArchivedFieldUsage(installationKey, snapshotVersion, ids)
+        : { copied: 0 };
     await pruneRestoredArchivedUsage(installationKey, ids);
     logger.info("scan.archived_projects_read", { installationKey, archived: ids.length, fieldCountsKept: copied });
     return { available: true, count: ids.length, copied, error: null };
@@ -330,15 +339,19 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
     // leaves the last good series in place, which is the whole point of the buffer -- it is
     // strictly better to keep last week's activity than to lose it because a promote query
     // timed out.
-    const activityPromoted = await promoteIssueScanActivity(installationKey)
-      .catch(fallbackOn("scan.activity_promote_failed", { projectsPromoted: 0, rowsInserted: 0 }, { installationKey }));
-    console.log(`${tag}: promoted activity for ${activityPromoted.projectsPromoted} projects (${activityPromoted.rowsInserted} rows)`);
+    const activityPromoted = await promoteIssueScanActivity(installationKey).catch(
+      fallbackOn("scan.activity_promote_failed", { projectsPromoted: 0, rowsInserted: 0 }, { installationKey }),
+    );
+    console.log(
+      `${tag}: promoted activity for ${activityPromoted.projectsPromoted} projects (${activityPromoted.rowsInserted} rows)`,
+    );
 
     // Read every worker's final state once, up front: it decides both whether the crawl's
     // totals can be trusted as authoritative AND whether this run carries a coverage caveat.
     const workers = await Promise.all(
       Array.from({ length: ISSUE_SCAN_WORKERS }, (_, workerId) =>
-        readIssueScanWorker(installationKey, workerId).catch(fallbackOn("scan.worker_read_failed", null, { workerId })))
+        readIssueScanWorker(installationKey, workerId).catch(fallbackOn("scan.worker_read_failed", null, { workerId })),
+      ),
     );
     const scanCoverageComplete = workers.every((worker) => !worker || worker.status === "done");
     const unfinished = workers
@@ -348,17 +361,21 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
     // otherwise derive the caveat from the workers themselves. This line was silently `null`
     // before — the finalize write clobbered the "worker N stopped" note the catch had just
     // written, so a run that dropped tens of thousands of issues showed a green tick.
-    const coverageCaveat = workerError
-      || (unfinished.length
-        ? `${unfinished.length} of ${ISSUE_SCAN_WORKERS} crawl workers did not finish `
-          + `(${unfinished.map(({ workerId, worker }) => `worker ${workerId}: ${worker.lastError || worker.status}`).join("; ")}). `
-          + `Their projects keep their previous issue counts — re-run the scan to complete them.`
+    const coverageCaveat =
+      workerError ||
+      (unfinished.length
+        ? `${unfinished.length} of ${ISSUE_SCAN_WORKERS} crawl workers did not finish ` +
+          `(${unfinished.map(({ workerId, worker }) => `worker ${workerId}: ${worker.lastError || worker.status}`).join("; ")}). ` +
+          `Their projects keep their previous issue counts — re-run the scan to complete them.`
         : null);
 
     // Usage per item, gated the same way: a partial crawl keeps the last good figures.
-    const usagePromoted = await promoteUsageTally(installationKey, { coverageComplete: scanCoverageComplete })
-      .catch(fallbackOn("scan.usage_promote_failed", { promoted: false, entities: 0 }, { installationKey }));
-    console.log(`${tag}: usage ${usagePromoted.promoted ? `promoted for ${usagePromoted.entities} items` : "kept from the last complete crawl"}`);
+    const usagePromoted = await promoteUsageTally(installationKey, { coverageComplete: scanCoverageComplete }).catch(
+      fallbackOn("scan.usage_promote_failed", { promoted: false, entities: 0 }, { installationKey }),
+    );
+    console.log(
+      `${tag}: usage ${usagePromoted.promoted ? `promoted for ${usagePromoted.entities} items` : "kept from the last complete crawl"}`,
+    );
 
     const snapshotMeta = await readSnapshotMeta(installationKey);
 
@@ -367,26 +384,42 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
     // lives only in an archived project keeps its evidence. A refused read is recorded as such
     // and changes nothing else -- it must never be taken for "nothing is archived".
     const archived = await refreshArchivedProjects(installationKey, snapshotMeta?.version || null);
-    console.log(`${tag}: archived projects ${archived.available ? `${archived.count} listed, ${archived.copied} field counts kept` : `not readable (${archived.error})`}`);
+    console.log(
+      `${tag}: archived projects ${archived.available ? `${archived.count} listed, ${archived.copied} field counts kept` : `not readable (${archived.error})`}`,
+    );
 
     if (snapshotMeta?.version) {
       // Only trust the crawl's totals as authoritative (and zero out fields it never saw)
       // when every worker actually finished — a field absent from a partial crawl's buffer
       // is "not yet crawled," not "confirmed zero," and treating it as the latter would
       // erase good data from a previous run.
-      const promoted = await promoteIssueScanToSnapshotProjectUsage(installationKey, snapshotMeta.version, { syncTotalIssueCount: scanCoverageComplete });
-      console.log(`${tag}: promoted ${promoted.fieldsPromoted} fields (${promoted.rowsInserted} rows)${scanCoverageComplete ? ", totals synced" : ""}`);
+      const promoted = await promoteIssueScanToSnapshotProjectUsage(installationKey, snapshotMeta.version, {
+        syncTotalIssueCount: scanCoverageComplete,
+      });
+      console.log(
+        `${tag}: promoted ${promoted.fieldsPromoted} fields (${promoted.rowsInserted} rows)${scanCoverageComplete ? ", totals synced" : ""}`,
+      );
 
       // The field x issue-type axis, promoted the same way and gated the same way: a field
       // absent from a partial crawl's buffer is "not yet crawled", not "used on no type".
-      const typePromoted = await promoteIssueScanFieldTypeUsage(installationKey, snapshotMeta.version, { coverageComplete: scanCoverageComplete })
-        .catch(fallbackOn("scan.field_type_promote_failed", { fieldsPromoted: 0, rowsInserted: 0 }, { installationKey }));
-      console.log(`${tag}: promoted issue-type usage for ${typePromoted.fieldsPromoted} fields (${typePromoted.rowsInserted} rows)`);
+      const typePromoted = await promoteIssueScanFieldTypeUsage(installationKey, snapshotMeta.version, {
+        coverageComplete: scanCoverageComplete,
+      }).catch(
+        fallbackOn("scan.field_type_promote_failed", { fieldsPromoted: 0, rowsInserted: 0 }, { installationKey }),
+      );
+      console.log(
+        `${tag}: promoted issue-type usage for ${typePromoted.fieldsPromoted} fields (${typePromoted.rowsInserted} rows)`,
+      );
 
       // The field x user axis: which people a user-picker field references. Same gating.
-      const userPromoted = await promoteIssueScanFieldUserUsage(installationKey, snapshotMeta.version, { coverageComplete: scanCoverageComplete })
-        .catch(fallbackOn("scan.field_user_promote_failed", { fieldsPromoted: 0, rowsInserted: 0 }, { installationKey }));
-      console.log(`${tag}: promoted user-picker usage for ${userPromoted.fieldsPromoted} fields (${userPromoted.rowsInserted} rows)`);
+      const userPromoted = await promoteIssueScanFieldUserUsage(installationKey, snapshotMeta.version, {
+        coverageComplete: scanCoverageComplete,
+      }).catch(
+        fallbackOn("scan.field_user_promote_failed", { fieldsPromoted: 0, rowsInserted: 0 }, { installationKey }),
+      );
+      console.log(
+        `${tag}: promoted user-picker usage for ${userPromoted.fieldsPromoted} fields (${userPromoted.rowsInserted} rows)`,
+      );
 
       // Fields holding archived data are refreshed too: they may be in no crawl buffer at all,
       // and their findings must stop calling them unused.
@@ -395,7 +428,11 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
         : [];
       const refreshIds = [...new Set([...(promoted.touchedFieldIds || []), ...archivedFieldIds])];
       if (refreshIds.length) {
-        const refreshed = await refreshGovernanceFindingsForFields(installationKey, snapshotMeta.version, refreshIds).catch((err) => {
+        const refreshed = await refreshGovernanceFindingsForFields(
+          installationKey,
+          snapshotMeta.version,
+          refreshIds,
+        ).catch((err) => {
           console.warn(`${tag}: refreshGovernanceFindingsForFields failed:`, err?.message || err);
           return { updatedCount: 0 };
         });
@@ -406,7 +443,7 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
     const finalMeta = await readIssueScanMeta(installationKey);
     const completionTimestamp = new Date().toISOString();
     const completedProgressLog = [
-      ...((finalMeta?.progressLog || []).slice(-40)),
+      ...(finalMeta?.progressLog || []).slice(-40),
       {
         t: completionTimestamp,
         msg: coverageCaveat
@@ -438,7 +475,9 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
     const message = error?.message || String(error);
     logger.error("scan.finalization_failed", { installationKey, error: message });
     console.error(`${tag}: finalization failed:`, message);
-    const finalMeta = await readIssueScanMeta(installationKey).catch(fallbackOn("scan.final_meta_read_failed", null, { installationKey }));
+    const finalMeta = await readIssueScanMeta(installationKey).catch(
+      fallbackOn("scan.final_meta_read_failed", null, { installationKey }),
+    );
     await writeIssueScanMeta(installationKey, {
       state: "failed",
       completedAt: new Date().toISOString(),
@@ -446,7 +485,7 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
       nextStartAt: 0,
       lastError: `Finalization failed: ${message}`,
       progressLog: [
-        ...((finalMeta?.progressLog || []).slice(-40)),
+        ...(finalMeta?.progressLog || []).slice(-40),
         { t: new Date().toISOString(), msg: `Finalization failed - ${message}` },
       ],
     }).catch(ignoreWith("scan.finalization_failure_write_failed", { installationKey }));
@@ -494,7 +533,7 @@ export async function runIssueScanCoordinator(installationKey) {
         method: "POST",
         body: JSON.stringify({ jql: "project is not empty" }),
       }),
-      ISSUE_COUNT_TIMEOUT_MS
+      ISSUE_COUNT_TIMEOUT_MS,
     ).catch((error) => {
       logger.warn("scan.coordinator.global_count_failed", {
         message: error?.message || String(error),
@@ -506,12 +545,14 @@ export async function runIssueScanCoordinator(installationKey) {
     log(
       globalCountResult
         ? `Site-wide issue count: ${totalEstimatedIssues.toLocaleString()}`
-        : "Site-wide issue count UNAVAILABLE (count API failed) — progress totals will be unreliable"
+        : "Site-wide issue count UNAVAILABLE (count API failed) — progress totals will be unreliable",
     );
 
     // Get per-project approximate counts to load-balance workers.
     // Prefer historical data; fall back to live approximate-count for unknown projects.
-    const knownTotals = await loadIssueScanProjectTotals(installationKey).catch(fallbackOn("scan.project_totals_load_failed", () => [], { installationKey }));
+    const knownTotals = await loadIssueScanProjectTotals(installationKey).catch(
+      fallbackOn("scan.project_totals_load_failed", () => [], { installationKey }),
+    );
     const issueCountByKey = new Map(knownTotals.map((r) => [r.projectKey, r.uniqueIssueCount]));
     const unknownKeys = allProjectKeys.filter((k) => !issueCountByKey.has(k));
     if (unknownKeys.length > 0) {
@@ -532,7 +573,7 @@ export async function runIssueScanCoordinator(installationKey) {
                 method: "POST",
                 body: JSON.stringify({ jql: `project = "${key}"` }),
               }),
-              ISSUE_COUNT_TIMEOUT_MS
+              ISSUE_COUNT_TIMEOUT_MS,
             )
               .then((r) => [key, Number(r?.count ?? 0)])
               .catch((error) => {
@@ -541,8 +582,8 @@ export async function runIssueScanCoordinator(installationKey) {
                   firstApproxError = { message: error?.message || String(error), status: error?.status ?? null };
                 }
                 return [key, 100];
-              })
-          )
+              }),
+          ),
         );
         for (const [key, count] of results) issueCountByKey.set(key, count || 1);
         if (i + APPROX_BATCH < unknownKeys.length) await sleep(150);
@@ -553,7 +594,9 @@ export async function runIssueScanCoordinator(installationKey) {
           total: unknownKeys.length,
           firstError: firstApproxError,
         });
-        log(`Approximate count failed for ${approxFailures}/${unknownKeys.length} projects: ${firstApproxError?.message || "unknown error"}`);
+        log(
+          `Approximate count failed for ${approxFailures}/${unknownKeys.length} projects: ${firstApproxError?.message || "unknown error"}`,
+        );
       }
     }
 
@@ -564,14 +607,14 @@ export async function runIssueScanCoordinator(installationKey) {
     // Build one JQL filter per worker covering all its assigned projects. Kept because it is
     // still what a single-slice worker crawls, and what the logs and older rows refer to.
     const workerJqls = bins.map((bin) =>
-      bin.keys.length === 0 ? null : `project IN (${bin.keys.map((k) => `"${k}"`).join(", ")})`
+      bin.keys.length === 0 ? null : `project IN (${bin.keys.map((k) => `"${k}"`).join(", ")})`,
     );
 
     // And the slices within each worker -- see sliceProjectKeys. This is where the throughput
     // comes from: the same five invocations, each now using the request concurrency it was
     // always permitted instead of one page at a time.
     const workerSlices = bins.map((bin) =>
-      bin.keys.length === 0 ? [] : sliceProjectKeys(bin.keys, issueCountByKey, ISSUE_SCAN_SLICES_PER_WORKER)
+      bin.keys.length === 0 ? [] : sliceProjectKeys(bin.keys, issueCountByKey, ISSUE_SCAN_SLICES_PER_WORKER),
     );
 
     // Keep the field inventory in sync with Jira before crawling — every scan run
@@ -588,11 +631,26 @@ export async function runIssueScanCoordinator(installationKey) {
         const version = snapshotMeta?.version || String(Date.now());
         if (isColdStart) await clearSnapshotVersion(installationKey, version);
         const syncResult = await syncFieldCatalog(installationKey, version);
-        log(`Field catalog synced — ${syncResult.newFieldCount} new, ${syncResult.changedFieldCount} changed, ${syncResult.totalCatalogCount} total`);
+        log(
+          `Field catalog synced — ${syncResult.newFieldCount} new, ${syncResult.changedFieldCount} changed, ${syncResult.totalCatalogCount} total`,
+        );
         const now = new Date().toISOString();
-        await writeSnapshotMeta(installationKey, isColdStart
-          ? { state: "ready", version, buildingVersion: null, startedAt: now, completedAt: now, refreshedAt: now, totalFields: syncResult.totalCatalogCount, processedFields: syncResult.totalCatalogCount, lastError: null }
-          : { totalFields: syncResult.totalCatalogCount });
+        await writeSnapshotMeta(
+          installationKey,
+          isColdStart
+            ? {
+                state: "ready",
+                version,
+                buildingVersion: null,
+                startedAt: now,
+                completedAt: now,
+                refreshedAt: now,
+                totalFields: syncResult.totalCatalogCount,
+                processedFields: syncResult.totalCatalogCount,
+                lastError: null,
+              }
+            : { totalFields: syncResult.totalCatalogCount },
+        );
         snapshotMeta = await readSnapshotMeta(installationKey);
       } catch (syncError) {
         // Discovery must never block the crawl itself — fall through and use whatever
@@ -616,17 +674,24 @@ export async function runIssueScanCoordinator(installationKey) {
         try {
           await queueFieldOptionsCache(installationKey, field.id);
         } catch (pushError) {
-          console.warn(`runIssueScanCoordinator: failed to queue option cache for ${field.id}:`, pushError?.message || pushError);
+          console.warn(
+            `runIssueScanCoordinator: failed to queue option cache for ${field.id}:`,
+            pushError?.message || pushError,
+          );
         }
       }
     }
 
-    log(`Starting ${ISSUE_SCAN_WORKERS} workers across ${allProjectKeys.length} projects (${totalEstimatedIssues.toLocaleString()} issues on site)`);
+    log(
+      `Starting ${ISSUE_SCAN_WORKERS} workers across ${allProjectKeys.length} projects (${totalEstimatedIssues.toLocaleString()} issues on site)`,
+    );
 
     await clearIssueScanBuffer(installationKey);
     // Status totals accumulate with ON DUPLICATE KEY UPDATE, so a fresh run must start
     // from empty -- otherwise a re-scan doubles every count.
-    await clearStatusIssueCounts(installationKey).catch(ignoreWith("scan.status_totals_clear_failed", { installationKey }));
+    await clearStatusIssueCounts(installationKey).catch(
+      ignoreWith("scan.status_totals_clear_failed", { installationKey }),
+    );
     await clearRqtFieldIndex(installationKey);
     await clearRqtIssueKeys(installationKey);
     await clearRqtValueIndex(installationKey);
@@ -635,14 +700,19 @@ export async function runIssueScanCoordinator(installationKey) {
       state: "building",
       startedAt: new Date().toISOString(),
       completedAt: null,
-      totalPages: ISSUE_SCAN_WORKERS,  // one slot per worker; finalization fires when all done
+      totalPages: ISSUE_SCAN_WORKERS, // one slot per worker; finalization fires when all done
       processedPages: 0,
       totalIssues: totalEstimatedIssues,
       processedIssues: 0,
       nextPageToken: null,
       nextStartAt: 0,
       lastError: null,
-      progressLog: [{ t: new Date().toISOString(), msg: `Starting ${ISSUE_SCAN_WORKERS} workers — ${totalEstimatedIssues.toLocaleString()} issues on site` }],
+      progressLog: [
+        {
+          t: new Date().toISOString(),
+          msg: `Starting ${ISSUE_SCAN_WORKERS} workers — ${totalEstimatedIssues.toLocaleString()} issues on site`,
+        },
+      ],
     });
 
     await replaceIssueScanWorkers(
@@ -653,7 +723,7 @@ export async function runIssueScanCoordinator(installationKey) {
         jqlFilter,
         slices: workerSlices[workerId],
         fieldIds,
-      }))
+      })),
     );
 
     for (let i = 0; i < ISSUE_SCAN_WORKERS; i++) {
@@ -702,20 +772,22 @@ export function normalizeWorkerSlices(worker) {
   }
 
   if (!worker?.jqlFilter) return [];
-  return [{
-    id: 0,
-    jql: worker.jqlFilter,
-    // No key list on a pre-slice worker row, so a restart cannot delete its own contribution
-    // exactly. runSlice checks for this and declines to re-crawl rather than double-counting.
-    keys: null,
-    token: worker.nextPageToken || null,
-    done: false,
-    pages: Number(worker.processedPages) || 0,
-    issues: Number(worker.processedIssues) || 0,
-    // Same shape as a stored slice, so the crawl has one slice type and not two.
-    restarts: 0,
-    abandoned: false,
-  }];
+  return [
+    {
+      id: 0,
+      jql: worker.jqlFilter,
+      // No key list on a pre-slice worker row, so a restart cannot delete its own contribution
+      // exactly. runSlice checks for this and declines to re-crawl rather than double-counting.
+      keys: null,
+      token: worker.nextPageToken || null,
+      done: false,
+      pages: Number(worker.processedPages) || 0,
+      issues: Number(worker.processedIssues) || 0,
+      // Same shape as a stored slice, so the crawl has one slice type and not two.
+      restarts: 0,
+      abandoned: false,
+    },
+  ];
 }
 
 // Divide every project on the site among the workers -- the level above sliceProjectKeys,
@@ -820,7 +892,15 @@ export function tallyIssueUsage(issue, buffer, recentCutoffMs, structuralFields 
   const add = (pillar, entityId, basis) => {
     if (!entityId) return;
     const key = `${pillar}|${entityId}|${projectId}`;
-    const entry = buffer.get(key) || { pillar, entityId: String(entityId), projectId, projectKey, total: 0, recent: 0, lastAt: null };
+    const entry = buffer.get(key) || {
+      pillar,
+      entityId: String(entityId),
+      projectId,
+      projectKey,
+      total: 0,
+      recent: 0,
+      lastAt: null,
+    };
     entry.total++;
     const at = dates[basis];
     if (Number.isFinite(at)) {
@@ -919,10 +999,14 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
     if (!worker.jqlFilter) {
       console.log(`${tag}: no projects assigned, marking done`);
       await updateIssueScanWorker(installationKey, workerId, { status: "done", nextPageToken: null, lastError: null });
-      const updatedMeta = await atomicAccumulateIssueScanProgress(installationKey, 1, 0).catch(fallbackOn("scan.progress_accumulate_failed", null, { installationKey }));
+      const updatedMeta = await atomicAccumulateIssueScanProgress(installationKey, 1, 0).catch(
+        fallbackOn("scan.progress_accumulate_failed", null, { installationKey }),
+      );
       if (updatedMeta && updatedMeta.processedPages >= updatedMeta.totalPages && updatedMeta.totalPages > 0) {
         const claimToken = makeJobToken();
-        const claimed = await tryClaimIssueScanFinalization(installationKey, claimToken).catch(fallbackOn("scan.finalization_claim_failed", false, { installationKey }));
+        const claimed = await tryClaimIssueScanFinalization(installationKey, claimToken).catch(
+          fallbackOn("scan.finalization_claim_failed", false, { installationKey }),
+        );
         if (claimed) await completeIssueScanFinalization(installationKey, tag);
       }
       return;
@@ -989,34 +1073,62 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
       rqtFieldHits.clear();
 
       if (counts.size > 0 || totals.size > 0) {
-        await flushIssueScanCounts(installationKey, counts, totals).catch(ignoreWith("scan.count_flush_failed", { workerId }));
-        await flushIssueScanActivity(installationKey, months).catch(ignoreWith("scan.activity_flush_failed", { workerId }));
+        await flushIssueScanCounts(installationKey, counts, totals).catch(
+          ignoreWith("scan.count_flush_failed", { workerId }),
+        );
+        await flushIssueScanActivity(installationKey, months).catch(
+          ignoreWith("scan.activity_flush_failed", { workerId }),
+        );
       }
       if (userCounts.size > 0) {
-        await flushIssueScanFieldUserCounts(installationKey, userCounts).catch(ignoreWith("scan.field_user_flush_failed", { workerId }));
+        await flushIssueScanFieldUserCounts(installationKey, userCounts).catch(
+          ignoreWith("scan.field_user_flush_failed", { workerId }),
+        );
       }
       if (typeCounts.size > 0) {
-        await flushIssueScanTypeCounts(installationKey, typeCounts).catch(ignoreWith("scan.type_flush_failed", { workerId }));
+        await flushIssueScanTypeCounts(installationKey, typeCounts).catch(
+          ignoreWith("scan.type_flush_failed", { workerId }),
+        );
       }
       if (statuses.size > 0) {
-        await flushIssueScanStatusCounts(installationKey, statuses).catch(ignoreWith("scan.status_flush_failed", { workerId }));
+        await flushIssueScanStatusCounts(installationKey, statuses).catch(
+          ignoreWith("scan.status_flush_failed", { workerId }),
+        );
       }
       if (types.size > 0) {
-        await flushIssueScanTypeTotals(installationKey, types).catch(ignoreWith("scan.type_totals_flush_failed", { workerId }));
+        await flushIssueScanTypeTotals(installationKey, types).catch(
+          ignoreWith("scan.type_totals_flush_failed", { workerId }),
+        );
       }
       if (estate.size > 0) {
-        await flushIssueScanEstateTotals(installationKey, estate).catch(ignoreWith("scan.estate_totals_flush_failed", { workerId }));
+        await flushIssueScanEstateTotals(installationKey, estate).catch(
+          ignoreWith("scan.estate_totals_flush_failed", { workerId }),
+        );
       }
       if (activity.size > 0) {
-        await flushIssueScanUserActivity(installationKey, activity).catch(ignoreWith("scan.user_activity_flush_failed", { workerId }));
+        await flushIssueScanUserActivity(installationKey, activity).catch(
+          ignoreWith("scan.user_activity_flush_failed", { workerId }),
+        );
       }
       if (usage.size > 0) {
         await flushUsageBuffer(installationKey, usage).catch(ignoreWith("scan.usage_flush_failed", { workerId }));
       }
-      if (rqtHits.size > 0) await upsertRqtFieldHits(installationKey, rqtHits).catch(ignoreWith("scan.rqt_field_flush_failed", { workerId }));
-      if (rqtIssues.length > 0) await upsertRqtIssueKeys(installationKey, rqtIssues).catch(ignoreWith("scan.rqt_issue_flush_failed", { workerId }));
-      if (rqtValues.length > 0) await upsertRqtValueIssueKeys(installationKey, rqtValues).catch(ignoreWith("scan.rqt_value_flush_failed", { workerId }));
-      if (rqtFieldIssues.length > 0) await upsertRqtFieldIssueKeys(installationKey, rqtFieldIssues).catch(ignoreWith("scan.rqt_field_issue_flush_failed", { workerId }));
+      if (rqtHits.size > 0)
+        await upsertRqtFieldHits(installationKey, rqtHits).catch(
+          ignoreWith("scan.rqt_field_flush_failed", { workerId }),
+        );
+      if (rqtIssues.length > 0)
+        await upsertRqtIssueKeys(installationKey, rqtIssues).catch(
+          ignoreWith("scan.rqt_issue_flush_failed", { workerId }),
+        );
+      if (rqtValues.length > 0)
+        await upsertRqtValueIssueKeys(installationKey, rqtValues).catch(
+          ignoreWith("scan.rqt_value_flush_failed", { workerId }),
+        );
+      if (rqtFieldIssues.length > 0)
+        await upsertRqtFieldIssueKeys(installationKey, rqtFieldIssues).catch(
+          ignoreWith("scan.rqt_field_issue_flush_failed", { workerId }),
+        );
     }
 
     // Bounds memory. Slices run in parallel, so an invocation now processes
@@ -1096,7 +1208,7 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
               slice.abandoned = true;
               await appendIssueScanLogEntry(
                 installationKey,
-                `Worker ${workerId} slice ${slice.id}: abandoned after ${slice.restarts} failed restarts — its projects are not counted in this scan`
+                `Worker ${workerId} slice ${slice.id}: abandoned after ${slice.restarts} failed restarts — its projects are not counted in this scan`,
               ).catch(ignoreWith("scan.log_append_failed", { workerId }));
               return;
             }
@@ -1117,17 +1229,18 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
               slice.abandoned = true;
               await appendIssueScanLogEntry(
                 installationKey,
-                `Worker ${workerId}: search rejected (400) and this worker predates per-slice tracking, so it cannot restart without double-counting — stopping it instead. Start a fresh scan to recrawl these projects.`
+                `Worker ${workerId}: search rejected (400) and this worker predates per-slice tracking, so it cannot restart without double-counting — stopping it instead. Start a fresh scan to recrawl these projects.`,
               ).catch(ignoreWith("scan.log_append_failed", { workerId }));
               return;
             }
 
-            await clearIssueScanBufferForProjects(installationKey, slice.keys)
-              .catch(ignoreWith("scan.buffer_clear_failed", { workerId, sliceId: slice.id }));
+            await clearIssueScanBufferForProjects(installationKey, slice.keys).catch(
+              ignoreWith("scan.buffer_clear_failed", { workerId, sliceId: slice.id }),
+            );
 
             await appendIssueScanLogEntry(
               installationKey,
-              `Worker ${workerId} slice ${slice.id}: search rejected (400)${slice.token ? ", page token likely expired" : ""} — cleared its counts and restarting from page 1 (attempt ${slice.restarts})`
+              `Worker ${workerId} slice ${slice.id}: search rejected (400)${slice.token ? ", page token likely expired" : ""} — cleared its counts and restarting from page 1 (attempt ${slice.restarts})`,
             ).catch(ignoreWith("scan.log_append_failed", { workerId }));
             slice.token = null;
             slice.pages = 0;
@@ -1140,170 +1253,191 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
         const issues = data?.issues || [];
         const newNextPageToken = data?.nextPageToken || null;
 
-      for (const issue of issues) {
-        const projectId = String(issue.fields?.project?.id || "");
-        if (!projectId) continue;
-        const projectKey_ = String(issue.fields?.project?.key || "");
-        const projectName = String(issue.fields?.project?.name || projectKey_);
+        for (const issue of issues) {
+          const projectId = String(issue.fields?.project?.id || "");
+          if (!projectId) continue;
+          const projectKey_ = String(issue.fields?.project?.key || "");
+          const projectName = String(issue.fields?.project?.name || projectKey_);
 
-        const projEntry = projectTotals.get(projectId) || { count: 0, key: projectKey_, name: projectName };
-        projEntry.count++;
-        projectTotals.set(projectId, projEntry);
+          const projEntry = projectTotals.get(projectId) || { count: 0, key: projectKey_, name: projectName };
+          projEntry.count++;
+          projectTotals.set(projectId, projEntry);
 
-        // When the work happened, which is the whole basis of an adoption rate. Skipped
-        // rather than defaulted when Jira did not return it: a scan built before this field
-        // was requested has no dates, and a project dated "today" because the value was
-        // missing would read as brand new and wildly under-adopted.
-        const created = issue.fields?.created;
-        if (typeof created === "string" && created.length >= 7) {
-          const month = created.slice(0, 7);
-          const monthKey = `${projectId}|${month}`;
-          const monthEntry = projectMonths.get(monthKey)
-            || { projectId, month, count: 0, first: created, last: created };
-          monthEntry.count++;
-          if (created < monthEntry.first) monthEntry.first = created;
-          if (created > monthEntry.last) monthEntry.last = created;
-          projectMonths.set(monthKey, monthEntry);
-        }
-
-        // Status is already on every issue -- a universe scan requests "*all" -- so
-        // counting it here costs no extra Jira traffic, only an accumulator. Keyed by
-        // status AND project so a scheme's balance can later be weighted by real issue
-        // volume rather than by how many statuses someone defined.
-        const status = issue.fields?.status;
-        const statusId = status?.id ? String(status.id) : "";
-        if (statusId) {
-          const statusKey = `${statusId}|${projectId}`;
-          const statusEntry = statusCounts.get(statusKey) || {
-            statusId,
-            statusName: status?.name || null,
-            statusCategory: status?.statusCategory?.name || status?.statusCategory?.key || null,
-            projectId,
-            projectKey: projectKey_,
-            count: 0,
-          };
-          statusEntry.count++;
-          statusCounts.set(statusKey, statusEntry);
-        }
-
-        const issueType = issue.fields?.issuetype;
-        const issueTypeId = issueType?.id ? String(issueType.id) : "";
-        const issueTypeName = issueType?.name || issueTypeId;
-
-        // Issues OF this type, per project. Distinct from the field x type buffer below:
-        // that counts a field carrying a value on this type, so summing it across fields
-        // would count one issue once per populated field on it.
-        if (issueTypeId) {
-          const typeKey = `${issueTypeId}|${projectId}`;
-          const typeEntry = typeTotals.get(typeKey)
-            || { issueTypeId, issueTypeName, projectId, projectKey: projectKey_, count: 0 };
-          typeEntry.count++;
-          typeTotals.set(typeKey, typeEntry);
-        }
-
-        // Priority and resolution. An UNSET value is counted under the empty id rather than
-        // skipped -- "1,400 issues carry no resolution" is the shape of an unresolved
-        // backlog, and dropping those rows would rebase every percentage in the pillar.
-        for (const [kind, raw] of [["priority", issue.fields?.priority], ["resolution", issue.fields?.resolution]]) {
-          const valueId = raw?.id ? String(raw.id) : "";
-          const estateKey = `${kind}|${valueId}`;
-          const estateEntry = estateTotals.get(estateKey)
-            || { kind, valueId, valueName: raw?.name || (valueId ? null : "(unset)"), count: 0 };
-          estateEntry.count++;
-          estateTotals.set(estateKey, estateEntry);
-        }
-
-        // Last activity per person, from max(issue.updated) where they are the assignee or
-        // the reporter. The People pillar's missing denominator: "this licence has had no
-        // activity in a year" is the one finding in the product with a currency figure
-        // attached, and it was blocked on this alone.
-        //
-        // Assignee and reporter only. Watchers and comment authors are not on the issue
-        // payload this crawl requests, so including them would need a second pass -- and a
-        // narrower "no activity" is the safe direction: it under-reports idle accounts
-        // rather than marking an active one as idle.
-        const updated = typeof issue.fields?.updated === "string" ? issue.fields.updated : null;
-        if (updated) {
-          for (const person of [issue.fields?.assignee, issue.fields?.reporter]) {
-            const accountId = person?.accountId ? String(person.accountId) : "";
-            if (!accountId) continue;
-            const actEntry = userActivity.get(accountId)
-              || { accountId, displayName: person.displayName || null, lastActivityAt: null, count: 0 };
-            actEntry.count++;
-            if (!actEntry.lastActivityAt || updated > actEntry.lastActivityAt) actEntry.lastActivityAt = updated;
-            if (!actEntry.displayName && person.displayName) actEntry.displayName = person.displayName;
-            userActivity.set(accountId, actEntry);
+          // When the work happened, which is the whole basis of an adoption rate. Skipped
+          // rather than defaulted when Jira did not return it: a scan built before this field
+          // was requested has no dates, and a project dated "today" because the value was
+          // missing would read as brand new and wildly under-adopted.
+          const created = issue.fields?.created;
+          if (typeof created === "string" && created.length >= 7) {
+            const month = created.slice(0, 7);
+            const monthKey = `${projectId}|${month}`;
+            const monthEntry = projectMonths.get(monthKey) || {
+              projectId,
+              month,
+              count: 0,
+              first: created,
+              last: created,
+            };
+            monthEntry.count++;
+            if (created < monthEntry.first) monthEntry.first = created;
+            if (created > monthEntry.last) monthEntry.last = created;
+            projectMonths.set(monthKey, monthEntry);
           }
-        }
 
-        for (const [fieldId, value] of Object.entries(issue.fields || {})) {
-          if (STRUCTURAL_SYSTEM_FIELDS.has(fieldId)) continue;
-          if (!isFieldValueNonEmpty(value)) continue;
-          let byProject = fieldProjectCounts.get(fieldId);
-          if (!byProject) {
-            byProject = new Map();
-            fieldProjectCounts.set(fieldId, byProject);
+          // Status is already on every issue -- a universe scan requests "*all" -- so
+          // counting it here costs no extra Jira traffic, only an accumulator. Keyed by
+          // status AND project so a scheme's balance can later be weighted by real issue
+          // volume rather than by how many statuses someone defined.
+          const status = issue.fields?.status;
+          const statusId = status?.id ? String(status.id) : "";
+          if (statusId) {
+            const statusKey = `${statusId}|${projectId}`;
+            const statusEntry = statusCounts.get(statusKey) || {
+              statusId,
+              statusName: status?.name || null,
+              statusCategory: status?.statusCategory?.name || status?.statusCategory?.key || null,
+              projectId,
+              projectKey: projectKey_,
+              count: 0,
+            };
+            statusEntry.count++;
+            statusCounts.set(statusKey, statusEntry);
           }
-          const entry = byProject.get(projectId) || { count: 0, key: projectKey_, name: projectName };
-          entry.count++;
-          byProject.set(projectId, entry);
 
-          // Same value, second axis: which issue type is carrying it.
+          const issueType = issue.fields?.issuetype;
+          const issueTypeId = issueType?.id ? String(issueType.id) : "";
+          const issueTypeName = issueType?.name || issueTypeId;
+
+          // Issues OF this type, per project. Distinct from the field x type buffer below:
+          // that counts a field carrying a value on this type, so summing it across fields
+          // would count one issue once per populated field on it.
           if (issueTypeId) {
-            let byType = fieldTypeCounts.get(fieldId);
-            if (!byType) {
-              byType = new Map();
-              fieldTypeCounts.set(fieldId, byType);
-            }
-            const typeEntry = byType.get(issueTypeId) || { count: 0, name: issueTypeName };
+            const typeKey = `${issueTypeId}|${projectId}`;
+            const typeEntry = typeTotals.get(typeKey) || {
+              issueTypeId,
+              issueTypeName,
+              projectId,
+              projectKey: projectKey_,
+              count: 0,
+            };
             typeEntry.count++;
-            byType.set(issueTypeId, typeEntry);
+            typeTotals.set(typeKey, typeEntry);
           }
 
-          // Fourth axis: if the value is a user (or list of users), which people. Nothing is
-          // tallied for a non-user value, so this Map only ever contains user-picker fields.
-          const accounts = accountsInValue(value);
-          if (accounts.length) {
-            let byAccount = fieldUserCounts.get(fieldId);
-            if (!byAccount) {
-              byAccount = new Map();
-              fieldUserCounts.set(fieldId, byAccount);
+          // Priority and resolution. An UNSET value is counted under the empty id rather than
+          // skipped -- "1,400 issues carry no resolution" is the shape of an unresolved
+          // backlog, and dropping those rows would rebase every percentage in the pillar.
+          for (const [kind, raw] of [
+            ["priority", issue.fields?.priority],
+            ["resolution", issue.fields?.resolution],
+          ]) {
+            const valueId = raw?.id ? String(raw.id) : "";
+            const estateKey = `${kind}|${valueId}`;
+            const estateEntry = estateTotals.get(estateKey) || {
+              kind,
+              valueId,
+              valueName: raw?.name || (valueId ? null : "(unset)"),
+              count: 0,
+            };
+            estateEntry.count++;
+            estateTotals.set(estateKey, estateEntry);
+          }
+
+          // Last activity per person, from max(issue.updated) where they are the assignee or
+          // the reporter. The People pillar's missing denominator: "this licence has had no
+          // activity in a year" is the one finding in the product with a currency figure
+          // attached, and it was blocked on this alone.
+          //
+          // Assignee and reporter only. Watchers and comment authors are not on the issue
+          // payload this crawl requests, so including them would need a second pass -- and a
+          // narrower "no activity" is the safe direction: it under-reports idle accounts
+          // rather than marking an active one as idle.
+          const updated = typeof issue.fields?.updated === "string" ? issue.fields.updated : null;
+          if (updated) {
+            for (const person of [issue.fields?.assignee, issue.fields?.reporter]) {
+              const accountId = person?.accountId ? String(person.accountId) : "";
+              if (!accountId) continue;
+              const actEntry = userActivity.get(accountId) || {
+                accountId,
+                displayName: person.displayName || null,
+                lastActivityAt: null,
+                count: 0,
+              };
+              actEntry.count++;
+              if (!actEntry.lastActivityAt || updated > actEntry.lastActivityAt) actEntry.lastActivityAt = updated;
+              if (!actEntry.displayName && person.displayName) actEntry.displayName = person.displayName;
+              userActivity.set(accountId, actEntry);
             }
-            for (const { accountId, displayName } of accounts) {
-              const acctEntry = byAccount.get(accountId) || { count: 0, name: displayName || null };
-              acctEntry.count++;
-              if (!acctEntry.name && displayName) acctEntry.name = displayName;
-              byAccount.set(accountId, acctEntry);
+          }
+
+          for (const [fieldId, value] of Object.entries(issue.fields || {})) {
+            if (STRUCTURAL_SYSTEM_FIELDS.has(fieldId)) continue;
+            if (!isFieldValueNonEmpty(value)) continue;
+            let byProject = fieldProjectCounts.get(fieldId);
+            if (!byProject) {
+              byProject = new Map();
+              fieldProjectCounts.set(fieldId, byProject);
+            }
+            const entry = byProject.get(projectId) || { count: 0, key: projectKey_, name: projectName };
+            entry.count++;
+            byProject.set(projectId, entry);
+
+            // Same value, second axis: which issue type is carrying it.
+            if (issueTypeId) {
+              let byType = fieldTypeCounts.get(fieldId);
+              if (!byType) {
+                byType = new Map();
+                fieldTypeCounts.set(fieldId, byType);
+              }
+              const typeEntry = byType.get(issueTypeId) || { count: 0, name: issueTypeName };
+              typeEntry.count++;
+              byType.set(issueTypeId, typeEntry);
+            }
+
+            // Fourth axis: if the value is a user (or list of users), which people. Nothing is
+            // tallied for a non-user value, so this Map only ever contains user-picker fields.
+            const accounts = accountsInValue(value);
+            if (accounts.length) {
+              let byAccount = fieldUserCounts.get(fieldId);
+              if (!byAccount) {
+                byAccount = new Map();
+                fieldUserCounts.set(fieldId, byAccount);
+              }
+              for (const { accountId, displayName } of accounts) {
+                const acctEntry = byAccount.get(accountId) || { count: 0, name: displayName || null };
+                acctEntry.count++;
+                if (!acctEntry.name && displayName) acctEntry.name = displayName;
+                byAccount.set(accountId, acctEntry);
+              }
+            }
+          }
+
+          tallyIssueUsage(issue, usageBuffer, usageCutoffMs);
+
+          const issueRqt = collectIssueRqtValues(issue.fields, issue.fields?.summary);
+          for (const [fieldId, values] of issueRqt) {
+            const rqtEntry = rqtFieldHits.get(fieldId) || { count: 0, values: new Set() };
+            rqtEntry.count++;
+            for (const v of values) rqtEntry.values.add(v);
+            rqtFieldHits.set(fieldId, rqtEntry);
+          }
+
+          if (issueRqt.size > 0 && issue.key) {
+            rqtIssueBuffer.push({
+              projectKey: projectKey_,
+              issueType: issue.fields?.issuetype?.name || "Unknown",
+              issueKey: issue.key,
+            });
+            const allValues = new Set();
+            for (const vals of issueRqt.values()) for (const v of vals) allValues.add(v);
+            for (const v of allValues) rqtValueBuffer.push({ rqtValue: v, issueKey: issue.key });
+          }
+          if (issueRqt.size > 0 && issue.key) {
+            for (const fieldId of issueRqt.keys()) {
+              rqtFieldIssueBuffer.push({ fieldId, issueKey: issue.key });
             }
           }
         }
-
-        tallyIssueUsage(issue, usageBuffer, usageCutoffMs);
-
-        const issueRqt = collectIssueRqtValues(issue.fields, issue.fields?.summary);
-        for (const [fieldId, values] of issueRqt) {
-          const rqtEntry = rqtFieldHits.get(fieldId) || { count: 0, values: new Set() };
-          rqtEntry.count++;
-          for (const v of values) rqtEntry.values.add(v);
-          rqtFieldHits.set(fieldId, rqtEntry);
-        }
-
-        if (issueRqt.size > 0 && issue.key) {
-          rqtIssueBuffer.push({
-            projectKey: projectKey_,
-            issueType: issue.fields?.issuetype?.name || "Unknown",
-            issueKey: issue.key,
-          });
-          const allValues = new Set();
-          for (const vals of issueRqt.values()) for (const v of vals) allValues.add(v);
-          for (const v of allValues) rqtValueBuffer.push({ rqtValue: v, issueKey: issue.key });
-        }
-        if (issueRqt.size > 0 && issue.key) {
-          for (const fieldId of issueRqt.keys()) {
-            rqtFieldIssueBuffer.push({ fieldId, issueKey: issue.key });
-          }
-        }
-      }
 
         pageCount++;
         issueCount += issues.length;
@@ -1329,7 +1463,6 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
 
     if (cancelled) return;
 
-
     // One drain, same code path as the mid-chunk ones. This used to be a second, hand-rolled
     // copy of the same eight flushes, which is how the two drifted -- the mid-chunk version
     // never flushed statusCounts.
@@ -1351,9 +1484,9 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
     await appendIssueScanLogEntry(
       installationKey,
       `Worker ${workerId}: +${issueCount.toLocaleString()} issues over ${pageCount} ${pageCount === 1 ? "page" : "pages"}` +
-      ` across ${slices.length} ${slices.length === 1 ? "slice" : "slices"}` +
-      ` — this chunk: ${rl429Count} rate-limited, ${rlRetryCount} retried` +
-      ` (${processedIssues.toLocaleString()} total for this worker)`
+        ` across ${slices.length} ${slices.length === 1 ? "slice" : "slices"}` +
+        ` — this chunk: ${rl429Count} rate-limited, ${rlRetryCount} retried` +
+        ` (${processedIssues.toLocaleString()} total for this worker)`,
     ).catch(ignoreWith("scan.log_append_failed", { workerId }));
     // Done only when every slice is done. A worker with one slice still holding a cursor has
     // more of its own projects to crawl, however finished the others are.
@@ -1417,7 +1550,7 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
       }).catch(ignoreWith("scan.worker_pause_write_failed", { workerId }));
       await appendIssueScanLogEntry(
         installationKey,
-        `Worker ${workerId} paused: the Forge async-queue limit held through every retry. Its progress is saved and it resumes automatically once the limit clears — no issues are lost.`
+        `Worker ${workerId} paused: the Forge async-queue limit held through every retry. Its progress is saved and it resumes automatically once the limit clears — no issues are lost.`,
       ).catch(ignoreWith("scan.log_append_failed", { workerId }));
       await writeIssueScanMeta(installationKey, {
         lastError: `Worker ${workerId} paused on a Forge queue limit — resuming automatically.`,
@@ -1436,13 +1569,17 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
       ? `Worker ${workerId} stopped: the Forge async-queue limit for this installation held through every retry. Its projects keep their previous counts — re-run the scan once platform limits reset.`
       : `Worker ${workerId} failed - ${errMsg}. The other workers continue; this worker's projects may be incompletely counted.`;
 
-    await updateIssueScanWorker(installationKey, workerId, { status: "failed", lastError: backpressure ? "Forge queue limit persisted through retries" : errMsg })
-      .catch(ignoreWith("scan.worker_failure_write_failed", { workerId }));
-    await appendIssueScanLogEntry(installationKey, workerNote)
-      .catch(ignoreWith("scan.log_append_failed", { workerId }));
+    await updateIssueScanWorker(installationKey, workerId, {
+      status: "failed",
+      lastError: backpressure ? "Forge queue limit persisted through retries" : errMsg,
+    }).catch(ignoreWith("scan.worker_failure_write_failed", { workerId }));
+    await appendIssueScanLogEntry(installationKey, workerNote).catch(
+      ignoreWith("scan.log_append_failed", { workerId }),
+    );
 
-    const updatedMeta = await atomicAccumulateIssueScanProgress(installationKey, 1, 0)
-      .catch(fallbackOn("scan.progress_accumulate_failed", null, { installationKey }));
+    const updatedMeta = await atomicAccumulateIssueScanProgress(installationKey, 1, 0).catch(
+      fallbackOn("scan.progress_accumulate_failed", null, { installationKey }),
+    );
 
     // Record which worker fell over, without declaring the run dead. The scan finishes and
     // reports partial coverage, which an admin can act on -- "failed" with no data cannot be.
@@ -1454,8 +1591,9 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
 
     if ((updatedMeta?.processedPages ?? 0) >= (updatedMeta?.totalPages ?? 0) && (updatedMeta?.totalPages ?? 0) > 0) {
       const claimToken = makeJobToken();
-      const claimed = await tryClaimIssueScanFinalization(installationKey, claimToken)
-        .catch(fallbackOn("scan.finalization_claim_failed", false, { installationKey }));
+      const claimed = await tryClaimIssueScanFinalization(installationKey, claimToken).catch(
+        fallbackOn("scan.finalization_claim_failed", false, { installationKey }),
+      );
       if (claimed) await completeIssueScanFinalization(installationKey, tag);
     }
   }

@@ -14,11 +14,20 @@ import {
 // free by any gap in the screen build. Most of what is pinned here is the suppression.
 
 const reach = (projectId, fieldId, ops = {}) => ({
-  projectId, fieldId, onCreate: false, onEdit: false, onView: false, ...ops,
+  projectId,
+  fieldId,
+  onCreate: false,
+  onEdit: false,
+  onView: false,
+  ...ops,
 });
 const cover = (projectId, screenCount = 3, unresolvedScreens = 0) => ({ projectId, screenCount, unresolvedScreens });
 const use = (fieldId, projectId, issueCount, projectKey = `P${projectId}`) => ({
-  fieldId, projectId, projectKey, projectName: `Project ${projectId}`, issueCount,
+  fieldId,
+  projectId,
+  projectKey,
+  projectName: `Project ${projectId}`,
+  issueCount,
 });
 const fields = new Map([
   ["customfield_9", { name: "Priority Note" }],
@@ -46,7 +55,10 @@ describe("findInvisibleData", () => {
   test("flags a field holding values in a project whose screens do not show it", () => {
     const reachability = indexReachability([reach("1", "customfield_1", { onView: true })]);
     const result = findInvisibleData({
-      usage: [use("customfield_2", "1", 480)], reachability, resolved, fields,
+      usage: [use("customfield_2", "1", 480)],
+      reachability,
+      resolved,
+      fields,
     });
 
     expect(result).toHaveLength(1);
@@ -65,7 +77,12 @@ describe("findInvisibleData", () => {
     const partial = resolvedProjectIds([cover("1", 5, 2)]);
     const reachability = indexReachability([reach("1", "customfield_1", { onView: true })]);
 
-    const result = findInvisibleData({ usage: [use("customfield_2", "1", 480)], reachability, resolved: partial, fields });
+    const result = findInvisibleData({
+      usage: [use("customfield_2", "1", 480)],
+      reachability,
+      resolved: partial,
+      fields,
+    });
 
     // Without this, a build that missed two screens would invent a risk finding for every
     // field those screens carried.
@@ -76,7 +93,9 @@ describe("findInvisibleData", () => {
     const reachability = indexReachability([reach("1", "customfield_1", { onView: true })]);
     const result = findInvisibleData({
       usage: [use("customfield_2", "1", 40), use("customfield_2", "2", 900)],
-      reachability, resolved, fields,
+      reachability,
+      resolved,
+      fields,
     });
 
     expect(result).toHaveLength(1);
@@ -88,7 +107,9 @@ describe("findInvisibleData", () => {
     const reachability = indexReachability([reach("1", "x", { onView: true })]);
     const result = findInvisibleData({
       usage: [use("customfield_1", "1", 5), use("customfield_1", "2", 5), use("customfield_2", "1", 2000)],
-      reachability, resolved, fields,
+      reachability,
+      resolved,
+      fields,
     });
     expect(result.map((f) => f.fieldId)).toEqual(["customfield_2", "customfield_1"]);
   });
@@ -127,7 +148,10 @@ describe("findFormClutter", () => {
       reach("2", "customfield_1", { onCreate: true }),
     ]);
     const result = findFormClutter({
-      reachability, usage: [...measured, use("customfield_1", "1", 5000)], resolved, fields,
+      reachability,
+      usage: [...measured, use("customfield_1", "1", 5000)],
+      resolved,
+      fields,
     });
 
     expect(result[0].projectCount).toBe(1);
@@ -180,7 +204,9 @@ describe("findFormClutter", () => {
 
   test("will not report a project whose screen chain was only partly read", () => {
     const reachability = indexReachability([reach("1", "customfield_3", { onCreate: true })]);
-    expect(findFormClutter({ reachability, usage: [], resolved: resolvedProjectIds([cover("1", 5, 1)]), fields })).toEqual([]);
+    expect(
+      findFormClutter({ reachability, usage: [], resolved: resolvedProjectIds([cover("1", 5, 1)]), fields }),
+    ).toEqual([]);
   });
 });
 
@@ -188,7 +214,9 @@ describe("findUnreachableFields", () => {
   test("names fields no project's screens reach anywhere on the site", () => {
     const reachability = indexReachability([reach("1", "customfield_1", { onView: true })]);
     const result = findUnreachableFields({
-      reachability, fieldIds: ["customfield_1", "customfield_2"], fields,
+      reachability,
+      fieldIds: ["customfield_1", "customfield_2"],
+      fields,
     });
     expect(result.map((f) => f.fieldId)).toEqual(["customfield_2"]);
   });
@@ -217,11 +245,11 @@ describe("summarizeScreenFieldCross", () => {
 
     expect(result.available).toBe(true);
     expect(result.counts).toMatchObject({
-      invisibleFields: 1,      // customfield_2: 480 issues in P2, on no screen there
+      invisibleFields: 1, // customfield_2: 480 issues in P2, on no screen there
       invisibleIssues: 480,
-      clutterFields: 1,        // customfield_3: on P1's create screen, never filled
+      clutterFields: 1, // customfield_3: on P1's create screen, never filled
       clutterPlacements: 1,
-      unreachableFields: 1,    // customfield_2: on no screen anywhere
+      unreachableFields: 1, // customfield_2: on no screen anywhere
     });
   });
 

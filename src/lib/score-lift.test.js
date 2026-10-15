@@ -3,11 +3,21 @@ import { scoreLift, scoreLifts } from "./score-lift.js";
 import { PILLAR_WEIGHTS } from "./health-score.js";
 
 // A computed score's shape: pillars, each with its checks. Only the fields the lift reads.
-const check = (key, score, weight = 1, available = true) => ({ key, score: available ? score : null, weight, available });
+const check = (key, score, weight = 1, available = true) => ({
+  key,
+  score: available ? score : null,
+  weight,
+  available,
+});
 const pillar = (key, dimensions) => {
   const scored = dimensions.filter((d) => d.available);
   const w = scored.reduce((s, d) => s + d.weight, 0);
-  return { key, available: scored.length > 0, score: w ? scored.reduce((s, d) => s + d.score * d.weight, 0) / w : null, dimensions };
+  return {
+    key,
+    available: scored.length > 0,
+    score: w ? scored.reduce((s, d) => s + d.score * d.weight, 0) / w : null,
+    dimensions,
+  };
 };
 
 // The headline, recomputed the way computeSiteHealth does it but unrounded: the reference the
@@ -18,7 +28,12 @@ function headline(pillars) {
   return scored.reduce((s, p) => s + p.score * (PILLAR_WEIGHTS[p.key] ?? 1), 0) / w;
 }
 function fixed(pillars, key) {
-  return pillars.map((p) => pillar(p.key, p.dimensions.map((d) => (d.key === key ? { ...d, score: 100 } : d))));
+  return pillars.map((p) =>
+    pillar(
+      p.key,
+      p.dimensions.map((d) => (d.key === key ? { ...d, score: 100 } : d)),
+    ),
+  );
 }
 
 const health = {

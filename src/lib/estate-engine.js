@@ -4,12 +4,7 @@
 
 import { logger } from "./logger.js";
 import { inventorySnapshotQueue } from "./queues.js";
-import {
-  incrMetric,
-  METRIC_NAMES,
-  getAllResolutions,
-  getAllPriorities,
-} from "./jira-api.js";
+import { incrMetric, METRIC_NAMES, getAllResolutions, getAllPriorities } from "./jira-api.js";
 import {
   ensureProjectStoreReady,
   writeEstateSnapshotMeta,
@@ -80,7 +75,11 @@ export async function buildEstateSnapshot(installationKey) {
     });
 
     incrMetric(METRIC_NAMES.estateSnapshotCompleted);
-    logger.info("estate-snapshot.completed", { version, resolutions: resolutions.length, priorities: priorities.length });
+    logger.info("estate-snapshot.completed", {
+      version,
+      resolutions: resolutions.length,
+      priorities: priorities.length,
+    });
     return { version, resolutions: resolutions.length, priorities: priorities.length };
   } catch (error) {
     incrMetric(METRIC_NAMES.estateSnapshotFailed);

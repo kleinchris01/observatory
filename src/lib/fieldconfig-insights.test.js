@@ -2,8 +2,17 @@ import { describe, test, expect } from "vitest";
 import { analyzeFieldBehaviour, fingerprint, summarizeFieldConfigHealth } from "./fieldconfig-insights.js";
 
 const item = (ownerKind, ownerId, fieldId, over = {}) => ({
-  ownerKind, ownerId, workTypeId: "*", fieldId, associated: ownerKind === "scheme" ? true : null,
-  hidden: ownerKind === "config" ? false : null, required: false, description: null, renderer: null, restrictedTo: [], ...over,
+  ownerKind,
+  ownerId,
+  workTypeId: "*",
+  fieldId,
+  associated: ownerKind === "scheme" ? true : null,
+  hidden: ownerKind === "config" ? false : null,
+  required: false,
+  description: null,
+  renderer: null,
+  restrictedTo: [],
+  ...over,
 });
 
 describe("fingerprint", () => {
@@ -81,9 +90,15 @@ describe("analyzeFieldBehaviour — legacy field configurations", () => {
   test("summarises every rate on what it could judge", () => {
     expect(result.summary).toMatchObject({
       source: "field-configurations",
-      usageJudged: 7, unusedSchemes: 1, unusedConfigs: 2,
-      conflictJudged: 4, requiredHiddenConfigs: 2, requiredHiddenPairs: 2,
-      duplicateGroups: 2, reducible: 2, unmeasured: 2,
+      usageJudged: 7,
+      unusedSchemes: 1,
+      unusedConfigs: 2,
+      conflictJudged: 4,
+      requiredHiddenConfigs: 2,
+      requiredHiddenPairs: 2,
+      duplicateGroups: 2,
+      reducible: 2,
+      unmeasured: 2,
     });
   });
 
@@ -101,7 +116,10 @@ describe("analyzeFieldBehaviour — field schemes", () => {
       { id: "fs:3", isDefault: false, fieldsRead: true },
       { id: "fs:4", isDefault: false, fieldsRead: false },
     ],
-    schemeProjects: [{ schemeId: "fs:1", projectId: "p1" }, { schemeId: "fs:2", projectId: "p2" }],
+    schemeProjects: [
+      { schemeId: "fs:1", projectId: "p1" },
+      { schemeId: "fs:2", projectId: "p2" },
+    ],
     items: [
       item("scheme", "fs:1", "customfield_1", { required: true }),
       item("scheme", "fs:1", "customfield_9", { restrictedTo: ["10001"] }),
@@ -144,7 +162,10 @@ describe("summarizeFieldConfigHealth", () => {
   });
 
   test("carries the stored summary when there is one", () => {
-    expect(summarizeFieldConfigHealth({ version: "v", refreshedAt: "t" }, { usageJudged: 3 }))
-      .toEqual({ available: true, refreshedAt: "t", usageJudged: 3 });
+    expect(summarizeFieldConfigHealth({ version: "v", refreshedAt: "t" }, { usageJudged: 3 })).toEqual({
+      available: true,
+      refreshedAt: "t",
+      usageJudged: 3,
+    });
   });
 });

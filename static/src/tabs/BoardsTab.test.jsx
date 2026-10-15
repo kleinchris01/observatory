@@ -18,11 +18,52 @@ const inventory = (over = {}) => ({
   refreshedAt: new Date().toISOString(),
   lastError: null,
   boards: [
-    { boardId: "1", name: "PT2 Scrum", type: "scrum", locationType: "project", locationKey: "PT2", locationName: "Prototype & Test", filterId: "4001", configReadable: true, columnCount: 3, columns: [], unmappedColumns: 0 },
-    { boardId: "2", name: "My work", type: "kanban", locationType: "user", locationName: "Alex", filterId: null, configReadable: true, columnCount: 2, columns: [], unmappedColumns: 1 },
-    { boardId: "3", name: "Team-managed", type: "simple", locationType: "project", locationKey: "TM", filterId: null, configReadable: false, columnCount: 0, columns: [], unmappedColumns: 0 },
+    {
+      boardId: "1",
+      name: "PT2 Scrum",
+      type: "scrum",
+      locationType: "project",
+      locationKey: "PT2",
+      locationName: "Prototype & Test",
+      filterId: "4001",
+      configReadable: true,
+      columnCount: 3,
+      columns: [],
+      unmappedColumns: 0,
+    },
+    {
+      boardId: "2",
+      name: "My work",
+      type: "kanban",
+      locationType: "user",
+      locationName: "Alex",
+      filterId: null,
+      configReadable: true,
+      columnCount: 2,
+      columns: [],
+      unmappedColumns: 1,
+    },
+    {
+      boardId: "3",
+      name: "Team-managed",
+      type: "simple",
+      locationType: "project",
+      locationKey: "TM",
+      filterId: null,
+      configReadable: false,
+      columnCount: 0,
+      columns: [],
+      unmappedColumns: 0,
+    },
   ],
-  summary: { total: 3, byType: { scrum: 1, kanban: 1, simple: 1 }, personal: 1, unreadable: 1, missingFilter: 1, totalColumns: 5 },
+  summary: {
+    total: 3,
+    byType: { scrum: 1, kanban: 1, simple: 1 },
+    personal: 1,
+    unreadable: 1,
+    missingFilter: 1,
+    totalColumns: 5,
+  },
   ...over,
 });
 
@@ -30,15 +71,24 @@ beforeEach(() => vi.clearAllMocks());
 
 describe("BoardsTab", () => {
   test("reports never-built rather than an empty list", async () => {
-    invoke.mockImplementation((fn) => fn === "getBoardInventory"
-      ? Promise.resolve({ neverBuilt: true, state: "idle", boards: [], summary: { total: 0, byType: {}, personal: 0, unreadable: 0, missingFilter: 0, totalColumns: 0 } })
-      : Promise.resolve({}));
+    invoke.mockImplementation((fn) =>
+      fn === "getBoardInventory"
+        ? Promise.resolve({
+            neverBuilt: true,
+            state: "idle",
+            boards: [],
+            summary: { total: 0, byType: {}, personal: 0, unreadable: 0, missingFilter: 0, totalColumns: 0 },
+          })
+        : Promise.resolve({}),
+    );
     render(<BoardsTab intent={null} />);
     expect(await screen.findByText(/No board inventory has been built yet/i)).toBeInTheDocument();
   });
 
   test("shows the estate stats and the type breakdown", async () => {
-    invoke.mockImplementation((fn) => fn === "getBoardInventory" ? Promise.resolve(inventory()) : Promise.resolve({}));
+    invoke.mockImplementation((fn) =>
+      fn === "getBoardInventory" ? Promise.resolve(inventory()) : Promise.resolve({}),
+    );
     render(<BoardsTab intent={null} />);
 
     await screen.findByRole("button", { name: /Rebuild/i });
@@ -49,7 +99,9 @@ describe("BoardsTab", () => {
   });
 
   test("lists boards with their location, backing filter and column state on the Boards sub-view", async () => {
-    invoke.mockImplementation((fn) => fn === "getBoardInventory" ? Promise.resolve(inventory()) : Promise.resolve({}));
+    invoke.mockImplementation((fn) =>
+      fn === "getBoardInventory" ? Promise.resolve(inventory()) : Promise.resolve({}),
+    );
     const user = userEvent.setup();
     render(<BoardsTab intent={null} />);
 

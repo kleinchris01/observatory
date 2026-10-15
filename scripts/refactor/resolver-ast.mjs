@@ -40,16 +40,29 @@ export function analyse(text) {
     if (node.type === "ImportDeclaration") {
       st.isImport = true;
       for (const sp of node.specifiers) {
-        const kind = sp.type === "ImportDefaultSpecifier" ? "default" : sp.type === "ImportNamespaceSpecifier" ? "namespace" : "named";
-        imports.set(sp.local.name, { source: node.source.value, imported: kind === "named" ? (sp.imported.name ?? sp.imported.value) : null, kind });
+        const kind =
+          sp.type === "ImportDefaultSpecifier"
+            ? "default"
+            : sp.type === "ImportNamespaceSpecifier"
+              ? "namespace"
+              : "named";
+        imports.set(sp.local.name, {
+          source: node.source.value,
+          imported: kind === "named" ? (sp.imported.name ?? sp.imported.value) : null,
+          kind,
+        });
       }
     } else {
       let decl = node;
-      if (node.type === "ExportNamedDeclaration" && node.declaration) { decl = node.declaration; st.exported = true; }
+      if (node.type === "ExportNamedDeclaration" && node.declaration) {
+        decl = node.declaration;
+        st.exported = true;
+      }
       if (decl.type === "FunctionDeclaration" || decl.type === "ClassDeclaration") st.names.push(decl.id.name);
       if (decl.type === "VariableDeclaration") {
         for (const d of decl.declarations) {
-          if (d.id.type !== "Identifier") throw new Error(`Destructured top-level declaration at line ${node.loc.start.line} is not supported`);
+          if (d.id.type !== "Identifier")
+            throw new Error(`Destructured top-level declaration at line ${node.loc.start.line} is not supported`);
           st.names.push(d.id.name);
         }
       }

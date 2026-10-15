@@ -54,7 +54,13 @@ const mocks = vi.hoisted(() => ({
   readFullScanMeta: vi.fn(async () => null),
   writeFullScanMeta: vi.fn(async () => ({})),
   createJiraIssue: vi.fn(async () => ({ id: "10001", key: "OPS-1", self: "https://x/OPS-1" })),
-  transitionIssueWithComment: vi.fn(async (issueKey) => ({ issueKey, transitioned: true, commented: true, toStatus: "To Do", reason: null })),
+  transitionIssueWithComment: vi.fn(async (issueKey) => ({
+    issueKey,
+    transitioned: true,
+    commented: true,
+    toStatus: "To Do",
+    reason: null,
+  })),
   updateJiraIssue: vi.fn(async () => {}),
   searchIssuesPage: vi.fn(async () => []),
   loadHierarchyNodes: vi.fn(async () => new Map()),
@@ -69,7 +75,12 @@ const mocks = vi.hoisted(() => ({
   loadTicketedItems: vi.fn(async () => new Map()),
   readUsageMeta: vi.fn(async () => null),
   // Default: archived projects were read and there are none, so existing verdicts stand.
-  loadArchivedProjects: vi.fn(async () => ({ available: true, checkedAt: "2026-10-01T00:00:00Z", error: null, projects: [] })),
+  loadArchivedProjects: vi.fn(async () => ({
+    available: true,
+    checkedAt: "2026-10-01T00:00:00Z",
+    error: null,
+    projects: [],
+  })),
   loadArchivedFieldUsage: vi.fn(async () => new Map()),
   getFieldProjectAssociations: vi.fn(async () => []),
   loadUsageTally: vi.fn(async () => new Map()),
@@ -99,7 +110,10 @@ const mocks = vi.hoisted(() => ({
   countSnapshotProjectUsage: vi.fn(),
   loadFieldSummary: vi.fn(),
   replaceFieldSummary: vi.fn().mockResolvedValue(undefined),
-  countFieldSummariesByStatus: vi.fn(async () => ({ counts: { queued: 0, building: 0, ready: 0, failed: 0, cancelled: 0, unbuilt: 0 }, total: 0 })),
+  countFieldSummariesByStatus: vi.fn(async () => ({
+    counts: { queued: 0, building: 0, ready: 0, failed: 0, cancelled: 0, unbuilt: 0 },
+    total: 0,
+  })),
   listFieldSummaries: vi.fn().mockResolvedValue([]),
   replaceSnapshotProjectUsageForField: vi.fn(),
   listSavedReports: vi.fn().mockResolvedValue([]),
@@ -237,7 +251,11 @@ const mocks = vi.hoisted(() => ({
   // drift store + drift-engine.js
   readDriftSnapshotMeta: vi.fn(),
   loadConfigChanges: vi.fn(async () => []),
-  loadConfigChangeSummary: vi.fn(async () => ({ total: 0, byPillar: {}, byKind: { added: 0, removed: 0, modified: 0 } })),
+  loadConfigChangeSummary: vi.fn(async () => ({
+    total: 0,
+    byPillar: {},
+    byKind: { added: 0, removed: 0, modified: 0 },
+  })),
   queueDriftSnapshotBuild: vi.fn(),
   isDriftBuildStale: vi.fn(() => false),
 
@@ -346,7 +364,16 @@ vi.mock("./lib/store/automation.js", () => ({
   loadRulesForProject: mocks.loadRulesForProject,
   loadStatusAutomationReferences: mocks.loadStatusAutomationReferences,
   loadGlobalRulesAffectingProject: mocks.loadGlobalRulesAffectingProject,
-  AUTOMATION_PARTS: { analysis: "a:", fields: "f:", statuses: "s:", issueTypes: "it:", users: "u:", directory: "d:", findings: "fi:", cascades: "c:" },
+  AUTOMATION_PARTS: {
+    analysis: "a:",
+    fields: "f:",
+    statuses: "s:",
+    issueTypes: "it:",
+    users: "u:",
+    directory: "d:",
+    findings: "fi:",
+    cascades: "c:",
+  },
   MAX_PREVIEW_FINDINGS: 20,
   MAX_STORED_CASCADES: 150,
   MAX_STORED_CROSS_RULE: 100,
@@ -483,7 +510,7 @@ vi.mock("./lib/project-store.js", () => ({
   loadProjectRoleActors: mocks.loadProjectRoleActors,
   readDriftSnapshotMeta: mocks.readDriftSnapshotMeta,
   loadConfigChanges: mocks.loadConfigChanges,
-  changeCursorOf: (row) => (row?.changeId ? `${row.detectedAt}|${row.changeId}` : row?.detectedAt ?? null),
+  changeCursorOf: (row) => (row?.changeId ? `${row.detectedAt}|${row.changeId}` : (row?.detectedAt ?? null)),
   loadConfigChangeSummary: mocks.loadConfigChangeSummary,
   readEstateSnapshotMeta: mocks.readEstateSnapshotMeta,
   loadEstateValues: mocks.loadEstateValues,
@@ -606,7 +633,14 @@ vi.mock("./lib/jira-api.js", () => ({
   incrMetric: mocks.incrMetric,
   // The site URL remediation tickets link against; the normalizer is the real one's logic.
   getSiteBaseUrl: mocks.getSiteBaseUrl,
-  normalizeSiteOrigin: (v) => { try { const u = new URL(String(v || "")); return u.protocol === "https:" ? u.origin : null; } catch { return null; } },
+  normalizeSiteOrigin: (v) => {
+    try {
+      const u = new URL(String(v || ""));
+      return u.protocol === "https:" ? u.origin : null;
+    } catch {
+      return null;
+    }
+  },
   makeJobToken: mocks.makeJobToken,
   getInstallationKey: mocks.getInstallationKey,
   callerHasJiraAdmin: mocks.callerHasJiraAdmin,
@@ -885,7 +919,9 @@ beforeEach(() => {
   mocks.queuePush.mockResolvedValue({ queued: true });
   mocks.writeIssueScanMeta.mockResolvedValue(undefined);
   mocks.readIssueScanWorker.mockResolvedValue(null);
-  mocks.getBrowsableProjectIds.mockImplementation(async (_accountId, projectIds) => new Set((projectIds || []).map(String)));
+  mocks.getBrowsableProjectIds.mockImplementation(
+    async (_accountId, projectIds) => new Set((projectIds || []).map(String)),
+  );
   mocks.readWorkflowSnapshotMeta.mockResolvedValue(null);
   mocks.readScreenSnapshotMeta.mockResolvedValue(null);
   // Default: no licensed-user roster. The People pillar then reports unavailable rather
@@ -906,7 +942,12 @@ beforeEach(() => {
   mocks.loadIssueTypeScreenSchemes.mockResolvedValue([]);
   mocks.loadScreenGovernanceSummary.mockResolvedValue({});
   mocks.loadScreenCountsForFields.mockResolvedValue({});
-  mocks.loadScreenDistributions.mockResolvedValue({ sizeBuckets: [], largestScreens: [], mostSharedFields: [], operationMix: [] });
+  mocks.loadScreenDistributions.mockResolvedValue({
+    sizeBuckets: [],
+    largestScreens: [],
+    mostSharedFields: [],
+    operationMix: [],
+  });
   mocks.loadScreensForProject.mockResolvedValue([]);
   mocks.loadRulesForProject.mockResolvedValue([]);
   mocks.loadStatusAutomationReferences.mockResolvedValue({});
@@ -936,8 +977,9 @@ function ctxWithAccount(accountId = "user-1") {
 // ---------------------------------------------------------------------------
 describe("saveReportDefinition field count validation", () => {
   test("still rejects an empty fieldIds array", async () => {
-    await expect(saveReportDefinition({ payload: { name: "Test", fieldIds: [] }, context: {} }))
-      .rejects.toThrow(/fieldIds must contain at least 1 element/);
+    await expect(saveReportDefinition({ payload: { name: "Test", fieldIds: [] }, context: {} })).rejects.toThrow(
+      /fieldIds must contain at least 1 element/,
+    );
   });
 
   test("no longer rejects more than 100 fieldIds", async () => {
@@ -951,8 +993,9 @@ describe("saveReportDefinition field count validation", () => {
 
 describe("startProjectUsageReportJob field count validation", () => {
   test("still rejects an empty fieldIds array", async () => {
-    await expect(startProjectUsageReportJob({ payload: { fieldIds: [] }, context: {} }))
-      .rejects.toThrow(/fieldIds must contain at least 1 element/);
+    await expect(startProjectUsageReportJob({ payload: { fieldIds: [] }, context: {} })).rejects.toThrow(
+      /fieldIds must contain at least 1 element/,
+    );
   });
 
   test("no longer rejects more than 200 fieldIds", async () => {
@@ -1134,7 +1177,10 @@ describe("getFieldInventory", () => {
 
     await getFieldInventory({ payload: { forceRefresh: true }, context: {} });
 
-    expect(mocks.writeSnapshotMeta).toHaveBeenCalledWith("test-install", expect.objectContaining({ state: "queued", jobToken: "job-token-1" }));
+    expect(mocks.writeSnapshotMeta).toHaveBeenCalledWith(
+      "test-install",
+      expect.objectContaining({ state: "queued", jobToken: "job-token-1" }),
+    );
     expect(mocks.queueSnapshotBuild).toHaveBeenCalledTimes(1);
   });
 
@@ -1169,7 +1215,10 @@ describe("getFieldInventory", () => {
 
     await getFieldInventory({ payload: { forceRefresh: true }, context: {} });
 
-    expect(mocks.requeueStaleSnapshotBuild).toHaveBeenCalledWith("test-install", expect.objectContaining({ state: "building" }));
+    expect(mocks.requeueStaleSnapshotBuild).toHaveBeenCalledWith(
+      "test-install",
+      expect.objectContaining({ state: "building" }),
+    );
   });
 
   // Regression test: requeueStaleSnapshotBuild transitions state "building" -> "queued"
@@ -1188,7 +1237,7 @@ describe("getFieldInventory", () => {
     // Must NOT reset the fresh "queued" state back to "idle"
     expect(mocks.writeSnapshotMeta).not.toHaveBeenCalledWith(
       "test-install",
-      expect.objectContaining({ state: "idle" })
+      expect.objectContaining({ state: "idle" }),
     );
     // Already active (queued) after the requeue, so no separate/duplicate queue push
     expect(mocks.queueSnapshotBuild).not.toHaveBeenCalled();
@@ -1211,7 +1260,7 @@ describe("getFieldInventory", () => {
 
     expect(mocks.writeSnapshotMeta).toHaveBeenCalledWith(
       "test-install",
-      expect.objectContaining({ state: "idle", lastError: "Queue job did not start; reset by manual refresh." })
+      expect.objectContaining({ state: "idle", lastError: "Queue job did not start; reset by manual refresh." }),
     );
     expect(mocks.queueSnapshotBuild).toHaveBeenCalledTimes(1);
     expect(result.snapshotStatus.state).toBe("queued");
@@ -1230,9 +1279,13 @@ describe("getFieldInventory", () => {
 describe("getWorkflowInventory", () => {
   function workflowScheme(overrides = {}) {
     return {
-      id: "scheme-1", name: "Default Workflow Scheme", description: "",
-      defaultWorkflow: "Software Simplified Workflow", issueTypeMapping: null,
-      projectCount: 2, findings: null,
+      id: "scheme-1",
+      name: "Default Workflow Scheme",
+      description: "",
+      defaultWorkflow: "Software Simplified Workflow",
+      issueTypeMapping: null,
+      projectCount: 2,
+      findings: null,
       ...overrides,
     };
   }
@@ -1266,10 +1319,16 @@ describe("getWorkflowInventory", () => {
     expect(result.totalPages).toBe(2);
     // Statuses now carry both usage measures. Null rather than 0 for each: they are
     // measured by separate jobs and neither had run here, so "unknown" is the truth.
-    expect(result.statuses).toEqual([{
-      id: "1", name: "To Do", statusCategory: "To Do",
-      issueCount: null, everCount: null, departedCount: null,
-    }]);
+    expect(result.statuses).toEqual([
+      {
+        id: "1",
+        name: "To Do",
+        statusCategory: "To Do",
+        issueCount: null,
+        everCount: null,
+        departedCount: null,
+      },
+    ]);
   });
 
   test("filters search by scheme name and description", async () => {
@@ -1331,7 +1390,7 @@ describe("getWorkflowInventory", () => {
   // limit, hanging the tab on "Loading...". Cost must track pageSize.
   test("enriches only the requested page, not every scheme on the site", async () => {
     const manySchemes = Array.from({ length: 142 }, (_, i) =>
-      workflowScheme({ id: `scheme-${i}`, name: `Scheme ${i}` })
+      workflowScheme({ id: `scheme-${i}`, name: `Scheme ${i}` }),
     );
     mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
     mocks.loadWorkflowSchemes.mockResolvedValue(manySchemes);
@@ -1351,13 +1410,10 @@ describe("getWorkflowInventory", () => {
 
   test("still reports the full total when a search matches more than one page", async () => {
     const manySchemes = Array.from({ length: 30 }, (_, i) =>
-      workflowScheme({ id: `scheme-${i}`, name: `Payments ${i}` })
+      workflowScheme({ id: `scheme-${i}`, name: `Payments ${i}` }),
     );
     mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
-    mocks.loadWorkflowSchemes.mockResolvedValue([
-      ...manySchemes,
-      workflowScheme({ id: "other", name: "Unrelated" }),
-    ]);
+    mocks.loadWorkflowSchemes.mockResolvedValue([...manySchemes, workflowScheme({ id: "other", name: "Unrelated" })]);
     mocks.loadWorkflowSchemeProjects.mockResolvedValue([]);
     mocks.loadStatusesCatalog.mockResolvedValue([]);
 
@@ -1372,7 +1428,6 @@ describe("getWorkflowInventory", () => {
     expect(mocks.loadWorkflowSchemeProjects).toHaveBeenCalledTimes(10);
   });
 
-
   // "Currently in" and "ever been in" come from different jobs (the universe scan and JQL
   // WAS queries) and refresh independently, so each is reported with its own availability
   // flag. Reporting an unmeasured status as 0 is what would make it look safe to delete.
@@ -1381,7 +1436,10 @@ describe("getWorkflowInventory", () => {
     mocks.loadWorkflowSchemes.mockResolvedValue([]);
     mocks.loadStatusesCatalog.mockResolvedValue([{ id: "1", name: "Parking Lot", statusCategory: "To Do" }]);
     mocks.loadStatusIssueCounts.mockResolvedValue(new Map([["1", 792]]));
-    mocks.loadStatusHistoryCounts.mockResolvedValue({ counts: new Map([["1", 4000]]), measuredAt: "2026-08-03T12:00:00Z" });
+    mocks.loadStatusHistoryCounts.mockResolvedValue({
+      counts: new Map([["1", 4000]]),
+      measuredAt: "2026-08-03T12:00:00Z",
+    });
 
     const result = await getWorkflowInventory({ payload: {}, context: ctxWithAccount() });
 
@@ -1465,12 +1523,16 @@ describe("getWorkflowInventory", () => {
 
   test("validates page and pageSize bounds", async () => {
     await expect(getWorkflowInventory({ payload: { page: 0 }, context: ctxWithAccount() })).rejects.toThrow(/page/);
-    await expect(getWorkflowInventory({ payload: { pageSize: 500 }, context: ctxWithAccount() })).rejects.toThrow(/pageSize/);
+    await expect(getWorkflowInventory({ payload: { pageSize: 500 }, context: ctxWithAccount() })).rejects.toThrow(
+      /pageSize/,
+    );
   });
 
   test("propagates errors and increments the failure metric", async () => {
     mocks.readWorkflowSnapshotMeta.mockRejectedValue(new Error("SQL connection lost"));
-    await expect(getWorkflowInventory({ payload: {}, context: ctxWithAccount() })).rejects.toThrow("SQL connection lost");
+    await expect(getWorkflowInventory({ payload: {}, context: ctxWithAccount() })).rejects.toThrow(
+      "SQL connection lost",
+    );
     expect(mocks.incrMetric).toHaveBeenCalledWith("resolver-failed");
   });
 });
@@ -1485,8 +1547,9 @@ describe("getFieldDetails", () => {
 
   test("throws when no snapshot has completed", async () => {
     mocks.readSnapshotMeta.mockResolvedValue(null);
-    await expect(getFieldDetails({ payload: { fieldId: "customfield_1" }, context: {} }))
-      .rejects.toThrow(/No completed snapshot/);
+    await expect(getFieldDetails({ payload: { fieldId: "customfield_1" }, context: {} })).rejects.toThrow(
+      /No completed snapshot/,
+    );
   });
 
   test("throws when the field isn't found in the snapshot", async () => {
@@ -1495,8 +1558,9 @@ describe("getFieldDetails", () => {
     mocks.loadSnapshotProjectUsage.mockResolvedValue([]);
     mocks.countSnapshotProjectUsage.mockResolvedValue(0);
     mocks.loadFieldSummary.mockResolvedValue(null);
-    await expect(getFieldDetails({ payload: { fieldId: "customfield_missing" }, context: {} }))
-      .rejects.toThrow(/Field not found in snapshot/);
+    await expect(getFieldDetails({ payload: { fieldId: "customfield_missing" }, context: {} })).rejects.toThrow(
+      /Field not found in snapshot/,
+    );
   });
 
   test("returns hydrated field detail with paginated project usage", async () => {
@@ -1525,7 +1589,8 @@ describe("getFieldDetails", () => {
     mocks.loadFieldSummary.mockResolvedValue(null);
     mocks.loadSnapshotFields.mockResolvedValue([snapshotField()]);
     mocks.loadFieldUserUsage.mockResolvedValue({
-      distinctUsers: 2, issueTotal: 12,
+      distinctUsers: 2,
+      issueTotal: 12,
       top: [
         { accountId: "acc-1", displayName: "stale name", issueCount: 10 },
         { accountId: "acc-gone", displayName: "Ghost", issueCount: 2 },
@@ -1651,11 +1716,11 @@ describe("searchFieldOptions", () => {
   });
 
   test("returns matched field IDs for a non-blank query", async () => {
-    mocks.searchFieldOptionsCache.mockResolvedValue([
-      { fieldId: "customfield_1" },
-      { fieldId: "customfield_2" },
-    ]);
-    const result = await searchFieldOptions({ payload: { fieldId: "customfield_1", optionQuery: "urgent" }, context: {} });
+    mocks.searchFieldOptionsCache.mockResolvedValue([{ fieldId: "customfield_1" }, { fieldId: "customfield_2" }]);
+    const result = await searchFieldOptions({
+      payload: { fieldId: "customfield_1", optionQuery: "urgent" },
+      context: {},
+    });
     expect(result.status).toBe("ok");
     expect(result.matches).toEqual(["customfield_1", "customfield_2"]);
     expect(result.done).toBe(true);
@@ -1744,42 +1809,55 @@ describe("getAdminConfigResolver", () => {
 
 describe("saveAdminConfigResolver", () => {
   test("validates apiConcurrency bounds", async () => {
-    await expect(saveAdminConfigResolver({ payload: { apiConcurrency: 99 } }))
-      .rejects.toThrow(/apiConcurrency/);
+    await expect(saveAdminConfigResolver({ payload: { apiConcurrency: 99 } })).rejects.toThrow(/apiConcurrency/);
   });
 
   test("validates autoSnapshotFrequency against the allowed enum", async () => {
-    await expect(saveAdminConfigResolver({ payload: { autoSnapshotFrequency: "hourly" } }))
-      .rejects.toThrow(/autoSnapshotFrequency/);
+    await expect(saveAdminConfigResolver({ payload: { autoSnapshotFrequency: "hourly" } })).rejects.toThrow(
+      /autoSnapshotFrequency/,
+    );
   });
 
   test("validates governance threshold values are positive integers", async () => {
-    await expect(saveAdminConfigResolver({ payload: { governanceThresholds: { lowUsageIssueThreshold: -5 } } }))
-      .rejects.toThrow(/lowUsageIssueThreshold/);
+    await expect(
+      saveAdminConfigResolver({ payload: { governanceThresholds: { lowUsageIssueThreshold: -5 } } }),
+    ).rejects.toThrow(/lowUsageIssueThreshold/);
   });
 
   test("validates the quick-scan schedule's frequency, day, hour, and window", async () => {
-    await expect(saveAdminConfigResolver({ payload: { quickScanSchedule: { frequency: "hourly" } } }))
-      .rejects.toThrow(/quickScanSchedule\.frequency/);
-    await expect(saveAdminConfigResolver({ payload: { quickScanSchedule: { dayOfWeek: 9 } } }))
-      .rejects.toThrow(/quickScanSchedule\.dayOfWeek/);
-    await expect(saveAdminConfigResolver({ payload: { quickScanSchedule: { hourUtc: 24 } } }))
-      .rejects.toThrow(/quickScanSchedule\.hourUtc/);
-    await expect(saveAdminConfigResolver({ payload: { quickScanSchedule: { windowHours: 0 } } }))
-      .rejects.toThrow(/quickScanSchedule\.windowHours/);
+    await expect(saveAdminConfigResolver({ payload: { quickScanSchedule: { frequency: "hourly" } } })).rejects.toThrow(
+      /quickScanSchedule\.frequency/,
+    );
+    await expect(saveAdminConfigResolver({ payload: { quickScanSchedule: { dayOfWeek: 9 } } })).rejects.toThrow(
+      /quickScanSchedule\.dayOfWeek/,
+    );
+    await expect(saveAdminConfigResolver({ payload: { quickScanSchedule: { hourUtc: 24 } } })).rejects.toThrow(
+      /quickScanSchedule\.hourUtc/,
+    );
+    await expect(saveAdminConfigResolver({ payload: { quickScanSchedule: { windowHours: 0 } } })).rejects.toThrow(
+      /quickScanSchedule\.windowHours/,
+    );
   });
 
   test("rejects a remediation project key that is not a Jira key", async () => {
-    await expect(saveAdminConfigResolver({ payload: { remediation: { projectKey: "not a key!" } } }))
-      .rejects.toThrow(/remediation\.projectKey/);
-    await expect(saveAdminConfigResolver({ payload: { remediation: { epicIssueType: 123 } } }))
-      .rejects.toThrow(/remediation\.epicIssueType/);
+    await expect(saveAdminConfigResolver({ payload: { remediation: { projectKey: "not a key!" } } })).rejects.toThrow(
+      /remediation\.projectKey/,
+    );
+    await expect(saveAdminConfigResolver({ payload: { remediation: { epicIssueType: 123 } } })).rejects.toThrow(
+      /remediation\.epicIssueType/,
+    );
   });
 
   test("accepts and merges a valid remediation config, keeping the rest", async () => {
-    mocks.kvsGet.mockResolvedValue({ remediation: { projectKey: "OLD", epicIssueType: "Epic", taskIssueType: "Task", defaultAssigneeAccountId: "" } });
+    mocks.kvsGet.mockResolvedValue({
+      remediation: { projectKey: "OLD", epicIssueType: "Epic", taskIssueType: "Task", defaultAssigneeAccountId: "" },
+    });
     const result = await saveAdminConfigResolver({ payload: { remediation: { projectKey: "ADMIN" } } });
-    expect(result.config.remediation).toMatchObject({ projectKey: "ADMIN", epicIssueType: "Epic", taskIssueType: "Task" });
+    expect(result.config.remediation).toMatchObject({
+      projectKey: "ADMIN",
+      epicIssueType: "Epic",
+      taskIssueType: "Task",
+    });
   });
 
   test("an empty remediation project key is allowed — it just disables the feature", async () => {
@@ -1788,16 +1866,28 @@ describe("saveAdminConfigResolver", () => {
   });
 
   test("merges a partial schedule update over the stored one, keeping the rest", async () => {
-    mocks.kvsGet.mockResolvedValue({ quickScanSchedule: { enabled: true, frequency: "weekly", dayOfWeek: 3, hourUtc: 6, windowHours: 168 } });
+    mocks.kvsGet.mockResolvedValue({
+      quickScanSchedule: { enabled: true, frequency: "weekly", dayOfWeek: 3, hourUtc: 6, windowHours: 168 },
+    });
 
     const result = await saveAdminConfigResolver({ payload: { quickScanSchedule: { hourUtc: 12 } } });
 
     // Only hourUtc was sent; everything else the admin already configured must survive.
-    expect(result.config.quickScanSchedule).toMatchObject({ enabled: true, frequency: "weekly", dayOfWeek: 3, hourUtc: 12, windowHours: 168 });
+    expect(result.config.quickScanSchedule).toMatchObject({
+      enabled: true,
+      frequency: "weekly",
+      dayOfWeek: 3,
+      hourUtc: 12,
+      windowHours: 168,
+    });
   });
 
   test("merges partial updates over the current stored config and persists via kvs.set", async () => {
-    mocks.kvsGet.mockResolvedValue({ readOnlyMode: false, apiConcurrency: 4, macroAccess: { restrictAccess: false, allowedGroups: [] } });
+    mocks.kvsGet.mockResolvedValue({
+      readOnlyMode: false,
+      apiConcurrency: 4,
+      macroAccess: { restrictAccess: false, allowedGroups: [] },
+    });
 
     const result = await saveAdminConfigResolver({ payload: { readOnlyMode: true } });
 
@@ -1817,8 +1907,9 @@ describe("saveAdminConfigResolver", () => {
   // silence the warning instead, which is the same as deleting it.
   test("rejects an automation staleness threshold outside 1-90 days", async () => {
     for (const bad of [0, -1, 365]) {
-      await expect(saveAdminConfigResolver({ payload: { automationStaleAfterDays: bad } }))
-        .rejects.toThrow(/automationStaleAfterDays/);
+      await expect(saveAdminConfigResolver({ payload: { automationStaleAfterDays: bad } })).rejects.toThrow(
+        /automationStaleAfterDays/,
+      );
     }
   });
 
@@ -1894,7 +1985,10 @@ describe("getProjectsView", () => {
     expect(result.fields).toHaveLength(1);
     expect(result.totalFields).toBe(1);
     expect(mocks.loadSnapshotProjectFields).toHaveBeenCalledWith(
-      "test-install", 1, "20", expect.objectContaining({ query: "", type: "all" })
+      "test-install",
+      1,
+      "20",
+      expect.objectContaining({ query: "", type: "all" }),
     );
   });
 
@@ -1987,9 +2081,14 @@ describe("getAdminOverview", () => {
 
     const result = await getAdminOverview({ context: {} });
 
-    expect(result.findingsSummary).toEqual(expect.objectContaining({
-      adminAttention: expect.any(Number), risky: expect.any(Number), cleanup: expect.any(Number), standardize: expect.any(Number),
-    }));
+    expect(result.findingsSummary).toEqual(
+      expect.objectContaining({
+        adminAttention: expect.any(Number),
+        risky: expect.any(Number),
+        cleanup: expect.any(Number),
+        standardize: expect.any(Number),
+      }),
+    );
   });
 
   // The Overview promotes several specific reasons to their own cards now (mirroring how
@@ -2009,7 +2108,6 @@ describe("getAdminOverview", () => {
     expect(result.findingsByCode).toEqual(expect.objectContaining({ "missing-description": 1 }));
   });
 
-
   // ── Screens and automation reach the Overview ─────────────────────────────
   //
   // Both pillars were analysed and then withheld from the page that exists to surface
@@ -2020,10 +2118,20 @@ describe("getAdminOverview", () => {
   test("carries the screen governance summary into the payload and the score", async () => {
     mocks.readSnapshotMeta.mockResolvedValue({ state: "idle" });
     mocks.countOldScopeKeyRows.mockResolvedValue(0);
-    mocks.readScreenSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", refreshedAt: "2026-08-13T00:00:00Z" });
+    mocks.readScreenSnapshotMeta.mockResolvedValue({
+      state: "ready",
+      version: "v1",
+      refreshedAt: "2026-08-13T00:00:00Z",
+    });
     mocks.loadScreenGovernanceSummary.mockResolvedValue({
-      totalScreens: 760, emptyScreens: 12, unresolvedScreens: 3, unreachedScreens: 40,
-      totalOperations: 240, danglingOperations: 24, totalSchemes: 60, unusedSchemes: 7,
+      totalScreens: 760,
+      emptyScreens: 12,
+      unresolvedScreens: 3,
+      unreachedScreens: 40,
+      totalOperations: 240,
+      danglingOperations: 24,
+      totalSchemes: 60,
+      unusedSchemes: 7,
     });
 
     const result = await getAdminOverview({ context: {} });
@@ -2064,7 +2172,11 @@ describe("getAdminOverview", () => {
   test("carries the people overview into the payload and the score", async () => {
     mocks.readSnapshotMeta.mockResolvedValue({ state: "idle" });
     mocks.countOldScopeKeyRows.mockResolvedValue(0);
-    mocks.readUserSnapshotMeta.mockResolvedValue({ state: "ready", version: "u1", refreshedAt: "2026-09-01T00:00:00Z" });
+    mocks.readUserSnapshotMeta.mockResolvedValue({
+      state: "ready",
+      version: "u1",
+      refreshedAt: "2026-09-01T00:00:00Z",
+    });
     mocks.loadUsers.mockResolvedValue([{ accountId: "a1", displayName: "Ann", applications: [], groups: [] }]);
     mocks.loadUserGovernanceSummary.mockResolvedValue({ totalUsers: 200, activeUsers: 180 });
 
@@ -2090,13 +2202,22 @@ describe("getAdminOverview", () => {
   test("carries the assets overview into the payload and the score", async () => {
     mocks.readSnapshotMeta.mockResolvedValue({ state: "idle" });
     mocks.countOldScopeKeyRows.mockResolvedValue(0);
-    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "ready", version: "as1", assetsEnabled: true, refreshedAt: "2026-09-02T00:00:00Z" });
+    mocks.readAssetSnapshotMeta.mockResolvedValue({
+      state: "ready",
+      version: "as1",
+      assetsEnabled: true,
+      refreshedAt: "2026-09-02T00:00:00Z",
+    });
     mocks.loadAssetSchemas.mockResolvedValue([
       { id: "1", name: "Infra", objectTypeCount: 2, objectCount: 40 },
       { id: "2", name: "Empty", objectTypeCount: 0, objectCount: 0 },
     ]);
-    mocks.loadAssetObjectTypes.mockResolvedValue([{ id: "9", schemaId: "1", name: "Server", parentId: null, abstract: false }]);
-    mocks.loadAssetAttributes.mockResolvedValue([{ id: "a", objectTypeId: "9", name: "OS", referenceObjectTypeId: null, system: false }]);
+    mocks.loadAssetObjectTypes.mockResolvedValue([
+      { id: "9", schemaId: "1", name: "Server", parentId: null, abstract: false },
+    ]);
+    mocks.loadAssetAttributes.mockResolvedValue([
+      { id: "a", objectTypeId: "9", name: "OS", referenceObjectTypeId: null, system: false },
+    ]);
 
     const result = await getAdminOverview({ context: {} });
 
@@ -2123,8 +2244,13 @@ describe("getAdminOverview", () => {
       refreshedAt: 123,
       estate: {
         health: {
-          available: true, ruleCount: 1479, disabledCount: 604, credentialRuleCount: 3,
-          externalHttpCount: 22, noActionCount: 8, selfTriggeringCount: 88,
+          available: true,
+          ruleCount: 1479,
+          disabledCount: 604,
+          credentialRuleCount: 3,
+          externalHttpCount: 22,
+          noActionCount: 8,
+          selfTriggeringCount: 88,
         },
       },
     });
@@ -2133,11 +2259,18 @@ describe("getAdminOverview", () => {
 
     // Every count the findings list needs, not the {available, refreshedAt, ruleCount}
     // triple this used to be flattened to.
-    expect(result.automation).toEqual(expect.objectContaining({
-      available: true, ruleCount: 1479, credentialRuleCount: 3,
-      selfTriggeringCount: 88, externalHttpCount: 22, noActionCount: 8, disabledCount: 604,
-      refreshedAt: 123,
-    }));
+    expect(result.automation).toEqual(
+      expect.objectContaining({
+        available: true,
+        ruleCount: 1479,
+        credentialRuleCount: 3,
+        selfTriggeringCount: 88,
+        externalHttpCount: 22,
+        noActionCount: 8,
+        disabledCount: 604,
+        refreshedAt: 123,
+      }),
+    );
   });
 
   // The dashboard-building branch had never executed: every existing case either omitted
@@ -2150,10 +2283,38 @@ describe("getAdminOverview", () => {
     mocks.countOldScopeKeyRows.mockResolvedValue(0);
     mocks.loadSnapshotFields.mockResolvedValue([snapshotField()]);
     mocks.listSnapshotProjects.mockResolvedValue([
-      { projectId: "1", projectKey: "A", projectName: "Alpha", fieldCount: 4, totalIssueCount: 900, latestIssueUpdatedAt: new Date().toISOString() },
-      { projectId: "2", projectKey: "B", projectName: "Bravo", fieldCount: 6, totalIssueCount: 400, latestIssueUpdatedAt: new Date().toISOString() },
-      { projectId: "3", projectKey: "C", projectName: "Charlie", fieldCount: 40, totalIssueCount: 2, latestIssueUpdatedAt: new Date().toISOString() },
-      { projectId: "4", projectKey: "D", projectName: "Delta", fieldCount: 3, totalIssueCount: 0, latestIssueUpdatedAt: null },
+      {
+        projectId: "1",
+        projectKey: "A",
+        projectName: "Alpha",
+        fieldCount: 4,
+        totalIssueCount: 900,
+        latestIssueUpdatedAt: new Date().toISOString(),
+      },
+      {
+        projectId: "2",
+        projectKey: "B",
+        projectName: "Bravo",
+        fieldCount: 6,
+        totalIssueCount: 400,
+        latestIssueUpdatedAt: new Date().toISOString(),
+      },
+      {
+        projectId: "3",
+        projectKey: "C",
+        projectName: "Charlie",
+        fieldCount: 40,
+        totalIssueCount: 2,
+        latestIssueUpdatedAt: new Date().toISOString(),
+      },
+      {
+        projectId: "4",
+        projectKey: "D",
+        projectName: "Delta",
+        fieldCount: 3,
+        totalIssueCount: 0,
+        latestIssueUpdatedAt: null,
+      },
     ]);
 
     const result = await getAdminOverview({ context: {} });
@@ -2180,8 +2341,22 @@ describe("getAdminOverview", () => {
     mocks.countOldScopeKeyRows.mockResolvedValue(0);
     mocks.loadSnapshotFields.mockResolvedValue([snapshotField()]);
     mocks.listSnapshotProjects.mockResolvedValue([
-      { projectId: "1", projectKey: "A", projectName: "Alpha", fieldCount: 90, totalIssueCount: 90000, latestIssueUpdatedAt: null },
-      { projectId: "2", projectKey: "B", projectName: "Bravo", fieldCount: 40, totalIssueCount: 20000, latestIssueUpdatedAt: null },
+      {
+        projectId: "1",
+        projectKey: "A",
+        projectName: "Alpha",
+        fieldCount: 90,
+        totalIssueCount: 90000,
+        latestIssueUpdatedAt: null,
+      },
+      {
+        projectId: "2",
+        projectKey: "B",
+        projectName: "Bravo",
+        fieldCount: 40,
+        totalIssueCount: 20000,
+        latestIssueUpdatedAt: null,
+      },
     ]);
     mocks.loadIssueScanProjectTotals.mockResolvedValue([
       { projectId: "1", projectKey: "A", projectName: "Alpha", uniqueIssueCount: 1000 },
@@ -2204,7 +2379,14 @@ describe("getAdminOverview", () => {
     mocks.countOldScopeKeyRows.mockResolvedValue(0);
     mocks.loadSnapshotFields.mockResolvedValue([snapshotField()]);
     mocks.listSnapshotProjects.mockResolvedValue([
-      { projectId: "1", projectKey: "A", projectName: "Alpha", fieldCount: 90, totalIssueCount: 90000, latestIssueUpdatedAt: null },
+      {
+        projectId: "1",
+        projectKey: "A",
+        projectName: "Alpha",
+        fieldCount: 90,
+        totalIssueCount: 90000,
+        latestIssueUpdatedAt: null,
+      },
     ]);
     mocks.loadIssueScanProjectTotals.mockResolvedValue([]);
 
@@ -2223,8 +2405,22 @@ describe("getAdminOverview", () => {
     // BIG has more fills but fewer issues -- it simply has more fields configured. Ranking
     // on fills puts the wrong project at the top of a list titled "highest issue volume".
     mocks.listSnapshotProjects.mockResolvedValue([
-      { projectId: "1", projectKey: "BIG", projectName: "Big", fieldCount: 200, totalIssueCount: 200000, latestIssueUpdatedAt: null },
-      { projectId: "2", projectKey: "BUSY", projectName: "Busy", fieldCount: 10, totalIssueCount: 50000, latestIssueUpdatedAt: null },
+      {
+        projectId: "1",
+        projectKey: "BIG",
+        projectName: "Big",
+        fieldCount: 200,
+        totalIssueCount: 200000,
+        latestIssueUpdatedAt: null,
+      },
+      {
+        projectId: "2",
+        projectKey: "BUSY",
+        projectName: "Busy",
+        fieldCount: 10,
+        totalIssueCount: 50000,
+        latestIssueUpdatedAt: null,
+      },
     ]);
     mocks.loadIssueScanProjectTotals.mockResolvedValue([
       { projectId: "1", projectKey: "BIG", projectName: "Big", uniqueIssueCount: 1000 },
@@ -2243,8 +2439,22 @@ describe("getAdminOverview", () => {
     mocks.countOldScopeKeyRows.mockResolvedValue(0);
     mocks.loadSnapshotFields.mockResolvedValue([snapshotField()]);
     mocks.listSnapshotProjects.mockResolvedValue([
-      { projectId: "1", projectKey: "SEEN", projectName: "Seen", fieldCount: 10, totalIssueCount: 5000, latestIssueUpdatedAt: null },
-      { projectId: "2", projectKey: "MISSED", projectName: "Missed", fieldCount: 10, totalIssueCount: 4000, latestIssueUpdatedAt: null },
+      {
+        projectId: "1",
+        projectKey: "SEEN",
+        projectName: "Seen",
+        fieldCount: 10,
+        totalIssueCount: 5000,
+        latestIssueUpdatedAt: null,
+      },
+      {
+        projectId: "2",
+        projectKey: "MISSED",
+        projectName: "Missed",
+        fieldCount: 10,
+        totalIssueCount: 4000,
+        latestIssueUpdatedAt: null,
+      },
     ]);
     mocks.loadIssueScanProjectTotals.mockResolvedValue([
       { projectId: "1", projectKey: "SEEN", projectName: "Seen", uniqueIssueCount: 300 },
@@ -2264,7 +2474,14 @@ describe("getAdminOverview", () => {
     mocks.countOldScopeKeyRows.mockResolvedValue(0);
     mocks.loadSnapshotFields.mockResolvedValue([snapshotField()]);
     mocks.listSnapshotProjects.mockResolvedValue([
-      { projectId: "1", projectKey: "A", projectName: "Alpha", fieldCount: 5, totalIssueCount: 100, latestIssueUpdatedAt: null },
+      {
+        projectId: "1",
+        projectKey: "A",
+        projectName: "Alpha",
+        fieldCount: 5,
+        totalIssueCount: 100,
+        latestIssueUpdatedAt: null,
+      },
     ]);
     mocks.loadIssueScanProjectTotals.mockRejectedValue(new Error("SQL unavailable"));
 
@@ -2283,8 +2500,22 @@ describe("getAdminOverview", () => {
     mocks.countOldScopeKeyRows.mockResolvedValue(0);
     mocks.loadSnapshotFields.mockResolvedValue([snapshotField()]);
     mocks.listSnapshotProjects.mockResolvedValue([
-      { projectId: "1", projectKey: "STALE", projectName: "Stale", fieldCount: 5, totalIssueCount: 100, latestIssueUpdatedAt: old },
-      { projectId: "2", projectKey: "FRESH", projectName: "Fresh", fieldCount: 5, totalIssueCount: 100, latestIssueUpdatedAt: new Date().toISOString() },
+      {
+        projectId: "1",
+        projectKey: "STALE",
+        projectName: "Stale",
+        fieldCount: 5,
+        totalIssueCount: 100,
+        latestIssueUpdatedAt: old,
+      },
+      {
+        projectId: "2",
+        projectKey: "FRESH",
+        projectName: "Fresh",
+        fieldCount: 5,
+        totalIssueCount: 100,
+        latestIssueUpdatedAt: new Date().toISOString(),
+      },
     ]);
 
     const result = await getAdminOverview({ context: {} });
@@ -2297,7 +2528,11 @@ describe("getAdminOverview", () => {
     mocks.listFieldSummaries.mockResolvedValue([]);
     mocks.kvsGet.mockResolvedValue(null);
     mocks.countOldScopeKeyRows.mockResolvedValue(0);
-    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready", refreshedAt: "2026-08-03T00:00:00Z" });
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({
+      version: "v1",
+      state: "ready",
+      refreshedAt: "2026-08-03T00:00:00Z",
+    });
     mocks.loadWorkflowSchemes.mockResolvedValue([
       { id: "s1", name: "Shared", projectCount: 4 },
       { id: "s2", name: "Bespoke", projectCount: 1 },
@@ -2341,7 +2576,6 @@ describe("getAdminOverview", () => {
 
     expect(result.workflow).toEqual({ available: false, state: "error" });
   });
-
 
   // The worst silent handler in the codebase was a bare `catch {}` around this build:
   // an empty dashboard and a site with no data render identically, so the difference
@@ -2413,10 +2647,10 @@ describe("getAdminOverview", () => {
     expect(result.dashboard.fieldUsage.origin.custom).toBe(2);
     expect(result.dashboard.projects.totalProjects).toBe(2);
     expect(result.dashboard.projects.topByIssueVolume[0]).toEqual(
-      expect.objectContaining({ projectKey: "AAA", totalIssueCount: 100 })
+      expect.objectContaining({ projectKey: "AAA", totalIssueCount: 100 }),
     );
     expect(result.dashboard.projects.topByFieldCount[0]).toEqual(
-      expect.objectContaining({ projectKey: "BBB", fieldCount: 10 })
+      expect.objectContaining({ projectKey: "BBB", fieldCount: 10 }),
     );
   });
 
@@ -2458,8 +2692,13 @@ describe("startIssueScan", () => {
     mocks.readIssueScanMeta.mockResolvedValue({ state: "idle" });
     const result = await startIssueScan({ context: {} });
     expect(result).toEqual({ started: true, jobToken: "job-token-1" });
-    expect(mocks.writeIssueScanMeta).toHaveBeenCalledWith("test-install", expect.objectContaining({ state: "queued", jobToken: "job-token-1" }));
-    expect(mocks.queuePush).toHaveBeenCalledWith({ body: { jobType: "run-issue-scan", installationKey: "test-install" } });
+    expect(mocks.writeIssueScanMeta).toHaveBeenCalledWith(
+      "test-install",
+      expect.objectContaining({ state: "queued", jobToken: "job-token-1" }),
+    );
+    expect(mocks.queuePush).toHaveBeenCalledWith({
+      body: { jobType: "run-issue-scan", installationKey: "test-install" },
+    });
   });
 
   test("marks the scan failed and re-throws if the queue push itself fails", async () => {
@@ -2468,7 +2707,10 @@ describe("startIssueScan", () => {
 
     await expect(startIssueScan({ context: {} })).rejects.toThrow("queue backpressure");
 
-    expect(mocks.writeIssueScanMeta).toHaveBeenLastCalledWith("test-install", expect.objectContaining({ state: "failed" }));
+    expect(mocks.writeIssueScanMeta).toHaveBeenLastCalledWith(
+      "test-install",
+      expect.objectContaining({ state: "failed" }),
+    );
   });
 });
 
@@ -2515,7 +2757,10 @@ describe("resumeIssueScan", () => {
 
     await expect(resumeIssueScan({ context: {} })).rejects.toThrow(/Resume partially failed/);
 
-    expect(mocks.writeIssueScanMeta).toHaveBeenLastCalledWith("test-install", expect.objectContaining({ state: "failed" }));
+    expect(mocks.writeIssueScanMeta).toHaveBeenLastCalledWith(
+      "test-install",
+      expect.objectContaining({ state: "failed" }),
+    );
   });
 
   // Regression test: a worker can finish (marking itself "done") right after a cancel
@@ -2584,7 +2829,10 @@ describe("cancelIssueScan", () => {
     mocks.readIssueScanMeta.mockResolvedValue({ state: "building", progressLog: [] });
     const result = await cancelIssueScan({ context: {} });
     expect(result).toEqual({ cancelled: true });
-    expect(mocks.writeIssueScanMeta).toHaveBeenCalledWith("test-install", expect.objectContaining({ state: "cancelled" }));
+    expect(mocks.writeIssueScanMeta).toHaveBeenCalledWith(
+      "test-install",
+      expect.objectContaining({ state: "cancelled" }),
+    );
   });
 });
 
@@ -2619,8 +2867,13 @@ describe("startDeltaIssueScan", () => {
     mocks.readIssueScanMeta.mockResolvedValue(null);
     const result = await startDeltaIssueScan({ context: {} });
     expect(result).toEqual({ started: true });
-    expect(mocks.writeIssueScanMeta).toHaveBeenCalledWith("test-install::delta", expect.objectContaining({ state: "queued" }));
-    expect(mocks.queuePush).toHaveBeenCalledWith({ body: { jobType: "run-delta-issue-scan", installationKey: "test-install" } });
+    expect(mocks.writeIssueScanMeta).toHaveBeenCalledWith(
+      "test-install::delta",
+      expect.objectContaining({ state: "queued" }),
+    );
+    expect(mocks.queuePush).toHaveBeenCalledWith({
+      body: { jobType: "run-delta-issue-scan", installationKey: "test-install" },
+    });
   });
 });
 
@@ -2653,7 +2906,10 @@ describe("runDeltaIssueScanJob", () => {
   });
 
   test("proceeds if the existing 'building' state is stale (started over 10 minutes ago)", async () => {
-    mocks.readIssueScanMeta.mockResolvedValue({ state: "building", startedAt: new Date(Date.now() - 20 * 60 * 1000).toISOString() });
+    mocks.readIssueScanMeta.mockResolvedValue({
+      state: "building",
+      startedAt: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
+    });
     mocks.jiraRequest.mockResolvedValue(jiraSearchResponse([]));
     mocks.readSnapshotMeta.mockResolvedValue(null);
 
@@ -2666,16 +2922,21 @@ describe("runDeltaIssueScanJob", () => {
     mocks.readIssueScanMeta.mockResolvedValue(null);
     mocks.jiraRequest
       .mockResolvedValueOnce({ total: 1 }) // initial count call
-      .mockResolvedValueOnce(jiraSearchResponse([
-        {
-          key: "ABC-1",
-          fields: {
-            project: { id: "10", key: "ABC", name: "Alpha" },
-            summary: "Test issue",
-            customfield_10001: "Some value",
-          },
-        },
-      ], null));
+      .mockResolvedValueOnce(
+        jiraSearchResponse(
+          [
+            {
+              key: "ABC-1",
+              fields: {
+                project: { id: "10", key: "ABC", name: "Alpha" },
+                summary: "Test issue",
+                customfield_10001: "Some value",
+              },
+            },
+          ],
+          null,
+        ),
+      );
     mocks.readSnapshotMeta.mockResolvedValue(null); // no snapshot -> skip field-usage update
 
     await runDeltaIssueScanJob("test-install");
@@ -2690,14 +2951,15 @@ describe("runDeltaIssueScanJob", () => {
     mocks.readIssueScanMeta.mockResolvedValue(null);
     mocks.jiraRequest
       .mockResolvedValueOnce({ total: 2 })
-      .mockResolvedValueOnce(jiraSearchResponse(
-        [{ key: "ABC-1", fields: { project: { id: "10", key: "ABC", name: "Alpha" } } }],
-        "page-2-token"
-      ))
-      .mockResolvedValueOnce(jiraSearchResponse(
-        [{ key: "ABC-2", fields: { project: { id: "10", key: "ABC", name: "Alpha" } } }],
-        null
-      ));
+      .mockResolvedValueOnce(
+        jiraSearchResponse(
+          [{ key: "ABC-1", fields: { project: { id: "10", key: "ABC", name: "Alpha" } } }],
+          "page-2-token",
+        ),
+      )
+      .mockResolvedValueOnce(
+        jiraSearchResponse([{ key: "ABC-2", fields: { project: { id: "10", key: "ABC", name: "Alpha" } } }], null),
+      );
     mocks.readSnapshotMeta.mockResolvedValue(null);
 
     await runDeltaIssueScanJob("test-install");
@@ -2708,9 +2970,7 @@ describe("runDeltaIssueScanJob", () => {
 
   test("skips field-usage update (but still finishes) when no snapshot exists yet", async () => {
     mocks.readIssueScanMeta.mockResolvedValue(null);
-    mocks.jiraRequest
-      .mockResolvedValueOnce({ total: 0 })
-      .mockResolvedValueOnce(jiraSearchResponse([], null));
+    mocks.jiraRequest.mockResolvedValueOnce({ total: 0 }).mockResolvedValueOnce(jiraSearchResponse([], null));
     mocks.readSnapshotMeta.mockResolvedValue(null);
 
     await runDeltaIssueScanJob("test-install");
@@ -2728,7 +2988,10 @@ describe("runDeltaIssueScanJob", () => {
 
     await expect(runDeltaIssueScanJob("test-install")).resolves.toBeUndefined();
 
-    expect(mocks.writeIssueScanMeta).toHaveBeenCalledWith("test-install::delta", expect.objectContaining({ state: "failed" }));
+    expect(mocks.writeIssueScanMeta).toHaveBeenCalledWith(
+      "test-install::delta",
+      expect.objectContaining({ state: "failed" }),
+    );
   });
 });
 
@@ -2741,7 +3004,10 @@ describe("cancelSnapshot", () => {
   test("nulls buildingVersion so any in-flight build's own version-check fails", async () => {
     const result = await cancelSnapshot({ context: {} });
     expect(result).toEqual({ cancelled: true });
-    expect(mocks.writeSnapshotMeta).toHaveBeenCalledWith("test-install", expect.objectContaining({ state: "cancelled", buildingVersion: null }));
+    expect(mocks.writeSnapshotMeta).toHaveBeenCalledWith(
+      "test-install",
+      expect.objectContaining({ state: "cancelled", buildingVersion: null }),
+    );
   });
 });
 
@@ -2803,7 +3069,11 @@ describe("refreshRecentProjectUsage", () => {
 
     expect(result.queuedCount).toBe(1);
     expect(result.fullRebuildCount).toBe(0);
-    expect(mocks.replaceFieldSummary).toHaveBeenCalledWith("test-install", "customfield_1", expect.objectContaining({ summaryStatus: "queued" }));
+    expect(mocks.replaceFieldSummary).toHaveBeenCalledWith(
+      "test-install",
+      "customfield_1",
+      expect.objectContaining({ summaryStatus: "queued" }),
+    );
   });
 
   test("marks a field deferred when the incremental refresh queue push fails", async () => {
@@ -2819,7 +3089,11 @@ describe("refreshRecentProjectUsage", () => {
     const result = await refreshRecentProjectUsage({ payload: {}, context: {} });
 
     expect(result.queuedCount).toBe(0);
-    expect(mocks.replaceFieldSummary).toHaveBeenLastCalledWith("test-install", "customfield_1", expect.objectContaining({ summaryStatus: "deferred" }));
+    expect(mocks.replaceFieldSummary).toHaveBeenLastCalledWith(
+      "test-install",
+      "customfield_1",
+      expect.objectContaining({ summaryStatus: "deferred" }),
+    );
   });
 });
 
@@ -2838,7 +3112,11 @@ describe("cancelProjectUsageJob", () => {
     mocks.loadFieldSummary.mockResolvedValue({ summaryStatus: "building", progressLog: [] });
     const result = await cancelProjectUsageJob({ payload: { fieldId: "customfield_1" }, context: {} });
     expect(result).toEqual({ cancelled: true });
-    expect(mocks.replaceFieldSummary).toHaveBeenCalledWith("test-install", "customfield_1", expect.objectContaining({ summaryStatus: "cancelled" }));
+    expect(mocks.replaceFieldSummary).toHaveBeenCalledWith(
+      "test-install",
+      "customfield_1",
+      expect.objectContaining({ summaryStatus: "cancelled" }),
+    );
   });
 });
 
@@ -2849,13 +3127,17 @@ describe("restartProjectUsageJob", () => {
 
   test("throws when no snapshot has completed", async () => {
     mocks.readSnapshotMeta.mockResolvedValue(null);
-    await expect(restartProjectUsageJob({ payload: { fieldId: "customfield_1" }, context: {} })).rejects.toThrow(/No completed snapshot/);
+    await expect(restartProjectUsageJob({ payload: { fieldId: "customfield_1" }, context: {} })).rejects.toThrow(
+      /No completed snapshot/,
+    );
   });
 
   test("throws when the field isn't in the snapshot", async () => {
     mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
     mocks.loadSnapshotField.mockResolvedValue(null);
-    await expect(restartProjectUsageJob({ payload: { fieldId: "customfield_missing" }, context: {} })).rejects.toThrow(/Field not found/);
+    await expect(restartProjectUsageJob({ payload: { fieldId: "customfield_missing" }, context: {} })).rejects.toThrow(
+      /Field not found/,
+    );
   });
 
   test("wipes existing usage rows and starts a fresh job from zero", async () => {
@@ -2866,8 +3148,20 @@ describe("restartProjectUsageJob", () => {
 
     expect(result).toEqual({ queued: true, fieldId: "customfield_1" });
     expect(mocks.replaceSnapshotProjectUsageForField).toHaveBeenCalledWith("test-install", 1, "customfield_1", []);
-    expect(mocks.replaceFieldSummary).toHaveBeenCalledWith("test-install", "customfield_1", expect.objectContaining({ summaryStatus: "queued", processedIssueCount: 0 }));
-    expect(mocks.processFieldSummaryChunk).toHaveBeenCalledWith("test-install", 1, expect.objectContaining({ id: "customfield_1" }), expect.any(String), 0, null, 1);
+    expect(mocks.replaceFieldSummary).toHaveBeenCalledWith(
+      "test-install",
+      "customfield_1",
+      expect.objectContaining({ summaryStatus: "queued", processedIssueCount: 0 }),
+    );
+    expect(mocks.processFieldSummaryChunk).toHaveBeenCalledWith(
+      "test-install",
+      1,
+      expect.objectContaining({ id: "customfield_1" }),
+      expect.any(String),
+      0,
+      null,
+      1,
+    );
   });
 });
 
@@ -2878,14 +3172,18 @@ describe("resumeProjectUsageJob", () => {
 
   test("throws when no snapshot has completed", async () => {
     mocks.readSnapshotMeta.mockResolvedValue(null);
-    await expect(resumeProjectUsageJob({ payload: { fieldId: "customfield_1" }, context: {} })).rejects.toThrow(/No completed snapshot/);
+    await expect(resumeProjectUsageJob({ payload: { fieldId: "customfield_1" }, context: {} })).rejects.toThrow(
+      /No completed snapshot/,
+    );
   });
 
   test("throws when there's no existing job state to resume", async () => {
     mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
     mocks.loadSnapshotField.mockResolvedValue(snapshotField());
     mocks.loadFieldSummary.mockResolvedValue(null);
-    await expect(resumeProjectUsageJob({ payload: { fieldId: "customfield_1" }, context: {} })).rejects.toThrow(/No existing project-usage job state/);
+    await expect(resumeProjectUsageJob({ payload: { fieldId: "customfield_1" }, context: {} })).rejects.toThrow(
+      /No existing project-usage job state/,
+    );
   });
 
   test("refuses to resume a job that's already running", async () => {
@@ -2900,13 +3198,24 @@ describe("resumeProjectUsageJob", () => {
     mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
     mocks.loadSnapshotField.mockResolvedValue(snapshotField({ id: "customfield_1" }));
     mocks.loadFieldSummary.mockResolvedValue({
-      summaryStatus: "failed", processedIssueCount: 340, nextPageToken: "page-token-abc", progressLog: [],
+      summaryStatus: "failed",
+      processedIssueCount: 340,
+      nextPageToken: "page-token-abc",
+      progressLog: [],
     });
 
     const result = await resumeProjectUsageJob({ payload: { fieldId: "customfield_1" }, context: {} });
 
     expect(result).toEqual({ queued: true, fieldId: "customfield_1", resumedFrom: 340 });
-    expect(mocks.processFieldSummaryChunk).toHaveBeenCalledWith("test-install", 1, expect.objectContaining({ id: "customfield_1" }), expect.any(String), 340, "page-token-abc", 1);
+    expect(mocks.processFieldSummaryChunk).toHaveBeenCalledWith(
+      "test-install",
+      1,
+      expect.objectContaining({ id: "customfield_1" }),
+      expect.any(String),
+      340,
+      "page-token-abc",
+      1,
+    );
   });
 });
 
@@ -2964,8 +3273,9 @@ describe("getProjectUsageReport", () => {
 
   test("throws when no snapshot has completed", async () => {
     mocks.readSnapshotMeta.mockResolvedValue(null);
-    await expect(getProjectUsageReport({ payload: { fieldIds: ["customfield_1"] }, context: {} }))
-      .rejects.toThrow(/No completed snapshot/);
+    await expect(getProjectUsageReport({ payload: { fieldIds: ["customfield_1"] }, context: {} })).rejects.toThrow(
+      /No completed snapshot/,
+    );
   });
 
   test("skips a field that's missing from the snapshot entirely rather than erroring the whole report", async () => {
@@ -3014,7 +3324,10 @@ describe("getProjectUsageReport", () => {
       { projectId: "99", projectKey: "ZZZ", projectName: "Zeta" },
     ]);
 
-    const result = await getProjectUsageReport({ payload: { fieldIds: ["customfield_1"], projectIds: ["10", "11"] }, context: {} });
+    const result = await getProjectUsageReport({
+      payload: { fieldIds: ["customfield_1"], projectIds: ["10", "11"] },
+      context: {},
+    });
 
     expect(result.projects.map((p) => p.projectId).sort()).toEqual(["10", "11"]);
     expect(result.fields[0].projects.map((p) => p.projectId)).toEqual(["10"]);
@@ -3108,7 +3421,12 @@ describe("getProjectUsageReport", () => {
     const result = await getProjectUsageReport({ payload: { fieldIds: ["customfield_1"] }, context: {} });
 
     expect(result.pendingFields).toEqual([
-      { fieldId: "customfield_1", fieldName: "Story Points", summaryStatus: "deferred", reason: "deferred-active-job-cap" },
+      {
+        fieldId: "customfield_1",
+        fieldName: "Story Points",
+        summaryStatus: "deferred",
+        reason: "deferred-active-job-cap",
+      },
     ]);
     // deferred candidates get recorded via ensureDeferredProjectUsageJobRecorded, not queued
     expect(mocks.queueFieldSummaryContinuationWithRetry).not.toHaveBeenCalled();
@@ -3117,16 +3435,26 @@ describe("getProjectUsageReport", () => {
   test("returns the deduped, sorted set of projects across all requested fields", async () => {
     mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
     mocks.listFieldSummaries.mockResolvedValue([]);
-    mocks.loadSnapshotField.mockImplementation((_i, _v, fieldId) => Promise.resolve(snapshotField({ id: fieldId, name: fieldId })));
+    mocks.loadSnapshotField.mockImplementation((_i, _v, fieldId) =>
+      Promise.resolve(snapshotField({ id: fieldId, name: fieldId })),
+    );
     mocks.loadAllSnapshotProjectUsage.mockImplementation((_i, _v, fieldId) =>
-      Promise.resolve(fieldId === "customfield_1"
-        ? [{ projectId: "10", projectKey: "ABC", projectName: "Alpha", issueCount: 1 }]
-        : [{ projectId: "10", projectKey: "ABC", projectName: "Alpha", issueCount: 1 }, { projectId: "20", projectKey: "XYZ", projectName: "Zulu", issueCount: 1 }])
+      Promise.resolve(
+        fieldId === "customfield_1"
+          ? [{ projectId: "10", projectKey: "ABC", projectName: "Alpha", issueCount: 1 }]
+          : [
+              { projectId: "10", projectKey: "ABC", projectName: "Alpha", issueCount: 1 },
+              { projectId: "20", projectKey: "XYZ", projectName: "Zulu", issueCount: 1 },
+            ],
+      ),
     );
     mocks.loadFieldSummary.mockResolvedValue(null);
     mocks.getDistinctIssueCountForFields.mockResolvedValue(2);
 
-    const result = await getProjectUsageReport({ payload: { fieldIds: ["customfield_1", "customfield_2"] }, context: {} });
+    const result = await getProjectUsageReport({
+      payload: { fieldIds: ["customfield_1", "customfield_2"] },
+      context: {},
+    });
 
     expect(result.projects.map((p) => p.projectKey)).toEqual(["ABC", "XYZ"]); // deduped, sorted by key
   });
@@ -3185,10 +3513,17 @@ describe("getProjectUsageReportJob", () => {
       totalFields: 1,
       processedFields: 1,
       result: {
-        fields: [{ fieldId: "customfield_1", fieldName: "Story Points", activeProjectCount: 2, projects: [
-          { projectId: "10", projectKey: "ABC", projectName: "Alpha" },
-          { projectId: "20", projectKey: "SECRET", projectName: "Confidential" },
-        ] }],
+        fields: [
+          {
+            fieldId: "customfield_1",
+            fieldName: "Story Points",
+            activeProjectCount: 2,
+            projects: [
+              { projectId: "10", projectKey: "ABC", projectName: "Alpha" },
+              { projectId: "20", projectKey: "SECRET", projectName: "Confidential" },
+            ],
+          },
+        ],
         projects: [
           { projectId: "10", projectKey: "ABC", projectName: "Alpha" },
           { projectId: "20", projectKey: "SECRET", projectName: "Confidential" },
@@ -3199,7 +3534,10 @@ describe("getProjectUsageReportJob", () => {
     });
     mocks.getBrowsableProjectIds.mockResolvedValue(new Set(["10"])); // this reader can only see Alpha
 
-    const result = await getProjectUsageReportJob({ payload: { jobId: "job-1" }, context: ctxWithAccount("less-privileged-user") });
+    const result = await getProjectUsageReportJob({
+      payload: { jobId: "job-1" },
+      context: ctxWithAccount("less-privileged-user"),
+    });
 
     expect(result.job.result.projects.map((p) => p.projectKey)).toEqual(["ABC"]);
     expect(result.job.result.fields[0].projects.map((p) => p.projectKey)).toEqual(["ABC"]);
@@ -3231,7 +3569,9 @@ describe("getRqtIndex", () => {
   });
 
   test("still returns a full shape (without name enrichment) when there's no snapshot yet", async () => {
-    mocks.loadRqtFieldIndex.mockResolvedValue([{ fieldId: "customfield_1", issueCount: 3, sampleValues: [], refreshedAt: null }]);
+    mocks.loadRqtFieldIndex.mockResolvedValue([
+      { fieldId: "customfield_1", issueCount: 3, sampleValues: [], refreshedAt: null },
+    ]);
     mocks.readSnapshotMeta.mockResolvedValue(null);
     mocks.loadRqtIssueKeys.mockResolvedValue([]);
     mocks.loadRqtValueFrequency.mockResolvedValue([]);
@@ -3442,7 +3782,9 @@ describe("clearSnapshot", () => {
 
   test("cancels the in-flight build before deleting anything", async () => {
     const order = [];
-    mocks.writeSnapshotMeta.mockImplementation(async () => { order.push("cancel"); });
+    mocks.writeSnapshotMeta.mockImplementation(async () => {
+      order.push("cancel");
+    });
     mocks.clearAllSnapshotData.mockImplementation(async () => {
       order.push("delete");
       return { deleted: {}, totalRowsDeleted: 0 };
@@ -3512,13 +3854,18 @@ describe("admin authorization guard", () => {
   });
 
   test("rejects an anonymous caller without even asking Jira", async () => {
-    await expect(ADMIN_ONLY_FUNCTIONS.clearSnapshot({ context: {}, payload: {} })).rejects.toThrow(AdminPermissionError);
+    await expect(ADMIN_ONLY_FUNCTIONS.clearSnapshot({ context: {}, payload: {} })).rejects.toThrow(
+      AdminPermissionError,
+    );
     expect(mocks.callerHasJiraAdmin).not.toHaveBeenCalled();
   });
 
   test("allows a caller who holds Jira ADMINISTER", async () => {
     await expect(
-      ADMIN_ONLY_FUNCTIONS.clearSnapshot({ context: { accountId: "acct-admin" }, payload: { confirmation: CLEAR_SNAPSHOT_CONFIRMATION } })
+      ADMIN_ONLY_FUNCTIONS.clearSnapshot({
+        context: { accountId: "acct-admin" },
+        payload: { confirmation: CLEAR_SNAPSHOT_CONFIRMATION },
+      }),
     ).resolves.toMatchObject({ cleared: true });
   });
 
@@ -3535,11 +3882,14 @@ describe("admin authorization guard", () => {
 
     await expect(ADMIN_ONLY_FUNCTIONS.startIssueScan(ADMIN_CTX)).rejects.toThrow();
 
-    expect(mocks.recordAuditEvent).toHaveBeenCalledWith("test-install", expect.objectContaining({
-      actorId: "acct-admin",
-      action: "startIssueScan",
-      outcome: "denied",
-    }));
+    expect(mocks.recordAuditEvent).toHaveBeenCalledWith(
+      "test-install",
+      expect.objectContaining({
+        actorId: "acct-admin",
+        action: "startIssueScan",
+        outcome: "denied",
+      }),
+    );
   });
 
   test("caches the permission answer instead of asking Jira on every call", async () => {
@@ -3555,7 +3905,7 @@ describe("admin authorization guard", () => {
 
     await expect(ADMIN_ONLY_FUNCTIONS.getIssueScanStatus(ADMIN_CTX)).resolves.toBeDefined();
     await expect(
-      ADMIN_ONLY_FUNCTIONS.getIssueScanStatus({ context: { accountId: "acct-other" }, payload: {} })
+      ADMIN_ONLY_FUNCTIONS.getIssueScanStatus({ context: { accountId: "acct-other" }, payload: {} }),
     ).rejects.toThrow(AdminPermissionError);
   });
 });
@@ -3574,38 +3924,53 @@ describe("audit trail", () => {
   test("records a completed privileged action", async () => {
     await ADMIN_ONLY_FUNCTIONS.cancelSnapshot(ADMIN_CTX);
 
-    expect(mocks.recordAuditEvent).toHaveBeenCalledWith("test-install", expect.objectContaining({
-      actorId: "acct-admin",
-      action: "cancelSnapshot",
-      outcome: "allowed",
-    }));
+    expect(mocks.recordAuditEvent).toHaveBeenCalledWith(
+      "test-install",
+      expect.objectContaining({
+        actorId: "acct-admin",
+        action: "cancelSnapshot",
+        outcome: "allowed",
+      }),
+    );
   });
 
   // Several resolvers signal refusal by returning { error } rather than throwing.
   // Recording those as plain successes would make the audit log say an action
   // happened when it did not.
   test("records a returned refusal as refused, not as a completed action", async () => {
-    await ADMIN_ONLY_FUNCTIONS.clearSnapshot({ context: { accountId: "acct-admin" }, payload: { confirmation: "nope" } });
+    await ADMIN_ONLY_FUNCTIONS.clearSnapshot({
+      context: { accountId: "acct-admin" },
+      payload: { confirmation: "nope" },
+    });
 
-    expect(mocks.recordAuditEvent).toHaveBeenCalledWith("test-install", expect.objectContaining({
-      action: "clearSnapshot",
-      outcome: "allowed",
-      detail: expect.stringContaining("Refused:"),
-    }));
+    expect(mocks.recordAuditEvent).toHaveBeenCalledWith(
+      "test-install",
+      expect.objectContaining({
+        action: "clearSnapshot",
+        outcome: "allowed",
+        detail: expect.stringContaining("Refused:"),
+      }),
+    );
   });
 
   test("records a thrown failure and still propagates the error", async () => {
     mocks.clearAllSnapshotData.mockRejectedValueOnce(new Error("sql exploded"));
 
     await expect(
-      ADMIN_ONLY_FUNCTIONS.clearSnapshot({ context: { accountId: "acct-admin" }, payload: { confirmation: CLEAR_SNAPSHOT_CONFIRMATION } })
+      ADMIN_ONLY_FUNCTIONS.clearSnapshot({
+        context: { accountId: "acct-admin" },
+        payload: { confirmation: CLEAR_SNAPSHOT_CONFIRMATION },
+      }),
     ).rejects.toThrow("sql exploded");
 
-    expect(mocks.recordAuditEvent).toHaveBeenCalledWith("test-install", expect.objectContaining({
-      action: "clearSnapshot",
-      outcome: "failed",
-      detail: expect.stringContaining("sql exploded"),
-    }));
+    expect(mocks.recordAuditEvent).toHaveBeenCalledWith(
+      "test-install",
+      expect.objectContaining({
+        action: "clearSnapshot",
+        outcome: "failed",
+        detail: expect.stringContaining("sql exploded"),
+      }),
+    );
   });
 
   // Admin reads are polled every 15s for the length of a scan. Auditing them would
@@ -3660,7 +4025,7 @@ describe("getAuditLog", () => {
 
   test("rejects a limit above the allowed ceiling", async () => {
     await expect(
-      ADMIN_ONLY_FUNCTIONS.getAuditLog({ context: { accountId: "acct-admin" }, payload: { limit: 99999 } })
+      ADMIN_ONLY_FUNCTIONS.getAuditLog({ context: { accountId: "acct-admin" }, payload: { limit: 99999 } }),
     ).rejects.toThrow(/limit/i);
   });
 
@@ -3702,7 +4067,9 @@ describe("getProjectsView workflow correlation", () => {
     baseProjects();
     mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "wf-1", refreshedAt: "2026-07-31T10:00:00Z" });
     mocks.loadWorkflowSchemeForProject.mockResolvedValue({
-      schemeId: "s1", name: "ADVEV Standard", description: "Engineering default",
+      schemeId: "s1",
+      name: "ADVEV Standard",
+      description: "Engineering default",
     });
     mocks.loadWorkflowSchemeProjects.mockResolvedValue([
       { projectId: "10", projectKey: "ABC", projectName: "Alpha" },
@@ -3736,9 +4103,7 @@ describe("getProjectsView workflow correlation", () => {
   });
 
   test("reports zero when the scheme governs only this project", async () => {
-    mocks.loadWorkflowSchemeProjects.mockResolvedValue([
-      { projectId: "10", projectKey: "ABC", projectName: "Alpha" },
-    ]);
+    mocks.loadWorkflowSchemeProjects.mockResolvedValue([{ projectId: "10", projectKey: "ABC", projectName: "Alpha" }]);
 
     const result = await getProjectsView({ payload: {}, context: {} });
 
@@ -3930,12 +4295,9 @@ describe("isScanStuck", () => {
     expect(isScanStuck({ state: "finalizing", progressLog: [{ t: at(45 * MIN) }] })).toBe(true);
   });
 
-  test.each([["ready"], ["failed"], ["cancelled"], ["idle"]])(
-    "never touches a scan already in %s",
-    (state) => {
-      expect(isScanStuck({ state, progressLog: [{ t: at(600 * MIN) }] })).toBe(false);
-    }
-  );
+  test.each([["ready"], ["failed"], ["cancelled"], ["idle"]])("never touches a scan already in %s", (state) => {
+    expect(isScanStuck({ state, progressLog: [{ t: at(600 * MIN) }] })).toBe(false);
+  });
 
   test("falls back to startedAt when the log is empty", () => {
     expect(isScanStuck({ state: "building", progressLog: [], startedAt: at(45 * MIN) })).toBe(true);
@@ -4054,20 +4416,20 @@ describe("saveAutomationAnalysis", () => {
 
   test("rejects a document with no estate", async () => {
     await expect(
-      saveAutomationAnalysis({ payload: { analysis: { schemaVersion: 1 } }, context: ctxWithAccount() })
+      saveAutomationAnalysis({ payload: { analysis: { schemaVersion: 1 } }, context: ctxWithAccount() }),
     ).rejects.toThrow(/estate is required/);
     expect(mocks.writeAutomationAnalysis).not.toHaveBeenCalled();
   });
 
   test("rejects an unsupported schema version", async () => {
     await expect(
-      saveAutomationAnalysis({ payload: { analysis: { ...valid, schemaVersion: 2 } }, context: ctxWithAccount() })
+      saveAutomationAnalysis({ payload: { analysis: { ...valid, schemaVersion: 2 } }, context: ctxWithAccount() }),
     ).rejects.toThrow(/schemaVersion/);
   });
 
   test("rejects a non-object payload", async () => {
     await expect(
-      saveAutomationAnalysis({ payload: { analysis: [1, 2, 3] }, context: ctxWithAccount() })
+      saveAutomationAnalysis({ payload: { analysis: [1, 2, 3] }, context: ctxWithAccount() }),
     ).rejects.toThrow(/must be an object/);
   });
 
@@ -4113,7 +4475,7 @@ describe("saveAutomationAnalysis", () => {
 describe("saveAutomationIndex", () => {
   beforeEach(() => {
     mocks.writeAutomationPart.mockResolvedValue(undefined);
-  mocks.loadAutomationReferencesFor.mockResolvedValue({ references: [], total: 0, ruleCount: 0 });
+    mocks.loadAutomationReferencesFor.mockResolvedValue({ references: [], total: 0, ruleCount: 0 });
   });
 
   test("stores a field index under its own part", async () => {
@@ -4128,7 +4490,7 @@ describe("saveAutomationIndex", () => {
   // it through here would bypass both.
   test("refuses to write the analysis part", async () => {
     await expect(
-      saveAutomationIndex({ payload: { part: "analysis", document: { schemaVersion: 1 } }, context: ctxWithAccount() })
+      saveAutomationIndex({ payload: { part: "analysis", document: { schemaVersion: 1 } }, context: ctxWithAccount() }),
     ).rejects.toThrow(/unknown automation index part/);
     expect(mocks.writeAutomationPart).not.toHaveBeenCalled();
   });
@@ -4162,7 +4524,10 @@ describe("saveAutomationIndex", () => {
 
     test("routes the directory through the rule writer", async () => {
       const doc = { schemaVersion: 1, rules: [["1", "Rule", 1, "manual", 0]] };
-      const result = await saveAutomationIndex({ payload: { part: "directory", document: doc }, context: ctxWithAccount() });
+      const result = await saveAutomationIndex({
+        payload: { part: "directory", document: doc },
+        context: ctxWithAccount(),
+      });
       expect(mocks.replaceAutomationRules).toHaveBeenCalledWith(expect.any(String), doc);
       expect(mocks.replaceAutomationReferences).not.toHaveBeenCalled();
       expect(result.rowsWritten).toBe(2);
@@ -4170,7 +4535,10 @@ describe("saveAutomationIndex", () => {
 
     test("routes findings through the findings writer", async () => {
       const doc = { schemaVersion: 1, findings: [{ id: 1, r: [{ c: "x", s: "high" }] }] };
-      const result = await saveAutomationIndex({ payload: { part: "findings", document: doc }, context: ctxWithAccount() });
+      const result = await saveAutomationIndex({
+        payload: { part: "findings", document: doc },
+        context: ctxWithAccount(),
+      });
       expect(mocks.replaceAutomationFindings).toHaveBeenCalledWith(expect.any(String), doc);
       expect(result.rowsWritten).toBe(3);
     });
@@ -4178,7 +4546,10 @@ describe("saveAutomationIndex", () => {
     test("routes the blast part through the blast writer and never touches KVS for it", async () => {
       mocks.replaceAutomationBlast.mockResolvedValue(7);
       const doc = { schemaVersion: 1, rules: [{ id: "1", score: 88, tier: "estate" }] };
-      const result = await saveAutomationIndex({ payload: { part: "blast", document: doc }, context: ctxWithAccount() });
+      const result = await saveAutomationIndex({
+        payload: { part: "blast", document: doc },
+        context: ctxWithAccount(),
+      });
       expect(mocks.replaceAutomationBlast).toHaveBeenCalledWith(expect.any(String), doc);
       expect(mocks.writeAutomationPart).not.toHaveBeenCalledWith(expect.any(String), "blast", expect.anything());
       expect(result.rowsWritten).toBe(7);
@@ -4187,7 +4558,10 @@ describe("saveAutomationIndex", () => {
     test("a SQL failure on the blast part fails the import — there is no KVS copy behind it", async () => {
       mocks.replaceAutomationBlast.mockRejectedValue(new Error("sql down"));
       await expect(
-        saveAutomationIndex({ payload: { part: "blast", document: { schemaVersion: 1, rules: [] } }, context: ctxWithAccount() })
+        saveAutomationIndex({
+          payload: { part: "blast", document: { schemaVersion: 1, rules: [] } },
+          context: ctxWithAccount(),
+        }),
       ).rejects.toThrow("sql down");
     });
 
@@ -4206,19 +4580,22 @@ describe("saveAutomationIndex", () => {
 
   test("refuses an unknown part rather than writing to a computed key", async () => {
     await expect(
-      saveAutomationIndex({ payload: { part: "__proto__", document: { schemaVersion: 1 } }, context: ctxWithAccount() })
+      saveAutomationIndex({
+        payload: { part: "__proto__", document: { schemaVersion: 1 } },
+        context: ctxWithAccount(),
+      }),
     ).rejects.toThrow(/unknown automation index part/);
   });
 
   test("rejects a document with the wrong schema version", async () => {
     await expect(
-      saveAutomationIndex({ payload: { part: "fields", document: { schemaVersion: 9 } }, context: ctxWithAccount() })
+      saveAutomationIndex({ payload: { part: "fields", document: { schemaVersion: 9 } }, context: ctxWithAccount() }),
     ).rejects.toThrow(/schemaVersion/);
   });
 
   test("rejects a non-object document", async () => {
     await expect(
-      saveAutomationIndex({ payload: { part: "fields", document: [] }, context: ctxWithAccount() })
+      saveAutomationIndex({ payload: { part: "fields", document: [] }, context: ctxWithAccount() }),
     ).rejects.toThrow(/must be an object/);
   });
 });
@@ -4252,22 +4629,47 @@ describe("getAutomationIndex", () => {
   });
 
   test("refuses an unknown part", async () => {
-    await expect(
-      getAutomationIndex({ payload: { part: "secrets" }, context: ctxWithAccount() })
-    ).rejects.toThrow(/unknown automation index part/);
+    await expect(getAutomationIndex({ payload: { part: "secrets" }, context: ctxWithAccount() })).rejects.toThrow(
+      /unknown automation index part/,
+    );
   });
 
   // A rule that creates an issue of a type names it by numeric id, so the issue-type index
   // arrives half-labelled with "10022". Resolved against the inventory on read.
   test("resolves issue-type id labels to names from the inventory", async () => {
     mocks.readAutomationPart.mockResolvedValue({
-      schemaVersion: 1, total: 2, entries: [
-        { label: "10022", writeCount: 3, readCount: 0, triggerCount: 0, total: 3, ruleCount: 3, write: ["r1", "r2", "r3"], read: [], trigger: [] },
-        { label: "current", writeCount: 1, readCount: 0, triggerCount: 0, total: 1, ruleCount: 1, write: ["r9"], read: [], trigger: [] },
+      schemaVersion: 1,
+      total: 2,
+      entries: [
+        {
+          label: "10022",
+          writeCount: 3,
+          readCount: 0,
+          triggerCount: 0,
+          total: 3,
+          ruleCount: 3,
+          write: ["r1", "r2", "r3"],
+          read: [],
+          trigger: [],
+        },
+        {
+          label: "current",
+          writeCount: 1,
+          readCount: 0,
+          triggerCount: 0,
+          total: 1,
+          ruleCount: 1,
+          write: ["r9"],
+          read: [],
+          trigger: [],
+        },
       ],
     });
     mocks.readIssueTypeSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
-    mocks.loadIssueTypes.mockResolvedValue([{ id: "10022", name: "Incident" }, { id: "10000", name: "Bug" }]);
+    mocks.loadIssueTypes.mockResolvedValue([
+      { id: "10022", name: "Incident" },
+      { id: "10000", name: "Bug" },
+    ]);
 
     const result = await getAutomationIndex({ payload: { part: "issueTypes" }, context: ctxWithAccount() });
 
@@ -4280,9 +4682,31 @@ describe("getAutomationIndex", () => {
 
   test("merges an issue type referenced once by id and once by name", async () => {
     mocks.readAutomationPart.mockResolvedValue({
-      schemaVersion: 1, total: 2, entries: [
-        { label: "10022", writeCount: 2, readCount: 0, triggerCount: 0, total: 2, ruleCount: 2, write: ["r1", "r2"], read: [], trigger: [] },
-        { label: "Incident", writeCount: 0, readCount: 1, triggerCount: 0, total: 1, ruleCount: 1, write: [], read: ["r3"], trigger: [] },
+      schemaVersion: 1,
+      total: 2,
+      entries: [
+        {
+          label: "10022",
+          writeCount: 2,
+          readCount: 0,
+          triggerCount: 0,
+          total: 2,
+          ruleCount: 2,
+          write: ["r1", "r2"],
+          read: [],
+          trigger: [],
+        },
+        {
+          label: "Incident",
+          writeCount: 0,
+          readCount: 1,
+          triggerCount: 0,
+          total: 1,
+          ruleCount: 1,
+          write: [],
+          read: ["r3"],
+          trigger: [],
+        },
       ],
     });
     mocks.readIssueTypeSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
@@ -4297,7 +4721,20 @@ describe("getAutomationIndex", () => {
 
   test("leaves the issue-type index untouched when no inventory has been built", async () => {
     mocks.readAutomationPart.mockResolvedValue({
-      schemaVersion: 1, total: 1, entries: [{ label: "10022", writeCount: 1, readCount: 0, triggerCount: 0, total: 1, write: ["r1"], read: [], trigger: [] }],
+      schemaVersion: 1,
+      total: 1,
+      entries: [
+        {
+          label: "10022",
+          writeCount: 1,
+          readCount: 0,
+          triggerCount: 0,
+          total: 1,
+          write: ["r1"],
+          read: [],
+          trigger: [],
+        },
+      ],
     });
     mocks.readIssueTypeSnapshotMeta.mockResolvedValue(null);
 
@@ -4309,9 +4746,31 @@ describe("getAutomationIndex", () => {
 
   test("resolves user-index accountId labels to display names from the roster", async () => {
     mocks.readAutomationPart.mockResolvedValue({
-      schemaVersion: 1, total: 2, entries: [
-        { label: "acc-1", writeCount: 4, readCount: 0, triggerCount: 0, total: 4, ruleCount: 4, write: ["r1", "r2", "r3", "r4"], read: [], trigger: [] },
-        { label: "acc-gone", writeCount: 1, readCount: 0, triggerCount: 0, total: 1, ruleCount: 1, write: ["r9"], read: [], trigger: [] },
+      schemaVersion: 1,
+      total: 2,
+      entries: [
+        {
+          label: "acc-1",
+          writeCount: 4,
+          readCount: 0,
+          triggerCount: 0,
+          total: 4,
+          ruleCount: 4,
+          write: ["r1", "r2", "r3", "r4"],
+          read: [],
+          trigger: [],
+        },
+        {
+          label: "acc-gone",
+          writeCount: 1,
+          readCount: 0,
+          triggerCount: 0,
+          total: 1,
+          ruleCount: 1,
+          write: ["r9"],
+          read: [],
+          trigger: [],
+        },
       ],
     });
     mocks.readUserSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
@@ -4335,14 +4794,16 @@ describe("getAutomationIndex", () => {
 
 describe("getAutomationFieldUsage", () => {
   const fieldsIndex = {
-    schemaVersion: 1, total: 2,
+    schemaVersion: 1,
+    total: 2,
     entries: [
       { label: "Story Points", writeCount: 2, readCount: 1, triggerCount: 0, write: [10, 11], read: [12], trigger: [] },
       { label: "customfield_23054", writeCount: 1, readCount: 0, triggerCount: 0, write: [13], read: [], trigger: [] },
     ],
   };
   const directory = {
-    schemaVersion: 1, total: 4,
+    schemaVersion: 1,
+    total: 4,
     rules: [
       [10, "Populate points", 1, "jira.issue.field.changed", 1],
       [11, "Copy to subtasks", 0, "jira.manual.trigger.issue", 1],
@@ -4353,14 +4814,17 @@ describe("getAutomationFieldUsage", () => {
 
   function stubParts({ fields = fieldsIndex, dir = directory } = {}) {
     mocks.readAutomationPart.mockImplementation((_key, part) =>
-      Promise.resolve(part === "fields" ? fields : part === "directory" ? dir : null)
+      Promise.resolve(part === "fields" ? fields : part === "directory" ? dir : null),
     );
   }
 
   test("names the rules that touch the field, grouped by direction", async () => {
     stubParts();
 
-    const result = await getAutomationFieldUsage({ payload: { fieldName: "Story Points", fieldId: "customfield_1" }, context: ctxWithAccount() });
+    const result = await getAutomationFieldUsage({
+      payload: { fieldName: "Story Points", fieldId: "customfield_1" },
+      context: ctxWithAccount(),
+    });
 
     expect(result).toMatchObject({ available: true, referenced: true, label: "Story Points" });
     expect(result.write.rules.map((r) => r.name)).toEqual(["Populate points", "Copy to subtasks"]);
@@ -4380,7 +4844,10 @@ describe("getAutomationFieldUsage", () => {
   test("matches on field id when the rule addressed the field that way", async () => {
     stubParts();
 
-    const result = await getAutomationFieldUsage({ payload: { fieldId: "customfield_23054", fieldName: "Requested Prototype" }, context: ctxWithAccount() });
+    const result = await getAutomationFieldUsage({
+      payload: { fieldId: "customfield_23054", fieldName: "Requested Prototype" },
+      context: ctxWithAccount(),
+    });
 
     expect(result.referenced).toBe(true);
     expect(result.write.rules[0].name).toBe("Set prototype");
@@ -4423,7 +4890,9 @@ describe("getAutomationFieldUsage", () => {
   });
 
   test("requires a field to look up", async () => {
-    await expect(getAutomationFieldUsage({ payload: {}, context: ctxWithAccount() })).rejects.toThrow(/fieldName or fieldId/);
+    await expect(getAutomationFieldUsage({ payload: {}, context: ctxWithAccount() })).rejects.toThrow(
+      /fieldName or fieldId/,
+    );
   });
 
   test("is admin-only", () => {
@@ -4471,7 +4940,7 @@ describe("getAutomationFieldUsage storage path", () => {
     mocks.readAutomationPart.mockImplementation((_k, part) =>
       part === "fields"
         ? { schemaVersion: 1, entries: [{ label: "Story Points", write: ["9"], writeCount: 1, read: [], trigger: [] }] }
-        : { schemaVersion: 1, rules: [["9", "Legacy rule", 1, "manual", 0]] }
+        : { schemaVersion: 1, rules: [["9", "Legacy rule", 1, "manual", 0]] },
     );
 
     const result = await getAutomationFieldUsage({ payload: { fieldName: "Story Points" }, context: ctxWithAccount() });
@@ -4483,7 +4952,7 @@ describe("getAutomationFieldUsage storage path", () => {
   test("falls back to the documents when the SQL read throws", async () => {
     mocks.loadAutomationReferencesFor.mockRejectedValue(new Error("sql down"));
     mocks.readAutomationPart.mockImplementation((_k, part) =>
-      part === "fields" ? { schemaVersion: 1, entries: [] } : null
+      part === "fields" ? { schemaVersion: 1, entries: [] } : null,
     );
 
     const result = await getAutomationFieldUsage({ payload: { fieldName: "Story Points" }, context: ctxWithAccount() });
@@ -4503,7 +4972,8 @@ describe("getAutomationFieldUsage storage path", () => {
 
 describe("getAutomationFieldCounts", () => {
   const index = {
-    schemaVersion: 1, total: 2,
+    schemaVersion: 1,
+    total: 2,
     entries: [
       { label: "Story Points", ruleCount: 5, enabledRules: 3, disabledRules: 2, write: [], read: [], trigger: [] },
       { label: "customfield_23054", ruleCount: 1, enabledRules: 1, disabledRules: 0, write: [], read: [], trigger: [] },
@@ -4514,7 +4984,12 @@ describe("getAutomationFieldCounts", () => {
     mocks.readAutomationPart.mockResolvedValue(index);
 
     const result = await getAutomationFieldCounts({
-      payload: { fields: [{ id: "cf_1", name: "Story Points" }, { id: "customfield_23054", name: "Requested Prototype" }] },
+      payload: {
+        fields: [
+          { id: "cf_1", name: "Story Points" },
+          { id: "customfield_23054", name: "Requested Prototype" },
+        ],
+      },
       context: ctxWithAccount(),
     });
 
@@ -4565,7 +5040,8 @@ describe("getAutomationFieldCounts", () => {
 
 describe("Rovo automation agent actions", () => {
   const directory = {
-    schemaVersion: 1, total: 3,
+    schemaVersion: 1,
+    total: 3,
     rules: [
       [10, "Copy fields to subtasks", 1, "jira.issue.field.changed", 2],
       // Shares the word "approval" with rule 12 so the enabled-first ordering is actually
@@ -4575,12 +5051,27 @@ describe("Rovo automation agent actions", () => {
     ],
   };
   const fields = {
-    schemaVersion: 1, total: 1,
-    entries: [{ label: "Story Points", writeCount: 1, readCount: 1, triggerCount: 0, ruleCount: 2, enabledRules: 1, disabledRules: 1, write: [10], read: [11], trigger: [] }],
+    schemaVersion: 1,
+    total: 1,
+    entries: [
+      {
+        label: "Story Points",
+        writeCount: 1,
+        readCount: 1,
+        triggerCount: 0,
+        ruleCount: 2,
+        enabledRules: 1,
+        disabledRules: 1,
+        write: [10],
+        read: [11],
+        trigger: [],
+      },
+    ],
   };
   const statuses = { schemaVersion: 1, total: 0, entries: [] };
   const findings = {
-    schemaVersion: 1, total: 1,
+    schemaVersion: 1,
+    total: 1,
     findings: [{ id: 12, n: "Send to approval", s: "high", r: [{ c: "embedded-credential", s: "high" }] }],
   };
 
@@ -4810,9 +5301,7 @@ describe("getWorkflowInsights", () => {
   test("finds duplicate status names across the catalog", async () => {
     mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
     mocks.loadWorkflowSchemes.mockResolvedValue([]);
-    mocks.loadStatusesCatalog.mockResolvedValue([
-      status(1, "Backlog"), status(2, "Back Log"), status(3, "Delivered"),
-    ]);
+    mocks.loadStatusesCatalog.mockResolvedValue([status(1, "Backlog"), status(2, "Back Log"), status(3, "Delivered")]);
     mocks.loadWorkflowSchemeStatuses.mockResolvedValue([{ schemeId: "s1", statusId: "1" }]);
 
     const result = await getWorkflowInsights({ payload: {}, context: ctxWithAccount() });
@@ -4845,7 +5334,12 @@ describe("getWorkflowInsights", () => {
     mocks.loadWorkflowSchemes.mockResolvedValue([]);
     mocks.loadStatusesCatalog.mockResolvedValue([status(1, "Orphaned"), status(2, "Used Once")]);
     mocks.loadWorkflowSchemeStatuses.mockResolvedValue([{ schemeId: "s1", statusId: "99" }]);
-    mocks.loadStatusIssueCounts.mockResolvedValue(new Map([["1", 0], ["2", 5]]));
+    mocks.loadStatusIssueCounts.mockResolvedValue(
+      new Map([
+        ["1", 0],
+        ["2", 5],
+      ]),
+    );
 
     const result = await getWorkflowInsights({ payload: {}, context: ctxWithAccount() });
 
@@ -4957,7 +5451,6 @@ describe("probeAutomationApi", () => {
   });
 });
 
-
 // The documented automation API is on api.atlassian.com and keyed by cloud id. Probing the
 // site for it is what produced the first round of 401s.
 describe("probeAutomationApi — gateway transport", () => {
@@ -5004,8 +5497,20 @@ describe("probeAssetsApi", () => {
   });
 
   test("probes the Assets gateway endpoints once a workspace is discovered", async () => {
-    mocks.probeEndpoint.mockResolvedValue({ path: "w", status: 200, ok: true, ms: 4, sample: '{"values":[{"workspaceId":"ws-1"}]}' });
-    mocks.probeStargateEndpoint.mockResolvedValue({ path: "s", status: 200, ok: true, ms: 6, sample: '{"objectSchemas":[{"id":"1"}]}' });
+    mocks.probeEndpoint.mockResolvedValue({
+      path: "w",
+      status: 200,
+      ok: true,
+      ms: 4,
+      sample: '{"values":[{"workspaceId":"ws-1"}]}',
+    });
+    mocks.probeStargateEndpoint.mockResolvedValue({
+      path: "s",
+      status: 200,
+      ok: true,
+      ms: 6,
+      sample: '{"objectSchemas":[{"id":"1"}]}',
+    });
 
     const result = await probeAssetsApi({ context: {} });
 
@@ -5014,7 +5519,6 @@ describe("probeAssetsApi", () => {
     expect(gatewayPaths.some((p) => p.includes("/jsm/assets/workspace/ws-1/v1/objectschema/list"))).toBe(true);
   });
 });
-
 
 // ── Screen and scheme inventory ──────────────────────────────────────────────
 
@@ -5035,7 +5539,11 @@ describe("getScreenInventory", () => {
 
   test("returns every layer of the chain from one call", async () => {
     mocks.readScreenSnapshotMeta.mockResolvedValue({
-      state: "ready", version: "v1", totalScreens: 760, totalSchemes: 12, unresolvedScreens: 30,
+      state: "ready",
+      version: "v1",
+      totalScreens: 760,
+      totalSchemes: 12,
+      unresolvedScreens: 30,
     });
     mocks.loadScreensPage.mockResolvedValue({ total: 760, rows: [{ screenId: "100" }] });
     mocks.loadScreenSchemes.mockResolvedValue([{ schemeId: "5" }]);
@@ -5063,8 +5571,11 @@ describe("getScreenInventory", () => {
 
     await getScreenInventory({ payload: { page: 3, pageSize: 5000 }, ...ctx });
 
-    expect(mocks.loadScreensPage).toHaveBeenCalledWith("test-install", "v1",
-      expect.objectContaining({ limit: 100, offset: 200 }));
+    expect(mocks.loadScreensPage).toHaveBeenCalledWith(
+      "test-install",
+      "v1",
+      expect.objectContaining({ limit: 100, offset: 200 }),
+    );
   });
 
   test("reports a stale build so the UI can offer a rebuild", async () => {
@@ -5107,7 +5618,6 @@ describe("getFieldScreenReachability", () => {
   });
 });
 
-
 // ---------------------------------------------------------------------------
 // getHealthHistory
 // ---------------------------------------------------------------------------
@@ -5119,8 +5629,13 @@ describe("getHealthHistory", () => {
   const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
 
   const day = (d, score, dimensions) => ({
-    day: d, measuredAt: `${d}T00:00:00.000Z`, score, grade: "C",
-    dimensionsScored: Object.keys(dimensions).length, dimensionsTotal: 13, dimensions,
+    day: d,
+    measuredAt: `${d}T00:00:00.000Z`,
+    score,
+    grade: "C",
+    dimensionsScored: Object.keys(dimensions).length,
+    dimensionsTotal: 13,
+    dimensions,
   });
 
   test("says it has nothing rather than drawing a flat line at zero", async () => {
@@ -5193,7 +5708,6 @@ describe("getHealthHistory", () => {
     expect(mocks.loadHealthHistory).toHaveBeenCalledWith("test-install", { days: 365 });
   });
 });
-
 
 // ---------------------------------------------------------------------------
 // getProjectOverview
@@ -5292,8 +5806,12 @@ describe("getPillarHealth", () => {
     mocks.readSnapshotMeta.mockResolvedValue(null);
     mocks.readAssetSnapshotMeta.mockResolvedValue({ version: "as1", state: "ready", assetsEnabled: true });
     mocks.loadAssetSchemas.mockResolvedValue([{ id: "1", name: "Infra", objectTypeCount: 3, objectCount: 40 }]);
-    mocks.loadAssetObjectTypes.mockResolvedValue([{ id: "9", schemaId: "1", name: "Server", parentId: null, abstract: false }]);
-    mocks.loadAssetAttributes.mockResolvedValue([{ id: "a", objectTypeId: "9", name: "OS", referenceObjectTypeId: null, system: false }]);
+    mocks.loadAssetObjectTypes.mockResolvedValue([
+      { id: "9", schemaId: "1", name: "Server", parentId: null, abstract: false },
+    ]);
+    mocks.loadAssetAttributes.mockResolvedValue([
+      { id: "a", objectTypeId: "9", name: "OS", referenceObjectTypeId: null, system: false },
+    ]);
 
     const result = await getPillarHealth({ payload: { pillar: "assets" }, ...ctx });
 
@@ -5389,7 +5907,13 @@ describe("getProjectOverview", () => {
     mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
     mocks.readAccessSnapshotMeta.mockResolvedValue({ version: "a1" });
     mocks.loadProjectRoleActors.mockResolvedValue([
-      { roleId: "10002", roleName: "Administrators", holderType: "group", holderValue: "g-admins", holderLabel: "admins" },
+      {
+        roleId: "10002",
+        roleName: "Administrators",
+        holderType: "group",
+        holderValue: "g-admins",
+        holderLabel: "admins",
+      },
       { roleId: "10003", roleName: "Members", holderType: "empty", holderValue: "", holderLabel: null },
     ]);
 
@@ -5412,14 +5936,19 @@ describe("getProjectOverview", () => {
     expect(mocks.loadProjectSchemes).not.toHaveBeenCalled();
   });
 
-
   // Site-wide rules are only worth listing per project if there is evidence they act there
   // -- otherwise the list is "all of them" and says nothing.
   test("keeps inferred site-wide rules separate from the ones actually scoped here", async () => {
     mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
     mocks.loadRulesForProject.mockResolvedValue([{ ruleId: "1", name: "Scoped", enabled: true }]);
     mocks.loadGlobalRulesAffectingProject.mockResolvedValue([
-      { ruleId: "9", name: "Site-wide writer", fieldsTouched: 2, issuesTouched: 5000, lastChangeAt: "2026-08-01T00:00:00Z" },
+      {
+        ruleId: "9",
+        name: "Site-wide writer",
+        fieldsTouched: 2,
+        issuesTouched: 5000,
+        lastChangeAt: "2026-08-01T00:00:00Z",
+      },
     ]);
 
     const result = await getProjectOverview({ payload: { projectId: "10000" }, ...ctx });
@@ -5448,11 +5977,26 @@ describe("getProjectOverview", () => {
     mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
     mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "flt1" });
     mocks.listSnapshotProjects.mockResolvedValue([
-      { projectId: "10000", projectKey: "PT2", projectName: "Prototype & Test", fieldCount: 216, totalIssueCount: 1_066_714 },
+      {
+        projectId: "10000",
+        projectKey: "PT2",
+        projectName: "Prototype & Test",
+        fieldCount: 216,
+        totalIssueCount: 1_066_714,
+      },
     ]);
     mocks.loadFilterReferencesFor.mockResolvedValue({
       total: 3,
-      filters: [{ id: "5", name: "PT2 open bugs", ownerName: "Bo", ownerActive: true, subscriptionCount: 2, lastUsedAt: "2026-08-01" }],
+      filters: [
+        {
+          id: "5",
+          name: "PT2 open bugs",
+          ownerName: "Bo",
+          ownerActive: true,
+          subscriptionCount: 2,
+          lastUsedAt: "2026-08-01",
+        },
+      ],
     });
 
     const result = await getProjectOverview({ payload: { projectId: "10000", projectKey: "PT2" }, ...ctx });
@@ -5512,11 +6056,30 @@ describe("getScreenFieldReportInputs", () => {
   test("returns the field union and the projects the screens reach", async () => {
     mocks.readScreenSnapshotMeta.mockResolvedValue({ version: "s1" });
     mocks.loadScreensWithFieldsByIds.mockResolvedValue([
-      { screenId: "100", name: "Create", tabsResolved: "resolved", fields: [{ fieldId: "cf_1", fieldName: "A" }, { fieldId: "cf_2", fieldName: "B" }] },
-      { screenId: "200", name: "Edit", tabsResolved: "resolved", fields: [{ fieldId: "cf_2", fieldName: "B" }, { fieldId: "cf_3", fieldName: "C" }] },
+      {
+        screenId: "100",
+        name: "Create",
+        tabsResolved: "resolved",
+        fields: [
+          { fieldId: "cf_1", fieldName: "A" },
+          { fieldId: "cf_2", fieldName: "B" },
+        ],
+      },
+      {
+        screenId: "200",
+        name: "Edit",
+        tabsResolved: "resolved",
+        fields: [
+          { fieldId: "cf_2", fieldName: "B" },
+          { fieldId: "cf_3", fieldName: "C" },
+        ],
+      },
     ]);
     // screen 100 -> scheme SS1 -> itss I1 -> project 10 and 11
-    mocks.loadScreenSchemeOperations.mockResolvedValue([{ schemeId: "SS1", screenId: "100" }, { schemeId: "SS9", screenId: "999" }]);
+    mocks.loadScreenSchemeOperations.mockResolvedValue([
+      { schemeId: "SS1", screenId: "100" },
+      { schemeId: "SS9", screenId: "999" },
+    ]);
     mocks.loadItssMappings.mockResolvedValue([{ itssId: "I1", screenSchemeId: "SS1" }]);
     mocks.loadItssProjects.mockResolvedValue([
       { itssId: "I1", projectId: "10", projectKey: "AAA", projectName: "Alpha" },
@@ -5612,10 +6175,42 @@ describe("macro viewer pillars", () => {
     test("keeps only filters that name a browsable project in JQL or are shared to one", async () => {
       mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "flt1" });
       mocks.loadFilters.mockResolvedValue([
-        { id: "1", name: "Solve open", jql: 'project = SOLVE', ownerName: "A", projectRefs: ["SOLVE"], fieldRefs: ["Priority"], shares: [] },
-        { id: "2", name: "Other backlog", jql: 'project = OTHER', ownerName: "B", projectRefs: ["OTHER"], fieldRefs: [], shares: [] },
-        { id: "3", name: "Shared to Solve", jql: 'status = Done', ownerName: "C", projectRefs: [], fieldRefs: [], shares: [{ type: "project", targetId: "10" }] },
-        { id: "4", name: "Global", jql: 'assignee = currentUser()', ownerName: "D", projectRefs: [], fieldRefs: [], shares: [{ type: "authenticated" }] },
+        {
+          id: "1",
+          name: "Solve open",
+          jql: "project = SOLVE",
+          ownerName: "A",
+          projectRefs: ["SOLVE"],
+          fieldRefs: ["Priority"],
+          shares: [],
+        },
+        {
+          id: "2",
+          name: "Other backlog",
+          jql: "project = OTHER",
+          ownerName: "B",
+          projectRefs: ["OTHER"],
+          fieldRefs: [],
+          shares: [],
+        },
+        {
+          id: "3",
+          name: "Shared to Solve",
+          jql: "status = Done",
+          ownerName: "C",
+          projectRefs: [],
+          fieldRefs: [],
+          shares: [{ type: "project", targetId: "10" }],
+        },
+        {
+          id: "4",
+          name: "Global",
+          jql: "assignee = currentUser()",
+          ownerName: "D",
+          projectRefs: [],
+          fieldRefs: [],
+          shares: [{ type: "authenticated" }],
+        },
       ]);
 
       const result = await getMacroFilters({ payload: {}, ...ctx });
@@ -5634,7 +6229,15 @@ describe("macro viewer pillars", () => {
     test("searches name and jql, and paginates", async () => {
       mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "flt1" });
       mocks.loadFilters.mockResolvedValue(
-        Array.from({ length: 25 }, (_, i) => ({ id: String(i), name: `Solve ${i}`, jql: "project = SOLVE", ownerName: "A", projectRefs: ["SOLVE"], fieldRefs: [], shares: [] }))
+        Array.from({ length: 25 }, (_, i) => ({
+          id: String(i),
+          name: `Solve ${i}`,
+          jql: "project = SOLVE",
+          ownerName: "A",
+          projectRefs: ["SOLVE"],
+          fieldRefs: [],
+          shares: [],
+        })),
       );
 
       const page1 = await getMacroFilters({ payload: { page: 1 }, ...ctx });
@@ -5655,9 +6258,30 @@ describe("macro viewer pillars", () => {
         { id: "F_OTHER", projectRefs: ["OTHER"], fieldRefs: [] },
       ]);
       mocks.loadDashboards.mockResolvedValue([
-        { id: "D1", name: "Solve board", ownerName: "A", gadgetCount: 2, shares: [{ type: "project", targetId: "10" }], gadgets: [] },
-        { id: "D2", name: "Via filter", ownerName: "B", gadgetCount: 1, shares: [], gadgets: [{ filterId: "F_SOLVE" }] },
-        { id: "D3", name: "Unrelated", ownerName: "C", gadgetCount: 1, shares: [{ type: "project", targetId: "20" }], gadgets: [{ filterId: "F_OTHER" }] },
+        {
+          id: "D1",
+          name: "Solve board",
+          ownerName: "A",
+          gadgetCount: 2,
+          shares: [{ type: "project", targetId: "10" }],
+          gadgets: [],
+        },
+        {
+          id: "D2",
+          name: "Via filter",
+          ownerName: "B",
+          gadgetCount: 1,
+          shares: [],
+          gadgets: [{ filterId: "F_SOLVE" }],
+        },
+        {
+          id: "D3",
+          name: "Unrelated",
+          ownerName: "C",
+          gadgetCount: 1,
+          shares: [{ type: "project", targetId: "20" }],
+          gadgets: [{ filterId: "F_OTHER" }],
+        },
       ]);
 
       const result = await getMacroDashboards({ payload: {}, ...ctx });
@@ -5670,12 +6294,16 @@ describe("macro viewer pillars", () => {
   describe("getMacroWorkflows", () => {
     test("groups the viewer's projects by workflow scheme and lists each scheme's statuses", async () => {
       mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "w1" });
-      mocks.loadProjectWorkflowSchemeMap.mockResolvedValue(new Map([
-        ["10", { schemeId: "WS1", name: "Solve workflow" }],
-        ["20", { schemeId: "WS2", name: "Other workflow" }],
-      ]));
+      mocks.loadProjectWorkflowSchemeMap.mockResolvedValue(
+        new Map([
+          ["10", { schemeId: "WS1", name: "Solve workflow" }],
+          ["20", { schemeId: "WS2", name: "Other workflow" }],
+        ]),
+      );
       mocks.loadWorkflowSchemeStatuses.mockResolvedValue([
-        { schemeId: "WS1", statusId: "s1" }, { schemeId: "WS1", statusId: "s2" }, { schemeId: "WS2", statusId: "s3" },
+        { schemeId: "WS1", statusId: "s1" },
+        { schemeId: "WS1", statusId: "s2" },
+        { schemeId: "WS2", statusId: "s3" },
       ]);
       mocks.loadStatusesCatalog.mockResolvedValue([
         { id: "s1", name: "Open", statusCategory: "To Do" },
@@ -5716,7 +6344,9 @@ describe("getFieldScreenCounts", () => {
 
     const result = await getFieldScreenCounts({ payload: { fieldIds: ["customfield_1", "customfield_2"] }, ...ctx });
 
-    expect(result).toEqual(expect.objectContaining({ available: true, counts: { customfield_1: 6 }, unresolvedScreens: 3 }));
+    expect(result).toEqual(
+      expect.objectContaining({ available: true, counts: { customfield_1: 6 }, unresolvedScreens: 3 }),
+    );
   });
 
   test("caps the id list rather than passing an unbounded page to SQL", async () => {
@@ -5789,7 +6419,12 @@ describe("getIssueTypeInventory", () => {
   });
 
   test("groups the catalog by hierarchy level, highest first, with a label per level", async () => {
-    mocks.readIssueTypeSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", totalTypes: 3, totalSchemes: 1 });
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValue({
+      state: "ready",
+      version: "v1",
+      totalTypes: 3,
+      totalSchemes: 1,
+    });
     mocks.loadIssueTypes.mockResolvedValue([
       { id: "1", name: "Epic", hierarchyLevel: 1, subtask: false, scopeProjectId: null },
       { id: "2", name: "Story", hierarchyLevel: 0, subtask: false, scopeProjectId: null },
@@ -5912,11 +6547,18 @@ describe("getUserInventory", () => {
 
   test("returns the roster, seat summary and governance once built", async () => {
     mocks.readUserSnapshotMeta.mockResolvedValue({
-      state: "ready", version: "v1", refreshedAt: "2026-09-02T00:00:00.000Z",
+      state: "ready",
+      version: "v1",
+      refreshedAt: "2026-09-02T00:00:00.000Z",
       applicationSummary: [{ key: "jira-software", numberOfSeats: 5, userCount: 3 }],
     });
     mocks.loadUsers.mockResolvedValue([{ accountId: "a1", displayName: "Ann", applications: [], groups: [] }]);
-    mocks.loadUserGovernanceSummary.mockResolvedValue({ totalUsers: 1, activeUsers: 1, appUsers: 0, multiProductUsers: 0 });
+    mocks.loadUserGovernanceSummary.mockResolvedValue({
+      totalUsers: 1,
+      activeUsers: 1,
+      appUsers: 0,
+      multiProductUsers: 0,
+    });
 
     const result = await getUserInventory(ctx);
 
@@ -5957,11 +6599,14 @@ describe("getUserInventory", () => {
     mocks.readDashboardSnapshotMeta.mockResolvedValue(null);
     mocks.readAutomationPart.mockImplementation((_k, part) =>
       part === "users"
-        ? Promise.resolve({ entries: [
-            { label: "a1", write: [1, 2], read: [2], trigger: [] },
-            { label: "gone", write: [3], read: [], trigger: [] },
-          ] })
-        : Promise.resolve(null));
+        ? Promise.resolve({
+            entries: [
+              { label: "a1", write: [1, 2], read: [2], trigger: [] },
+              { label: "gone", write: [3], read: [], trigger: [] },
+            ],
+          })
+        : Promise.resolve(null),
+    );
 
     const result = await getUserInventory(ctx);
 
@@ -5987,7 +6632,8 @@ describe("getUserDetails", () => {
     const result = await getUserDetails(ctx);
 
     expect(result).toMatchObject({
-      available: true, inRoster: true,
+      available: true,
+      inRoster: true,
       ownedFilters: [{ id: "10", name: "Ann filter" }],
       ownedDashboards: [{ id: "20", name: "Ann dash" }],
       authoredRules: [],
@@ -6008,7 +6654,12 @@ describe("getUserDetails", () => {
       { fieldId: "customfield_500", issueCount: 30 },
       { fieldId: "assignee", issueCount: 900 },
     ]);
-    mocks.loadSnapshotFieldNames.mockResolvedValue(new Map([["customfield_500", "Reviewer"], ["assignee", "Assignee"]]));
+    mocks.loadSnapshotFieldNames.mockResolvedValue(
+      new Map([
+        ["customfield_500", "Reviewer"],
+        ["assignee", "Assignee"],
+      ]),
+    );
 
     const result = await getUserDetails(ctx);
 
@@ -6026,17 +6677,25 @@ describe("getUserDetails", () => {
     mocks.readDashboardSnapshotMeta.mockResolvedValue(null);
     mocks.readAutomationPart.mockImplementation((_k, part) => {
       if (part === "users") return Promise.resolve({ entries: [{ label: "a1", write: [7], read: [9], trigger: [] }] });
-      if (part === "directory") return Promise.resolve({ rules: [[7, "Assign to Ann", 1, "t", 0], [9, "Escalate", 0, "t", 0]] });
+      if (part === "directory")
+        return Promise.resolve({
+          rules: [
+            [7, "Assign to Ann", 1, "t", 0],
+            [9, "Escalate", 0, "t", 0],
+          ],
+        });
       return Promise.resolve(null);
     });
 
     const result = await getUserDetails(ctx);
 
     expect(result.automationRefsAvailable).toBe(true);
-    expect(result.referencedInRules).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: 7, name: "Assign to Ann", direction: "write", enabled: true }),
-      expect.objectContaining({ id: 9, name: "Escalate", direction: "read", enabled: false }),
-    ]));
+    expect(result.referencedInRules).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 7, name: "Assign to Ann", direction: "write", enabled: true }),
+        expect.objectContaining({ id: 9, name: "Escalate", direction: "read", enabled: false }),
+      ]),
+    );
   });
 
   // Cross-pillar (Access): permission grants, security-level memberships and notification
@@ -6047,7 +6706,13 @@ describe("getUserDetails", () => {
     mocks.readAutomationPart.mockResolvedValue(null);
     mocks.readAccessSnapshotMeta.mockResolvedValue({ version: "a1" });
     mocks.loadSchemesGrantingHolder.mockResolvedValue([
-      { schemeType: "permission", schemeId: "1", schemeName: "Prod", context: "ADMINISTER_PROJECTS", contextLabel: "Administer Projects" },
+      {
+        schemeType: "permission",
+        schemeId: "1",
+        schemeName: "Prod",
+        context: "ADMINISTER_PROJECTS",
+        contextLabel: "Administer Projects",
+      },
     ]);
 
     const result = await getUserDetails(ctx);
@@ -6064,16 +6729,31 @@ describe("getUserDetails", () => {
   // "user" only) could not see a single one of them.
   test("lists schemes granted via a group this account belongs to, distinct from direct grants", async () => {
     mocks.readUserSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
-    mocks.loadUsers.mockResolvedValue([{
-      accountId: "a1", displayName: "Ann", applications: [],
-      groups: [{ id: "g1", name: "jira-administrators" }, { id: "g2", name: "marketing-contractors" }],
-    }]);
+    mocks.loadUsers.mockResolvedValue([
+      {
+        accountId: "a1",
+        displayName: "Ann",
+        applications: [],
+        groups: [
+          { id: "g1", name: "jira-administrators" },
+          { id: "g2", name: "marketing-contractors" },
+        ],
+      },
+    ]);
     mocks.readAutomationPart.mockResolvedValue(null);
     mocks.readAccessSnapshotMeta.mockResolvedValue({ version: "a1" });
     mocks.loadSchemesGrantingHolder.mockImplementation((_install, _version, holderType, holderValue) => {
       if (holderType === "user") return Promise.resolve([]);
       if (holderType === "group" && holderValue === "g1") {
-        return Promise.resolve([{ schemeType: "permission", schemeId: "1", schemeName: "Prod", context: "ADMINISTER_PROJECTS", contextLabel: "Administer Projects" }]);
+        return Promise.resolve([
+          {
+            schemeType: "permission",
+            schemeId: "1",
+            schemeName: "Prod",
+            context: "ADMINISTER_PROJECTS",
+            contextLabel: "Administer Projects",
+          },
+        ]);
       }
       return Promise.resolve([]);
     });
@@ -6082,7 +6762,11 @@ describe("getUserDetails", () => {
 
     expect(result.grantedBySchemes).toEqual([]);
     expect(result.grantedByGroups).toEqual([
-      expect.objectContaining({ schemeName: "Prod", contextLabel: "Administer Projects", viaGroup: "jira-administrators" }),
+      expect.objectContaining({
+        schemeName: "Prod",
+        contextLabel: "Administer Projects",
+        viaGroup: "jira-administrators",
+      }),
     ]);
     expect(mocks.loadSchemesGrantingHolder).toHaveBeenCalledWith("test-install", "a1", "group", "g1");
     expect(mocks.loadSchemesGrantingHolder).toHaveBeenCalledWith("test-install", "a1", "group", "g2");
@@ -6148,7 +6832,11 @@ describe("getAssetInventory", () => {
   });
 
   test("surfaces 'Assets not enabled' as a first-class state, not an empty catalogue", async () => {
-    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "unavailable", assetsEnabled: false, lastError: "no workspace" });
+    mocks.readAssetSnapshotMeta.mockResolvedValue({
+      state: "unavailable",
+      assetsEnabled: false,
+      lastError: "no workspace",
+    });
     const result = await getAssetInventory(ctx);
     expect(result).toMatchObject({ state: "unavailable", assetsEnabled: false, neverBuilt: false });
     expect(result.governance).toMatchObject({ assetsEnabled: false });
@@ -6156,13 +6844,22 @@ describe("getAssetInventory", () => {
   });
 
   test("returns the structure and the governance summary when built", async () => {
-    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", assetsEnabled: true, workspaceId: "ws-1" });
+    mocks.readAssetSnapshotMeta.mockResolvedValue({
+      state: "ready",
+      version: "v1",
+      assetsEnabled: true,
+      workspaceId: "ws-1",
+    });
     mocks.loadAssetSchemas.mockResolvedValue([
       { id: "1", name: "Infra", objectTypeCount: 2, objectCount: 40 },
       { id: "2", name: "Empty", objectTypeCount: 0, objectCount: 0 },
     ]);
-    mocks.loadAssetObjectTypes.mockResolvedValue([{ id: "9", schemaId: "1", name: "Server", parentId: null, abstract: false }]);
-    mocks.loadAssetAttributes.mockResolvedValue([{ id: "a", objectTypeId: "9", name: "OS", referenceObjectTypeId: "404", system: false }]);
+    mocks.loadAssetObjectTypes.mockResolvedValue([
+      { id: "9", schemaId: "1", name: "Server", parentId: null, abstract: false },
+    ]);
+    mocks.loadAssetAttributes.mockResolvedValue([
+      { id: "a", objectTypeId: "9", name: "OS", referenceObjectTypeId: "404", system: false },
+    ]);
 
     const result = await getAssetInventory(ctx);
 
@@ -6172,11 +6869,23 @@ describe("getAssetInventory", () => {
   });
 
   test("folds the object-count crawl's rows and meta in alongside the structure", async () => {
-    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", assetsEnabled: true, workspaceId: "ws-1" });
+    mocks.readAssetSnapshotMeta.mockResolvedValue({
+      state: "ready",
+      version: "v1",
+      assetsEnabled: true,
+      workspaceId: "ws-1",
+    });
     mocks.loadAssetSchemas.mockResolvedValue([{ id: "1", name: "Infra", objectTypeCount: 1, objectCount: 10 }]);
-    mocks.loadAssetObjectTypes.mockResolvedValue([{ id: "9", schemaId: "1", name: "Server", parentId: null, abstract: false }]);
+    mocks.loadAssetObjectTypes.mockResolvedValue([
+      { id: "9", schemaId: "1", name: "Server", parentId: null, abstract: false },
+    ]);
     mocks.loadAssetTypeCounts.mockResolvedValue([{ objectTypeId: "9", schemaId: "1", objectCount: 0 }]);
-    mocks.readAssetTypeCountMeta.mockResolvedValue({ state: "ready", refreshedAt: "2026-09-16T00:00:00Z", measuredTypes: 1, unmeasuredTypes: 0 });
+    mocks.readAssetTypeCountMeta.mockResolvedValue({
+      state: "ready",
+      refreshedAt: "2026-09-16T00:00:00Z",
+      measuredTypes: 1,
+      unmeasuredTypes: 0,
+    });
 
     const result = await getAssetInventory(ctx);
 
@@ -6254,34 +6963,39 @@ describe("getAccessInventory", () => {
   });
 
   test("returns the three scheme families with a project count and a governance summary each", async () => {
-    mocks.readAccessSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", refreshedAt: "2026-09-01T00:00:00Z" });
+    mocks.readAccessSnapshotMeta.mockResolvedValue({
+      state: "ready",
+      version: "v1",
+      refreshedAt: "2026-09-01T00:00:00Z",
+    });
     mocks.readUserSnapshotMeta.mockResolvedValue({ version: "u1" });
     mocks.loadUsers.mockResolvedValue([{ accountId: "acc-1" }]);
     mocks.loadSchemes.mockImplementation(async (_k, _v, type) => {
-      if (type === "permission") return [
-        { id: "1", name: "Prod", isDefault: false },
-        { id: "3", name: "Legacy", isDefault: false },
-      ];
+      if (type === "permission")
+        return [
+          { id: "1", name: "Prod", isDefault: false },
+          { id: "3", name: "Legacy", isDefault: false },
+        ];
       if (type === "security") return [{ id: "s1", name: "Restricted", defaultLevelId: "L1" }];
       if (type === "notification") return [{ id: "n1", name: "Prod notif", isDefault: false }];
       if (type === "project-role") return [{ id: "10002", name: "Administrators" }];
       return [];
     });
     mocks.loadSchemeHolders.mockImplementation(async (_k, _v, type) => {
-      if (type === "permission") return [
-        { schemeId: "3", context: "BROWSE_PROJECTS", holderType: "anyone", holderValue: "" },
-      ];
-      if (type === "notification") return [
-        { schemeId: "n1", context: "1", holderType: "user", holderValue: "acc-gone" },
-      ];
-      if (type === "project-role") return [
-        { schemeId: "10002", context: "1", contextLabel: "OPS", holderType: "group", holderValue: "g-admins" },
-        { schemeId: "10002", context: "2", contextLabel: "DEV", holderType: "empty", holderValue: "" },
-      ];
+      if (type === "permission")
+        return [{ schemeId: "3", context: "BROWSE_PROJECTS", holderType: "anyone", holderValue: "" }];
+      if (type === "notification")
+        return [{ schemeId: "n1", context: "1", holderType: "user", holderValue: "acc-gone" }];
+      if (type === "project-role")
+        return [
+          { schemeId: "10002", context: "1", contextLabel: "OPS", holderType: "group", holderValue: "g-admins" },
+          { schemeId: "10002", context: "2", contextLabel: "DEV", holderType: "empty", holderValue: "" },
+        ];
       return [];
     });
     mocks.loadSchemeProjects.mockImplementation(async (_k, _v, type) =>
-      type === "permission" ? [{ schemeId: "1", projectId: "10" }] : []);
+      type === "permission" ? [{ schemeId: "1", projectId: "10" }] : [],
+    );
     mocks.loadSchemeLevels.mockResolvedValue([{ schemeId: "s1", id: "L1", name: "Internal" }]);
 
     const result = await getAccessInventory(ctx);
@@ -6350,11 +7064,30 @@ describe("getChangeHistory", () => {
   });
 
   test("returns a page of changes plus the trailing-window summary", async () => {
-    mocks.readDriftSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", refreshedAt: "2026-09-03T00:00:00Z", lastRunChanges: 2, totalChanges: 40 });
+    mocks.readDriftSnapshotMeta.mockResolvedValue({
+      state: "ready",
+      version: "v1",
+      refreshedAt: "2026-09-03T00:00:00Z",
+      lastRunChanges: 2,
+      totalChanges: 40,
+    });
     mocks.loadConfigChanges.mockResolvedValue([
-      { changeId: "v1-0", detectedAt: "2026-09-03T00:00:00Z", pillar: "access", entityType: "permission-scheme", entityId: "1", label: "Prod", changeKind: "modified", summary: 'Permission scheme "Prod" changed: name' },
+      {
+        changeId: "v1-0",
+        detectedAt: "2026-09-03T00:00:00Z",
+        pillar: "access",
+        entityType: "permission-scheme",
+        entityId: "1",
+        label: "Prod",
+        changeKind: "modified",
+        summary: 'Permission scheme "Prod" changed: name',
+      },
     ]);
-    mocks.loadConfigChangeSummary.mockResolvedValue({ total: 5, byPillar: { access: 5 }, byKind: { added: 2, removed: 1, modified: 2 } });
+    mocks.loadConfigChangeSummary.mockResolvedValue({
+      total: 5,
+      byPillar: { access: 5 },
+      byKind: { added: 2, removed: 1, modified: 2 },
+    });
 
     const result = await getChangeHistory({ payload: { pillar: "access", limit: 50 }, ...ctx });
 
@@ -6363,16 +7096,25 @@ describe("getChangeHistory", () => {
     expect(result.summary.total).toBe(5);
     expect(result.nextCursor).toBeNull();
     // pillar filter threaded through; asked for limit+1 to detect a further page
-    expect(mocks.loadConfigChanges).toHaveBeenCalledWith("test-install", expect.objectContaining({ pillar: "access", limit: 51 }));
+    expect(mocks.loadConfigChanges).toHaveBeenCalledWith(
+      "test-install",
+      expect.objectContaining({ pillar: "access", limit: 51 }),
+    );
   });
 
   test("sets nextCursor when a further page exists", async () => {
     mocks.readDriftSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
     mocks.loadConfigChanges.mockResolvedValue(
       Array.from({ length: 3 }, (_, i) => ({
-        changeId: `v1-${i}`, detectedAt: `2026-09-0${3 - i}T00:00:00Z`, pillar: "workflow",
-        entityType: "status", entityId: String(i), label: "S", changeKind: "added", summary: "x",
-      }))
+        changeId: `v1-${i}`,
+        detectedAt: `2026-09-0${3 - i}T00:00:00Z`,
+        pillar: "workflow",
+        entityType: "status",
+        entityId: String(i),
+        label: "S",
+        changeKind: "added",
+        summary: "x",
+      })),
     );
     const result = await getChangeHistory({ payload: { limit: 2 }, ...ctx });
     expect(result.changes).toHaveLength(2);
@@ -6417,17 +7159,29 @@ describe("getEstateInventory", () => {
   });
 
   test("returns both lists with the duplicate-name governance summary", async () => {
-    mocks.readEstateSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", refreshedAt: "2026-09-03T00:00:00Z" });
+    mocks.readEstateSnapshotMeta.mockResolvedValue({
+      state: "ready",
+      version: "v1",
+      refreshedAt: "2026-09-03T00:00:00Z",
+    });
     mocks.loadEstateValues.mockImplementation(async (_k, _v, kind) =>
       kind === "resolution"
-        ? [{ id: "1", name: "Done", isDefault: true }, { id: "2", name: "done" }]
-        : [{ id: "10", name: "High", isDefault: true }]);
+        ? [
+            { id: "1", name: "Done", isDefault: true },
+            { id: "2", name: "done" },
+          ]
+        : [{ id: "10", name: "High", isDefault: true }],
+    );
 
     const result = await getEstateInventory(ctx);
 
     expect(result.neverBuilt).toBe(false);
     expect(result.resolutions).toHaveLength(2);
-    expect(result.governance).toMatchObject({ available: true, resolutionDuplicateGroupCount: 1, reducibleResolutionCount: 1 });
+    expect(result.governance).toMatchObject({
+      available: true,
+      resolutionDuplicateGroupCount: 1,
+      reducibleResolutionCount: 1,
+    });
   });
 
   // The crawl counted issues per value all along; only the Overview attached them, so every
@@ -6435,7 +7189,8 @@ describe("getEstateInventory", () => {
   test("attaches the crawl's issue counts to each value", async () => {
     mocks.readEstateSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
     mocks.loadEstateValues.mockImplementation(async (_k, _v, kind) =>
-      kind === "resolution" ? [{ id: "1", name: "Done" }] : [{ id: "10", name: "High" }]);
+      kind === "resolution" ? [{ id: "1", name: "Done" }] : [{ id: "10", name: "High" }],
+    );
     mocks.loadEstateValueTotals.mockResolvedValueOnce([
       { kind: "resolution", valueId: "1", issueCount: 500 },
       { kind: "resolution", valueId: "", issueCount: 12 },
@@ -6482,7 +7237,10 @@ describe("buildFieldConfigInventory", () => {
   test("refuses in read-only mode", async () => {
     mocks.readFieldConfigSnapshotMeta.mockResolvedValueOnce(null);
     mocks.kvsGet.mockResolvedValueOnce({ readOnlyMode: true });
-    expect(await buildFieldConfigInventory(ctx)).toMatchObject({ queued: false, error: expect.stringMatching(/Read-only/) });
+    expect(await buildFieldConfigInventory(ctx)).toMatchObject({
+      queued: false,
+      error: expect.stringMatching(/Read-only/),
+    });
     expect(mocks.queueFieldConfigSnapshotBuild).not.toHaveBeenCalled();
   });
 });
@@ -6523,11 +7281,43 @@ describe("getBoardInventory", () => {
   });
 
   test("joins columns onto boards and summarises the estate", async () => {
-    mocks.readBoardSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", refreshedAt: "2026-09-09T00:00:00Z", boardsUnreadable: 1 });
+    mocks.readBoardSnapshotMeta.mockResolvedValue({
+      state: "ready",
+      version: "v1",
+      refreshedAt: "2026-09-09T00:00:00Z",
+      boardsUnreadable: 1,
+    });
     mocks.loadBoards.mockResolvedValue([
-      { boardId: "1", name: "Scrum", type: "scrum", locationType: "project", locationKey: "AAA", filterId: "4001", configReadable: true, columnCount: 2 },
-      { boardId: "2", name: "Mine", type: "kanban", locationType: "user", locationName: "Alex", filterId: null, configReadable: true, columnCount: 1 },
-      { boardId: "3", name: "TM", type: "simple", locationType: "project", locationKey: "BBB", filterId: null, configReadable: false, columnCount: 0 },
+      {
+        boardId: "1",
+        name: "Scrum",
+        type: "scrum",
+        locationType: "project",
+        locationKey: "AAA",
+        filterId: "4001",
+        configReadable: true,
+        columnCount: 2,
+      },
+      {
+        boardId: "2",
+        name: "Mine",
+        type: "kanban",
+        locationType: "user",
+        locationName: "Alex",
+        filterId: null,
+        configReadable: true,
+        columnCount: 1,
+      },
+      {
+        boardId: "3",
+        name: "TM",
+        type: "simple",
+        locationType: "project",
+        locationKey: "BBB",
+        filterId: null,
+        configReadable: false,
+        columnCount: 0,
+      },
     ]);
     mocks.loadBoardColumns.mockResolvedValue([
       { boardId: "1", index: 0, name: "To Do", statusIds: ["1"] },
@@ -6555,7 +7345,16 @@ describe("getBoardInventory", () => {
   test("joins against the filter and status snapshots and flags a deleted backing filter", async () => {
     mocks.readBoardSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", refreshedAt: "x" });
     mocks.loadBoards.mockResolvedValue([
-      { boardId: "1", name: "Scrum", type: "scrum", locationType: "project", locationKey: "AAA", filterId: "GONE", configReadable: true, columnCount: 1 },
+      {
+        boardId: "1",
+        name: "Scrum",
+        type: "scrum",
+        locationType: "project",
+        locationKey: "AAA",
+        filterId: "GONE",
+        configReadable: true,
+        columnCount: 1,
+      },
     ]);
     mocks.loadBoardColumns.mockResolvedValue([{ boardId: "1", index: 0, name: "To Do", statusIds: ["1", "deleted"] }]);
     mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "fv1" });
@@ -6565,7 +7364,12 @@ describe("getBoardInventory", () => {
 
     const result = await getBoardInventory(ctx);
 
-    expect(result.insights).toMatchObject({ missingFilter: 1, staleColumnBoards: 1, joinedFilters: true, joinedStatuses: true });
+    expect(result.insights).toMatchObject({
+      missingFilter: 1,
+      staleColumnBoards: 1,
+      joinedFilters: true,
+      joinedStatuses: true,
+    });
     expect(result.summary.brokenFilter).toBe(1);
     expect(result.summary.staleColumnBoards).toBe(1);
     // Per-board codes, uncapped, for the pillar report.
@@ -6574,7 +7378,17 @@ describe("getBoardInventory", () => {
 
   test("reports the joins as not-run when the other snapshots are absent", async () => {
     mocks.readBoardSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", refreshedAt: "x" });
-    mocks.loadBoards.mockResolvedValue([{ boardId: "1", name: "B", type: "scrum", locationType: "project", filterId: "4001", configReadable: true, columnCount: 0 }]);
+    mocks.loadBoards.mockResolvedValue([
+      {
+        boardId: "1",
+        name: "B",
+        type: "scrum",
+        locationType: "project",
+        filterId: "4001",
+        configReadable: true,
+        columnCount: 0,
+      },
+    ]);
     mocks.loadBoardColumns.mockResolvedValue([]);
     mocks.readFilterSnapshotMeta.mockResolvedValue(null);
     mocks.readWorkflowSnapshotMeta.mockResolvedValue(null);
@@ -6586,34 +7400,64 @@ describe("getBoardInventory", () => {
 
 describe("runOqlQuery", () => {
   const ctx = (query) => ({ payload: { query }, context: { installContext: "ari:cloud:jira::site/x" } });
-  const screen = (i, fieldCount, over = {}) => ({ screenId: String(i), name: `S${i}`, tabCount: 1, fieldCount, tabsResolved: "resolved", ...over });
+  const screen = (i, fieldCount, over = {}) => ({
+    screenId: String(i),
+    name: `S${i}`,
+    tabCount: 1,
+    fieldCount,
+    tabsResolved: "resolved",
+    ...over,
+  });
 
   function mockScreens() {
     mocks.readScreenSnapshotMeta.mockResolvedValueOnce({ version: "sv1", refreshedAt: "2026-09-01T00:00:00Z" });
     mocks.readWorkflowSnapshotMeta.mockResolvedValueOnce(null);
     mocks.loadScreensPage.mockResolvedValueOnce({
-      rows: [screen(1, 40), screen(2, 30), screen(3, 2), screen(4, 5), screen(5, 12), screen(6, 25), screen(7, 8), screen(8, 1)],
+      rows: [
+        screen(1, 40),
+        screen(2, 30),
+        screen(3, 2),
+        screen(4, 5),
+        screen(5, 12),
+        screen(6, 25),
+        screen(7, 8),
+        screen(8, 1),
+      ],
     });
     // Screen 1 reaches one project -- the bottom quarter -- and carries the most fields.
     mocks.loadScreenSchemeOperations.mockResolvedValueOnce([
-      { schemeId: "ss1", screenId: "1" }, { schemeId: "ss2", screenId: "2" }, { schemeId: "ss2", screenId: "6" },
-      { schemeId: "ss3", screenId: "5" }, { schemeId: "ss4", screenId: "7" },
-      { schemeId: "ss2", screenId: "3" }, { schemeId: "ss2", screenId: "4" }, { schemeId: "ss2", screenId: "8" },
+      { schemeId: "ss1", screenId: "1" },
+      { schemeId: "ss2", screenId: "2" },
+      { schemeId: "ss2", screenId: "6" },
+      { schemeId: "ss3", screenId: "5" },
+      { schemeId: "ss4", screenId: "7" },
+      { schemeId: "ss2", screenId: "3" },
+      { schemeId: "ss2", screenId: "4" },
+      { schemeId: "ss2", screenId: "8" },
     ]);
     mocks.loadItssMappings.mockResolvedValueOnce([
-      { itssId: "i1", screenSchemeId: "ss1" }, { itssId: "i2", screenSchemeId: "ss2" }, { itssId: "i3", screenSchemeId: "ss3" }, { itssId: "i4", screenSchemeId: "ss4" },
+      { itssId: "i1", screenSchemeId: "ss1" },
+      { itssId: "i2", screenSchemeId: "ss2" },
+      { itssId: "i3", screenSchemeId: "ss3" },
+      { itssId: "i4", screenSchemeId: "ss4" },
     ]);
     mocks.loadItssProjects.mockResolvedValueOnce([
       { itssId: "i1", projectId: "P1" },
       ...["P1", "P2", "P3", "P4", "P5"].map((projectId) => ({ itssId: "i2", projectId })),
-      { itssId: "i3", projectId: "P1" }, { itssId: "i3", projectId: "P2" },
-      { itssId: "i4", projectId: "P3" }, { itssId: "i4", projectId: "P4" }, { itssId: "i4", projectId: "P5" },
+      { itssId: "i3", projectId: "P1" },
+      { itssId: "i3", projectId: "P2" },
+      { itssId: "i4", projectId: "P3" },
+      { itssId: "i4", projectId: "P4" },
+      { itssId: "i4", projectId: "P5" },
     ]);
   }
 
   test("returns a parse error without loading anything", async () => {
     const result = await runOqlQuery(ctx("pilar = screens"));
-    expect(result).toEqual({ ok: false, error: { message: 'Unknown field "pilar". Did you mean "pillar"?', start: 0, end: 5 } });
+    expect(result).toEqual({
+      ok: false,
+      error: { message: 'Unknown field "pilar". Did you mean "pillar"?', start: 0, end: 5 },
+    });
     expect(mocks.readScreenSnapshotMeta).not.toHaveBeenCalled();
   });
 
@@ -6622,7 +7466,13 @@ describe("runOqlQuery", () => {
     const result = await runOqlQuery(ctx("pillar = screens AND usage = low AND impact = high"));
     expect(result.ok).toBe(true);
     expect(result.results.map((r) => r.id)).toEqual(["1"]);
-    expect(result.results[0]).toMatchObject({ pillar: "screens", usage: "low", impact: "high", usageValue: 1, impactValue: 40 });
+    expect(result.results[0]).toMatchObject({
+      pillar: "screens",
+      usage: "low",
+      impact: "high",
+      usageValue: 1,
+      impactValue: 40,
+    });
     expect(result.pillars.map((p) => p.key)).toEqual(["screens"]);
     expect(result.thresholds.screens.usage.label).toMatch(/screen schemes/);
     expect(mocks.readFilterSnapshotMeta).not.toHaveBeenCalled();
@@ -6632,8 +7482,20 @@ describe("runOqlQuery", () => {
     const result = await runOqlQuery(ctx("usage = low"));
     expect(result.ok).toBe(true);
     expect(result.pillars.map((p) => p.key)).toEqual([
-      "fields", "projects", "workflows", "issueTypes", "fieldConfigs", "priorities", "people", "assets", "access",
-      "screens", "filters", "dashboards", "boards", "automation",
+      "fields",
+      "projects",
+      "workflows",
+      "issueTypes",
+      "fieldConfigs",
+      "priorities",
+      "people",
+      "assets",
+      "access",
+      "screens",
+      "filters",
+      "dashboards",
+      "boards",
+      "automation",
     ]);
     expect(result.pillars.filter((p) => p.status === "unavailable" && !p.reason)).toEqual([]);
     expect(result.pillars.some((p) => p.status === "unavailable")).toBe(true);
@@ -6642,7 +7504,13 @@ describe("runOqlQuery", () => {
   test("a pillar that throws is reported unavailable, not dropped", async () => {
     mocks.readScreenSnapshotMeta.mockRejectedValueOnce(new Error("sql down"));
     const result = await runOqlQuery(ctx("pillar = screens"));
-    expect(result.pillars).toEqual([expect.objectContaining({ key: "screens", status: "unavailable", reason: expect.stringMatching(/could not be read/) })]);
+    expect(result.pillars).toEqual([
+      expect.objectContaining({
+        key: "screens",
+        status: "unavailable",
+        reason: expect.stringMatching(/could not be read/),
+      }),
+    ]);
   });
 
   test("orders results and lists the finding codes present", async () => {
@@ -6661,10 +7529,15 @@ describe("runOqlQuery", () => {
 
     mocks.readSnapshotMeta.mockResolvedValueOnce(null);
     mocks.readDriftSnapshotMeta.mockResolvedValueOnce({ version: "d1" });
-    mocks.loadConfigChanges.mockResolvedValueOnce([{ entityType: "field", entityId: "x", detectedAt: new Date().toISOString() }]);
+    mocks.loadConfigChanges.mockResolvedValueOnce([
+      { entityType: "field", entityId: "x", detectedAt: new Date().toISOString() },
+    ]);
     const withDrift = await runOqlQuery(ctx("pillar = fields"));
     expect(withDrift.churnMeasured).toBe(true);
-    expect(mocks.loadConfigChanges).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ limit: 500, since: expect.any(String) }));
+    expect(mocks.loadConfigChanges).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ limit: 500, since: expect.any(String) }),
+    );
   });
 });
 
@@ -6684,7 +7557,11 @@ describe("getPillarReport", () => {
   });
 
   test("boards: reuses the inventory read and carries its per-board findings", async () => {
-    mocks.readBoardSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1", refreshedAt: "2026-09-09T00:00:00Z" });
+    mocks.readBoardSnapshotMeta.mockResolvedValueOnce({
+      state: "ready",
+      version: "v1",
+      refreshedAt: "2026-09-09T00:00:00Z",
+    });
     mocks.loadBoards.mockResolvedValueOnce([
       { boardId: "1", name: "Clean", type: "scrum", filterId: "4001", configReadable: true, columnCount: 1 },
       { boardId: "2", name: "Orphan", type: "kanban", filterId: null, configReadable: true, columnCount: 0 },
@@ -6701,9 +7578,19 @@ describe("getPillarReport", () => {
     mocks.readFilterSnapshotMeta.mockResolvedValueOnce({ version: "fv1", refreshedAt: "2026-09-01T00:00:00Z" });
     mocks.readSnapshotMeta.mockResolvedValueOnce(null);
     mocks.readIssueTypeSnapshotMeta.mockResolvedValueOnce(null);
-    mocks.loadFilters.mockResolvedValueOnce(Array.from({ length: 30 }, (_, i) => ({
-      id: String(i), name: `F${i}`, ownerAccountId: "a", ownerName: "Ann", ownerActive: i !== 7, owner: { accountId: "a", displayName: "Ann", active: i !== 7 }, shares: [], subscriptionCount: 0, lastUsedAt: "2026-08-01T00:00:00Z",
-    })));
+    mocks.loadFilters.mockResolvedValueOnce(
+      Array.from({ length: 30 }, (_, i) => ({
+        id: String(i),
+        name: `F${i}`,
+        ownerAccountId: "a",
+        ownerName: "Ann",
+        ownerActive: i !== 7,
+        owner: { accountId: "a", displayName: "Ann", active: i !== 7 },
+        shares: [],
+        subscriptionCount: 0,
+        lastUsedAt: "2026-08-01T00:00:00Z",
+      })),
+    );
 
     const report = await getPillarReport(ctx("filters"));
 
@@ -6714,10 +7601,18 @@ describe("getPillarReport", () => {
   test("screens: pages through every screen and marks the unreached ones", async () => {
     mocks.readScreenSnapshotMeta.mockResolvedValueOnce({ version: "sv1", refreshedAt: "2026-09-01T00:00:00Z" });
     mocks.readWorkflowSnapshotMeta.mockResolvedValueOnce({ version: "wv1", transitionScreens: 4 });
-    const full = Array.from({ length: 200 }, (_, i) => ({ screenId: String(i), name: `S${i}`, tabCount: 1, fieldCount: 3, tabsResolved: "resolved" }));
+    const full = Array.from({ length: 200 }, (_, i) => ({
+      screenId: String(i),
+      name: `S${i}`,
+      tabCount: 1,
+      fieldCount: 3,
+      tabsResolved: "resolved",
+    }));
     mocks.loadScreensPage
       .mockResolvedValueOnce({ rows: full })
-      .mockResolvedValueOnce({ rows: [{ screenId: "200", name: "Last", tabCount: 1, fieldCount: 0, tabsResolved: "resolved" }] })
+      .mockResolvedValueOnce({
+        rows: [{ screenId: "200", name: "Last", tabCount: 1, fieldCount: 0, tabsResolved: "resolved" }],
+      })
       .mockResolvedValueOnce({ rows: [{ screenId: "5" }] });
 
     const report = await getPillarReport(ctx("screens"));
@@ -6734,7 +7629,9 @@ describe("getPillarReport", () => {
   test("screens: reachability is skipped when the workflow build never read transitions", async () => {
     mocks.readScreenSnapshotMeta.mockResolvedValueOnce({ version: "sv1", refreshedAt: "2026-09-01T00:00:00Z" });
     mocks.readWorkflowSnapshotMeta.mockResolvedValueOnce({ version: "wv1", transitionScreens: null });
-    mocks.loadScreensPage.mockResolvedValueOnce({ rows: [{ screenId: "5", name: "Resolve screen", tabCount: 1, fieldCount: 4, tabsResolved: "resolved" }] });
+    mocks.loadScreensPage.mockResolvedValueOnce({
+      rows: [{ screenId: "5", name: "Resolve screen", tabCount: 1, fieldCount: 4, tabsResolved: "resolved" }],
+    });
 
     const report = await getPillarReport(ctx("screens"));
 
@@ -6751,8 +7648,17 @@ describe("getPillarReport", () => {
   });
 
   test("automation: rules from the directory, risks from the analysis preview", async () => {
-    mocks.readAutomationAnalysis.mockResolvedValueOnce({ refreshedAt: Date.UTC(2026, 8, 1), findingsPreview: [{ id: 11, r: [{ c: "secret" }] }], findingsTotal: 1 });
-    mocks.readAutomationPart.mockResolvedValueOnce({ rules: [[11, "Notify", 1, "jira:issue_created", 3, "acc"], [12, "Idle", 0, null, 0, null]] });
+    mocks.readAutomationAnalysis.mockResolvedValueOnce({
+      refreshedAt: Date.UTC(2026, 8, 1),
+      findingsPreview: [{ id: 11, r: [{ c: "secret" }] }],
+      findingsTotal: 1,
+    });
+    mocks.readAutomationPart.mockResolvedValueOnce({
+      rules: [
+        [11, "Notify", 1, "jira:issue_created", 3, "acc"],
+        [12, "Idle", 0, null, 0, null],
+      ],
+    });
 
     const report = await getPillarReport(ctx("automation"));
 
@@ -6762,15 +7668,25 @@ describe("getPillarReport", () => {
 
   test("changes: keyset-pages the trailing window", async () => {
     mocks.readDriftSnapshotMeta.mockResolvedValueOnce({ version: "d1", refreshedAt: "2026-09-02T00:00:00Z" });
-    const page = Array.from({ length: 500 }, (_, i) => ({ changeId: String(i), detectedAt: `2026-09-01T00:00:${String(i % 60).padStart(2, "0")}Z`, pillar: "fields", changeKind: "added" }));
+    const page = Array.from({ length: 500 }, (_, i) => ({
+      changeId: String(i),
+      detectedAt: `2026-09-01T00:00:${String(i % 60).padStart(2, "0")}Z`,
+      pillar: "fields",
+      changeKind: "added",
+    }));
     mocks.loadConfigChanges
       .mockResolvedValueOnce(page)
-      .mockResolvedValueOnce([{ changeId: "x", detectedAt: "2026-08-30T00:00:00Z", pillar: "fields", changeKind: "removed" }]);
+      .mockResolvedValueOnce([
+        { changeId: "x", detectedAt: "2026-08-30T00:00:00Z", pillar: "fields", changeKind: "removed" },
+      ]);
 
     const report = await getPillarReport(ctx("changes"));
 
     expect(report.total).toBe(501);
-    expect(mocks.loadConfigChanges.mock.calls[1][1]).toMatchObject({ before: `${page[499].detectedAt}|${page[499].changeId}`, limit: 500 });
+    expect(mocks.loadConfigChanges.mock.calls[1][1]).toMatchObject({
+      before: `${page[499].detectedAt}|${page[499].changeId}`,
+      limit: 500,
+    });
     expect(mocks.loadConfigChanges.mock.calls[0][1].since).toEqual(expect.any(String));
     expect(report.columns.some((c) => c.key === "findings")).toBe(false);
   });
@@ -6804,8 +7720,22 @@ describe("getPillarReport", () => {
   test("fields: every snapshot field, hydrated for governance", async () => {
     mocks.readSnapshotMeta.mockResolvedValueOnce({ version: "v1", completedAt: "2026-09-01T00:00:00Z" });
     mocks.loadSnapshotFields.mockResolvedValueOnce([
-      { id: "customfield_1", name: "Team", type: "select", configuredProjectCount: 0, totalIssueCount: 0, activeProjectCount: 0 },
-      { id: "customfield_2", name: "Budget", type: "number", configuredProjectCount: 1, totalIssueCount: 40, activeProjectCount: 1 },
+      {
+        id: "customfield_1",
+        name: "Team",
+        type: "select",
+        configuredProjectCount: 0,
+        totalIssueCount: 0,
+        activeProjectCount: 0,
+      },
+      {
+        id: "customfield_2",
+        name: "Budget",
+        type: "number",
+        configuredProjectCount: 1,
+        totalIssueCount: 40,
+        activeProjectCount: 1,
+      },
     ]);
 
     const report = await getPillarReport(ctx("fields"));
@@ -6816,7 +7746,9 @@ describe("getPillarReport", () => {
 
   test("projects: snapshot projects with adoption, unmeasured when no activity was captured", async () => {
     mocks.readSnapshotMeta.mockResolvedValueOnce({ version: "v1", refreshedAt: "2026-09-01T00:00:00Z" });
-    mocks.listSnapshotProjects.mockResolvedValueOnce([{ projectId: "1", projectKey: "AAA", projectName: "Alpha", fieldCount: 3 }]);
+    mocks.listSnapshotProjects.mockResolvedValueOnce([
+      { projectId: "1", projectKey: "AAA", projectName: "Alpha", fieldCount: 3 },
+    ]);
     mocks.loadProjectActivity.mockResolvedValueOnce(new Map());
 
     const report = await getPillarReport(ctx("projects"));
@@ -6826,7 +7758,11 @@ describe("getPillarReport", () => {
   });
 
   test("issueTypes: the catalogue with scheme membership for the orphan check", async () => {
-    mocks.readIssueTypeSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1", refreshedAt: "2026-09-01T00:00:00Z" });
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValueOnce({
+      state: "ready",
+      version: "v1",
+      refreshedAt: "2026-09-01T00:00:00Z",
+    });
     mocks.loadIssueTypes.mockResolvedValueOnce([
       { id: "1", name: "Story", hierarchyLevel: 0 },
       { id: "2", name: "Lonely", hierarchyLevel: 0 },
@@ -6847,9 +7783,16 @@ describe("getPillarReport", () => {
   });
 
   test("priorities: both value lists from the estate inventory", async () => {
-    mocks.readEstateSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1", refreshedAt: "2026-09-01T00:00:00Z" });
+    mocks.readEstateSnapshotMeta.mockResolvedValueOnce({
+      state: "ready",
+      version: "v1",
+      refreshedAt: "2026-09-01T00:00:00Z",
+    });
     mocks.loadEstateValues
-      .mockResolvedValueOnce([{ id: "1", name: "Done" }, { id: "2", name: "done" }])
+      .mockResolvedValueOnce([
+        { id: "1", name: "Done" },
+        { id: "2", name: "done" },
+      ])
       .mockResolvedValueOnce([{ id: "10", name: "High", isDefault: true }]);
 
     const report = await getPillarReport(ctx("priorities"));
@@ -6858,8 +7801,14 @@ describe("getPillarReport", () => {
   });
 
   test("people: the roster with ownership counts", async () => {
-    mocks.readUserSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1", refreshedAt: "2026-09-01T00:00:00Z" });
-    mocks.loadUsers.mockResolvedValueOnce([{ accountId: "a1", displayName: "Ann", active: true, applications: [], groups: [] }]);
+    mocks.readUserSnapshotMeta.mockResolvedValueOnce({
+      state: "ready",
+      version: "v1",
+      refreshedAt: "2026-09-01T00:00:00Z",
+    });
+    mocks.loadUsers.mockResolvedValueOnce([
+      { accountId: "a1", displayName: "Ann", active: true, applications: [], groups: [] },
+    ]);
     mocks.loadUserGovernanceSummary.mockResolvedValueOnce({ totalUsers: 1 });
 
     const report = await getPillarReport(ctx("people"));
@@ -6868,7 +7817,11 @@ describe("getPillarReport", () => {
   });
 
   test("assets: object types from a built structure snapshot", async () => {
-    mocks.readAssetSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1", refreshedAt: "2026-09-01T00:00:00Z" });
+    mocks.readAssetSnapshotMeta.mockResolvedValueOnce({
+      state: "ready",
+      version: "v1",
+      refreshedAt: "2026-09-01T00:00:00Z",
+    });
     mocks.loadAssetSchemas.mockResolvedValueOnce([{ id: "s1", name: "IT", objectTypeCount: 1, objectCount: 4 }]);
     mocks.loadAssetObjectTypes.mockResolvedValueOnce([{ id: "t1", schemaId: "s1", name: "Laptop" }]);
     mocks.loadAssetAttributes.mockResolvedValueOnce([]);
@@ -6881,9 +7834,18 @@ describe("getPillarReport", () => {
   });
 
   test("access: every scheme family flattened into one table", async () => {
-    mocks.readAccessSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1", refreshedAt: "2026-09-01T00:00:00Z" });
+    mocks.readAccessSnapshotMeta.mockResolvedValueOnce({
+      state: "ready",
+      version: "v1",
+      refreshedAt: "2026-09-01T00:00:00Z",
+    });
     mocks.readUserSnapshotMeta.mockResolvedValueOnce(null);
-    const byType = { permission: [{ id: "p1", name: "Spare" }], security: [], notification: [], "project-role": [{ id: "r1", name: "Admins" }] };
+    const byType = {
+      permission: [{ id: "p1", name: "Spare" }],
+      security: [],
+      notification: [],
+      "project-role": [{ id: "r1", name: "Admins" }],
+    };
     for (let i = 0; i < 4; i += 1) {
       mocks.loadSchemes.mockImplementationOnce(async (_k, _v, type) => byType[type] || []);
       mocks.loadSchemeHolders.mockResolvedValueOnce([]);
@@ -6912,7 +7874,9 @@ describe("getPillarReport", () => {
   test("screens: reachability is skipped, and caveated, without a workflow snapshot", async () => {
     mocks.readScreenSnapshotMeta.mockResolvedValueOnce({ version: "sv1", refreshedAt: "2026-09-01T00:00:00Z" });
     mocks.readWorkflowSnapshotMeta.mockResolvedValueOnce(null);
-    mocks.loadScreensPage.mockResolvedValueOnce({ rows: [{ screenId: "1", name: "S", tabCount: 1, fieldCount: 2, tabsResolved: "resolved" }] });
+    mocks.loadScreensPage.mockResolvedValueOnce({
+      rows: [{ screenId: "1", name: "S", tabCount: 1, fieldCount: 2, tabsResolved: "resolved" }],
+    });
 
     const report = await getPillarReport(ctx("screens"));
 
@@ -7000,7 +7964,18 @@ describe("getAutomationCascades", () => {
 describe("getAutomationBlast", () => {
   beforeEach(() => {
     mocks.loadBlastRules.mockResolvedValue({
-      rules: [{ ruleId: "1", name: "Sweep", score: 88, tier: "estate", estimated: true, credential: false, factors: [], modifiers: [] }],
+      rules: [
+        {
+          ruleId: "1",
+          name: "Sweep",
+          score: 88,
+          tier: "estate",
+          estimated: true,
+          credential: false,
+          factors: [],
+          modifiers: [],
+        },
+      ],
       total: 1,
     });
   });
@@ -7008,7 +7983,10 @@ describe("getAutomationBlast", () => {
   test("returns a page ordered by blast score", async () => {
     const result = await getAutomationBlast({ payload: { page: 2, pageSize: 50 }, context: ctxWithAccount() });
     expect(result).toMatchObject({ available: true, total: 1, page: 2 });
-    expect(mocks.loadBlastRules).toHaveBeenCalledWith("test-install", expect.objectContaining({ limit: 50, offset: 50 }));
+    expect(mocks.loadBlastRules).toHaveBeenCalledWith(
+      "test-install",
+      expect.objectContaining({ limit: 50, offset: 50 }),
+    );
   });
 
   test("bounds the page size rather than trusting the payload", async () => {
@@ -7045,7 +8023,10 @@ describe("createRemediationEpic", () => {
   ];
 
   beforeEach(() => {
-    mocks.kvsGet.mockResolvedValue({ readOnlyMode: false, remediation: { projectKey: "ADMIN", epicIssueType: "Epic", taskIssueType: "Task", defaultAssigneeAccountId: "" } });
+    mocks.kvsGet.mockResolvedValue({
+      readOnlyMode: false,
+      remediation: { projectKey: "ADMIN", epicIssueType: "Epic", taskIssueType: "Task", defaultAssigneeAccountId: "" },
+    });
     mocks.getRemediationEpic.mockResolvedValue(null);
     mocks.loadTicketedItemIds.mockResolvedValue(new Set());
     mocks.createJiraIssue.mockImplementation(async (fields) => ({
@@ -7056,27 +8037,46 @@ describe("createRemediationEpic", () => {
   });
 
   test("refuses an unknown finding key", async () => {
-    const r = await createRemediationEpic({ payload: { findingKey: "not-real", items: ITEMS }, context: ctxWithAccount() });
+    const r = await createRemediationEpic({
+      payload: { findingKey: "not-real", items: ITEMS },
+      context: ctxWithAccount(),
+    });
     expect(r.error).toMatch(/No remediation playbook/);
     expect(mocks.createJiraIssue).not.toHaveBeenCalled();
   });
 
   test("refuses when read-only mode is on", async () => {
     mocks.kvsGet.mockResolvedValue({ readOnlyMode: true, remediation: { projectKey: "ADMIN" } });
-    const r = await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount() });
+    const r = await createRemediationEpic({
+      payload: { findingKey: "filter-ownership", items: ITEMS },
+      context: ctxWithAccount(),
+    });
     expect(r.error).toMatch(/Read-only mode/);
   });
 
   test("refuses when no remediation project is configured", async () => {
     mocks.kvsGet.mockResolvedValue({ readOnlyMode: false, remediation: { projectKey: "" } });
-    const r = await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount() });
+    const r = await createRemediationEpic({
+      payload: { findingKey: "filter-ownership", items: ITEMS },
+      context: ctxWithAccount(),
+    });
     expect(r.error).toMatch(/No remediation project/);
   });
 
   test("creates the epic then a task per item, records every ticket, and returns a summary", async () => {
-    const r = await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount("admin-1") });
+    const r = await createRemediationEpic({
+      payload: { findingKey: "filter-ownership", items: ITEMS },
+      context: ctxWithAccount("admin-1"),
+    });
 
-    expect(r).toMatchObject({ ok: true, epicKey: "ADMIN-1", epicCreated: true, tasksCreated: 2, itemsTotal: 2, itemsRemaining: 0 });
+    expect(r).toMatchObject({
+      ok: true,
+      epicKey: "ADMIN-1",
+      epicCreated: true,
+      tasksCreated: 2,
+      itemsTotal: 2,
+      itemsRemaining: 0,
+    });
     // 1 epic + 2 tasks
     expect(mocks.createJiraIssue).toHaveBeenCalledTimes(3);
     // Epic first, no parent; tasks carry parent + the reporter is the caller.
@@ -7095,7 +8095,10 @@ describe("createRemediationEpic", () => {
     mocks.getRemediationEpic.mockResolvedValue({ issueKey: "ADMIN-1", issueId: "10001" });
     mocks.loadTicketedItemIds.mockResolvedValue(new Set(["4001"]));
 
-    const r = await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount() });
+    const r = await createRemediationEpic({
+      payload: { findingKey: "filter-ownership", items: ITEMS },
+      context: ctxWithAccount(),
+    });
 
     expect(r.epicCreated).toBe(false);
     expect(r.tasksCreated).toBe(1);
@@ -7106,11 +8109,14 @@ describe("createRemediationEpic", () => {
 
   test("a task-create failure is collected, not thrown, and the others still land", async () => {
     mocks.createJiraIssue
-      .mockResolvedValueOnce({ id: "1", key: "ADMIN-1" })            // epic
+      .mockResolvedValueOnce({ id: "1", key: "ADMIN-1" }) // epic
       .mockRejectedValueOnce(Object.assign(new Error("field 'parent' cannot be set"), { status: 400 }))
-      .mockResolvedValueOnce({ id: "3", key: "ADMIN-T2" });          // second task
+      .mockResolvedValueOnce({ id: "3", key: "ADMIN-T2" }); // second task
 
-    const r = await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount() });
+    const r = await createRemediationEpic({
+      payload: { findingKey: "filter-ownership", items: ITEMS },
+      context: ctxWithAccount(),
+    });
 
     expect(r.ok).toBe(true);
     expect(r.tasksCreated).toBe(1);
@@ -7119,7 +8125,10 @@ describe("createRemediationEpic", () => {
 
   test("caps the synchronous batch and reports the remainder", async () => {
     const many = Array.from({ length: 30 }, (_, i) => ({ id: `f${i}`, name: `Filter ${i}` }));
-    const r = await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: many }, context: ctxWithAccount() });
+    const r = await createRemediationEpic({
+      payload: { findingKey: "filter-ownership", items: many },
+      context: ctxWithAccount(),
+    });
     expect(r.tasksCreated).toBe(20);
     expect(r.itemsRemaining).toBe(10);
   });
@@ -7135,7 +8144,10 @@ describe("createRemediationEpic", () => {
     });
     try {
       const many = Array.from({ length: 24 }, (_, i) => ({ id: `f${i}`, name: `Filter ${i}` }));
-      const r = await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: many }, context: ctxWithAccount() });
+      const r = await createRemediationEpic({
+        payload: { findingKey: "filter-ownership", items: many },
+        context: ctxWithAccount(),
+      });
       // Epic at 4s, tasks finish at 8, 12, 16 -- the fourth would start past 15s.
       expect(r.tasksCreated).toBe(3);
       expect(r.itemsRemaining).toBe(21);
@@ -7153,7 +8165,10 @@ describe("createRemediationEpic", () => {
       return { id: String(clock), key: fields.parent ? `ADMIN-T${clock}` : "ADMIN-1" };
     });
     try {
-      const r = await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount() });
+      const r = await createRemediationEpic({
+        payload: { findingKey: "filter-ownership", items: ITEMS },
+        context: ctxWithAccount(),
+      });
       expect(r.tasksCreated).toBe(1);
       expect(r.itemsRemaining).toBe(1);
     } finally {
@@ -7163,13 +8178,19 @@ describe("createRemediationEpic", () => {
 
   test("a failure creating the epic itself aborts with an error and no tasks", async () => {
     mocks.createJiraIssue.mockRejectedValueOnce(Object.assign(new Error("project ADMIN not found"), { status: 404 }));
-    const r = await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount() });
+    const r = await createRemediationEpic({
+      payload: { findingKey: "filter-ownership", items: ITEMS },
+      context: ctxWithAccount(),
+    });
     expect(r.error).toMatch(/Creating the epic failed.*ADMIN not found/);
     expect(mocks.recordRemediationTicket).not.toHaveBeenCalled();
   });
 
   test("one epic per quarter: the summary names it, and lookup and dedupe are by it", async () => {
-    await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount() });
+    await createRemediationEpic({
+      payload: { findingKey: "filter-ownership", items: ITEMS },
+      context: ctxWithAccount(),
+    });
     expect(mocks.getRemediationEpic).toHaveBeenCalledWith("test-install", "filter-ownership", "2026-Q3");
     expect(mocks.loadTicketedItemIds).toHaveBeenCalledWith("test-install", "filter-ownership", "2026-Q3");
     expect(mocks.createJiraIssue.mock.calls[0][0].summary).toMatch(/^2026-Q3: Reassign 2 saved filters/);
@@ -7180,7 +8201,10 @@ describe("createRemediationEpic", () => {
   const linksIn = (doc) => JSON.stringify(doc).match(/"href":"[^"]+"/g) || [];
 
   test("every ticket links straight to the thing it is about", async () => {
-    await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount() });
+    await createRemediationEpic({
+      payload: { findingKey: "filter-ownership", items: ITEMS },
+      context: ctxWithAccount(),
+    });
     const [taskFields] = mocks.createJiraIssue.mock.calls[1];
     expect(linksIn(taskFields.description)).toContain('"href":"https://test.atlassian.net/issues/?filter=4001"');
   });
@@ -7193,7 +8217,10 @@ describe("createRemediationEpic", () => {
 
   test("with no site URL at all, tickets are still created -- just without links", async () => {
     mocks.getSiteBaseUrl.mockResolvedValueOnce(null);
-    const r = await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount() });
+    const r = await createRemediationEpic({
+      payload: { findingKey: "filter-ownership", items: ITEMS },
+      context: ctxWithAccount(),
+    });
     expect(r.ok).toBe(true);
     expect(linksIn(mocks.createJiraIssue.mock.calls[1][0].description)).toEqual([]);
   });
@@ -7211,9 +8238,30 @@ describe("getRemediationMetrics", () => {
     const period = mocks.currentPeriod();
     mocks.loadRemediationTickets.mockResolvedValueOnce([
       { findingKey: "filter-ownership", period, isEpic: true, issueKey: "ADMIN-1" },
-      { findingKey: "filter-ownership", period, isEpic: false, issueKey: "ADMIN-2", lastStatusCategory: "done", createdAt: new Date().toISOString(), doneAt: new Date().toISOString() },
-      { findingKey: "filter-ownership", period, isEpic: false, issueKey: "ADMIN-3", lastStatusCategory: "new", createdAt: new Date().toISOString() },
-      { findingKey: "filter-ownership", period: "2020-Q1", isEpic: false, issueKey: "ADMIN-0", lastStatusCategory: "done" },
+      {
+        findingKey: "filter-ownership",
+        period,
+        isEpic: false,
+        issueKey: "ADMIN-2",
+        lastStatusCategory: "done",
+        createdAt: new Date().toISOString(),
+        doneAt: new Date().toISOString(),
+      },
+      {
+        findingKey: "filter-ownership",
+        period,
+        isEpic: false,
+        issueKey: "ADMIN-3",
+        lastStatusCategory: "new",
+        createdAt: new Date().toISOString(),
+      },
+      {
+        findingKey: "filter-ownership",
+        period: "2020-Q1",
+        isEpic: false,
+        issueKey: "ADMIN-0",
+        lastStatusCategory: "done",
+      },
     ]);
 
     const m = await getRemediationMetrics({ payload: {}, context: ctxWithAccount() });
@@ -7225,10 +8273,20 @@ describe("getRemediationMetrics", () => {
 
   test("covers every quarter when asked, and treats anything else as this quarter", async () => {
     mocks.loadRemediationTickets.mockResolvedValue([
-      { findingKey: "filter-ownership", period: "2020-Q1", isEpic: false, issueKey: "ADMIN-0", lastStatusCategory: "done" },
+      {
+        findingKey: "filter-ownership",
+        period: "2020-Q1",
+        isEpic: false,
+        issueKey: "ADMIN-0",
+        lastStatusCategory: "done",
+      },
     ]);
-    expect((await getRemediationMetrics({ payload: { scope: "all" }, context: ctxWithAccount() })).totals.tasks).toBe(1);
-    expect((await getRemediationMetrics({ payload: { scope: "bogus" }, context: ctxWithAccount() })).scope).toBe("quarter");
+    expect((await getRemediationMetrics({ payload: { scope: "all" }, context: ctxWithAccount() })).totals.tasks).toBe(
+      1,
+    );
+    expect((await getRemediationMetrics({ payload: { scope: "bogus" }, context: ctxWithAccount() })).scope).toBe(
+      "quarter",
+    );
   });
 });
 
@@ -7238,7 +8296,9 @@ describe("syncRemediationNow", () => {
   test("queues a sync-remediation job for the calling installation", async () => {
     const r = await syncRemediationNow({ payload: {}, context: ctxWithAccount() });
     expect(r).toEqual({ queued: true });
-    expect(mocks.queuePush).toHaveBeenCalledWith({ body: { jobType: "sync-remediation", installationKey: "test-install" } });
+    expect(mocks.queuePush).toHaveBeenCalledWith({
+      body: { jobType: "sync-remediation", installationKey: "test-install" },
+    });
   });
 
   test("is admin-only", () => {
@@ -7255,10 +8315,42 @@ describe("remediation verification", () => {
     { id: "8", name: "Owned", owner: { accountId: "a1", displayName: "Ann", active: true } },
   ];
   const tickets = [
-    { findingKey: "filter-ownership", pillar: "filters", period: "2026-Q4", isEpic: true, itemId: "", issueKey: "ADMIN-1", lastStatusCategory: "indeterminate" },
-    { findingKey: "filter-ownership", pillar: "filters", period: "2026-Q4", isEpic: false, itemId: "7", issueKey: "ADMIN-2", lastStatusCategory: "done" },
-    { findingKey: "filter-ownership", pillar: "filters", period: "2026-Q4", isEpic: false, itemId: "8", issueKey: "ADMIN-3", lastStatusCategory: "done" },
-    { findingKey: "filter-ownership", pillar: "filters", period: "2026-Q4", isEpic: false, itemId: "9", issueKey: "ADMIN-4", lastStatusCategory: "new" },
+    {
+      findingKey: "filter-ownership",
+      pillar: "filters",
+      period: "2026-Q4",
+      isEpic: true,
+      itemId: "",
+      issueKey: "ADMIN-1",
+      lastStatusCategory: "indeterminate",
+    },
+    {
+      findingKey: "filter-ownership",
+      pillar: "filters",
+      period: "2026-Q4",
+      isEpic: false,
+      itemId: "7",
+      issueKey: "ADMIN-2",
+      lastStatusCategory: "done",
+    },
+    {
+      findingKey: "filter-ownership",
+      pillar: "filters",
+      period: "2026-Q4",
+      isEpic: false,
+      itemId: "8",
+      issueKey: "ADMIN-3",
+      lastStatusCategory: "done",
+    },
+    {
+      findingKey: "filter-ownership",
+      pillar: "filters",
+      period: "2026-Q4",
+      isEpic: false,
+      itemId: "9",
+      issueKey: "ADMIN-4",
+      lastStatusCategory: "new",
+    },
   ];
   beforeEach(() => {
     mocks.loadRemediationTickets.mockResolvedValue(tickets);
@@ -7284,26 +8376,43 @@ describe("remediation verification", () => {
   });
 
   test("reopens a regressed task and closes a fixed one, each with a comment, as the admin", async () => {
-    const r = await applyRemediationVerification({ payload: { issueKeys: ["ADMIN-2", "ADMIN-4"] }, context: ctxWithAccount() });
+    const r = await applyRemediationVerification({
+      payload: { issueKeys: ["ADMIN-2", "ADMIN-4"] },
+      context: ctxWithAccount(),
+    });
 
     expect(r.applied).toBe(2);
     const calls = mocks.transitionIssueWithComment.mock.calls;
-    expect(calls.map(([key, opts]) => [key, opts.target, opts.asUser])).toEqual([["ADMIN-2", "reopen", true], ["ADMIN-4", "done", true]]);
+    expect(calls.map(([key, opts]) => [key, opts.target, opts.asUser])).toEqual([
+      ["ADMIN-2", "reopen", true],
+      ["ADMIN-4", "done", true],
+    ]);
     expect(JSON.stringify(calls[0][1].commentBody)).toContain("the fix did not hold");
-    expect(mocks.queuePush).toHaveBeenCalledWith({ body: { jobType: "sync-remediation", installationKey: "test-install" } });
+    expect(mocks.queuePush).toHaveBeenCalledWith({
+      body: { jobType: "sync-remediation", installationKey: "test-install" },
+    });
   });
 
   // The page's verdict is not trusted: a held or still-open task is left alone, with the reason.
   test("leaves a task alone when its verdict does not call for a change", async () => {
-    const r = await applyRemediationVerification({ payload: { issueKeys: ["ADMIN-3", "NOPE-1"] }, context: ctxWithAccount() });
+    const r = await applyRemediationVerification({
+      payload: { issueKeys: ["ADMIN-3", "NOPE-1"] },
+      context: ctxWithAccount(),
+    });
     expect(r.applied).toBe(0);
-    expect(r.results.map((x) => x.reason)).toEqual(['Its verdict is now "held", so it was left as it is.', "Not an Observatory remediation task."]);
+    expect(r.results.map((x) => x.reason)).toEqual([
+      'Its verdict is now "held", so it was left as it is.',
+      "Not an Observatory remediation task.",
+    ]);
     expect(mocks.transitionIssueWithComment).not.toHaveBeenCalled();
   });
 
   test("reports a Jira failure per task without stopping the rest", async () => {
     mocks.transitionIssueWithComment.mockRejectedValueOnce(new Error("403 forbidden"));
-    const r = await applyRemediationVerification({ payload: { issueKeys: ["ADMIN-2", "ADMIN-4"] }, context: ctxWithAccount() });
+    const r = await applyRemediationVerification({
+      payload: { issueKeys: ["ADMIN-2", "ADMIN-4"] },
+      context: ctxWithAccount(),
+    });
     expect(r.results[0]).toMatchObject({ issueKey: "ADMIN-2", transitioned: false, reason: "403 forbidden" });
     expect(r.applied).toBe(1);
   });
@@ -7313,28 +8422,76 @@ describe("remediation verification", () => {
   // longer a candidate), and the open task is withdrawn with the evidence -- not closed as fixed.
   describe("withdrawn field-cleanup advice", () => {
     const fieldTickets = [
-      { findingKey: "field-cleanup", pillar: "fields", period: "2026-Q3", isEpic: false, itemId: "customfield_500", issueKey: "ADMIN-50", lastStatusCategory: "new" },
-      { findingKey: "field-cleanup", pillar: "fields", period: "2026-Q3", isEpic: false, itemId: "customfield_501", issueKey: "ADMIN-51", lastStatusCategory: "new" },
-      { findingKey: "field-cleanup", pillar: "fields", period: "2026-Q3", isEpic: false, itemId: "customfield_502", issueKey: "ADMIN-52", lastStatusCategory: "new" },
+      {
+        findingKey: "field-cleanup",
+        pillar: "fields",
+        period: "2026-Q3",
+        isEpic: false,
+        itemId: "customfield_500",
+        issueKey: "ADMIN-50",
+        lastStatusCategory: "new",
+      },
+      {
+        findingKey: "field-cleanup",
+        pillar: "fields",
+        period: "2026-Q3",
+        isEpic: false,
+        itemId: "customfield_501",
+        issueKey: "ADMIN-51",
+        lastStatusCategory: "new",
+      },
+      {
+        findingKey: "field-cleanup",
+        pillar: "fields",
+        period: "2026-Q3",
+        isEpic: false,
+        itemId: "customfield_502",
+        issueKey: "ADMIN-52",
+        lastStatusCategory: "new",
+      },
     ];
     beforeEach(() => {
       mocks.loadRemediationTickets.mockResolvedValue([...tickets, ...fieldTickets]);
       mocks.readSnapshotMeta.mockResolvedValue({ version: "s1" });
       mocks.loadSnapshotFields.mockResolvedValue([
         // Data only in archived Talent Tracker: no longer a candidate, still there -> withdrawn.
-        { id: "customfield_500", name: "Hiring Manager", type: "user", configuredProjectCount: 3, activeProjectCount: 0, totalIssueCount: 0, archivedIssueCount: 2340, findings: null },
+        {
+          id: "customfield_500",
+          name: "Hiring Manager",
+          type: "user",
+          configuredProjectCount: 3,
+          activeProjectCount: 0,
+          totalIssueCount: 0,
+          archivedIssueCount: 2340,
+          findings: null,
+        },
         // Still unused anywhere: still flagged -> open.
-        { id: "customfield_501", name: "Old Field", type: "text", configuredProjectCount: 0, activeProjectCount: 0, totalIssueCount: 0, findings: null },
+        {
+          id: "customfield_501",
+          name: "Old Field",
+          type: "text",
+          configuredProjectCount: 0,
+          activeProjectCount: 0,
+          totalIssueCount: 0,
+          findings: null,
+        },
         // customfield_502 is gone: deleted, so really fixed.
       ]);
-      mocks.loadArchivedFieldUsage.mockResolvedValue(new Map([["customfield_500", [{ projectId: "20001", projectKey: "TT", issueCount: 2340, lastSeenAt: "2026-05-30" }]]]));
+      mocks.loadArchivedFieldUsage.mockResolvedValue(
+        new Map([
+          ["customfield_500", [{ projectId: "20001", projectKey: "TT", issueCount: 2340, lastSeenAt: "2026-05-30" }]],
+        ]),
+      );
     });
     afterEach(() => {
       mocks.loadArchivedFieldUsage.mockImplementation(async () => new Map());
     });
 
     test("is withdrawn with the archived evidence; a deleted field is fixed; an unused one stays open", async () => {
-      const r = await getRemediationVerification({ payload: { findingKey: "field-cleanup" }, context: ctxWithAccount() });
+      const r = await getRemediationVerification({
+        payload: { findingKey: "field-cleanup" },
+        context: ctxWithAccount(),
+      });
       const row = (key) => r.rows.find((x) => x.issueKey === key);
       expect(row("ADMIN-50")).toMatchObject({ verdict: "withdrawn" });
       expect(row("ADMIN-50").evidence).toContain("2,340 issues in archived projects (TT)");
@@ -7348,17 +8505,34 @@ describe("remediation verification", () => {
 
     test("names active-project usage too", async () => {
       mocks.loadSnapshotFields.mockResolvedValue([
-        { id: "customfield_500", name: "Hiring Manager", type: "user", configuredProjectCount: 1, activeProjectCount: 1, totalIssueCount: 1, findings: null },
+        {
+          id: "customfield_500",
+          name: "Hiring Manager",
+          type: "user",
+          configuredProjectCount: 1,
+          activeProjectCount: 1,
+          totalIssueCount: 1,
+          findings: null,
+        },
       ]);
-      const r = await getRemediationVerification({ payload: { findingKey: "field-cleanup" }, context: ctxWithAccount() });
+      const r = await getRemediationVerification({
+        payload: { findingKey: "field-cleanup" },
+        context: ctxWithAccount(),
+      });
       expect(r.rows.find((x) => x.issueKey === "ADMIN-50").evidence).toContain("1 issue in active projects");
     });
 
     test("withdrawing closes as Won't Do with a do-not-act comment", async () => {
-      const r = await applyRemediationVerification({ payload: { issueKeys: ["ADMIN-50", "ADMIN-52"], findingKey: "field-cleanup" }, context: ctxWithAccount() });
+      const r = await applyRemediationVerification({
+        payload: { issueKeys: ["ADMIN-50", "ADMIN-52"], findingKey: "field-cleanup" },
+        context: ctxWithAccount(),
+      });
       expect(r.applied).toBe(2);
       const calls = mocks.transitionIssueWithComment.mock.calls;
-      expect(calls.map(([key, opts]) => [key, opts.target])).toEqual([["ADMIN-50", "withdraw"], ["ADMIN-52", "done"]]);
+      expect(calls.map(([key, opts]) => [key, opts.target])).toEqual([
+        ["ADMIN-50", "withdraw"],
+        ["ADMIN-52", "done"],
+      ]);
       expect(JSON.stringify(calls[0][1].commentBody)).toContain("do not act on this task");
       expect(JSON.stringify(calls[1][1].commentBody)).toContain("the item is fixed");
     });
@@ -7367,7 +8541,10 @@ describe("remediation verification", () => {
     // "no longer flagged", as before.
     test("an unreadable evidence source leaves the task fixed-open", async () => {
       mocks.loadArchivedFieldUsage.mockRejectedValueOnce(new Error("sql down"));
-      const r = await getRemediationVerification({ payload: { findingKey: "field-cleanup" }, context: ctxWithAccount() });
+      const r = await getRemediationVerification({
+        payload: { findingKey: "field-cleanup" },
+        context: ctxWithAccount(),
+      });
       expect(r.rows.find((x) => x.issueKey === "ADMIN-50").verdict).toBe("fixed-open");
     });
   });
@@ -7377,7 +8554,9 @@ describe("remediation verification", () => {
   });
 
   test("the write is admin-only and audited; the read is admin-only", () => {
-    expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toEqual(expect.arrayContaining(["getRemediationVerification", "applyRemediationVerification"]));
+    expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toEqual(
+      expect.arrayContaining(["getRemediationVerification", "applyRemediationVerification"]),
+    );
     expect(Object.keys(SHARED_RESOLVER_FUNCTIONS)).not.toContain("applyRemediationVerification");
     expect(AUDITED_ADMIN_ACTIONS.has("applyRemediationVerification")).toBe(true);
   });
@@ -7390,7 +8569,9 @@ describe("getRemediationTickets", () => {
       { findingKey: "filter-ownership", isEpic: false, issueKey: "ADMIN-3", syncedAt: "2026-09-29T00:00:00.000Z" },
       { findingKey: "filter-ownership", isEpic: false, issueKey: "ADMIN-4", syncedAt: null },
     ]);
-    expect((await getRemediationTickets({ payload: {}, context: ctxWithAccount() })).lastSyncedAt).toBe("2026-09-29T00:00:00.000Z");
+    expect((await getRemediationTickets({ payload: {}, context: ctxWithAccount() })).lastSyncedAt).toBe(
+      "2026-09-29T00:00:00.000Z",
+    );
 
     mocks.loadRemediationTickets.mockResolvedValueOnce([
       { findingKey: "filter-ownership", isEpic: false, issueKey: "ADMIN-2", syncedAt: null },
@@ -7401,25 +8582,66 @@ describe("getRemediationTickets", () => {
   test("groups tickets by finding, epic separated from tasks, with open counts", async () => {
     mocks.loadRemediationTickets.mockResolvedValue([
       { findingKey: "filter-ownership", pillar: "filters", isEpic: true, issueKey: "ADMIN-1" },
-      { findingKey: "filter-ownership", pillar: "filters", isEpic: false, issueKey: "ADMIN-2", lastStatusCategory: "done" },
-      { findingKey: "filter-ownership", pillar: "filters", isEpic: false, issueKey: "ADMIN-3", lastStatusCategory: "indeterminate" },
+      {
+        findingKey: "filter-ownership",
+        pillar: "filters",
+        isEpic: false,
+        issueKey: "ADMIN-2",
+        lastStatusCategory: "done",
+      },
+      {
+        findingKey: "filter-ownership",
+        pillar: "filters",
+        isEpic: false,
+        issueKey: "ADMIN-3",
+        lastStatusCategory: "indeterminate",
+      },
     ]);
 
     const r = await getRemediationTickets({ payload: {}, context: ctxWithAccount() });
 
     expect(r.available).toBe(true);
     expect(r.groups).toHaveLength(1);
-    expect(r.groups[0]).toMatchObject({ findingKey: "filter-ownership", pillar: "filters", taskCount: 2, openCount: 1 });
+    expect(r.groups[0]).toMatchObject({
+      findingKey: "filter-ownership",
+      pillar: "filters",
+      taskCount: 2,
+      openCount: 1,
+    });
     expect(r.groups[0].epic.issueKey).toBe("ADMIN-1");
   });
 
   test("shows the latest quarter's epic and tasks, and summarises earlier quarters", async () => {
     mocks.loadRemediationTickets.mockResolvedValueOnce([
       { findingKey: "filter-ownership", period: "2026-Q3", isEpic: true, issueKey: "ADMIN-9" },
-      { findingKey: "filter-ownership", period: "2026-Q3", isEpic: false, issueKey: "ADMIN-10", lastStatusCategory: "new" },
-      { findingKey: "filter-ownership", period: "2026-Q2", isEpic: true, issueKey: "ADMIN-1", lastStatusCategory: "done" },
-      { findingKey: "filter-ownership", period: "2026-Q2", isEpic: false, issueKey: "ADMIN-2", lastStatusCategory: "done" },
-      { findingKey: "filter-ownership", period: "2026-Q2", isEpic: false, issueKey: "ADMIN-3", lastStatusCategory: "indeterminate" },
+      {
+        findingKey: "filter-ownership",
+        period: "2026-Q3",
+        isEpic: false,
+        issueKey: "ADMIN-10",
+        lastStatusCategory: "new",
+      },
+      {
+        findingKey: "filter-ownership",
+        period: "2026-Q2",
+        isEpic: true,
+        issueKey: "ADMIN-1",
+        lastStatusCategory: "done",
+      },
+      {
+        findingKey: "filter-ownership",
+        period: "2026-Q2",
+        isEpic: false,
+        issueKey: "ADMIN-2",
+        lastStatusCategory: "done",
+      },
+      {
+        findingKey: "filter-ownership",
+        period: "2026-Q2",
+        isEpic: false,
+        issueKey: "ADMIN-3",
+        lastStatusCategory: "indeterminate",
+      },
       { findingKey: "board-backing", period: "2026-Q2", isEpic: true, issueKey: "ADMIN-20" },
     ]);
 
@@ -7430,19 +8652,31 @@ describe("getRemediationTickets", () => {
     expect(filters).toMatchObject({ period: "2026-Q3", isCurrent: true, taskCount: 1, openCount: 1 });
     expect(filters.epic.issueKey).toBe("ADMIN-9");
     expect(filters.previousPeriods).toEqual([
-      expect.objectContaining({ period: "2026-Q2", epicKey: "ADMIN-1", epicStatusCategory: "done", taskCount: 2, openCount: 1 }),
+      expect.objectContaining({
+        period: "2026-Q2",
+        epicKey: "ADMIN-1",
+        epicStatusCategory: "done",
+        taskCount: 2,
+        openCount: 1,
+      }),
     ]);
     // Earlier quarters' tasks travel with the summary, and the all-quarter counts include them.
     expect(filters.previousPeriods[0].tasks.map((t) => t.issueKey)).toEqual(["ADMIN-2", "ADMIN-3"]);
     expect(filters).toMatchObject({ allTaskCount: 3, allOpenCount: 2 });
     // Only an earlier quarter's epic: not current, so the next create opens this quarter's.
-    expect(r.groups.find((g) => g.findingKey === "board-backing")).toMatchObject({ period: "2026-Q2", isCurrent: false });
+    expect(r.groups.find((g) => g.findingKey === "board-backing")).toMatchObject({
+      period: "2026-Q2",
+      isCurrent: false,
+    });
   });
 
   test("serves the playbook catalog and the finding index with the tickets", async () => {
     mocks.loadRemediationTickets.mockResolvedValueOnce([]);
     const r = await getRemediationTickets({ payload: {}, context: ctxWithAccount() });
-    expect(r.catalog.find((c) => c.key === "role-offroster-actors")).toMatchObject({ pillar: "roles", granularity: "bounded" });
+    expect(r.catalog.find((c) => c.key === "role-offroster-actors")).toMatchObject({
+      pillar: "roles",
+      granularity: "bounded",
+    });
     expect(r.findingIndex["role-empty-admin"]).toBe("role-empty-admin");
     expect(r.findingIndex["filters-orphaned"]).toBe("filter-ownership");
   });
@@ -7468,21 +8702,39 @@ describe("getRemediationCandidates", () => {
       ],
       configs: [],
     });
-    mocks.loadTicketedItems.mockResolvedValueOnce(new Map([["fcs:1", { issueKey: "ADMIN-7", epicKey: "ADMIN-5", period: "2026-Q2" }]]));
+    mocks.loadTicketedItems.mockResolvedValueOnce(
+      new Map([["fcs:1", { issueKey: "ADMIN-7", epicKey: "ADMIN-5", period: "2026-Q2" }]]),
+    );
 
-    const r = await getRemediationCandidates({ payload: { findingKey: "fieldconfig-unused" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({
+      payload: { findingKey: "fieldconfig-unused" },
+      context: ctxWithAccount(),
+    });
 
     expect(mocks.loadTicketedItems).toHaveBeenCalledWith("test-install", "fieldconfig-unused", "2026-Q3");
     expect(r.items).toEqual([
-      { id: "fcs:1", sourceId: "1", name: "Old", kind: "scheme", ticketed: { issueKey: "ADMIN-7", epicKey: "ADMIN-5", period: "2026-Q2" } },
+      {
+        id: "fcs:1",
+        sourceId: "1",
+        name: "Old",
+        kind: "scheme",
+        ticketed: { issueKey: "ADMIN-7", epicKey: "ADMIN-5", period: "2026-Q2" },
+      },
       { id: "fcs:2", sourceId: "2", name: "Older", kind: "scheme" },
     ]);
   });
 
   test("a failed ticket lookup leaves the items unmarked rather than failing the read", async () => {
-    mocks.getFieldConfigInventory.mockResolvedValue({ neverBuilt: false, schemes: [{ id: "fcs:1", sourceId: "1", name: "Old", codes: ["unused"] }], configs: [] });
+    mocks.getFieldConfigInventory.mockResolvedValue({
+      neverBuilt: false,
+      schemes: [{ id: "fcs:1", sourceId: "1", name: "Old", codes: ["unused"] }],
+      configs: [],
+    });
     mocks.loadTicketedItems.mockRejectedValueOnce(new Error("sql down"));
-    const r = await getRemediationCandidates({ payload: { findingKey: "fieldconfig-unused" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({
+      payload: { findingKey: "fieldconfig-unused" },
+      context: ctxWithAccount(),
+    });
     expect(r.items).toEqual([{ id: "fcs:1", sourceId: "1", name: "Old", kind: "scheme" }]);
   });
 
@@ -7490,24 +8742,46 @@ describe("getRemediationCandidates", () => {
     mocks.readAutomationPart.mockResolvedValue(null);
     mocks.readUserSnapshotMeta.mockResolvedValue({ version: "u1", state: "ready" });
     mocks.loadUsers.mockResolvedValue([
-      { accountId: "idle", displayName: "Idle Ida", active: true, applications: [{ name: "Jira Software" }], groups: [{ id: "g", name: "jira-users" }] },
+      {
+        accountId: "idle",
+        displayName: "Idle Ida",
+        active: true,
+        applications: [{ name: "Jira Software" }],
+        groups: [{ id: "g", name: "jira-users" }],
+      },
       { accountId: "busy", displayName: "Busy Bo", active: true, applications: [], groups: [] },
     ]);
     mocks.loadUserActivity.mockResolvedValueOnce([
       { accountId: "idle", lastActivityAt: "2020-01-01T00:00:00Z" },
       { accountId: "busy", lastActivityAt: new Date().toISOString() },
     ]);
-    const r = await getRemediationCandidates({ payload: { findingKey: "people-dormant-licences" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({
+      payload: { findingKey: "people-dormant-licences" },
+      context: ctxWithAccount(),
+    });
     expect(r.available).toBe(true);
-    expect(r.items).toEqual([expect.objectContaining({ accountId: "idle", displayName: "Idle Ida", products: ["Jira Software"], groups: ["jira-users"], lastActivityAt: "2020-01-01T00:00:00Z" })]);
+    expect(r.items).toEqual([
+      expect.objectContaining({
+        accountId: "idle",
+        displayName: "Idle Ida",
+        products: ["Jira Software"],
+        groups: ["jira-users"],
+        lastActivityAt: "2020-01-01T00:00:00Z",
+      }),
+    ]);
   });
 
   test("people-dormant-licences: unmeasured activity is a reason, not an empty list", async () => {
     mocks.readAutomationPart.mockResolvedValue(null);
     mocks.readUserSnapshotMeta.mockResolvedValue({ version: "u1", state: "ready" });
-    mocks.loadUsers.mockResolvedValue([{ accountId: "x", displayName: "X", active: true, applications: [], groups: [] }]);
+    mocks.loadUsers.mockResolvedValue([
+      { accountId: "x", displayName: "X", active: true, applications: [], groups: [] },
+    ]);
     mocks.loadUserActivity.mockResolvedValueOnce([]);
-    const r = await getRemediationCandidates({ payload: { findingKey: "people-dormant-licences" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({
+      payload: { findingKey: "people-dormant-licences" },
+      context: ctxWithAccount(),
+    });
     expect(r).toEqual({ available: false, reason: "no-activity", items: [] });
   });
 
@@ -7519,13 +8793,34 @@ describe("getRemediationCandidates", () => {
         { id: "fcs:2", sourceId: "2", name: "Keep", codes: [] },
         { id: "fcs:3", sourceId: "3", name: "Copy", codes: ["duplicate"], duplicateOf: "fcs:2" },
       ],
-      configs: [{ id: "fc:9", sourceId: "9", name: "Build", codes: ["required-hidden"], requiredHidden: [{ fieldId: "customfield_1", fieldName: "Total Cost" }], routes: [{ schemeName: "Keep", workTypeName: "Bug" }] }],
+      configs: [
+        {
+          id: "fc:9",
+          sourceId: "9",
+          name: "Build",
+          codes: ["required-hidden"],
+          requiredHidden: [{ fieldId: "customfield_1", fieldName: "Total Cost" }],
+          routes: [{ schemeName: "Keep", workTypeName: "Bug" }],
+        },
+      ],
     });
     const get = (findingKey) => getRemediationCandidates({ payload: { findingKey }, context: ctxWithAccount() });
 
-    expect((await get("fieldconfig-required-hidden")).items).toEqual([{ id: "fc:9", sourceId: "9", name: "Build", fieldNames: ["Total Cost"], usedBy: ["Keep (Bug)"] }]);
-    expect((await get("fieldconfig-unused")).items).toEqual([{ id: "fcs:1", sourceId: "1", name: "Old", kind: "scheme" }]);
-    expect((await get("fieldconfig-duplicates")).items).toEqual([expect.objectContaining({ kind: "scheme", keep: "fcs:2", keepName: "Keep", members: ["fcs:2", "fcs:3"], memberNames: ["Keep", "Copy"] })]);
+    expect((await get("fieldconfig-required-hidden")).items).toEqual([
+      { id: "fc:9", sourceId: "9", name: "Build", fieldNames: ["Total Cost"], usedBy: ["Keep (Bug)"] },
+    ]);
+    expect((await get("fieldconfig-unused")).items).toEqual([
+      { id: "fcs:1", sourceId: "1", name: "Old", kind: "scheme" },
+    ]);
+    expect((await get("fieldconfig-duplicates")).items).toEqual([
+      expect.objectContaining({
+        kind: "scheme",
+        keep: "fcs:2",
+        keepName: "Keep",
+        members: ["fcs:2", "fcs:3"],
+        memberNames: ["Keep", "Copy"],
+      }),
+    ]);
 
     mocks.getFieldConfigInventory.mockResolvedValueOnce({ neverBuilt: true });
     expect(await get("fieldconfig-unused")).toEqual({ available: false, reason: "no-snapshot", items: [] });
@@ -7534,22 +8829,49 @@ describe("getRemediationCandidates", () => {
   test("workflow-broken-references: one item per workflow, listing where each reference sits", async () => {
     mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "w1", workflowRules: 5 });
     mocks.loadStatusesCatalog.mockResolvedValue([{ statusId: "3", name: "In Review" }]);
-    mocks.loadWorkflowsCatalog.mockResolvedValue([{ name: "Build WF", scopeType: "GLOBAL", schemeCount: 1, ruleCount: 5 }]);
+    mocks.loadWorkflowsCatalog.mockResolvedValue([
+      { name: "Build WF", scopeType: "GLOBAL", schemeCount: 1, ruleCount: 5 },
+    ]);
     mocks.loadWorkflowRefsByType.mockResolvedValue([
-      { refType: "field", refId: "customfield_9", refMissing: true, workflowName: "Build WF", source: "rule", ownerKind: "transition", ownerId: "21", ruleSeq: 0 },
-      { refType: "group", refId: "g-gone", refMissing: true, workflowName: "Build WF", source: "property", ownerKind: "status", ownerId: "3", propKey: "jira.permission.edit.group" },
+      {
+        refType: "field",
+        refId: "customfield_9",
+        refMissing: true,
+        workflowName: "Build WF",
+        source: "rule",
+        ownerKind: "transition",
+        ownerId: "21",
+        ruleSeq: 0,
+      },
+      {
+        refType: "group",
+        refId: "g-gone",
+        refMissing: true,
+        workflowName: "Build WF",
+        source: "property",
+        ownerKind: "status",
+        ownerId: "3",
+        propKey: "jira.permission.edit.group",
+      },
     ]);
 
-    const r = await getRemediationCandidates({ payload: { findingKey: "workflow-broken-references" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({
+      payload: { findingKey: "workflow-broken-references" },
+      context: ctxWithAccount(),
+    });
 
     expect(r.available).toBe(true);
-    expect(r.items).toEqual([{
-      id: "Build WF", name: "Build WF", count: 2,
-      refs: [
-        { type: "field", id: "customfield_9", where: "transition 21" },
-        { type: "group", id: "g-gone", where: "status In Review" },
-      ],
-    }]);
+    expect(r.items).toEqual([
+      {
+        id: "Build WF",
+        name: "Build WF",
+        count: 2,
+        refs: [
+          { type: "field", id: "customfield_9", where: "transition 21" },
+          { type: "group", id: "g-gone", where: "status In Review" },
+        ],
+      },
+    ]);
   });
 
   test("workflows-inactive: company-managed workflows no scheme uses", async () => {
@@ -7561,73 +8883,137 @@ describe("getRemediationCandidates", () => {
       { name: "Team", scopeType: "PROJECT", schemeCount: 0, statusCount: 3, ruleCount: 0 },
     ]);
 
-    const r = await getRemediationCandidates({ payload: { findingKey: "workflows-inactive" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({
+      payload: { findingKey: "workflows-inactive" },
+      context: ctxWithAccount(),
+    });
     expect(r.items).toEqual([{ id: "Zombie", name: "Zombie", statusCount: 3, ruleCount: 2 }]);
   });
 
   test("workflow rule candidates say why there are none when the rules were never read", async () => {
     mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "w1", workflowRules: null });
-    const r = await getRemediationCandidates({ payload: { findingKey: "workflows-inactive" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({
+      payload: { findingKey: "workflows-inactive" },
+      context: ctxWithAccount(),
+    });
     expect(r).toEqual({ available: false, reason: "rules-not-read", items: [] });
   });
 
   test("filter-ownership: returns only filters with an orphaned owner, mapped to what the playbook needs", async () => {
     mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "flt1" });
     mocks.loadFilters.mockResolvedValue([
-      { id: "4001", name: "Open Bugs", owner: { accountId: "a1", displayName: "Gone Person", active: false }, subscriptionCount: 3, shares: [] },
-      { id: "4002", name: "Fine Filter", owner: { accountId: "a2", displayName: "Still Here", active: true }, subscriptionCount: 0, shares: [] },
+      {
+        id: "4001",
+        name: "Open Bugs",
+        owner: { accountId: "a1", displayName: "Gone Person", active: false },
+        subscriptionCount: 3,
+        shares: [],
+      },
+      {
+        id: "4002",
+        name: "Fine Filter",
+        owner: { accountId: "a2", displayName: "Still Here", active: true },
+        subscriptionCount: 0,
+        shares: [],
+      },
       { id: "4003", name: "No Owner", owner: null, subscriptionCount: 0, shares: [] },
     ]);
 
-    const r = await getRemediationCandidates({ payload: { findingKey: "filter-ownership" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({
+      payload: { findingKey: "filter-ownership" },
+      context: ctxWithAccount(),
+    });
 
     expect(r.available).toBe(true);
     expect(r.items.map((i) => i.id).sort()).toEqual(["4001", "4003"]);
     const item = r.items.find((i) => i.id === "4001");
-    expect(item).toMatchObject({ name: "Open Bugs", ownerName: "Gone Person", ownerActive: false, subscriptionCount: 3 });
+    expect(item).toMatchObject({
+      name: "Open Bugs",
+      ownerName: "Gone Person",
+      ownerActive: false,
+      subscriptionCount: 3,
+    });
   });
 
   test("filter-ownership: reports unavailable when there is no filter snapshot yet", async () => {
     mocks.readFilterSnapshotMeta.mockResolvedValue(null);
-    const r = await getRemediationCandidates({ payload: { findingKey: "filter-ownership" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({
+      payload: { findingKey: "filter-ownership" },
+      context: ctxWithAccount(),
+    });
     expect(r).toMatchObject({ available: false, reason: "no-snapshot", items: [] });
   });
 
   test("dashboard-ownership: returns only dashboards with an orphaned owner", async () => {
     mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: "d1" });
     mocks.loadDashboards.mockResolvedValue([
-      { id: "D1", name: "Wall screen", owner: { accountId: "a1", displayName: "Gone Person", active: false }, popularity: 12, shares: [], editShares: [], gadgetCount: 2 },
-      { id: "D2", name: "Fine dash", owner: { accountId: "a2", displayName: "Still Here", active: true }, popularity: 1, shares: [], editShares: [], gadgetCount: 1 },
+      {
+        id: "D1",
+        name: "Wall screen",
+        owner: { accountId: "a1", displayName: "Gone Person", active: false },
+        popularity: 12,
+        shares: [],
+        editShares: [],
+        gadgetCount: 2,
+      },
+      {
+        id: "D2",
+        name: "Fine dash",
+        owner: { accountId: "a2", displayName: "Still Here", active: true },
+        popularity: 1,
+        shares: [],
+        editShares: [],
+        gadgetCount: 1,
+      },
     ]);
 
-    const r = await getRemediationCandidates({ payload: { findingKey: "dashboard-ownership" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({
+      payload: { findingKey: "dashboard-ownership" },
+      context: ctxWithAccount(),
+    });
 
     expect(r.available).toBe(true);
     expect(r.items).toEqual([{ id: "D1", name: "Wall screen", ownerName: "Gone Person", popularity: 12 }]);
   });
 
   test("a finding with no wired item source says so rather than fabricating a list", async () => {
-    const r = await getRemediationCandidates({ payload: { findingKey: "not-a-real-finding" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({
+      payload: { findingKey: "not-a-real-finding" },
+      context: ctxWithAccount(),
+    });
     expect(r).toEqual({ available: false, reason: "not-connected", items: [] });
   });
 
   test("user-licence-hygiene: only deactivated accounts still holding a licence group", async () => {
     mocks.readUserSnapshotMeta.mockResolvedValue({ version: "u1" });
     mocks.loadUsers.mockResolvedValue([
-      { accountId: "a1", displayName: "Gone Person", active: false, groups: [{ id: "g1", name: "jira-software-users" }] },
+      {
+        accountId: "a1",
+        displayName: "Gone Person",
+        active: false,
+        groups: [{ id: "g1", name: "jira-software-users" }],
+      },
       { accountId: "a2", displayName: "Still Here", active: true, groups: [{ id: "g1", name: "jira-software-users" }] },
       { accountId: "a3", displayName: "Deactivated, ungrouped", active: false, groups: [] },
     ]);
 
-    const r = await getRemediationCandidates({ payload: { findingKey: "user-licence-hygiene" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({
+      payload: { findingKey: "user-licence-hygiene" },
+      context: ctxWithAccount(),
+    });
 
     expect(r.available).toBe(true);
-    expect(r.items).toEqual([{ id: "a1", accountId: "a1", displayName: "Gone Person", groups: ["jira-software-users"] }]);
+    expect(r.items).toEqual([
+      { id: "a1", accountId: "a1", displayName: "Gone Person", groups: ["jira-software-users"] },
+    ]);
   });
 
   test("user-licence-hygiene: reports unavailable when there is no roster yet", async () => {
     mocks.readUserSnapshotMeta.mockResolvedValue(null);
-    const r = await getRemediationCandidates({ payload: { findingKey: "user-licence-hygiene" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({
+      payload: { findingKey: "user-licence-hygiene" },
+      context: ctxWithAccount(),
+    });
     expect(r).toMatchObject({ available: false, reason: "no-snapshot", items: [] });
   });
 
@@ -7636,17 +9022,22 @@ describe("getRemediationCandidates", () => {
     mocks.loadUsers.mockResolvedValue([{ accountId: "a1", displayName: "Ann", active: true, groups: [] }]);
     mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "f1" });
     mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: "d1" });
-    mocks.loadFilters.mockResolvedValue([{ id: "10", name: "Ann filter", ownerAccountId: "a1" }, { id: "11", name: "Ghost filter", ownerAccountId: "gone" }]);
+    mocks.loadFilters.mockResolvedValue([
+      { id: "10", name: "Ann filter", ownerAccountId: "a1" },
+      { id: "11", name: "Ghost filter", ownerAccountId: "gone" },
+    ]);
     mocks.loadDashboards.mockResolvedValue([{ dashboardId: "20", name: "Ghost dash", ownerAccountId: "gone" }]);
-    mocks.readAutomationPart.mockResolvedValue({ /* hydrateRuleDirectory reads its own shape */ });
+    mocks.readAutomationPart.mockResolvedValue({/* hydrateRuleDirectory reads its own shape */});
 
     const r = await getRemediationCandidates({ payload: { findingKey: "user-ownership" }, context: ctxWithAccount() });
 
     expect(r.available).toBe(true);
-    expect(r.items).toEqual(expect.arrayContaining([
-      { id: "filter:11", kind: "filter", name: "Ghost filter" },
-      { id: "dashboard:20", kind: "dashboard", name: "Ghost dash" },
-    ]));
+    expect(r.items).toEqual(
+      expect.arrayContaining([
+        { id: "filter:11", kind: "filter", name: "Ghost filter" },
+        { id: "dashboard:20", kind: "dashboard", name: "Ghost dash" },
+      ]),
+    );
     // Ann's own filter is not orphaned -- she is on the roster.
     expect(r.items.find((i) => i.id === "filter:10")).toBeUndefined();
   });
@@ -7665,7 +9056,10 @@ describe("getRemediationCandidates", () => {
     mocks.loadStatusIssueCounts.mockResolvedValue(new Map());
     mocks.loadStatusAutomationReferences.mockResolvedValue({ "rule only": { ruleCount: 1, enabledRuleCount: 1 } });
 
-    const r = await getRemediationCandidates({ payload: { findingKey: "status-reachability" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({
+      payload: { findingKey: "status-reachability" },
+      context: ctxWithAccount(),
+    });
 
     expect(r.available).toBe(true);
     // No issue-count data was measured, so everCount is unknown, not zero -- a missing
@@ -7686,7 +9080,10 @@ describe("getRemediationCandidates", () => {
     mocks.readBoardSnapshotMeta.mockResolvedValue({ version: "b1" });
     mocks.loadBoardColumns.mockResolvedValue([{ boardId: "100", statusIds: ["2"] }]);
 
-    const r = await getRemediationCandidates({ payload: { findingKey: "status-reachability" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({
+      payload: { findingKey: "status-reachability" },
+      context: ctxWithAccount(),
+    });
 
     expect(r.available).toBe(true);
     expect(r.items.map((i) => i.id)).toEqual(["1"]);
@@ -7709,7 +9106,10 @@ describe("getRemediationCandidates", () => {
     mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "f1" });
     mocks.loadFilterReferenceCounts.mockResolvedValue({ "named in a filter": 2 });
 
-    const r = await getRemediationCandidates({ payload: { findingKey: "status-reachability" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({
+      payload: { findingKey: "status-reachability" },
+      context: ctxWithAccount(),
+    });
 
     expect(r.available).toBe(true);
     expect(r.items.map((i) => i.id)).toEqual(["1"]);
@@ -7719,7 +9119,10 @@ describe("getRemediationCandidates", () => {
     mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "w1" });
     mocks.loadStatusesCatalog.mockResolvedValue([{ statusId: "1", id: "1", name: "Any" }]);
     mocks.loadWorkflowSchemeStatuses.mockResolvedValue([]);
-    const r = await getRemediationCandidates({ payload: { findingKey: "status-reachability" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({
+      payload: { findingKey: "status-reachability" },
+      context: ctxWithAccount(),
+    });
     expect(r).toMatchObject({ available: false, reason: "no-scheme-mapping", items: [] });
   });
 
@@ -7727,7 +9130,14 @@ describe("getRemediationCandidates", () => {
     mocks.readBoardSnapshotMeta.mockResolvedValue({ version: "b1" });
     mocks.loadBoards.mockResolvedValue([
       { boardId: "100", name: "Orphan Board", type: "scrum", configReadable: true, filterId: null },
-      { boardId: "101", name: "Column Only", type: "kanban", configReadable: true, filterId: "9", columns: [{ statusIds: [] }] },
+      {
+        boardId: "101",
+        name: "Column Only",
+        type: "kanban",
+        configReadable: true,
+        filterId: "9",
+        columns: [{ statusIds: [] }],
+      },
     ]);
     mocks.loadBoardColumns.mockResolvedValue([{ boardId: "101", statusIds: [] }]);
     mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "f1" });
@@ -7745,10 +9155,46 @@ describe("getRemediationCandidates", () => {
     // the same hydration the Overview counts with -- so the stored findings (even a stale
     // or missing one) do not decide membership.
     mocks.loadSnapshotFields.mockResolvedValue([
-      { id: "customfield_1", name: "Old Field", type: "text", description: null, configuredProjectCount: 0, activeProjectCount: 0, totalIssueCount: 0, findings: null },
-      { id: "customfield_2", name: "Used Field", type: "text", description: "In use", configuredProjectCount: 1, activeProjectCount: 1, totalIssueCount: 40, findings: { reasons: [{ code: "orphaned" }] } },
-      { id: "customfield_3", name: "Light Use", type: "text", description: null, configuredProjectCount: 1, activeProjectCount: 1, totalIssueCount: 5, findings: null },
-      { id: "customfield_4", name: "Configured Only", type: "text", description: null, configuredProjectCount: 3, activeProjectCount: 0, totalIssueCount: 0, findings: null },
+      {
+        id: "customfield_1",
+        name: "Old Field",
+        type: "text",
+        description: null,
+        configuredProjectCount: 0,
+        activeProjectCount: 0,
+        totalIssueCount: 0,
+        findings: null,
+      },
+      {
+        id: "customfield_2",
+        name: "Used Field",
+        type: "text",
+        description: "In use",
+        configuredProjectCount: 1,
+        activeProjectCount: 1,
+        totalIssueCount: 40,
+        findings: { reasons: [{ code: "orphaned" }] },
+      },
+      {
+        id: "customfield_3",
+        name: "Light Use",
+        type: "text",
+        description: null,
+        configuredProjectCount: 1,
+        activeProjectCount: 1,
+        totalIssueCount: 5,
+        findings: null,
+      },
+      {
+        id: "customfield_4",
+        name: "Configured Only",
+        type: "text",
+        description: null,
+        configuredProjectCount: 3,
+        activeProjectCount: 0,
+        totalIssueCount: 0,
+        findings: null,
+      },
     ]);
 
     const r = await getRemediationCandidates({ payload: { findingKey: "field-cleanup" }, context: ctxWithAccount() });
@@ -7768,7 +9214,10 @@ describe("getRemediationCandidates", () => {
       { id: "3", name: "Something Else", jql: "project = XYZ", ownerName: "Ann", shares: [] },
     ]);
 
-    const r = await getRemediationCandidates({ payload: { findingKey: "filter-duplicates" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({
+      payload: { findingKey: "filter-duplicates" },
+      context: ctxWithAccount(),
+    });
 
     expect(r.available).toBe(true);
     expect(r.items).toHaveLength(1);
@@ -7778,15 +9227,34 @@ describe("getRemediationCandidates", () => {
 
   test("filter-duplicates: reports unavailable when there is no filter snapshot yet", async () => {
     mocks.readFilterSnapshotMeta.mockResolvedValue(null);
-    const r = await getRemediationCandidates({ payload: { findingKey: "filter-duplicates" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({
+      payload: { findingKey: "filter-duplicates" },
+      context: ctxWithAccount(),
+    });
     expect(r).toMatchObject({ available: false, reason: "no-snapshot", items: [] });
   });
 
   test("filter-scope: a filter naming a project the site does not have", async () => {
     mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "f1" });
     mocks.loadFilters.mockResolvedValue([
-      { id: "1", name: "Ghost Project Search", jql: "project = GONE", ownerName: "Ann", projectRefs: ["GONE"], typeRefs: [], shares: [] },
-      { id: "2", name: "Fine Filter", jql: "project = ABC", ownerName: "Ann", projectRefs: ["ABC"], typeRefs: [], shares: [] },
+      {
+        id: "1",
+        name: "Ghost Project Search",
+        jql: "project = GONE",
+        ownerName: "Ann",
+        projectRefs: ["GONE"],
+        typeRefs: [],
+        shares: [],
+      },
+      {
+        id: "2",
+        name: "Fine Filter",
+        jql: "project = ABC",
+        ownerName: "Ann",
+        projectRefs: ["ABC"],
+        typeRefs: [],
+        shares: [],
+      },
     ]);
     mocks.readSnapshotMeta.mockResolvedValue({ version: "s1" });
     mocks.listSnapshotProjects.mockResolvedValue([{ projectId: "10", projectKey: "ABC", projectName: "Alpha" }]);
@@ -7817,9 +9285,15 @@ describe("getRemediationCandidates", () => {
       { projectId: "10", fieldId: "cf_1", onCreate: true, onEdit: true, onView: true },
     ]);
     mocks.loadPopulatedProjectUsage.mockResolvedValue({ truncated: false, limit: 20000, rows: [] });
-    mocks.loadSnapshotFields.mockResolvedValue([{ id: "cf_1", name: "Story Points" }, { id: "cf_2", name: "Vendor Ref" }]);
+    mocks.loadSnapshotFields.mockResolvedValue([
+      { id: "cf_1", name: "Story Points" },
+      { id: "cf_2", name: "Vendor Ref" },
+    ]);
 
-    const r = await getRemediationCandidates({ payload: { findingKey: "screen-unreachable-fields" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({
+      payload: { findingKey: "screen-unreachable-fields" },
+      context: ctxWithAccount(),
+    });
 
     expect(r.available).toBe(true);
     expect(r.items).toEqual([{ id: "cf_2", fieldId: "cf_2", fieldName: "Vendor Ref" }]);
@@ -7828,7 +9302,10 @@ describe("getRemediationCandidates", () => {
   test("screen-unreachable-fields: reports unavailable when the cross could not resolve", async () => {
     mocks.readScreenSnapshotMeta.mockResolvedValue(null);
     mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
-    const r = await getRemediationCandidates({ payload: { findingKey: "screen-unreachable-fields" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({
+      payload: { findingKey: "screen-unreachable-fields" },
+      context: ctxWithAccount(),
+    });
     expect(r).toMatchObject({ available: false });
   });
 
@@ -7843,7 +9320,10 @@ describe("getRemediationCandidates", () => {
     mocks.loadIssueTypeSchemeProjects.mockResolvedValue([]);
     mocks.loadIssueTypeGovernanceSummary.mockResolvedValue({}); // deliberately no orphanTypes here
 
-    const r = await getRemediationCandidates({ payload: { findingKey: "issue-type-reach" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({
+      payload: { findingKey: "issue-type-reach" },
+      context: ctxWithAccount(),
+    });
 
     expect(r.available).toBe(true);
     expect(r.items).toEqual([{ id: "2", name: "Orphan Type", subtask: false }]);
@@ -7859,7 +9339,10 @@ describe("getRemediationCandidates", () => {
     mocks.loadIssueTypeSchemeItems.mockResolvedValue([]);
     mocks.loadIssueTypeSchemeProjects.mockResolvedValue([]);
 
-    const r = await getRemediationCandidates({ payload: { findingKey: "issue-type-naming" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({
+      payload: { findingKey: "issue-type-naming" },
+      context: ctxWithAccount(),
+    });
 
     expect(r.available).toBe(true);
     expect(r.items).toHaveLength(1);
@@ -7868,7 +9351,10 @@ describe("getRemediationCandidates", () => {
 
   test("issue-type-reach: reports unavailable when never built", async () => {
     mocks.readIssueTypeSnapshotMeta.mockResolvedValue(null);
-    const r = await getRemediationCandidates({ payload: { findingKey: "issue-type-reach" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({
+      payload: { findingKey: "issue-type-reach" },
+      context: ctxWithAccount(),
+    });
     expect(r).toMatchObject({ available: false, reason: "no-snapshot", items: [] });
   });
 
@@ -7882,7 +9368,10 @@ describe("getRemediationCandidates", () => {
     mocks.loadAssetAttributes.mockResolvedValue([]);
     mocks.loadAssetTypeCounts.mockResolvedValue([]);
 
-    const r = await getRemediationCandidates({ payload: { findingKey: "asset-schema-hygiene" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({
+      payload: { findingKey: "asset-schema-hygiene" },
+      context: ctxWithAccount(),
+    });
 
     expect(r.available).toBe(true);
     expect(r.items).toEqual([expect.objectContaining({ id: "1", name: "Ghost Schema", reason: "no object types" })]);
@@ -7890,7 +9379,10 @@ describe("getRemediationCandidates", () => {
 
   test("asset-schema-hygiene: reports assets-not-enabled distinctly from no-snapshot", async () => {
     mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "unavailable", assetsEnabled: false });
-    const r = await getRemediationCandidates({ payload: { findingKey: "asset-schema-hygiene" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({
+      payload: { findingKey: "asset-schema-hygiene" },
+      context: ctxWithAccount(),
+    });
     expect(r).toMatchObject({ available: false, reason: "assets-not-enabled", items: [] });
   });
 
@@ -7902,9 +9394,15 @@ describe("getRemediationCandidates", () => {
       { id: "10", schemaId: "1", name: "Rack", abstract: false },
     ]);
     mocks.loadAssetAttributes.mockResolvedValue([]);
-    mocks.loadAssetTypeCounts.mockResolvedValue([{ objectTypeId: "9", objectCount: 5 }, { objectTypeId: "10", objectCount: 0 }]);
+    mocks.loadAssetTypeCounts.mockResolvedValue([
+      { objectTypeId: "9", objectCount: 5 },
+      { objectTypeId: "10", objectCount: 0 },
+    ]);
 
-    const r = await getRemediationCandidates({ payload: { findingKey: "asset-type-usage" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({
+      payload: { findingKey: "asset-type-usage" },
+      context: ctxWithAccount(),
+    });
 
     expect(r.available).toBe(true);
     expect(r.items).toEqual([{ id: "10", name: "Rack", schemaId: "1" }]);
@@ -7917,7 +9415,10 @@ describe("getRemediationCandidates", () => {
     mocks.loadAssetAttributes.mockResolvedValue([]);
     mocks.loadAssetTypeCounts.mockResolvedValue([]); // the crawl has never run
 
-    const r = await getRemediationCandidates({ payload: { findingKey: "asset-type-usage" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({
+      payload: { findingKey: "asset-type-usage" },
+      context: ctxWithAccount(),
+    });
 
     expect(r).toMatchObject({ available: false, reason: "no-object-count-crawl", items: [] });
   });
@@ -7940,14 +9441,16 @@ describe("getCascadeGraph", () => {
 
   beforeEach(() => {
     mocks.loadCascadeEdges.mockResolvedValue(edges);
-    mocks.loadRuleDirectoryFor.mockResolvedValue(new Map([
-      ["1", { id: "1", name: "Alpha", enabled: true }],
-      ["2", { id: "2", name: "Beta", enabled: true }],
-      ["3", { id: "3", name: "Gamma", enabled: false }],
-      ["9", { id: "9", name: "Start", enabled: true }],
-      ["8", { id: "8", name: "Middle", enabled: true }],
-      ["7", { id: "7", name: "End", enabled: true }],
-    ]));
+    mocks.loadRuleDirectoryFor.mockResolvedValue(
+      new Map([
+        ["1", { id: "1", name: "Alpha", enabled: true }],
+        ["2", { id: "2", name: "Beta", enabled: true }],
+        ["3", { id: "3", name: "Gamma", enabled: false }],
+        ["9", { id: "9", name: "Start", enabled: true }],
+        ["8", { id: "8", name: "Middle", enabled: true }],
+        ["7", { id: "7", name: "End", enabled: true }],
+      ]),
+    );
   });
 
   test("finds a loop no single hop reveals", async () => {
@@ -8000,7 +9503,8 @@ describe("getCascadeGraph", () => {
 describe("getStatusAutomationUsage", () => {
   test("groups the rules by direction, because direction is the consequence", async () => {
     mocks.loadAutomationReferencesFor.mockResolvedValue({
-      total: 3, ruleCount: 3,
+      total: 3,
+      ruleCount: 3,
       references: [
         { direction: "write", rule_id: "1", name: "Sends to Parking Lot", enabled: 1 },
         { direction: "trigger", rule_id: "2", name: "Fires on entry", enabled: 0 },
@@ -8008,7 +9512,10 @@ describe("getStatusAutomationUsage", () => {
       ],
     });
 
-    const result = await getStatusAutomationUsage({ payload: { statusName: "Parking Lot" }, context: ctxWithAccount() });
+    const result = await getStatusAutomationUsage({
+      payload: { statusName: "Parking Lot" },
+      context: ctxWithAccount(),
+    });
 
     // A rule that transitions INTO a status keeps it alive; one that reads it in a condition
     // breaks if it goes but does not keep it in use.
@@ -8030,7 +9537,9 @@ describe("getStatusAutomationUsage", () => {
   });
 
   test("requires a status name", async () => {
-    await expect(getStatusAutomationUsage({ payload: {}, context: ctxWithAccount() })).rejects.toThrow(/statusName is required/);
+    await expect(getStatusAutomationUsage({ payload: {}, context: ctxWithAccount() })).rejects.toThrow(
+      /statusName is required/,
+    );
   });
 });
 
@@ -8054,7 +9563,15 @@ describe("getDashboardUsage", () => {
     mocks.loadFilterReferencesFor.mockResolvedValue({ total: 1, filters: [{ id: "500", name: "Open bugs" }] });
     mocks.countGadgetConfigCoverage.mockResolvedValue({ total: 40, walked: 40 });
     mocks.loadDashboardsForFilters.mockResolvedValue([
-      { filterId: "500", dashboardId: "9", dashboardName: "Delivery", gadgetTitle: "Open bugs", ownerName: "Bob", popularity: 12, viewUrl: null },
+      {
+        filterId: "500",
+        dashboardId: "9",
+        dashboardName: "Delivery",
+        gadgetTitle: "Open bugs",
+        ownerName: "Bob",
+        popularity: 12,
+        viewUrl: null,
+      },
     ]);
   });
 
@@ -8085,13 +9602,17 @@ describe("getDashboardUsage", () => {
   // than collapsed into one "unavailable".
   test("says which inventory is missing, not just that one is", async () => {
     mocks.readDashboardSnapshotMeta.mockResolvedValue(null);
-    expect(await getDashboardUsage({ payload: { label: "X" }, context: ctxWithAccount() }))
-      .toMatchObject({ available: false, reason: "no-dashboard-inventory" });
+    expect(await getDashboardUsage({ payload: { label: "X" }, context: ctxWithAccount() })).toMatchObject({
+      available: false,
+      reason: "no-dashboard-inventory",
+    });
 
     mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: "d1" });
     mocks.readFilterSnapshotMeta.mockResolvedValue(null);
-    expect(await getDashboardUsage({ payload: { label: "X" }, context: ctxWithAccount() }))
-      .toMatchObject({ available: false, reason: "no-filter-inventory" });
+    expect(await getDashboardUsage({ payload: { label: "X" }, context: ctxWithAccount() })).toMatchObject({
+      available: false,
+      reason: "no-filter-inventory",
+    });
   });
 
   test("marks the answer incomplete when the gadget config walk has not finished", async () => {
@@ -8138,7 +9659,9 @@ describe("startFullSiteScan / getFullScanStatus", () => {
     // the other tabs describe what they would show before they have anything to show.
     expect(result.state).toBe("idle");
     expect(result.stages).toBeNull();
-    expect(result.catalog.map((s) => s.key)).toEqual(expect.arrayContaining(["workflows", "filters", "dashboards", "issues"]));
+    expect(result.catalog.map((s) => s.key)).toEqual(
+      expect.arrayContaining(["workflows", "filters", "dashboards", "issues"]),
+    );
     expect(result.catalog.map((s) => s.key)).not.toContain("automation");
   });
 
@@ -8146,7 +9669,10 @@ describe("startFullSiteScan / getFullScanStatus", () => {
     mocks.readFullScanMeta.mockResolvedValue({
       state: "running",
       currentStage: "issues",
-      stages: [{ key: "workflows", state: "done" }, { key: "issues", state: "running" }],
+      stages: [
+        { key: "workflows", state: "done" },
+        { key: "issues", state: "running" },
+      ],
       startedAt: "2026-08-26T00:00:00.000Z",
     });
 
@@ -8160,7 +9686,11 @@ describe("startFullSiteScan / getFullScanStatus", () => {
   // row -- so the produced counts have to come from the pillar metas on every read, or the
   // page shows "Produced —" for every stage.
   test("attaches what each pillar currently holds even for an idle scan", async () => {
-    mocks.readFullScanMeta.mockResolvedValue({ state: "cancelled", scanType: "full", stages: [{ key: "workflows", state: "done" }] });
+    mocks.readFullScanMeta.mockResolvedValue({
+      state: "cancelled",
+      scanType: "full",
+      stages: [{ key: "workflows", state: "done" }],
+    });
     mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "w1", totalSchemes: 14 });
     mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "flt1", totalFilters: 4115 });
 
@@ -8171,7 +9701,8 @@ describe("startFullSiteScan / getFullScanStatus", () => {
 
   test("reaches into the filter sub-build for a real count while the filters stage is in flight", async () => {
     mocks.readFullScanMeta.mockResolvedValue({
-      state: "running", currentStage: "filters",
+      state: "running",
+      currentStage: "filters",
       stages: [{ key: "filters", state: "running" }],
     });
     mocks.readFilterSnapshotMeta.mockResolvedValue({ processed: 1200, totalExpected: 4115, lastError: null });
@@ -8185,7 +9716,8 @@ describe("startFullSiteScan / getFullScanStatus", () => {
 
   test("leaves currentStageProgress null when the active stage keeps no sub-build count", async () => {
     mocks.readFullScanMeta.mockResolvedValue({
-      state: "running", currentStage: "workflows",
+      state: "running",
+      currentStage: "workflows",
       stages: [{ key: "workflows", state: "running" }],
     });
     const result = await getFullScanStatus({ context: ctxWithAccount() });
@@ -8194,18 +9726,23 @@ describe("startFullSiteScan / getFullScanStatus", () => {
 
   test("names the dashboard build's current phase, so its count is not a mystery", async () => {
     mocks.readFullScanMeta.mockResolvedValue({
-      state: "running", currentStage: "dashboards",
+      state: "running",
+      currentStage: "dashboards",
       stages: [{ key: "dashboards", state: "running" }],
     });
     mocks.readDashboardSnapshotMeta.mockResolvedValue({
-      processed: 3836, totalExpected: 5226, lastError: null,
+      processed: 3836,
+      totalExpected: 5226,
+      lastError: null,
       buildCursor: JSON.stringify({ phase: "configs", walked: 10, listTotal: 613, gadgetTotal: 4000 }),
     });
 
     const result = await getFullScanStatus({ context: ctxWithAccount() });
 
     expect(result.currentStageProgress).toMatchObject({
-      processed: 3836, total: 5226, note: "resolving what each gadget points at",
+      processed: 3836,
+      total: 5226,
+      note: "resolving what each gadget points at",
     });
   });
 
@@ -8231,7 +9768,11 @@ describe("startFullSiteScan / getFullScanStatus", () => {
   });
 
   test("a row with no scanType at all is treated as the full scan's own, for rows written before the split", async () => {
-    mocks.readFullScanMeta.mockResolvedValue({ state: "running", currentStage: "workflows", stages: [{ key: "workflows", state: "running" }] });
+    mocks.readFullScanMeta.mockResolvedValue({
+      state: "running",
+      currentStage: "workflows",
+      stages: [{ key: "workflows", state: "running" }],
+    });
 
     const result = await getFullScanStatus({ context: ctxWithAccount() });
 
@@ -8243,7 +9784,9 @@ describe("startFullSiteScan / getFullScanStatus", () => {
   // polled every few seconds while an admin watches, is what heals it promptly.
   test("kicks stall recovery when a running scan's heartbeat has gone quiet past the window", async () => {
     mocks.readFullScanMeta.mockResolvedValue({
-      state: "running", scanType: "full", currentStage: "dashboards",
+      state: "running",
+      scanType: "full",
+      currentStage: "dashboards",
       stages: [{ key: "dashboards", state: "running" }],
       updatedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
     });
@@ -8255,7 +9798,9 @@ describe("startFullSiteScan / getFullScanStatus", () => {
 
   test("does not touch recovery for a scan whose heartbeat is fresh", async () => {
     mocks.readFullScanMeta.mockResolvedValue({
-      state: "running", scanType: "full", currentStage: "dashboards",
+      state: "running",
+      scanType: "full",
+      currentStage: "dashboards",
       stages: [{ key: "dashboards", state: "running" }],
       updatedAt: new Date().toISOString(),
       startedAt: new Date().toISOString(),
@@ -8268,7 +9813,9 @@ describe("startFullSiteScan / getFullScanStatus", () => {
 
   test("kicks recovery for a scan past its total-duration ceiling even with a fresh heartbeat", async () => {
     mocks.readFullScanMeta.mockResolvedValue({
-      state: "running", scanType: "full", currentStage: "issues",
+      state: "running",
+      scanType: "full",
+      currentStage: "issues",
       stages: [{ key: "issues", state: "running" }],
       updatedAt: new Date().toISOString(), // ticking right now
       startedAt: new Date(Date.now() - 90 * 60 * 60 * 1000).toISOString(), // 90 hours ago
@@ -8282,7 +9829,9 @@ describe("startFullSiteScan / getFullScanStatus", () => {
   test("a recovery kick that rejects never breaks the status response", async () => {
     mocks.recoverStalledScan.mockRejectedValueOnce(new Error("queue push failed"));
     mocks.readFullScanMeta.mockResolvedValue({
-      state: "running", scanType: "full", currentStage: "dashboards",
+      state: "running",
+      scanType: "full",
+      currentStage: "dashboards",
       stages: [{ key: "dashboards", state: "running" }],
       updatedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
     });
@@ -8317,7 +9866,10 @@ describe("startQuickSiteScan / getQuickScanStatus", () => {
 
     // "Run now" between scheduled runs should ask the same question the schedule would have,
     // not an arbitrary different one.
-    expect(mocks.writeFullScanMeta).toHaveBeenCalledWith("test-install", expect.objectContaining({ quickScanWindowHours: 336 }));
+    expect(mocks.writeFullScanMeta).toHaveBeenCalledWith(
+      "test-install",
+      expect.objectContaining({ quickScanWindowHours: 336 }),
+    );
   });
 
   test("an explicit window in the payload overrides the stored schedule", async () => {
@@ -8325,7 +9877,10 @@ describe("startQuickSiteScan / getQuickScanStatus", () => {
 
     await startQuickSiteScan({ payload: { windowHours: 12 }, context: ctxWithAccount() });
 
-    expect(mocks.writeFullScanMeta).toHaveBeenCalledWith("test-install", expect.objectContaining({ quickScanWindowHours: 12 }));
+    expect(mocks.writeFullScanMeta).toHaveBeenCalledWith(
+      "test-install",
+      expect.objectContaining({ quickScanWindowHours: 12 }),
+    );
   });
 
   test("returns the quick-scan catalog even when nothing has run", async () => {
@@ -8338,7 +9893,10 @@ describe("startQuickSiteScan / getQuickScanStatus", () => {
 
   test("reports its own progress, and says which window it was run with", async () => {
     mocks.readFullScanMeta.mockResolvedValue({
-      state: "running", scanType: "quick", currentStage: "issues-delta", quickScanWindowHours: 168,
+      state: "running",
+      scanType: "quick",
+      currentStage: "issues-delta",
+      quickScanWindowHours: 168,
       stages: [{ key: "workflows", state: "done" }],
     });
 
@@ -8360,8 +9918,13 @@ describe("startQuickSiteScan / getQuickScanStatus", () => {
 
   test("never shows the full scan's own stages on the quick-scan panel", async () => {
     mocks.readFullScanMeta.mockResolvedValue({
-      state: "running", scanType: "full", currentStage: "issues",
-      stages: [{ key: "workflows", state: "done" }, { key: "issues", state: "running" }],
+      state: "running",
+      scanType: "full",
+      currentStage: "issues",
+      stages: [
+        { key: "workflows", state: "done" },
+        { key: "issues", state: "running" },
+      ],
     });
 
     const result = await getQuickScanStatus({ context: ctxWithAccount() });
@@ -8382,8 +9945,13 @@ describe("resumeSiteScan / cancelSiteScan", () => {
 
   test("cancelSiteScan writes the terminal state that frees the shared row", async () => {
     mocks.readFullScanMeta.mockResolvedValue({
-      state: "running", scanType: "full", jobToken: "tok",
-      stages: [{ key: "workflows", state: "done" }, { key: "filters", state: "running" }],
+      state: "running",
+      scanType: "full",
+      jobToken: "tok",
+      stages: [
+        { key: "workflows", state: "done" },
+        { key: "filters", state: "running" },
+      ],
     });
 
     const result = await cancelSiteScan({ context: ctxWithAccount() });
@@ -8391,12 +9959,15 @@ describe("resumeSiteScan / cancelSiteScan", () => {
     expect(result).toMatchObject({ cancelled: true, scanType: "full" });
     expect(mocks.writeFullScanMeta).toHaveBeenCalledWith(
       "test-install",
-      expect.objectContaining({ state: "cancelled", jobToken: null })
+      expect.objectContaining({ state: "cancelled", jobToken: null }),
     );
   });
 
   test("cancelSiteScan is a no-op when nothing is running", async () => {
-    expect(await cancelSiteScan({ context: ctxWithAccount() })).toMatchObject({ cancelled: false, reason: "not-running" });
+    expect(await cancelSiteScan({ context: ctxWithAccount() })).toMatchObject({
+      cancelled: false,
+      reason: "not-running",
+    });
   });
 
   test("cancelSiteScan still works while read-only mode is on -- clearing a wedge is not a new scan", async () => {
@@ -8408,7 +9979,10 @@ describe("resumeSiteScan / cancelSiteScan", () => {
 
   test("resumeSiteScan force-recovers a stalled run without waiting on the staleness clock", async () => {
     mocks.readFullScanMeta.mockResolvedValue({
-      state: "running", scanType: "full", jobToken: "tok", currentStage: "filters",
+      state: "running",
+      scanType: "full",
+      jobToken: "tok",
+      currentStage: "filters",
       stages: [{ key: "filters", state: "running" }],
       updatedAt: new Date().toISOString(), // fresh -- force must override
       recoveryCount: 0,
@@ -8423,8 +9997,12 @@ describe("resumeSiteScan / cancelSiteScan", () => {
 
   test("resumeSiteScan routes a completed-with-failures run to the resume path, not recovery", async () => {
     mocks.readFullScanMeta.mockResolvedValue({
-      state: "completed-with-failures", scanType: "full",
-      stages: [{ key: "dashboards", state: "failed" }, { key: "workflows", state: "done" }],
+      state: "completed-with-failures",
+      scanType: "full",
+      stages: [
+        { key: "dashboards", state: "failed" },
+        { key: "workflows", state: "done" },
+      ],
     });
 
     const result = await resumeSiteScan({ context: ctxWithAccount() });
@@ -8456,24 +10034,36 @@ describe("recordQuickScanScheduledRun", () => {
           windowHours: 168,
           lastScheduledRunAt: "2026-08-27T00:00:00.000Z",
         }),
-      })
+      }),
     );
   });
 });
 
 describe("getFilterInventory", () => {
   const filterRow = (over = {}) => ({
-    id: "1", name: "Open bugs", jql: "project = ADVEV AND status = Open",
+    id: "1",
+    name: "Open bugs",
+    jql: "project = ADVEV AND status = Open",
     owner: { accountId: "a1", displayName: "Bob", active: true },
-    ownerName: "Bob", ownerActive: true,
-    shares: [], sharedWithEveryone: false, shareCount: 0,
-    subscriptionCount: 0, lastUsedAt: new Date().toISOString(),
-    fieldRefs: ["project", "status"], projectRefs: ["ADVEV"], statusRefs: ["Open"],
+    ownerName: "Bob",
+    ownerActive: true,
+    shares: [],
+    sharedWithEveryone: false,
+    shareCount: 0,
+    subscriptionCount: 0,
+    lastUsedAt: new Date().toISOString(),
+    fieldRefs: ["project", "status"],
+    projectRefs: ["ADVEV"],
+    statusRefs: ["Open"],
     ...over,
   });
 
   beforeEach(() => {
-    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready", refreshedAt: "2026-08-20T00:00:00Z" });
+    mocks.readFilterSnapshotMeta.mockResolvedValue({
+      version: "v1",
+      state: "ready",
+      refreshedAt: "2026-08-20T00:00:00Z",
+    });
     mocks.loadFilters.mockResolvedValue([
       filterRow(),
       filterRow({ id: "2", name: "Orphan", owner: null, ownerActive: null }),
@@ -8500,10 +10090,7 @@ describe("getFilterInventory", () => {
     // Two clean filters plus the one the fixture already flags -- every row in the RESPONSE
     // must carry a findings array, or the rail's finding filter has nothing to match against
     // for the clean ones.
-    mocks.loadFilters.mockResolvedValue([
-      filterRow({ id: "1" }),
-      filterRow({ id: "3", name: "Also clean" }),
-    ]);
+    mocks.loadFilters.mockResolvedValue([filterRow({ id: "1" }), filterRow({ id: "3", name: "Also clean" })]);
 
     const result = await getFilterInventory({ payload: {}, context: ctxWithAccount() });
     expect(result.filters.every((f) => Array.isArray(f.findings))).toBe(true);
@@ -8526,7 +10113,8 @@ describe("getFilterInventory", () => {
   // snapshot as on a first build, and only the first path ever reported it.
   test("reports a wedged first build so the UI can offer a rebuild", async () => {
     mocks.readFilterSnapshotMeta.mockResolvedValue({
-      version: null, state: "building",
+      version: null,
+      state: "building",
       startedAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
     });
 
@@ -8537,7 +10125,8 @@ describe("getFilterInventory", () => {
 
   test("reports a wedged rebuild over a snapshot that already exists", async () => {
     mocks.readFilterSnapshotMeta.mockResolvedValue({
-      version: "v1", state: "building",
+      version: "v1",
+      state: "building",
       startedAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
     });
 
@@ -8550,7 +10139,9 @@ describe("getFilterInventory", () => {
   // saying otherwise would hand a user a rebuild button that races the job already in flight.
   test("does not call a build that just started stale", async () => {
     mocks.readFilterSnapshotMeta.mockResolvedValue({
-      version: "v1", state: "building", startedAt: new Date().toISOString(),
+      version: "v1",
+      state: "building",
+      startedAt: new Date().toISOString(),
     });
 
     const result = await getFilterInventory({ payload: {}, context: ctxWithAccount() });
@@ -8601,7 +10192,11 @@ describe("getFilterInventory", () => {
   });
 
   test("carries the failure reason forward when the last build failed", async () => {
-    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: null, state: "failed", lastError: "401 scope does not match" });
+    mocks.readFilterSnapshotMeta.mockResolvedValue({
+      version: null,
+      state: "failed",
+      lastError: "401 scope does not match",
+    });
     const result = await getFilterInventory({ payload: {}, context: ctxWithAccount() });
 
     expect(result.lastError).toMatch(/401/);
@@ -8614,12 +10209,20 @@ describe("getFilterInventory", () => {
 // that to actually bound the response regardless of estate size.
 describe("getFilterInventory paging", () => {
   const filterRow = (over = {}) => ({
-    id: "1", name: "Open bugs", jql: "project = ADVEV AND status = Open",
+    id: "1",
+    name: "Open bugs",
+    jql: "project = ADVEV AND status = Open",
     owner: { accountId: "a1", displayName: "Bob", active: true },
-    ownerName: "Bob", ownerActive: true,
-    shares: [], sharedWithEveryone: false, shareCount: 0,
-    subscriptionCount: 0, lastUsedAt: new Date().toISOString(),
-    fieldRefs: ["project", "status"], projectRefs: ["ADVEV"], statusRefs: ["Open"],
+    ownerName: "Bob",
+    ownerActive: true,
+    shares: [],
+    sharedWithEveryone: false,
+    shareCount: 0,
+    subscriptionCount: 0,
+    lastUsedAt: new Date().toISOString(),
+    fieldRefs: ["project", "status"],
+    projectRefs: ["ADVEV"],
+    statusRefs: ["Open"],
     ...over,
   });
 
@@ -8628,13 +10231,15 @@ describe("getFilterInventory paging", () => {
     mocks.readSnapshotMeta.mockResolvedValue(null);
     // A page's worth of distinct, findable rows.
     mocks.loadFilters.mockResolvedValue(
-      Array.from({ length: 30 }, (_, i) => filterRow({
-        id: String(i + 1),
-        name: i === 0 ? "Special one" : `Filter ${i + 1}`,
-        owner: i === 5 ? null : { accountId: "a1", displayName: "Bob", active: true },
-        ownerName: i === 5 ? null : "Bob",
-        ownerActive: i === 5 ? null : true,
-      }))
+      Array.from({ length: 30 }, (_, i) =>
+        filterRow({
+          id: String(i + 1),
+          name: i === 0 ? "Special one" : `Filter ${i + 1}`,
+          owner: i === 5 ? null : { accountId: "a1", displayName: "Bob", active: true },
+          ownerName: i === 5 ? null : "Bob",
+          ownerActive: i === 5 ? null : true,
+        }),
+      ),
     );
   });
 
@@ -8656,8 +10261,9 @@ describe("getFilterInventory paging", () => {
   // defend against silently. Throwing loudly surfaces the bug where it was introduced instead
   // of masking it behind a clamp that quietly does something the caller never asked for.
   test("rejects a pageSize outside the allowed range rather than silently clamping it", async () => {
-    await expect(getFilterInventory({ payload: { pageSize: 100000 }, context: ctxWithAccount() }))
-      .rejects.toThrow(/pageSize/);
+    await expect(getFilterInventory({ payload: { pageSize: 100000 }, context: ctxWithAccount() })).rejects.toThrow(
+      /pageSize/,
+    );
   });
 
   test("searches name and jql server-side", async () => {
@@ -8681,14 +10287,20 @@ describe("getFilterInventory paging", () => {
   });
 
   test("falls back to the default sort for an unrecognised value, rather than erroring", async () => {
-    const result = await getFilterInventory({ payload: { sort: "definitely-not-a-real-sort" }, context: ctxWithAccount() });
+    const result = await getFilterInventory({
+      payload: { sort: "definitely-not-a-real-sort" },
+      context: ctxWithAccount(),
+    });
     expect(result.available).toBe(true);
   });
 
   // The rail describes the WHOLE matched set, not the current page -- a page can hold zero
   // of a kind that exists dozens of times in the estate.
   test("finding-rail counts describe the whole inventory, not the current page", async () => {
-    const result = await getFilterInventory({ payload: { finding: "orphaned-owner", pageSize: 1 }, context: ctxWithAccount() });
+    const result = await getFilterInventory({
+      payload: { finding: "orphaned-owner", pageSize: 1 },
+      context: ctxWithAccount(),
+    });
     // The page holds exactly the one orphaned filter, but "all" must still count all 30.
     expect(result.findingCounts.all).toBe(30);
     expect(result.findingCounts["orphaned-owner"]).toBe(1);
@@ -8734,13 +10346,16 @@ describe("buildFilterInventory", () => {
     // Started as a resumable build: an in-flight version distinct from the published one, a
     // zeroed cursor, and a heartbeat. A row marked "building" with no version to write into
     // cannot be resumed by anything.
-    expect(mocks.writeFilterSnapshotMeta).toHaveBeenCalledWith("test-install", expect.objectContaining({
-      state: "building",
-      buildingVersion: expect.any(String),
-      buildToken: expect.any(String),
-      buildCursor: null,
-      processed: 0,
-    }));
+    expect(mocks.writeFilterSnapshotMeta).toHaveBeenCalledWith(
+      "test-install",
+      expect.objectContaining({
+        state: "building",
+        buildingVersion: expect.any(String),
+        buildToken: expect.any(String),
+        buildCursor: null,
+        processed: 0,
+      }),
+    );
   });
 
   test("refuses in read-only mode, and says so", async () => {
@@ -8776,10 +10391,15 @@ describe("getFilterUsage", () => {
     mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "v1" });
     mocks.loadFilterReferencesFor.mockResolvedValue({
       total: 2,
-      filters: [{ id: "1", name: "Open bugs", ownerName: "Bob", ownerActive: true, subscriptionCount: 0, lastUsedAt: null }],
+      filters: [
+        { id: "1", name: "Open bugs", ownerName: "Bob", ownerActive: true, subscriptionCount: 0, lastUsedAt: null },
+      ],
     });
 
-    const result = await getFilterUsage({ payload: { kind: "field", label: "Story Points" }, context: ctxWithAccount() });
+    const result = await getFilterUsage({
+      payload: { kind: "field", label: "Story Points" },
+      context: ctxWithAccount(),
+    });
     expect(result).toMatchObject({ available: true, kind: "field", total: 2 });
   });
 
@@ -8912,7 +10532,10 @@ describe("getFieldFilterCounts", () => {
   test("reports unavailable rather than zero when nothing has been built", async () => {
     mocks.readFilterSnapshotMeta.mockResolvedValue(null);
 
-    const result = await getFieldFilterCounts({ payload: { fields: [{ id: "f", name: "F" }] }, context: ctxWithAccount() });
+    const result = await getFieldFilterCounts({
+      payload: { fields: [{ id: "f", name: "F" }] },
+      context: ctxWithAccount(),
+    });
 
     expect(result).toMatchObject({ available: false, counts: {} });
     expect(mocks.loadFilterReferenceCounts).not.toHaveBeenCalled();
@@ -8962,10 +10585,12 @@ describe("getFieldDashboardCounts", () => {
   // SUM of their gadget counts -- but a filter found under both the field's name and its id
   // must contribute only once, or its gadgets are counted twice.
   test("unions filter ids across name and id, rather than summing the same filter twice", async () => {
-    mocks.loadFilterIdsForLabels.mockResolvedValue(new Map([
-      ["story points", ["500"]],
-      ["customfield_10001", ["500"]],
-    ]));
+    mocks.loadFilterIdsForLabels.mockResolvedValue(
+      new Map([
+        ["story points", ["500"]],
+        ["customfield_10001", ["500"]],
+      ]),
+    );
     mocks.loadGadgetCountsForFilterIds.mockResolvedValue(new Map([["500", 4]]));
 
     const result = await getFieldDashboardCounts({
@@ -8980,7 +10605,12 @@ describe("getFieldDashboardCounts", () => {
 
   test("sums gadgets across several DIFFERENT filters that name the same field", async () => {
     mocks.loadFilterIdsForLabels.mockResolvedValue(new Map([["story points", ["500", "501"]]]));
-    mocks.loadGadgetCountsForFilterIds.mockResolvedValue(new Map([["500", 2], ["501", 5]]));
+    mocks.loadGadgetCountsForFilterIds.mockResolvedValue(
+      new Map([
+        ["500", 2],
+        ["501", 5],
+      ]),
+    );
 
     const result = await getFieldDashboardCounts({
       payload: { fields: [{ id: "customfield_10001", name: "Story Points" }] },
@@ -8993,12 +10623,18 @@ describe("getFieldDashboardCounts", () => {
   // Which half is missing changes what an admin builds next, so the two are reported apart.
   test("says which inventory is missing, not just that one is", async () => {
     mocks.readFilterSnapshotMeta.mockResolvedValue(null);
-    let result = await getFieldDashboardCounts({ payload: { fields: [{ id: "f", name: "F" }] }, context: ctxWithAccount() });
+    let result = await getFieldDashboardCounts({
+      payload: { fields: [{ id: "f", name: "F" }] },
+      context: ctxWithAccount(),
+    });
     expect(result).toMatchObject({ available: false, reason: expect.stringContaining("filter") });
 
     mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "fv1" });
     mocks.readDashboardSnapshotMeta.mockResolvedValue(null);
-    result = await getFieldDashboardCounts({ payload: { fields: [{ id: "f", name: "F" }] }, context: ctxWithAccount() });
+    result = await getFieldDashboardCounts({
+      payload: { fields: [{ id: "f", name: "F" }] },
+      context: ctxWithAccount(),
+    });
     expect(result).toMatchObject({ available: false, reason: expect.stringContaining("dashboard") });
   });
 
@@ -9026,11 +10662,19 @@ describe("getFieldDashboardCounts", () => {
 // A dashboard is the most visible thing in Jira and the least owned.
 describe("getDashboardInventory", () => {
   const row = (over = {}) => ({
-    id: "1", name: "Delivery overview",
+    id: "1",
+    name: "Delivery overview",
     owner: { accountId: "a1", displayName: "Bob", active: true },
-    ownerName: "Bob", ownerActive: true,
-    shares: [], editShares: [], sharedWithEveryone: false, editableByEveryone: false,
-    popularity: 4, gadgetCount: 6, gadgets: [], shareCount: 0,
+    ownerName: "Bob",
+    ownerActive: true,
+    shares: [],
+    editShares: [],
+    sharedWithEveryone: false,
+    editableByEveryone: false,
+    popularity: 4,
+    gadgetCount: 6,
+    gadgets: [],
+    shareCount: 0,
     ...over,
   });
 
@@ -9057,12 +10701,18 @@ describe("getDashboardInventory", () => {
 
   test("reports never-built rather than empty", async () => {
     mocks.readDashboardSnapshotMeta.mockResolvedValue(null);
-    expect(await getDashboardInventory({ context: ctxWithAccount() }))
-      .toMatchObject({ available: false, neverBuilt: true });
+    expect(await getDashboardInventory({ context: ctxWithAccount() })).toMatchObject({
+      available: false,
+      neverBuilt: true,
+    });
   });
 
   test("carries the failure reason forward when the last build failed", async () => {
-    mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: null, state: "failed", lastError: "401 scope does not match" });
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({
+      version: null,
+      state: "failed",
+      lastError: "401 scope does not match",
+    });
     const result = await getDashboardInventory({ context: ctxWithAccount() });
     expect(result.lastError).toMatch(/401/);
   });
@@ -9074,11 +10724,18 @@ describe("getDashboardInventory", () => {
 // because they read from the same tables.
 describe("getDashboardInventory field dependencies", () => {
   const row = (over = {}) => ({
-    id: "1", name: "Delivery overview",
+    id: "1",
+    name: "Delivery overview",
     owner: { accountId: "a1", displayName: "Bob", active: true },
-    ownerName: "Bob", ownerActive: true,
-    shares: [], editShares: [], sharedWithEveryone: false, editableByEveryone: false,
-    popularity: 4, gadgetCount: 1, shareCount: 0,
+    ownerName: "Bob",
+    ownerActive: true,
+    shares: [],
+    editShares: [],
+    sharedWithEveryone: false,
+    editableByEveryone: false,
+    popularity: 4,
+    gadgetCount: 1,
+    shareCount: 0,
     gadgets: [{ id: "g1", title: "Open bugs", filterId: "500" }],
     ...over,
   });
@@ -9098,14 +10755,21 @@ describe("getDashboardInventory field dependencies", () => {
 
   test("unions fields across a dashboard's several gadgets without duplicates", async () => {
     mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
-    mocks.loadDashboards.mockResolvedValue([row({
-      gadgets: [{ id: "g1", filterId: "500" }, { id: "g2", filterId: "501" }],
-    })]);
+    mocks.loadDashboards.mockResolvedValue([
+      row({
+        gadgets: [
+          { id: "g1", filterId: "500" },
+          { id: "g2", filterId: "501" },
+        ],
+      }),
+    ]);
     mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "f1", state: "ready" });
-    mocks.loadFieldNamesForFilterIds.mockResolvedValue(new Map([
-      ["500", ["Story Points"]],
-      ["501", ["Story Points", "Assignee"]],
-    ]));
+    mocks.loadFieldNamesForFilterIds.mockResolvedValue(
+      new Map([
+        ["500", ["Story Points"]],
+        ["501", ["Story Points", "Assignee"]],
+      ]),
+    );
 
     const result = await getDashboardInventory({ context: ctxWithAccount() });
     expect(result.allDashboards[0].fieldRefs).toEqual(["Assignee", "Story Points"]);
@@ -9142,12 +10806,19 @@ describe("getDashboardInventory field dependencies", () => {
   // only the second says which gadget breaks if the field goes.
   test("attaches which filter each gadget uses, by name, alongside its own field refs", async () => {
     mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
-    mocks.loadDashboards.mockResolvedValue([row({
-      gadgets: [{ id: "g1", title: "Open bugs", filterId: "500" }, { id: "g2", title: "No filter", filterId: null }],
-    })]);
+    mocks.loadDashboards.mockResolvedValue([
+      row({
+        gadgets: [
+          { id: "g1", title: "Open bugs", filterId: "500" },
+          { id: "g2", title: "No filter", filterId: null },
+        ],
+      }),
+    ]);
     mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "f1", state: "ready" });
     mocks.loadFieldNamesForFilterIds.mockResolvedValue(new Map([["500", ["Story Points", "Status"]]]));
-    mocks.loadFilterNamesForIds.mockResolvedValue(new Map([["500", { name: "Open Bugs", viewUrl: "https://x/issues/?filter=500" }]]));
+    mocks.loadFilterNamesForIds.mockResolvedValue(
+      new Map([["500", { name: "Open Bugs", viewUrl: "https://x/issues/?filter=500" }]]),
+    );
 
     const result = await getDashboardInventory({ context: ctxWithAccount() });
 
@@ -9185,7 +10856,10 @@ describe("buildDashboardInventory", () => {
     const result = await buildDashboardInventory({ context: ctxWithAccount() });
 
     expect(result).toMatchObject({ queued: true });
-    expect(mocks.writeDashboardSnapshotMeta).toHaveBeenCalledWith("test-install", expect.objectContaining({ state: "building" }));
+    expect(mocks.writeDashboardSnapshotMeta).toHaveBeenCalledWith(
+      "test-install",
+      expect.objectContaining({ state: "building" }),
+    );
   });
 
   test("refuses in read-only mode, and says so", async () => {
@@ -9199,8 +10873,10 @@ describe("buildDashboardInventory", () => {
 
   test("does not queue a second build over one still running", async () => {
     mocks.readDashboardSnapshotMeta.mockResolvedValue({ state: "building", startedAt: new Date().toISOString() });
-    expect(await buildDashboardInventory({ context: ctxWithAccount() }))
-      .toMatchObject({ queued: false, reason: "already-building" });
+    expect(await buildDashboardInventory({ context: ctxWithAccount() })).toMatchObject({
+      queued: false,
+      reason: "already-building",
+    });
   });
 
   // A wedged row would otherwise suppress every future rebuild with no way out of the UI.
@@ -9233,7 +10909,9 @@ describe("getDashboardInventory staleness", () => {
 
   test("does not call a build that just started stale", async () => {
     mocks.readDashboardSnapshotMeta.mockResolvedValue({
-      version: "v1", state: "building", startedAt: new Date().toISOString(),
+      version: "v1",
+      state: "building",
+      startedAt: new Date().toISOString(),
     });
     expect((await getDashboardInventory({ context: ctxWithAccount() })).staleBuild).toBe(false);
   });
@@ -9280,13 +10958,24 @@ describe("rovo workflow agent", () => {
   const ctx = () => ctxWithAccount();
 
   function seedBuilt() {
-    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v9", state: "ready", refreshedAt: "2026-09-01T00:00:00.000Z", workflowRules: 4 });
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({
+      version: "v9",
+      state: "ready",
+      refreshedAt: "2026-09-01T00:00:00.000Z",
+      workflowRules: 4,
+    });
     mocks.loadTransitionsTouchingStatus.mockResolvedValue([]);
     mocks.loadStatusWorkflowProperties.mockResolvedValue([]);
     mocks.loadWorkflowRefsFor.mockResolvedValue([]);
     mocks.loadWorkflowRefsByType.mockResolvedValue([]);
     mocks.loadWorkflowSchemes.mockResolvedValue([
-      { schemeId: "s1", name: "Software Simplified Workflow Scheme", description: "the default", defaultWorkflow: "SSW", projectCount: 3 },
+      {
+        schemeId: "s1",
+        name: "Software Simplified Workflow Scheme",
+        description: "the default",
+        defaultWorkflow: "SSW",
+        projectCount: 3,
+      },
       { schemeId: "s2", name: "Ops Scheme", description: "", defaultWorkflow: "Ops", projectCount: 1 },
     ]);
     mocks.loadStatusesCatalog.mockResolvedValue([
@@ -9296,9 +10985,17 @@ describe("rovo workflow agent", () => {
       { statusId: "9", name: "On Hold", statusCategory: "In Progress" },
     ]);
     mocks.loadWorkflowSchemeStatuses.mockResolvedValue([
-      { schemeId: "s1", statusId: "1" }, { schemeId: "s1", statusId: "2" }, { schemeId: "s2", statusId: "1" },
+      { schemeId: "s1", statusId: "1" },
+      { schemeId: "s1", statusId: "2" },
+      { schemeId: "s2", statusId: "1" },
     ]);
-    mocks.loadStatusIssueCounts.mockResolvedValue(new Map([["1", 40], ["2", 5], ["9", 0]]));
+    mocks.loadStatusIssueCounts.mockResolvedValue(
+      new Map([
+        ["1", 40],
+        ["2", 5],
+        ["9", 0],
+      ]),
+    );
     mocks.loadStatusHistoryCounts.mockResolvedValue({ counts: new Map([["9", 12]]), measuredAt: "2026-08-01" });
     mocks.loadWorkflowSchemeProjects.mockResolvedValue([{ projectKey: "ABC", projectName: "Alpha" }]);
     mocks.loadStatusAutomationReferences.mockResolvedValue({});
@@ -9384,7 +11081,15 @@ describe("rovo workflow agent", () => {
   test("impact: a status in a workflow no scheme reaches is still in use -- Jira will not delete it", async () => {
     seedBuilt();
     mocks.loadTransitionsTouchingStatus.mockResolvedValueOnce([
-      { workflowName: "Old WF", transitionId: "21", transitionName: "Park", transitionType: "DIRECTED", fromStatusIds: ["1"], toStatusId: "9", ruleCount: 1 },
+      {
+        workflowName: "Old WF",
+        transitionId: "21",
+        transitionName: "Park",
+        transitionType: "DIRECTED",
+        fromStatusIds: ["1"],
+        toStatusId: "9",
+        ruleCount: 1,
+      },
     ]);
     const r = await rovoWorkflowImpact({ name: "On Hold" }, ctx());
     expect(r.inWorkflows).toEqual(["Old WF"]);
@@ -9394,7 +11099,12 @@ describe("rovo workflow agent", () => {
 
   test("impact: a snapshot that never read transitions leaves the workflows check a gap", async () => {
     seedBuilt();
-    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v9", state: "ready", refreshedAt: "2026-09-01T00:00:00.000Z", workflowRules: null });
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({
+      version: "v9",
+      state: "ready",
+      refreshedAt: "2026-09-01T00:00:00.000Z",
+      workflowRules: null,
+    });
     const r = await rovoWorkflowImpact({ name: "On Hold" }, ctx());
     expect(r.workflowsChecked).toBe(false);
     expect(r.verdict).toBe("unknown");
@@ -9404,13 +11114,38 @@ describe("rovo workflow agent", () => {
   test("status detail: the drawer's read, with transitions in both directions and the restrictions on it", async () => {
     seedBuilt();
     mocks.loadTransitionsTouchingStatus.mockResolvedValueOnce([
-      { workflowName: "SSW", transitionId: "11", transitionName: "Review", transitionType: "DIRECTED", fromStatusIds: ["1"], toStatusId: "2", ruleCount: 2 },
-      { workflowName: "SSW", transitionId: "12", transitionName: "Back", transitionType: "GLOBAL", fromStatusIds: [], toStatusId: "1", ruleCount: 0 },
+      {
+        workflowName: "SSW",
+        transitionId: "11",
+        transitionName: "Review",
+        transitionType: "DIRECTED",
+        fromStatusIds: ["1"],
+        toStatusId: "2",
+        ruleCount: 2,
+      },
+      {
+        workflowName: "SSW",
+        transitionId: "12",
+        transitionName: "Back",
+        transitionType: "GLOBAL",
+        fromStatusIds: [],
+        toStatusId: "1",
+        ruleCount: 0,
+      },
     ]);
-    mocks.loadStatusWorkflowProperties.mockResolvedValueOnce([{ workflowName: "SSW", key: "jira.issue.editable", value: "false" }]);
+    mocks.loadStatusWorkflowProperties.mockResolvedValueOnce([
+      { workflowName: "SSW", key: "jira.issue.editable", value: "false" },
+    ]);
 
     const r = await getStatusDetail({ payload: { statusId: "2" }, context: ctxWithAccount() });
-    expect(r).toMatchObject({ available: true, found: true, status: { statusId: "2", name: "In Review" }, schemeCount: 1, workflows: ["SSW"], verdict: "in-use" });
+    expect(r).toMatchObject({
+      available: true,
+      found: true,
+      status: { statusId: "2", name: "In Review" },
+      schemeCount: 1,
+      workflows: ["SSW"],
+      verdict: "in-use",
+    });
     expect(r.transitions).toEqual([
       expect.objectContaining({ name: "Review", direction: "into", from: ["To Do"], to: "In Review", ruleCount: 2 }),
       expect.objectContaining({ name: "Back", direction: "out", from: ["Any status"], to: "To Do" }),
@@ -9421,9 +11156,15 @@ describe("rovo workflow agent", () => {
 
   test("status detail: unknown status and no snapshot are different answers", async () => {
     seedBuilt();
-    expect(await getStatusDetail({ payload: { statusId: "404" }, context: ctxWithAccount() })).toMatchObject({ available: true, found: false });
+    expect(await getStatusDetail({ payload: { statusId: "404" }, context: ctxWithAccount() })).toMatchObject({
+      available: true,
+      found: false,
+    });
     mocks.readWorkflowSnapshotMeta.mockResolvedValue({ state: "idle" });
-    expect(await getStatusDetail({ payload: { statusId: "2" }, context: ctxWithAccount() })).toEqual({ available: false, reason: "no-snapshot" });
+    expect(await getStatusDetail({ payload: { statusId: "2" }, context: ctxWithAccount() })).toEqual({
+      available: false,
+      reason: "no-snapshot",
+    });
   });
 
   test("impact: a status no board column maps and no filter references is still in-use when a board column DOES map it", async () => {
@@ -9448,7 +11189,9 @@ describe("rovo workflow agent", () => {
     expect(r.referencingFilterCount).toBe(1);
     expect(r.referencingFilters).toEqual([{ id: "4001", name: "Everything On Hold" }]);
     expect(r.verdict).toBe("in-use");
-    expect(r.blockers).toEqual([expect.objectContaining({ source: "filters", summary: expect.stringContaining("Everything On Hold") })]);
+    expect(r.blockers).toEqual([
+      expect.objectContaining({ source: "filters", summary: expect.stringContaining("Everything On Hold") }),
+    ]);
   });
 
   test("impact: no board inventory downgrades to unknown, never a false no-evidence, even at zero blockers", async () => {
@@ -9499,7 +11242,6 @@ describe("rovo workflow agent", () => {
   });
 });
 
-
 // ---------------------------------------------------------------------------
 // Rovo issue type agent
 // ---------------------------------------------------------------------------
@@ -9507,7 +11249,11 @@ describe("rovo issue type agent", () => {
   const ctx = () => ctxWithAccount();
 
   function seed() {
-    mocks.readIssueTypeSnapshotMeta.mockResolvedValue({ version: "v3", state: "ready", refreshedAt: "2026-09-02T00:00:00.000Z" });
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValue({
+      version: "v3",
+      state: "ready",
+      refreshedAt: "2026-09-02T00:00:00.000Z",
+    });
     mocks.loadIssueTypes.mockResolvedValue([
       { id: "10", name: "Bug", hierarchyLevel: 0, subtask: false, description: "a defect" },
       { id: "11", name: "Change Request", hierarchyLevel: 0, subtask: false, description: "" },
@@ -9518,7 +11264,8 @@ describe("rovo issue type agent", () => {
       { schemeId: "s2", name: "Ops Scheme", isDefault: false },
     ]);
     mocks.loadIssueTypeSchemeItems.mockResolvedValue([
-      { schemeId: "s1", issueTypeId: "10" }, { schemeId: "s1", issueTypeId: "11" },
+      { schemeId: "s1", issueTypeId: "10" },
+      { schemeId: "s1", issueTypeId: "11" },
     ]);
     mocks.loadIssueTypeSchemeProjects.mockResolvedValue([
       { schemeId: "s1", projectId: "1", projectKey: "ABC", projectName: "Alpha" },
@@ -9575,7 +11322,11 @@ describe("rovo access agent", () => {
   const ctx = () => ctxWithAccount();
 
   function seed() {
-    mocks.readAccessSnapshotMeta.mockResolvedValue({ version: "v2", state: "ready", refreshedAt: "2026-09-03T00:00:00.000Z" });
+    mocks.readAccessSnapshotMeta.mockResolvedValue({
+      version: "v2",
+      state: "ready",
+      refreshedAt: "2026-09-03T00:00:00.000Z",
+    });
     mocks.readUserSnapshotMeta.mockResolvedValue(null);
     mocks.loadSchemes.mockImplementation(async (_k, _v, family) => {
       if (family === "permission") return [{ id: "p1", name: "Default Permission Scheme", description: "" }];
@@ -9586,11 +11337,33 @@ describe("rovo access agent", () => {
       // The real stored shape (store/access.js loadSchemeHolders). These fixtures used to
       // carry holderName, permission and offRoster, matching what the agent wrongly read,
       // which is how a resolver returning null grants passed its tests.
-      if (family === "permission") return [
-        { schemeId: "p1", context: "ADMINISTER_PROJECTS", contextLabel: "Administer Projects", holderType: "group", holderValue: "grp-1", holderLabel: "jira-administrators" },
-        { schemeId: "p1", context: "BROWSE_PROJECTS", contextLabel: "Browse Projects", holderType: "anyone", holderValue: "", holderLabel: null },
-        { schemeId: "p1", context: "BROWSE_PROJECTS", contextLabel: "Browse Projects", holderType: "user", holderValue: "acc-gone", holderLabel: "Sam Gone" },
-      ];
+      if (family === "permission")
+        return [
+          {
+            schemeId: "p1",
+            context: "ADMINISTER_PROJECTS",
+            contextLabel: "Administer Projects",
+            holderType: "group",
+            holderValue: "grp-1",
+            holderLabel: "jira-administrators",
+          },
+          {
+            schemeId: "p1",
+            context: "BROWSE_PROJECTS",
+            contextLabel: "Browse Projects",
+            holderType: "anyone",
+            holderValue: "",
+            holderLabel: null,
+          },
+          {
+            schemeId: "p1",
+            context: "BROWSE_PROJECTS",
+            contextLabel: "Browse Projects",
+            holderType: "user",
+            holderValue: "acc-gone",
+            holderLabel: "Sam Gone",
+          },
+        ];
       return [];
     });
     mocks.loadSchemeProjects.mockResolvedValue([{ schemeId: "p1", projectId: "1" }]);
@@ -9623,7 +11396,11 @@ describe("rovo access agent", () => {
     expect(r.family).toBe("permissions");
     expect(r.holderCount).toBe(3);
     expect(r.holders.map((h) => h.value)).toContain("jira-administrators");
-    expect(r.holders.find((h) => h.value === "jira-administrators")).toMatchObject({ id: "grp-1", permission: "Administer Projects", offRoster: false });
+    expect(r.holders.find((h) => h.value === "jira-administrators")).toMatchObject({
+      id: "grp-1",
+      permission: "Administer Projects",
+      offRoster: false,
+    });
   });
 
   test("inspect: a user holder is off-roster when the people snapshot does not list them", async () => {
@@ -9651,7 +11428,12 @@ describe("rovo access agent", () => {
     seed();
     const r = await rovoAccessImpact({ name: "jira-administrators" }, ctx());
     expect(r.verdict).toBe("named-in-schemes");
-    expect(r.namedIn[0]).toMatchObject({ family: "permissions", as: "group", holder: "jira-administrators", grants: "Administer Projects" });
+    expect(r.namedIn[0]).toMatchObject({
+      family: "permissions",
+      as: "group",
+      holder: "jira-administrators",
+      grants: "Administer Projects",
+    });
     expect(r.verdictCaveat).toMatch(/global permissions/);
   });
 
@@ -9676,13 +11458,23 @@ describe("rovo people agent", () => {
   const ctx = () => ctxWithAccount();
 
   function seedRoster() {
-    mocks.readUserSnapshotMeta.mockResolvedValue({ state: "ready", version: "u1", refreshedAt: "2026-09-03T00:00:00.000Z" });
+    mocks.readUserSnapshotMeta.mockResolvedValue({
+      state: "ready",
+      version: "u1",
+      refreshedAt: "2026-09-03T00:00:00.000Z",
+    });
     mocks.readSnapshotMeta.mockResolvedValue(null);
     mocks.readAccessSnapshotMeta.mockResolvedValue(null);
     mocks.readAutomationPart.mockResolvedValue(null);
     mocks.loadSchemesGrantingHolder.mockResolvedValue([]);
     mocks.loadUsers.mockResolvedValue([
-      { accountId: "acc-1", displayName: "Dana Ops", active: true, groups: [{ id: "g1", name: "ops-team" }], applications: ["jira-software"] },
+      {
+        accountId: "acc-1",
+        displayName: "Dana Ops",
+        active: true,
+        groups: [{ id: "g1", name: "ops-team" }],
+        applications: ["jira-software"],
+      },
       { accountId: "acc-2", displayName: "Sam Gone", active: false, groups: [], applications: [] },
     ]);
     mocks.loadUserGovernanceSummary.mockResolvedValue({ totalUsers: 2, activeUsers: 1 });
@@ -9744,7 +11536,9 @@ describe("rovo people agent", () => {
     mocks.readAccessSnapshotMeta.mockResolvedValue({ version: "a1" });
     mocks.loadSchemesGrantingHolder.mockImplementation((_i, _v, holderType, holderValue) => {
       if (holderType === "group" && holderValue === "g1") {
-        return Promise.resolve([{ schemeType: "permission", schemeId: "1", schemeName: "Prod", context: "ADMINISTER_PROJECTS" }]);
+        return Promise.resolve([
+          { schemeType: "permission", schemeId: "1", schemeName: "Prod", context: "ADMINISTER_PROJECTS" },
+        ]);
       }
       return Promise.resolve([]);
     });
@@ -9761,13 +11555,24 @@ describe("rovo people agent", () => {
     mocks.readSnapshotMeta.mockResolvedValue(null);
     mocks.readAutomationPart.mockResolvedValue(null);
     mocks.loadUsers.mockResolvedValue([
-      { accountId: "acc-1", displayName: "Dana Ops", active: true, groups: [{ id: "g1", name: "ops-team" }, { id: "g2", name: "ops-leads" }], applications: [] },
+      {
+        accountId: "acc-1",
+        displayName: "Dana Ops",
+        active: true,
+        groups: [
+          { id: "g1", name: "ops-team" },
+          { id: "g2", name: "ops-leads" },
+        ],
+        applications: [],
+      },
     ]);
     mocks.loadUserGovernanceSummary.mockResolvedValue({ totalUsers: 1, activeUsers: 1 });
     mocks.readAccessSnapshotMeta.mockResolvedValue({ version: "a1" });
     mocks.loadSchemesGrantingHolder.mockImplementation((_i, _v, holderType) => {
       if (holderType === "group") {
-        return Promise.resolve([{ schemeType: "permission", schemeId: "1", schemeName: "Prod", context: "ADMINISTER_PROJECTS" }]);
+        return Promise.resolve([
+          { schemeType: "permission", schemeId: "1", schemeName: "Prod", context: "ADMINISTER_PROJECTS" },
+        ]);
       }
       return Promise.resolve([]);
     });
@@ -9794,8 +11599,15 @@ describe("rovo assets agent", () => {
   const ctx = () => ctxWithAccount();
 
   function seed() {
-    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "ready", version: "as1", assetsEnabled: true, refreshedAt: "2026-09-02T00:00:00.000Z" });
-    mocks.loadAssetSchemas.mockResolvedValue([{ id: "1", name: "Infrastructure", objectSchemaKey: "INFRA", objectTypeCount: 2 }]);
+    mocks.readAssetSnapshotMeta.mockResolvedValue({
+      state: "ready",
+      version: "as1",
+      assetsEnabled: true,
+      refreshedAt: "2026-09-02T00:00:00.000Z",
+    });
+    mocks.loadAssetSchemas.mockResolvedValue([
+      { id: "1", name: "Infrastructure", objectSchemaKey: "INFRA", objectTypeCount: 2 },
+    ]);
     mocks.loadAssetObjectTypes.mockResolvedValue([
       { id: "9", objectSchemaId: "1", name: "Server", parentObjectTypeId: null },
       { id: "10", objectSchemaId: "1", name: "Rack", parentObjectTypeId: "9" },
@@ -9854,12 +11666,21 @@ describe("rovo estate agent", () => {
   const ctx = () => ctxWithAccount();
 
   function seed() {
-    mocks.readEstateSnapshotMeta.mockResolvedValue({ state: "ready", version: "e1", refreshedAt: "2026-09-03T00:00:00.000Z" });
+    mocks.readEstateSnapshotMeta.mockResolvedValue({
+      state: "ready",
+      version: "e1",
+      refreshedAt: "2026-09-03T00:00:00.000Z",
+    });
     mocks.loadEstateValues.mockImplementation(async (_k, _v, kind) => {
-      if (kind === "resolution") return [
-        { id: "1", name: "Done", isDefault: true }, { id: "2", name: "Fixed", isDefault: false },
+      if (kind === "resolution")
+        return [
+          { id: "1", name: "Done", isDefault: true },
+          { id: "2", name: "Fixed", isDefault: false },
+        ];
+      return [
+        { id: "1", name: "High", isDefault: false },
+        { id: "2", name: "Low", isDefault: false },
       ];
-      return [{ id: "1", name: "High", isDefault: false }, { id: "2", name: "Low", isDefault: false }];
     });
   }
 
@@ -9899,11 +11720,25 @@ describe("rovo screen agent", () => {
   const ctx = () => ctxWithAccount();
 
   function seed() {
-    mocks.readScreenSnapshotMeta.mockResolvedValue({ state: "ready", version: "sv1", refreshedAt: "2026-09-02T00:00:00.000Z" });
-    mocks.loadScreensPage.mockResolvedValue({ total: 2, rows: [
-      { screenId: "100", name: "Default Create Screen", fieldCount: 30, tabCount: 2, projectCount: 40, tabs: [{ name: "Field Tab", fields: [1, 2] }] },
-      { screenId: "101", name: "Bug Screen", fieldCount: 12, tabCount: 1, projectCount: 3 },
-    ] });
+    mocks.readScreenSnapshotMeta.mockResolvedValue({
+      state: "ready",
+      version: "sv1",
+      refreshedAt: "2026-09-02T00:00:00.000Z",
+    });
+    mocks.loadScreensPage.mockResolvedValue({
+      total: 2,
+      rows: [
+        {
+          screenId: "100",
+          name: "Default Create Screen",
+          fieldCount: 30,
+          tabCount: 2,
+          projectCount: 40,
+          tabs: [{ name: "Field Tab", fields: [1, 2] }],
+        },
+        { screenId: "101", name: "Bug Screen", fieldCount: 12, tabCount: 1, projectCount: 3 },
+      ],
+    });
     mocks.loadScreenSchemes.mockResolvedValue([{ id: "5", name: "Default Screen Scheme" }]);
     mocks.loadScreenSchemeOperations.mockResolvedValue([
       { schemeId: "5", schemeName: "Default Screen Scheme", operation: "default", screenId: "100" },
@@ -9960,11 +11795,37 @@ describe("rovo change agent", () => {
   const ctx = () => ctxWithAccount();
 
   function seed() {
-    mocks.readDriftSnapshotMeta.mockResolvedValue({ state: "ready", version: "dv1", refreshedAt: "2026-09-03T00:00:00.000Z", totalChanges: 3 });
+    mocks.readDriftSnapshotMeta.mockResolvedValue({
+      state: "ready",
+      version: "dv1",
+      refreshedAt: "2026-09-03T00:00:00.000Z",
+      totalChanges: 3,
+    });
     mocks.loadConfigChanges.mockResolvedValue([
-      { detectedAt: "2026-09-03", pillar: "workflows", entityType: "status", label: "In Review", changeKind: "modified", summary: "category changed" },
-      { detectedAt: "2026-09-02", pillar: "access", entityType: "scheme", label: "Default Permission Scheme", changeKind: "modified", summary: "holder added" },
-      { detectedAt: "2026-08-20", pillar: "workflows", entityType: "status", label: "In Review", changeKind: "added", summary: "created" },
+      {
+        detectedAt: "2026-09-03",
+        pillar: "workflows",
+        entityType: "status",
+        label: "In Review",
+        changeKind: "modified",
+        summary: "category changed",
+      },
+      {
+        detectedAt: "2026-09-02",
+        pillar: "access",
+        entityType: "scheme",
+        label: "Default Permission Scheme",
+        changeKind: "modified",
+        summary: "holder added",
+      },
+      {
+        detectedAt: "2026-08-20",
+        pillar: "workflows",
+        entityType: "status",
+        label: "In Review",
+        changeKind: "added",
+        summary: "created",
+      },
     ]);
   }
 
@@ -10067,7 +11928,11 @@ describe("rovo project agent", () => {
   test("inspect: reports the workflow scheme, roles and name the overview holds", async () => {
     seedProjects();
     mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "w1" });
-    mocks.loadWorkflowSchemeForProject.mockResolvedValueOnce({ schemeId: "ws1", name: "Software Simplified", description: "" });
+    mocks.loadWorkflowSchemeForProject.mockResolvedValueOnce({
+      schemeId: "ws1",
+      name: "Software Simplified",
+      description: "",
+    });
     mocks.readAccessSnapshotMeta.mockResolvedValue({ version: "a1" });
     mocks.loadProjectSchemes.mockResolvedValueOnce([]);
     mocks.loadProjectRoleActors.mockResolvedValueOnce([
@@ -10086,7 +11951,10 @@ describe("rovo project agent", () => {
     seedProjects();
     mocks.getBrowsableProjectIds.mockResolvedValue(new Set());
     mocks.attachUniqueIssueCounts?.mockImplementation?.(async (_k, rows) => rows);
-    const r = await rovoProjectInspect({ projectId: "10", projectKey: "ABC" }, { installContext: "ari:cloud:jira::site/x" });
+    const r = await rovoProjectInspect(
+      { projectId: "10", projectKey: "ABC" },
+      { installContext: "ari:cloud:jira::site/x" },
+    );
     // getProjectOverview no longer short-circuits to not-authorised; it proceeds to build.
     expect(r.status).not.toBe("not-authorised");
   });
@@ -10096,10 +11964,32 @@ describe("rovo boards agent", () => {
   const ctx = () => ctxWithAccount();
 
   function seedBoards() {
-    mocks.readBoardSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", refreshedAt: "2026-09-09T00:00:00Z" });
+    mocks.readBoardSnapshotMeta.mockResolvedValue({
+      state: "ready",
+      version: "v1",
+      refreshedAt: "2026-09-09T00:00:00Z",
+    });
     mocks.loadBoards.mockResolvedValue([
-      { boardId: "1", name: "PT2 Scrum", type: "scrum", locationType: "project", locationKey: "PT2", filterId: "4001", configReadable: true, columnCount: 2 },
-      { boardId: "2", name: "Kanban Wall", type: "kanban", locationType: "project", locationKey: "AAA", filterId: null, configReadable: true, columnCount: 1 },
+      {
+        boardId: "1",
+        name: "PT2 Scrum",
+        type: "scrum",
+        locationType: "project",
+        locationKey: "PT2",
+        filterId: "4001",
+        configReadable: true,
+        columnCount: 2,
+      },
+      {
+        boardId: "2",
+        name: "Kanban Wall",
+        type: "kanban",
+        locationType: "project",
+        locationKey: "AAA",
+        filterId: null,
+        configReadable: true,
+        columnCount: 1,
+      },
     ]);
     mocks.loadBoardColumns.mockResolvedValue([
       { boardId: "1", index: 0, name: "To Do", statusIds: ["10"] },
@@ -10199,7 +12089,16 @@ describe("rovo agents: edge branches", () => {
   const ctx = () => ctxWithAccount();
 
   test("every search action rejects an empty query", async () => {
-    for (const fn of [rovoWorkflowSearch, rovoIssueTypeSearch, rovoAccessSearch, rovoPeopleSearch, rovoAssetSearch, rovoEstateSearch, rovoScreenSearch, rovoProjectSearch]) {
+    for (const fn of [
+      rovoWorkflowSearch,
+      rovoIssueTypeSearch,
+      rovoAccessSearch,
+      rovoPeopleSearch,
+      rovoAssetSearch,
+      rovoEstateSearch,
+      rovoScreenSearch,
+      rovoProjectSearch,
+    ]) {
       const r = await fn({ query: "" }, ctx());
       expect(r.status).toBe("error");
     }
@@ -10259,7 +12158,10 @@ describe("rovo agents: edge branches", () => {
   test("estate inspect: list=resolutions omits priorities", async () => {
     mocks.readEstateSnapshotMeta.mockResolvedValue({ state: "ready", version: "e", refreshedAt: "t" });
     mocks.loadEstateValues.mockImplementation(async (_k, _v, kind) =>
-      kind === "resolution" ? [{ id: "1", name: "Done", isDefault: false }] : [{ id: "1", name: "High", isDefault: true }]);
+      kind === "resolution"
+        ? [{ id: "1", name: "Done", isDefault: false }]
+        : [{ id: "1", name: "High", isDefault: true }],
+    );
     const r = await rovoEstateInspect({ list: "resolutions" }, ctx());
     expect(r).not.toHaveProperty("priorities");
     expect(r.resolutions.hasDefault).toBe(false);
@@ -10329,11 +12231,22 @@ describe("rovo agents: more edge branches", () => {
     // A people snapshot that does not list acc-99, so the holder is off the roster.
     mocks.readUserSnapshotMeta.mockResolvedValue({ version: "u1" });
     mocks.loadUsers.mockResolvedValue([{ accountId: "acc-1", active: true }]);
-    mocks.loadSchemes.mockImplementation(async (_k, _v, f) => f === "permission" ? [{ id: "p1", name: "PS" }] : []);
+    mocks.loadSchemes.mockImplementation(async (_k, _v, f) => (f === "permission" ? [{ id: "p1", name: "PS" }] : []));
     // The stored row shape: the account is holderValue, the grant is context/contextLabel.
-    mocks.loadSchemeHolders.mockImplementation(async (_k, _v, f) => f === "permission"
-      ? [{ schemeId: "p1", context: "ADMINISTER_PROJECTS", contextLabel: "Administer Projects", holderType: "user", holderValue: "acc-99", holderLabel: "Someone" }]
-      : []);
+    mocks.loadSchemeHolders.mockImplementation(async (_k, _v, f) =>
+      f === "permission"
+        ? [
+            {
+              schemeId: "p1",
+              context: "ADMINISTER_PROJECTS",
+              contextLabel: "Administer Projects",
+              holderType: "user",
+              holderValue: "acc-99",
+              holderLabel: "Someone",
+            },
+          ]
+        : [],
+    );
     mocks.loadSchemeProjects.mockResolvedValue([]);
     mocks.loadSchemeLevels.mockResolvedValue([]);
     const r = await rovoAccessImpact({ name: "acc-99" }, ctx());
@@ -10354,12 +12267,22 @@ describe("rovo agents: more edge branches", () => {
   test("change search: pillar and kind filters are forwarded to the loader", async () => {
     mocks.readDriftSnapshotMeta.mockResolvedValue({ state: "ready", version: "d", refreshedAt: "t", totalChanges: 1 });
     mocks.loadConfigChanges.mockResolvedValue([
-      { detectedAt: "2026-09-01", pillar: "access", entityType: "scheme", label: "PS", changeKind: "modified", summary: "x" },
+      {
+        detectedAt: "2026-09-01",
+        pillar: "access",
+        entityType: "scheme",
+        label: "PS",
+        changeKind: "modified",
+        summary: "x",
+      },
     ]);
     const r = await rovoChangeSearch({ pillar: "access", kind: "modified" }, ctx());
     expect(r.pillar).toBe("access");
     expect(r.kind).toBe("modified");
-    expect(mocks.loadConfigChanges).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ pillar: "access", kind: "modified" }));
+    expect(mocks.loadConfigChanges).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ pillar: "access", kind: "modified" }),
+    );
   });
 
   test("project inspect: resolves a projectKey from the browsable set and returns the overview shape", async () => {
@@ -10374,7 +12297,12 @@ describe("rovo agents: more edge branches", () => {
   });
 
   test("asset search: kind=schema and kind=type each suppress the other list", async () => {
-    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "ready", version: "a", assetsEnabled: true, refreshedAt: "t" });
+    mocks.readAssetSnapshotMeta.mockResolvedValue({
+      state: "ready",
+      version: "a",
+      assetsEnabled: true,
+      refreshedAt: "t",
+    });
     mocks.loadAssetSchemas.mockResolvedValue([{ id: "1", name: "Infra Schema" }]);
     mocks.loadAssetObjectTypes.mockResolvedValue([{ id: "9", objectSchemaId: "1", name: "Infra Node" }]);
     mocks.loadAssetAttributes.mockResolvedValue([]);
@@ -10385,7 +12313,8 @@ describe("rovo agents: more edge branches", () => {
   test("estate search: kind filters", async () => {
     mocks.readEstateSnapshotMeta.mockResolvedValue({ state: "ready", version: "e", refreshedAt: "t" });
     mocks.loadEstateValues.mockImplementation(async (_k, _v, kind) =>
-      kind === "resolution" ? [{ id: "1", name: "Done" }] : [{ id: "1", name: "Done" }]);
+      kind === "resolution" ? [{ id: "1", name: "Done" }] : [{ id: "1", name: "Done" }],
+    );
     expect((await rovoEstateSearch({ query: "done", kind: "resolution" }, ctx())).priorities).toEqual([]);
     expect((await rovoEstateSearch({ query: "done", kind: "priority" }, ctx())).resolutions).toEqual([]);
   });
@@ -10406,11 +12335,13 @@ describe("the screen cross-signal", () => {
       { projectId: "10", fieldId: "cf_1", onCreate: true, onEdit: true, onView: true },
     ]);
     mocks.loadPopulatedProjectUsage.mockResolvedValue({
-      truncated: false, limit: 20000,
+      truncated: false,
+      limit: 20000,
       rows: [{ fieldId: "cf_2", projectId: "10", projectKey: "OPS", projectName: "Ops", issueCount: 480 }],
     });
     mocks.loadSnapshotFields.mockResolvedValue([
-      { id: "cf_1", name: "Story Points" }, { id: "cf_2", name: "Vendor Ref" },
+      { id: "cf_1", name: "Story Points" },
+      { id: "cf_2", name: "Vendor Ref" },
     ]);
     // Reset per test: clearAllMocks keeps implementations, and one test sets its own.
     mocks.loadPopulatedFieldProjectPairs.mockResolvedValue({ pairs: new Set(["10|cf_2"]), complete: true });
@@ -10448,7 +12379,8 @@ describe("the screen cross-signal", () => {
       ready();
       // cf_1 holds 3 issues in project 10: populated above a floor of 0, not above 10.
       mocks.loadPopulatedFieldProjectPairs.mockImplementation(async (_key, _version, { minIssues = 0 } = {}) => ({
-        pairs: new Set(minIssues < 3 ? ["10|cf_1", "10|cf_2"] : ["10|cf_2"]), complete: true,
+        pairs: new Set(minIssues < 3 ? ["10|cf_1", "10|cf_2"] : ["10|cf_2"]),
+        complete: true,
       }));
 
       const strict = await getScreenFieldCrossSignal({ payload: {}, ...ctx });
@@ -10467,7 +12399,10 @@ describe("the screen cross-signal", () => {
       mocks.loadFieldReachabilityByProject.mockResolvedValue([
         { projectId: "10", fieldId: "summary", onCreate: true, onEdit: true, onView: true },
       ]);
-      mocks.loadSnapshotFields.mockResolvedValue([{ id: "summary", name: "Summary" }, { id: "cf_2", name: "Vendor Ref" }]);
+      mocks.loadSnapshotFields.mockResolvedValue([
+        { id: "summary", name: "Summary" },
+        { id: "cf_2", name: "Vendor Ref" },
+      ]);
 
       const result = await getScreenFieldCrossSignal({ payload: {}, ...ctx });
       expect(result.formClutter).toEqual([]);
@@ -10475,7 +12410,10 @@ describe("the screen cross-signal", () => {
 
     test("reads filled pairs from the complete read, not the capped usage rows", async () => {
       ready();
-      mocks.loadPopulatedFieldProjectPairs.mockResolvedValueOnce({ pairs: new Set(["10|cf_1", "10|cf_2"]), complete: true });
+      mocks.loadPopulatedFieldProjectPairs.mockResolvedValueOnce({
+        pairs: new Set(["10|cf_1", "10|cf_2"]),
+        complete: true,
+      });
 
       const result = await getScreenFieldCrossSignal({ payload: {}, ...ctx });
       expect(result.counts.clutterPlacements).toBe(0);
@@ -10499,11 +12437,14 @@ describe("the screen cross-signal", () => {
       const result = await computeAndStoreScreenCross("inst");
 
       expect(result.available).toBe(true);
-      expect(mocks.writeScreenCrossSummary).toHaveBeenCalledWith("inst", expect.objectContaining({
-        // Both versions, because the summary is only current while both still hold.
-        screenVersion: "s1",
-        fieldVersion: "f1",
-      }));
+      expect(mocks.writeScreenCrossSummary).toHaveBeenCalledWith(
+        "inst",
+        expect.objectContaining({
+          // Both versions, because the summary is only current while both still hold.
+          screenVersion: "s1",
+          fieldVersion: "f1",
+        }),
+      );
     });
 
     test("stores nothing when the cross could not be computed", async () => {
@@ -10548,7 +12489,11 @@ describe("getIssueTypeInventory — usage measurement", () => {
 
   const ready = () => {
     mocks.readIssueTypeSnapshotMeta.mockResolvedValue({
-      state: "ready", version: "t1", totalTypes: 2, totalSchemes: 1, refreshedAt: "2026-09-11T00:00:00.000Z",
+      state: "ready",
+      version: "t1",
+      totalTypes: 2,
+      totalSchemes: 1,
+      refreshedAt: "2026-09-11T00:00:00.000Z",
     });
     mocks.loadIssueTypes.mockResolvedValue([
       { id: "10001", name: "Bug", hierarchyLevel: 0 },
@@ -10564,7 +12509,9 @@ describe("getIssueTypeInventory — usage measurement", () => {
   test("attaches real counts once a crawl has completed", async () => {
     ready();
     mocks.readIssueScanMeta.mockResolvedValue({ state: "ready", completedAt: "2026-09-10T00:00:00.000Z" });
-    mocks.loadIssueTypeTotals.mockResolvedValue([{ issueTypeId: "10001", issueTypeName: "Bug", issueCount: 4820, projectCount: 12 }]);
+    mocks.loadIssueTypeTotals.mockResolvedValue([
+      { issueTypeId: "10001", issueTypeName: "Bug", issueCount: 4820, projectCount: 12 },
+    ]);
 
     const result = await getIssueTypeInventory({ payload: {}, ...ctx });
 
@@ -10589,7 +12536,9 @@ describe("getIssueTypeInventory — usage measurement", () => {
   test("calls a half-finished crawl partial, so a missing type reads as not-reached", async () => {
     ready();
     mocks.readIssueScanMeta.mockResolvedValue({ state: "building" });
-    mocks.loadIssueTypeTotals.mockResolvedValue([{ issueTypeId: "10001", issueTypeName: "Bug", issueCount: 40, projectCount: 1 }]);
+    mocks.loadIssueTypeTotals.mockResolvedValue([
+      { issueTypeId: "10001", issueTypeName: "Bug", issueCount: 40, projectCount: 1 },
+    ]);
 
     const result = await getIssueTypeInventory({ payload: {}, ...ctx });
 
@@ -10613,7 +12562,9 @@ describe("getIssueTypeInventory — usage measurement", () => {
   test("carries the counts onto the hierarchy view as well as the flat catalogue", async () => {
     ready();
     mocks.readIssueScanMeta.mockResolvedValue({ state: "ready" });
-    mocks.loadIssueTypeTotals.mockResolvedValue([{ issueTypeId: "10001", issueTypeName: "Bug", issueCount: 7, projectCount: 1 }]);
+    mocks.loadIssueTypeTotals.mockResolvedValue([
+      { issueTypeId: "10001", issueTypeName: "Bug", issueCount: 7, projectCount: 1 },
+    ]);
 
     const result = await getIssueTypeInventory({ payload: {}, ...ctx });
 
@@ -10644,9 +12595,17 @@ describe("getDeletionSafety", () => {
     mocks.loadPopulatedProjectUsage.mockResolvedValue({ rows: [], truncated: false, limit: 20000 });
     mocks.readAutomationAnalysis.mockResolvedValue({ schemaVersion: 1, refreshedAt: Date.now() - 86400000 });
     mocks.readAutomationPart.mockImplementation((_k, part) =>
-      Promise.resolve(part === "fields" ? { total: 0, entries: [] } : null));
-    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "w1", workflowRules: 12, refreshedAt: "2026-10-05T00:00:00.000Z" });
-    mocks.loadStatusesCatalog.mockResolvedValue([{ statusId: "3", name: "In Review" }, { statusId: "4", name: "Approved" }]);
+      Promise.resolve(part === "fields" ? { total: 0, entries: [] } : null),
+    );
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({
+      version: "w1",
+      workflowRules: 12,
+      refreshedAt: "2026-10-05T00:00:00.000Z",
+    });
+    mocks.loadStatusesCatalog.mockResolvedValue([
+      { statusId: "3", name: "In Review" },
+      { statusId: "4", name: "Approved" },
+    ]);
     mocks.loadWorkflowRefsFor.mockResolvedValue([]);
   };
 
@@ -10677,9 +12636,12 @@ describe("getDeletionSafety", () => {
   test("blocks on a rule that writes the field", async () => {
     everything();
     mocks.readAutomationPart.mockImplementation((_k, part) =>
-      Promise.resolve(part === "fields"
-        ? { total: 1, entries: [{ label: "Vendor Ref", writeCount: 2, readCount: 0, triggerCount: 0 }] }
-        : null));
+      Promise.resolve(
+        part === "fields"
+          ? { total: 1, entries: [{ label: "Vendor Ref", writeCount: 2, readCount: 0, triggerCount: 0 }] }
+          : null,
+      ),
+    );
 
     const result = await getDeletionSafety({ payload: { fieldIds: ["customfield_1"] }, ...ctx });
 
@@ -10689,12 +12651,24 @@ describe("getDeletionSafety", () => {
 
   test("blocks on a workflow validator that names the field, and says where", async () => {
     everything();
-    mocks.loadWorkflowRefsFor.mockResolvedValueOnce([{
-      refType: "field", refId: "customfield_1", workflowName: "Build WF", source: "rule",
-      ownerKind: "transition", ownerId: "21", ruleSeq: 0, transitionName: "Approve",
-      transitionType: "DIRECTED", fromStatusIds: ["3"], toStatusId: "4",
-      ruleKind: "validator", ruleKey: "system:validate-field-value", summary: "fieldRequired",
-    }]);
+    mocks.loadWorkflowRefsFor.mockResolvedValueOnce([
+      {
+        refType: "field",
+        refId: "customfield_1",
+        workflowName: "Build WF",
+        source: "rule",
+        ownerKind: "transition",
+        ownerId: "21",
+        ruleSeq: 0,
+        transitionName: "Approve",
+        transitionType: "DIRECTED",
+        fromStatusIds: ["3"],
+        toStatusId: "4",
+        ruleKind: "validator",
+        ruleKey: "system:validate-field-value",
+        summary: "fieldRequired",
+      },
+    ]);
 
     const result = await getDeletionSafety({ payload: { fieldIds: ["customfield_1"] }, ...ctx });
 
@@ -10762,7 +12736,8 @@ describe("getDeletionSafety — gathering evidence", () => {
     mocks.loadPopulatedProjectUsage.mockResolvedValue({ rows: [], truncated: false, limit: 20000 });
     mocks.readAutomationAnalysis.mockResolvedValue({ schemaVersion: 1, refreshedAt: Date.now() - 86400000 });
     mocks.readAutomationPart.mockImplementation((_k, part) =>
-      Promise.resolve(part === "fields" ? { total: 0, entries: [] } : null));
+      Promise.resolve(part === "fields" ? { total: 0, entries: [] } : null),
+    );
   };
 
   const first = async () => (await getDeletionSafety({ payload: { fieldIds: ["customfield_1"] }, ...ctx })).fields[0];
@@ -10800,7 +12775,8 @@ describe("getDeletionSafety — gathering evidence", () => {
       { projectId: "10", fieldId: "customfield_9", onCreate: true, onEdit: false, onView: true },
     ]);
     mocks.loadPopulatedProjectUsage.mockResolvedValue({
-      truncated: false, limit: 20000,
+      truncated: false,
+      limit: 20000,
       rows: [{ fieldId: "customfield_1", projectId: "10", projectKey: "OPS", issueCount: 480 }],
     });
 
@@ -10844,11 +12820,13 @@ describe("getDeletionSafety — one pillar failing never takes the verdict down"
     mocks.loadPopulatedProjectUsage.mockResolvedValue({ rows: [], truncated: false, limit: 20000 });
     mocks.readAutomationAnalysis.mockResolvedValue({ schemaVersion: 1, refreshedAt: Date.now() - 86400000 });
     mocks.readAutomationPart.mockImplementation((_k, part) =>
-      Promise.resolve(part === "fields" ? { total: 0, entries: [] } : null));
+      Promise.resolve(part === "fields" ? { total: 0, entries: [] } : null),
+    );
     mocks.loadDashboardsForFilterIds?.mockResolvedValue?.([]);
   };
 
-  const verdictFor = async () => (await getDeletionSafety({ payload: { fieldIds: ["customfield_1"] }, ...ctx })).fields[0];
+  const verdictFor = async () =>
+    (await getDeletionSafety({ payload: { fieldIds: ["customfield_1"] }, ...ctx })).fields[0];
 
   test.each([
     ["screens", () => mocks.loadScreensForField.mockRejectedValueOnce(new Error("boom")), "screens"],
@@ -10907,11 +12885,41 @@ describe("the macro's viewer-scoped pillars", () => {
       twoProjectsOneBrowsable();
       mocks.readScreenSnapshotMeta.mockResolvedValue({ version: "s1", refreshedAt: "2026-09-12T00:00:00.000Z" });
       mocks.loadScreensForProjects.mockResolvedValue([
-        { projectId: "10", screenId: "100", name: "Create", fieldCount: 34, tabCount: 2, tabsResolved: "resolved", onCreate: true, onEdit: false, onView: true },
-        { projectId: "10", screenId: "200", name: "Edit", fieldCount: 12, tabCount: 1, tabsResolved: "resolved", onCreate: false, onEdit: true, onView: false },
+        {
+          projectId: "10",
+          screenId: "100",
+          name: "Create",
+          fieldCount: 34,
+          tabCount: 2,
+          tabsResolved: "resolved",
+          onCreate: true,
+          onEdit: false,
+          onView: true,
+        },
+        {
+          projectId: "10",
+          screenId: "200",
+          name: "Edit",
+          fieldCount: 12,
+          tabCount: 1,
+          tabsResolved: "resolved",
+          onCreate: false,
+          onEdit: true,
+          onView: false,
+        },
         // A row for a project the viewer cannot browse. The query is asked only for browsable
         // ids, but the fold must not trust that -- one day somebody widens the query.
-        { projectId: "20", screenId: "300", name: "Secret", fieldCount: 9, tabCount: 1, tabsResolved: "resolved", onCreate: true, onEdit: false, onView: false },
+        {
+          projectId: "20",
+          screenId: "300",
+          name: "Secret",
+          fieldCount: 9,
+          tabCount: 1,
+          tabsResolved: "resolved",
+          onCreate: true,
+          onEdit: false,
+          onView: false,
+        },
       ]);
     });
 
@@ -10932,7 +12940,17 @@ describe("the macro's viewer-scoped pillars", () => {
 
     test("never reports a screen it could not read as having no fields", async () => {
       mocks.loadScreensForProjects.mockResolvedValue([
-        { projectId: "10", screenId: "100", name: "Create", fieldCount: 0, tabCount: 0, tabsResolved: "failed", onCreate: true, onEdit: false, onView: false },
+        {
+          projectId: "10",
+          screenId: "100",
+          name: "Create",
+          fieldCount: 0,
+          tabCount: 0,
+          tabsResolved: "failed",
+          onCreate: true,
+          onEdit: false,
+          onView: false,
+        },
       ]);
 
       const result = await getMacroScreens(ctx());
@@ -10993,9 +13011,36 @@ describe("the macro's viewer-scoped pillars", () => {
       twoProjectsOneBrowsable();
       mocks.readBoardSnapshotMeta.mockResolvedValue({ version: "b1", refreshedAt: "2026-09-12T00:00:00.000Z" });
       mocks.loadBoards.mockResolvedValue([
-        { boardId: "1", name: "My board", type: "scrum", locationType: "project", locationId: "10", locationKey: "MINE", columnCount: 4, configReadable: true },
-        { boardId: "2", name: "Their board", type: "kanban", locationType: "project", locationId: "20", locationKey: "THEIRS", columnCount: 3, configReadable: true },
-        { boardId: "3", name: "Team-managed", type: "kanban", locationType: "project", locationId: "10", locationKey: "MINE", columnCount: 0, configReadable: false },
+        {
+          boardId: "1",
+          name: "My board",
+          type: "scrum",
+          locationType: "project",
+          locationId: "10",
+          locationKey: "MINE",
+          columnCount: 4,
+          configReadable: true,
+        },
+        {
+          boardId: "2",
+          name: "Their board",
+          type: "kanban",
+          locationType: "project",
+          locationId: "20",
+          locationKey: "THEIRS",
+          columnCount: 3,
+          configReadable: true,
+        },
+        {
+          boardId: "3",
+          name: "Team-managed",
+          type: "kanban",
+          locationType: "project",
+          locationId: "10",
+          locationKey: "MINE",
+          columnCount: 0,
+          configReadable: false,
+        },
       ]);
     });
 
@@ -11016,8 +13061,14 @@ describe("the macro's viewer-scoped pillars", () => {
     // The whole point of the macro: a business user gets answers without being made an admin.
     // If one of these ever moves into the admin registry, this fails rather than the feature
     // silently disappearing for every non-admin who opens the page.
-    for (const name of ["getMacroScreens", "getMacroIssueTypes", "getMacroBoards",
-                        "getMacroFilters", "getMacroDashboards", "getMacroWorkflows"]) {
+    for (const name of [
+      "getMacroScreens",
+      "getMacroIssueTypes",
+      "getMacroBoards",
+      "getMacroFilters",
+      "getMacroDashboards",
+      "getMacroWorkflows",
+    ]) {
       expect(SHARED_RESOLVER_FUNCTIONS, name).toHaveProperty(name);
       expect(__RAW_ADMIN_ONLY_FUNCTIONS).not.toHaveProperty(name);
     }
@@ -11027,8 +13078,13 @@ describe("the macro's viewer-scoped pillars", () => {
     // Access schemes and the people roster are a disclosure risk on a page anyone in
     // Confluence can open; automation findings include plaintext-credential hits. None of
     // them belongs on a wiki page, and this is the assertion that keeps it that way.
-    for (const name of ["getAccessInventory", "getPeopleInventory", "getAutomationInsights",
-                        "getDeletionSafety", "getScreenFieldCrossSignal"]) {
+    for (const name of [
+      "getAccessInventory",
+      "getPeopleInventory",
+      "getAutomationInsights",
+      "getDeletionSafety",
+      "getScreenFieldCrossSignal",
+    ]) {
       expect(SHARED_RESOLVER_FUNCTIONS).not.toHaveProperty(name);
     }
   });
@@ -11122,8 +13178,10 @@ describe("first run", () => {
     expect(state.arrivals.landed[0]).toMatchObject({ produced: 40, countable: true });
     // A failed stage is reported in the same list rather than hidden -- the pillar did not
     // build, which is a fact an admin needs on the way past, with the reason attached.
-    expect(state.arrivals.pending.find((stage) => stage.key === "filters"))
-      .toMatchObject({ state: "failed", error: "Jira said 503" });
+    expect(state.arrivals.pending.find((stage) => stage.key === "filters")).toMatchObject({
+      state: "failed",
+      error: "Jira said 503",
+    });
   });
 
   test("a stage with nothing to count is not reported as having produced nothing", async () => {
@@ -11138,8 +13196,10 @@ describe("first run", () => {
     // health records a score, not a count. `countable: false` is what stops the panel
     // rendering "Health - 0", which reads as a failure rather than as a stage that simply
     // does not count anything.
-    expect(state.arrivals.landed.find((stage) => stage.key === "health"))
-      .toMatchObject({ countable: false, produced: null });
+    expect(state.arrivals.landed.find((stage) => stage.key === "health")).toMatchObject({
+      countable: false,
+      produced: null,
+    });
   });
 
   test("a scanned site with no stage bookkeeping shows no arrivals rather than fifteen blanks", async () => {
@@ -11172,10 +13232,14 @@ describe("first run", () => {
     expect(state.arrivals.landed).toHaveLength(2);
     // Screens landed and is still reported as landed. What is unknown is how many, and that
     // is said by omitting the number rather than by printing a zero.
-    expect(state.arrivals.landed.find((stage) => stage.key === "screens"))
-      .toMatchObject({ countable: false, produced: null });
-    expect(state.arrivals.landed.find((stage) => stage.key === "workflows"))
-      .toMatchObject({ countable: true, produced: 4 });
+    expect(state.arrivals.landed.find((stage) => stage.key === "screens")).toMatchObject({
+      countable: false,
+      produced: null,
+    });
+    expect(state.arrivals.landed.find((stage) => stage.key === "workflows")).toMatchObject({
+      countable: true,
+      produced: 4,
+    });
   });
 
   test("every estate read failing shows the steps as outstanding, never as done", async () => {
@@ -11274,15 +13338,25 @@ describe("getRemediationCandidates -- access playbooks", () => {
 
   // 30 risky permission schemes, so the "every item, not the tab's first 25" rule is tested.
   function accessFixture() {
-    mocks.readAccessSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1", refreshedAt: "2026-09-01T00:00:00Z" });
+    mocks.readAccessSnapshotMeta.mockResolvedValueOnce({
+      state: "ready",
+      version: "v1",
+      refreshedAt: "2026-09-01T00:00:00Z",
+    });
     mocks.readUserSnapshotMeta.mockResolvedValueOnce({ version: "u1" });
     mocks.loadUsers.mockResolvedValueOnce([{ accountId: "live" }]);
     const perm = Array.from({ length: 30 }, (_, i) => ({ id: `p${i}`, name: `Perm ${i}`, isDefault: false }));
     const schemes = {
       permission: perm,
-      security: [{ id: "s1", name: "Secret" }, { id: "s2", name: "No levels" }],
+      security: [
+        { id: "s1", name: "Secret" },
+        { id: "s2", name: "No levels" },
+      ],
       notification: [{ id: "n1", name: "Named" }],
-      "project-role": [{ id: "10002", name: "Administrators" }, { id: "10003", name: "Developers" }],
+      "project-role": [
+        { id: "10002", name: "Administrators" },
+        { id: "10003", name: "Developers" },
+      ],
     };
     const holders = {
       permission: [
@@ -11330,15 +13404,19 @@ describe("getRemediationCandidates -- access playbooks", () => {
   test("security-broken-levels: level-less schemes and member-less levels", async () => {
     accessFixture();
     const r = await run("security-broken-levels");
-    expect(r.items).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: "scheme:s2", kind: "no-levels" }),
-      expect.objectContaining({ id: "level:s1:L1", kind: "empty-level", levelName: "Staff" }),
-    ]));
+    expect(r.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "scheme:s2", kind: "no-levels" }),
+        expect.objectContaining({ id: "level:s1:L1", kind: "empty-level", levelName: "Staff" }),
+      ]),
+    );
   });
 
   test("notification-fragile: schemes naming an individual", async () => {
     accessFixture();
-    expect((await run("notification-fragile")).items).toEqual([expect.objectContaining({ id: "n1", namedUserCount: 1 })]);
+    expect((await run("notification-fragile")).items).toEqual([
+      expect.objectContaining({ id: "n1", namedUserCount: 1 }),
+    ]);
   });
 
   test("role-empty-admin: one item per project", async () => {
@@ -11350,7 +13428,10 @@ describe("getRemediationCandidates -- access playbooks", () => {
   test("role-offroster-actors: grouped per project, not one per actor and not one for everything", async () => {
     accessFixture();
     const r = await run("role-offroster-actors");
-    expect(r.items.map((g) => [g.id, g.count])).toEqual([["DEV", 1], ["OPS", 1]]);
+    expect(r.items.map((g) => [g.id, g.count])).toEqual([
+      ["DEV", 1],
+      ["OPS", 1],
+    ]);
     expect(r.items[0].members[0]).toMatchObject({ accountId: "gone-2", role: "Developers", projectKey: "DEV" });
   });
 
@@ -11361,14 +13442,25 @@ describe("getRemediationCandidates -- access playbooks", () => {
 });
 
 describe("getRemediationCandidates -- filters, dashboards, people, issue types, priorities, Assets", () => {
-  const run = (findingKey) => getRemediationCandidates({ payload: { findingKey }, context: { installContext: "ari:cloud:jira::site/x", accountId: "admin-1" } });
+  const run = (findingKey) =>
+    getRemediationCandidates({
+      payload: { findingKey },
+      context: { installContext: "ari:cloud:jira::site/x", accountId: "admin-1" },
+    });
   const owner = (active = true) => ({ accountId: "a", displayName: "Ann", active });
 
   test("filters: each finding reads every filter carrying its code", async () => {
     const old = "2024-01-01T00:00:00Z";
     const filters = [
       { id: "1", name: "Zombie", owner: owner(), subscriptionCount: 3, lastUsedAt: old, shares: [] },
-      { id: "2", name: "Open", owner: owner(), subscriptionCount: 0, lastUsedAt: "2026-09-01T00:00:00Z", shares: [{ type: "authenticated" }] },
+      {
+        id: "2",
+        name: "Open",
+        owner: owner(),
+        subscriptionCount: 0,
+        lastUsedAt: "2026-09-01T00:00:00Z",
+        shares: [{ type: "authenticated" }],
+      },
     ];
     for (const key of ["filters-zombie-subscriptions", "filters-shared-everyone"]) {
       mocks.readFilterSnapshotMeta.mockResolvedValueOnce({ version: "f1" });
@@ -11376,15 +13468,33 @@ describe("getRemediationCandidates -- filters, dashboards, people, issue types, 
       mocks.readSnapshotMeta.mockResolvedValueOnce(null);
       mocks.readIssueTypeSnapshotMeta.mockResolvedValueOnce(null);
     }
-    expect((await run("filters-zombie-subscriptions")).items).toEqual([expect.objectContaining({ id: "1", ownerName: "Ann", subscriptionCount: 3 })]);
+    expect((await run("filters-zombie-subscriptions")).items).toEqual([
+      expect.objectContaining({ id: "1", ownerName: "Ann", subscriptionCount: 3 }),
+    ]);
     expect((await run("filters-shared-everyone")).items).toEqual([expect.objectContaining({ id: "2" })]);
   });
 
   test("dashboards: open-edit, empty and published-unused each read their own code", async () => {
     const dashboards = [
       { id: "1", name: "Wall", owner: owner(), gadgetCount: 0, popularity: 4, shares: [], editShares: [] },
-      { id: "2", name: "Anyone edits", owner: owner(), gadgetCount: 3, popularity: 2, shares: [], editShares: [{ type: "authenticated" }] },
-      { id: "3", name: "Nobody wants", owner: owner(), gadgetCount: 2, popularity: 0, shares: [{ type: "authenticated" }], editShares: [] },
+      {
+        id: "2",
+        name: "Anyone edits",
+        owner: owner(),
+        gadgetCount: 3,
+        popularity: 2,
+        shares: [],
+        editShares: [{ type: "authenticated" }],
+      },
+      {
+        id: "3",
+        name: "Nobody wants",
+        owner: owner(),
+        gadgetCount: 2,
+        popularity: 0,
+        shares: [{ type: "authenticated" }],
+        editShares: [],
+      },
     ];
     for (let i = 0; i < 3; i += 1) {
       mocks.readDashboardSnapshotMeta.mockResolvedValueOnce({ version: "d1" });
@@ -11401,25 +13511,61 @@ describe("getRemediationCandidates -- filters, dashboards, people, issue types, 
     const shared = [{ type: "authenticated" }];
     mocks.readDashboardSnapshotMeta.mockResolvedValueOnce({ version: "d1" });
     mocks.loadDashboards.mockResolvedValueOnce([
-      { id: "1", name: "Ops", owner: owner(), gadgetCount: 1, shares: shared, editShares: [], gadgets: [{ id: "g1", filterId: "100", filterState: null }] },
+      {
+        id: "1",
+        name: "Ops",
+        owner: owner(),
+        gadgetCount: 1,
+        shares: shared,
+        editShares: [],
+        gadgets: [{ id: "g1", filterId: "100", filterState: null }],
+      },
     ]);
     expect(await run("dashboards-broken-gadgets")).toEqual({ available: false, reason: "not-probed", items: [] });
 
     mocks.readDashboardSnapshotMeta.mockResolvedValueOnce({ version: "d2" });
     mocks.loadDashboards.mockResolvedValueOnce([
-      { id: "1", name: "Ops", owner: owner(), gadgetCount: 2, shares: shared, editShares: [], gadgets: [
-        { id: "g1", title: "Bugs", filterId: "100", filterState: "missing" },
-        { id: "g2", filterId: "101", filterState: "readable" },
-      ] },
-      { id: "2", name: "Fine", owner: owner(), gadgetCount: 1, shares: shared, editShares: [], gadgets: [{ id: "g3", filterId: "101", filterState: "readable" }] },
+      {
+        id: "1",
+        name: "Ops",
+        owner: owner(),
+        gadgetCount: 2,
+        shares: shared,
+        editShares: [],
+        gadgets: [
+          { id: "g1", title: "Bugs", filterId: "100", filterState: "missing" },
+          { id: "g2", filterId: "101", filterState: "readable" },
+        ],
+      },
+      {
+        id: "2",
+        name: "Fine",
+        owner: owner(),
+        gadgetCount: 1,
+        shares: shared,
+        editShares: [],
+        gadgets: [{ id: "g3", filterId: "101", filterState: "readable" }],
+      },
     ]);
     const probed = await run("dashboards-broken-gadgets");
     expect(probed.items.map((d) => d.id)).toEqual(["1"]);
-    expect(probed.items[0].brokenGadgets).toEqual([expect.objectContaining({ filterId: "100", filterState: "missing" })]);
+    expect(probed.items[0].brokenGadgets).toEqual([
+      expect.objectContaining({ filterId: "100", filterState: "missing" }),
+    ]);
 
     // No filter gadgets anywhere: nothing to probe, and genuinely clean.
     mocks.readDashboardSnapshotMeta.mockResolvedValueOnce({ version: "d3" });
-    mocks.loadDashboards.mockResolvedValueOnce([{ id: "3", name: "Text only", owner: owner(), gadgetCount: 1, shares: [], editShares: [], gadgets: [{ id: "g4", filterId: null }] }]);
+    mocks.loadDashboards.mockResolvedValueOnce([
+      {
+        id: "3",
+        name: "Text only",
+        owner: owner(),
+        gadgetCount: 1,
+        shares: [],
+        editShares: [],
+        gadgets: [{ id: "g4", filterId: null }],
+      },
+    ]);
     expect(await run("dashboards-broken-gadgets")).toEqual({ available: true, items: [] });
   });
 
@@ -11427,25 +13573,45 @@ describe("getRemediationCandidates -- filters, dashboards, people, issue types, 
     mocks.readUserSnapshotMeta.mockResolvedValueOnce({ version: "u1" });
     mocks.loadUsers.mockResolvedValueOnce([{ accountId: "live" }]);
     mocks.readAutomationPart
-      .mockResolvedValueOnce({ entries: [{ label: "gone", write: [11], read: [12] }, { label: "live", write: [13] }] })
-      .mockResolvedValueOnce({ rules: [[11, "Assign triage", 1, null, 1, null], [12, "Notify", 1, null, 1, null]] });
+      .mockResolvedValueOnce({
+        entries: [
+          { label: "gone", write: [11], read: [12] },
+          { label: "live", write: [13] },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rules: [
+          [11, "Assign triage", 1, null, 1, null],
+          [12, "Notify", 1, null, 1, null],
+        ],
+      });
 
     const r = await run("people-offroster-automation-refs");
 
     expect(r.items).toHaveLength(1);
     expect(r.items[0]).toMatchObject({ id: "gone", ruleCount: 2 });
-    expect(r.items[0].rules).toEqual(expect.arrayContaining([expect.objectContaining({ id: 11, name: "Assign triage", direction: "write" })]));
+    expect(r.items[0].rules).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 11, name: "Assign triage", direction: "write" })]),
+    );
   });
 
   test("people: unavailable, not empty, before the automation index is imported", async () => {
     mocks.readUserSnapshotMeta.mockResolvedValueOnce({ version: "u1" });
     mocks.loadUsers.mockResolvedValueOnce([]);
     mocks.readAutomationPart.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
-    expect(await run("people-offroster-automation-refs")).toMatchObject({ available: false, reason: "no-automation-index" });
+    expect(await run("people-offroster-automation-refs")).toMatchObject({
+      available: false,
+      reason: "no-automation-index",
+    });
   });
 
   test("issue types: every hierarchy-flagged and every unused scheme, past the tab's 25", async () => {
-    const schemes = Array.from({ length: 30 }, (_, i) => ({ schemeId: `s${i}`, name: `Scheme ${i}`, projectCount: 0, defaultIssueTypeId: "99" }));
+    const schemes = Array.from({ length: 30 }, (_, i) => ({
+      schemeId: `s${i}`,
+      name: `Scheme ${i}`,
+      projectCount: 0,
+      defaultIssueTypeId: "99",
+    }));
     for (let i = 0; i < 2; i += 1) {
       mocks.readIssueTypeSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1" });
       mocks.loadIssueTypes.mockResolvedValueOnce([{ id: "1", name: "Story", hierarchyLevel: 0 }]);
@@ -11464,9 +13630,10 @@ describe("getRemediationCandidates -- filters, dashboards, people, issue types, 
 
   test("priorities: one item per near-duplicate group", async () => {
     mocks.readEstateSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1" });
-    mocks.loadEstateValues
-      .mockResolvedValueOnce([{ id: "1", name: "Done" }])
-      .mockResolvedValueOnce([{ id: "10", name: "High" }, { id: "11", name: "high" }]);
+    mocks.loadEstateValues.mockResolvedValueOnce([{ id: "1", name: "Done" }]).mockResolvedValueOnce([
+      { id: "10", name: "High" },
+      { id: "11", name: "high" },
+    ]);
     const r = await run("estate-duplicate-priorities");
     expect(r.items).toEqual([expect.objectContaining({ names: ["High", "high"], count: 2 })]);
     expect(r.items[0].id).toBeTruthy();
@@ -11476,13 +13643,17 @@ describe("getRemediationCandidates -- filters, dashboards, people, issue types, 
     mocks.readAssetSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1" });
     mocks.loadAssetSchemas.mockResolvedValueOnce([{ id: "s1", name: "IT", objectTypeCount: 1, objectCount: 1 }]);
     mocks.loadAssetObjectTypes.mockResolvedValueOnce([{ id: "t1", schemaId: "s1", name: "Laptop" }]);
-    mocks.loadAssetAttributes.mockResolvedValueOnce([{ id: "a1", objectTypeId: "t1", schemaId: "s1", name: "Owner", referenceObjectTypeId: "gone" }]);
+    mocks.loadAssetAttributes.mockResolvedValueOnce([
+      { id: "a1", objectTypeId: "t1", schemaId: "s1", name: "Owner", referenceObjectTypeId: "gone" },
+    ]);
     mocks.loadAssetTypeCounts.mockResolvedValueOnce([]);
     mocks.readAssetTypeCountMeta.mockResolvedValueOnce(null);
 
     const r = await run("asset-broken-references");
 
-    expect(r.items).toEqual([expect.objectContaining({ id: "a1", schemaId: "s1", objectTypeName: "Laptop", referenceObjectTypeId: "gone" })]);
+    expect(r.items).toEqual([
+      expect.objectContaining({ id: "a1", schemaId: "s1", objectTypeName: "Laptop", referenceObjectTypeId: "gone" }),
+    ]);
   });
 
   test("Assets: an unlicensed site says so", async () => {
@@ -11492,14 +13663,36 @@ describe("getRemediationCandidates -- filters, dashboards, people, issue types, 
 });
 
 describe("getRemediationCandidates -- fields, workflows, projects, screens, automation", () => {
-  const run = (findingKey) => getRemediationCandidates({ payload: { findingKey }, context: { installContext: "ari:cloud:jira::site/x", accountId: "admin-1" } });
+  const run = (findingKey) =>
+    getRemediationCandidates({
+      payload: { findingKey },
+      context: { installContext: "ari:cloud:jira::site/x", accountId: "admin-1" },
+    });
 
   test("fields: each code reads the threshold-aware findings, with the reason text on the item", async () => {
     mocks.readSnapshotMeta.mockResolvedValueOnce({ version: "s1" });
     mocks.loadSnapshotFields.mockResolvedValueOnce([
       // Widely used, no description.
-      { id: "customfield_1", name: "Team", type: "select", description: "", configuredProjectCount: 40, activeProjectCount: 40, totalIssueCount: 90000, findings: null },
-      { id: "customfield_2", name: "Budget", type: "number", description: "Money", configuredProjectCount: 1, activeProjectCount: 1, totalIssueCount: 10, findings: null },
+      {
+        id: "customfield_1",
+        name: "Team",
+        type: "select",
+        description: "",
+        configuredProjectCount: 40,
+        activeProjectCount: 40,
+        totalIssueCount: 90000,
+        findings: null,
+      },
+      {
+        id: "customfield_2",
+        name: "Budget",
+        type: "number",
+        description: "Money",
+        configuredProjectCount: 1,
+        activeProjectCount: 1,
+        totalIssueCount: 10,
+        findings: null,
+      },
     ]);
     const r = await run("field-missing-description");
     expect(r.available).toBe(true);
@@ -11521,8 +13714,18 @@ describe("getRemediationCandidates -- fields, workflows, projects, screens, auto
       { id: "3", name: "Legacy", statusCategory: "indeterminate" },
       { id: "4", name: "Robot only", statusCategory: "indeterminate" },
     ]);
-    mocks.loadWorkflowSchemeStatuses.mockResolvedValueOnce([{ schemeId: "10", statusId: "1" }, { schemeId: "10", statusId: "2" }]);
-    mocks.loadStatusIssueCounts.mockResolvedValueOnce(new Map([["1", 5], ["2", 1], ["3", 7], ["4", 0]]));
+    mocks.loadWorkflowSchemeStatuses.mockResolvedValueOnce([
+      { schemeId: "10", statusId: "1" },
+      { schemeId: "10", statusId: "2" },
+    ]);
+    mocks.loadStatusIssueCounts.mockResolvedValueOnce(
+      new Map([
+        ["1", 5],
+        ["2", 1],
+        ["3", 7],
+        ["4", 0],
+      ]),
+    );
     mocks.loadStatusHistoryCounts.mockResolvedValueOnce({ counts: new Map(), measuredAt: null });
     mocks.loadStatusAutomationReferences.mockResolvedValueOnce({ "robot only": { ruleCount: 2, enabledRuleCount: 2 } });
   }
@@ -11530,14 +13733,21 @@ describe("getRemediationCandidates -- fields, workflows, projects, screens, auto
   test("workflows: duplicate groups, rule-only, unreachable-with-issues and scheme structure", async () => {
     workflowFixture();
     const dupes = await run("workflow-duplicate-statuses");
-    expect(dupes.items[0].statuses.map((st) => [st.name, st.issueCount])).toEqual([["Open", 5], ["open", 1]]);
+    expect(dupes.items[0].statuses.map((st) => [st.name, st.issueCount])).toEqual([
+      ["Open", 5],
+      ["open", 1],
+    ]);
 
     workflowFixture();
     expect((await run("unreachable-with-issues")).items).toEqual([{ id: "3", name: "Legacy", issueCount: 7 }]);
 
     workflowFixture();
     const structure = await run("workflow-scheme-structure");
-    expect(structure.items[0]).toMatchObject({ id: "10", name: "No Done", flags: expect.arrayContaining([expect.stringMatching(/No Done/)]) });
+    expect(structure.items[0]).toMatchObject({
+      id: "10",
+      name: "No Done",
+      flags: expect.arrayContaining([expect.stringMatching(/No Done/)]),
+    });
   });
 
   test("workflows: unavailable, not empty, when the scheme->status mapping is missing", async () => {
@@ -11552,8 +13762,20 @@ describe("getRemediationCandidates -- fields, workflows, projects, screens, auto
 
   test("projects: over-configured (idle marked) and unused, every one rather than the Overview's top 8", async () => {
     const projects = [
-      ...Array.from({ length: 12 }, (_, i) => ({ projectId: `${i}`, projectKey: `P${i}`, projectName: `P${i}`, fieldCount: 50, totalIssueCount: 10 })),
-      ...Array.from({ length: 12 }, (_, i) => ({ projectId: `n${i}`, projectKey: `N${i}`, projectName: `N${i}`, fieldCount: 2, totalIssueCount: 5000 })),
+      ...Array.from({ length: 12 }, (_, i) => ({
+        projectId: `${i}`,
+        projectKey: `P${i}`,
+        projectName: `P${i}`,
+        fieldCount: 50,
+        totalIssueCount: 10,
+      })),
+      ...Array.from({ length: 12 }, (_, i) => ({
+        projectId: `n${i}`,
+        projectKey: `N${i}`,
+        projectName: `N${i}`,
+        fieldCount: 2,
+        totalIssueCount: 5000,
+      })),
       { projectId: "u", projectKey: "UNUSED", projectName: "Unused", fieldCount: 3, totalIssueCount: 0 },
     ];
     for (let i = 0; i < 2; i += 1) {
@@ -11569,7 +13791,9 @@ describe("getRemediationCandidates -- fields, workflows, projects, screens, auto
 
   test("projects: no adoption tasks while the activity data is stale or unmeasured", async () => {
     mocks.readSnapshotMeta.mockResolvedValueOnce({ version: "s1" });
-    mocks.listSnapshotProjects.mockResolvedValueOnce([{ projectId: "1", projectKey: "A", projectName: "A", fieldCount: 3, totalIssueCount: 9 }]);
+    mocks.listSnapshotProjects.mockResolvedValueOnce([
+      { projectId: "1", projectKey: "A", projectName: "A", fieldCount: 3, totalIssueCount: 9 },
+    ]);
     mocks.loadProjectActivity.mockResolvedValueOnce(new Map());
     expect(await run("projects-fell-off")).toEqual({ available: true, items: [] });
   });
@@ -11577,7 +13801,9 @@ describe("getRemediationCandidates -- fields, workflows, projects, screens, auto
   test("screens: a filtered screen list, and unreachable needs the workflow snapshot", async () => {
     mocks.readScreenSnapshotMeta.mockResolvedValueOnce({ version: "sv1" });
     mocks.readWorkflowSnapshotMeta.mockResolvedValueOnce(null);
-    mocks.loadScreensPage.mockResolvedValueOnce({ rows: [{ screenId: "7", name: "Blank", tabCount: 1, fieldCount: 0 }] });
+    mocks.loadScreensPage.mockResolvedValueOnce({
+      rows: [{ screenId: "7", name: "Blank", tabCount: 1, fieldCount: 0 }],
+    });
     expect((await run("screen-empty")).items).toEqual([{ id: "7", name: "Blank", tabCount: 1, fieldCount: 0 }]);
     expect(mocks.loadScreensPage.mock.calls[0][2]).toMatchObject({ filter: "empty" });
 
@@ -11598,18 +13824,40 @@ describe("getRemediationCandidates -- fields, workflows, projects, screens, auto
       { schemeId: "s1", operation: "edit", screenId: "98", dangling: true },
       { schemeId: "s2", operation: "view", screenId: "1", dangling: false },
     ]);
-    mocks.loadScreenSchemes.mockResolvedValueOnce([{ schemeId: "s1", name: "Broken", issueTypeSchemeCount: 1 }, { schemeId: "s2", name: "Fine", issueTypeSchemeCount: 1 }]);
+    mocks.loadScreenSchemes.mockResolvedValueOnce([
+      { schemeId: "s1", name: "Broken", issueTypeSchemeCount: 1 },
+      { schemeId: "s2", name: "Fine", issueTypeSchemeCount: 1 },
+    ]);
     const dangling = await run("screen-dangling");
-    expect(dangling.items).toEqual([{ id: "s1", name: "Broken", operations: [{ operation: "create", screenId: "99" }, { operation: "edit", screenId: "98" }] }]);
+    expect(dangling.items).toEqual([
+      {
+        id: "s1",
+        name: "Broken",
+        operations: [
+          { operation: "create", screenId: "99" },
+          { operation: "edit", screenId: "98" },
+        ],
+      },
+    ]);
 
     mocks.readScreenSnapshotMeta.mockResolvedValueOnce({ version: "sv1" });
-    mocks.loadScreenSchemes.mockResolvedValueOnce([{ schemeId: "s3", name: "Orphan", issueTypeSchemeCount: 0 }, { schemeId: "s2", name: "Fine", issueTypeSchemeCount: 2 }]);
+    mocks.loadScreenSchemes.mockResolvedValueOnce([
+      { schemeId: "s3", name: "Orphan", issueTypeSchemeCount: 0 },
+      { schemeId: "s2", name: "Fine", issueTypeSchemeCount: 2 },
+    ]);
     expect((await run("screen-unused-schemes")).items).toEqual([{ id: "s3", name: "Orphan" }]);
   });
 
   test("automation: disabled rules in full from the directory", async () => {
-    mocks.readAutomationPart.mockResolvedValueOnce({ rules: [[1, "On", 1, null, 2, null], [2, "Off", 0, "jira:issue_created", 1, null]] });
-    expect((await run("automation-disabled")).items).toEqual([expect.objectContaining({ id: 2, name: "Off", enabled: false })]);
+    mocks.readAutomationPart.mockResolvedValueOnce({
+      rules: [
+        [1, "On", 1, null, 2, null],
+        [2, "Off", 0, "jira:issue_created", 1, null],
+      ],
+    });
+    expect((await run("automation-disabled")).items).toEqual([
+      expect.objectContaining({ id: 2, name: "Off", enabled: false }),
+    ]);
   });
 
   test("automation: risk findings are marked partial when the preview holds fewer than the count", async () => {
@@ -11650,7 +13898,11 @@ describe("getRemediationCandidates -- fields, workflows, projects, screens, auto
 });
 
 describe("getRemediationCandidates -- every new loader is explicitly unavailable before its data exists", () => {
-  const run = (findingKey) => getRemediationCandidates({ payload: { findingKey }, context: { installContext: "ari:cloud:jira::site/x", accountId: "admin-1" } });
+  const run = (findingKey) =>
+    getRemediationCandidates({
+      payload: { findingKey },
+      context: { installContext: "ari:cloud:jira::site/x", accountId: "admin-1" },
+    });
 
   test.each([
     ["field-admin-attention", "readSnapshotMeta", "no-snapshot"],
@@ -11684,7 +13936,10 @@ describe("getRemediationCandidates -- every new loader is explicitly unavailable
   test("rule-only statuses: the orphans an automation rule still names", async () => {
     mocks.readWorkflowSnapshotMeta.mockResolvedValueOnce({ version: "w1" });
     mocks.loadWorkflowSchemes.mockResolvedValueOnce([{ id: "10", name: "S", projectCount: 1 }]);
-    mocks.loadStatusesCatalog.mockResolvedValueOnce([{ id: "1", name: "Open" }, { id: "4", name: "Robot only" }]);
+    mocks.loadStatusesCatalog.mockResolvedValueOnce([
+      { id: "1", name: "Open" },
+      { id: "4", name: "Robot only" },
+    ]);
     mocks.loadWorkflowSchemeStatuses.mockResolvedValueOnce([{ schemeId: "10", statusId: "1" }]);
     mocks.loadStatusIssueCounts.mockResolvedValueOnce(new Map([["4", 0]]));
     mocks.loadStatusHistoryCounts.mockResolvedValueOnce({ counts: new Map(), measuredAt: null });
@@ -11696,8 +13951,22 @@ describe("getRemediationCandidates -- every new loader is explicitly unavailable
   test("stale projects: every project untouched for over 180 days", async () => {
     mocks.readSnapshotMeta.mockResolvedValueOnce({ version: "s1" });
     mocks.listSnapshotProjects.mockResolvedValueOnce([
-      { projectId: "1", projectKey: "OLD", projectName: "Old", fieldCount: 3, totalIssueCount: 9, latestIssueUpdatedAt: "2024-01-01T00:00:00Z" },
-      { projectId: "2", projectKey: "NEW", projectName: "New", fieldCount: 3, totalIssueCount: 9, latestIssueUpdatedAt: new Date().toISOString() },
+      {
+        projectId: "1",
+        projectKey: "OLD",
+        projectName: "Old",
+        fieldCount: 3,
+        totalIssueCount: 9,
+        latestIssueUpdatedAt: "2024-01-01T00:00:00Z",
+      },
+      {
+        projectId: "2",
+        projectKey: "NEW",
+        projectName: "New",
+        fieldCount: 3,
+        totalIssueCount: 9,
+        latestIssueUpdatedAt: new Date().toISOString(),
+      },
     ]);
     mocks.loadProjectActivity.mockResolvedValueOnce(new Map());
     expect((await run("stale-projects")).items.map((p) => p.projectKey)).toEqual(["OLD"]);
@@ -11714,16 +13983,28 @@ describe("getPillarUsage", () => {
   test("before any complete crawl it says so, with the basis the tab labels from", async () => {
     mocks.readUsageMeta.mockResolvedValueOnce(null);
     const r = await getPillarUsage({ payload: { pillar: "resolution" }, context: ctxWithAccount() });
-    expect(r).toEqual({ pillar: "resolution", basis: "resolved", windowDays: 90, available: false, reason: "no-crawl", items: {} });
+    expect(r).toEqual({
+      pillar: "resolution",
+      basis: "resolved",
+      windowDays: 90,
+      available: false,
+      reason: "no-crawl",
+      items: {},
+    });
   });
 
   test("returns every item's three numbers with when they were counted", async () => {
     mocks.readUsageMeta.mockResolvedValueOnce({ measuredAt: "2026-10-07T00:00:00.000Z", windowDays: 90 });
-    mocks.loadUsageTally.mockResolvedValueOnce(new Map([["10001", { total: 5, recent: 2, lastAt: "2026-10-01T00:00:00.000Z", projectCount: 1 }]]));
+    mocks.loadUsageTally.mockResolvedValueOnce(
+      new Map([["10001", { total: 5, recent: 2, lastAt: "2026-10-01T00:00:00.000Z", projectCount: 1 }]]),
+    );
     const r = await getPillarUsage({ payload: { pillar: "issuetype" }, context: ctxWithAccount() });
     expect(mocks.loadUsageTally).toHaveBeenCalledWith("test-install", "issuetype");
     expect(r).toEqual({
-      pillar: "issuetype", basis: "created", windowDays: 90, available: true,
+      pillar: "issuetype",
+      basis: "created",
+      windowDays: 90,
+      available: true,
       measuredAt: "2026-10-07T00:00:00.000Z",
       items: { 10001: { total: 5, recent: 2, lastAt: "2026-10-01T00:00:00.000Z", projectCount: 1 } },
     });
@@ -11741,7 +14022,15 @@ describe("remediation hierarchy", () => {
   const ITEMS = [{ id: "4001", name: "Open Bugs" }];
   const config = (over = {}) => ({
     readOnlyMode: false,
-    remediation: { projectKey: "ATLASDEV", epicIssueType: "Epic", taskIssueType: "Task", hierarchyEnabled: true, rootIssueType: "Product", initiativeIssueType: "Initiative", ...over },
+    remediation: {
+      projectKey: "ATLASDEV",
+      epicIssueType: "Epic",
+      taskIssueType: "Task",
+      hierarchyEnabled: true,
+      rootIssueType: "Product",
+      initiativeIssueType: "Initiative",
+      ...over,
+    },
   });
 
   beforeEach(() => {
@@ -11750,24 +14039,42 @@ describe("remediation hierarchy", () => {
     mocks.loadHierarchyNodes.mockResolvedValue(new Map());
     mocks.searchIssuesPage.mockResolvedValue([]);
     let n = 0;
-    mocks.createJiraIssue.mockImplementation(async () => { n += 1; return { id: String(n), key: `ATLASDEV-${n}` }; });
+    mocks.createJiraIssue.mockImplementation(async () => {
+      n += 1;
+      return { id: String(n), key: `ATLASDEV-${n}` };
+    });
   });
 
   test("the quarter's first epic brings its Product and Initiative, and is filed under the initiative", async () => {
     mocks.kvsGet.mockResolvedValue(config());
-    const r = await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount("admin-1") });
+    const r = await createRemediationEpic({
+      payload: { findingKey: "filter-ownership", items: ITEMS },
+      context: ctxWithAccount("admin-1"),
+    });
     expect(r.ok).toBe(true);
     const [root, initiative, epic] = mocks.createJiraIssue.mock.calls.map(([f]) => f);
-    expect(root).toMatchObject({ issuetype: { name: "Product" }, summary: expect.stringMatching(/Observatory Findings and Remediations$/) });
-    expect(initiative).toMatchObject({ issuetype: { name: "Initiative" }, summary: expect.stringMatching(/ - Filters Remediation$/), parent: { key: "ATLASDEV-1" } });
+    expect(root).toMatchObject({
+      issuetype: { name: "Product" },
+      summary: expect.stringMatching(/Observatory Findings and Remediations$/),
+    });
+    expect(initiative).toMatchObject({
+      issuetype: { name: "Initiative" },
+      summary: expect.stringMatching(/ - Filters Remediation$/),
+      parent: { key: "ATLASDEV-1" },
+    });
     expect(epic).toMatchObject({ issuetype: { name: "Epic" }, parent: { key: "ATLASDEV-2" } });
   });
 
   test("an initiative already in Jira is adopted, not duplicated", async () => {
     mocks.kvsGet.mockResolvedValue(config());
     mocks.loadHierarchyNodes.mockResolvedValue(new Map([["root", { issueKey: "ATLASDEV-5627" }]]));
-    mocks.searchIssuesPage.mockResolvedValue([{ key: "ATLASDEV-5616", id: "5616", fields: { summary: "2026-Q3 - Filters Remediation" } }]);
-    await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount() });
+    mocks.searchIssuesPage.mockResolvedValue([
+      { key: "ATLASDEV-5616", id: "5616", fields: { summary: "2026-Q3 - Filters Remediation" } },
+    ]);
+    await createRemediationEpic({
+      payload: { findingKey: "filter-ownership", items: ITEMS },
+      context: ctxWithAccount(),
+    });
     const epic = mocks.createJiraIssue.mock.calls.map(([f]) => f).find((f) => f.issuetype.name === "Epic");
     expect(epic.parent).toEqual({ key: "ATLASDEV-5616" });
     expect(mocks.createJiraIssue.mock.calls.some(([f]) => f.issuetype.name === "Initiative")).toBe(false);
@@ -11775,7 +14082,10 @@ describe("remediation hierarchy", () => {
 
   test("with the hierarchy off, epics are created exactly as before", async () => {
     mocks.kvsGet.mockResolvedValue(config({ hierarchyEnabled: false }));
-    await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount() });
+    await createRemediationEpic({
+      payload: { findingKey: "filter-ownership", items: ITEMS },
+      context: ctxWithAccount(),
+    });
     expect(mocks.createJiraIssue.mock.calls[0][0].issuetype.name).toBe("Epic");
     expect(mocks.createJiraIssue.mock.calls[0][0].parent).toBeUndefined();
     expect(mocks.searchIssuesPage).not.toHaveBeenCalled();
@@ -11783,19 +14093,28 @@ describe("remediation hierarchy", () => {
 
   test("if the hierarchy cannot be built, nothing is created and the error says what to check", async () => {
     mocks.kvsGet.mockResolvedValue(config());
-    mocks.createJiraIssue.mockRejectedValueOnce(Object.assign(new Error("issue type Product not found"), { status: 400 }));
-    const r = await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount() });
-    expect(r.error).toMatch(/Placing the epic under its initiative failed: issue type Product not found.*Configuration/);
+    mocks.createJiraIssue.mockRejectedValueOnce(
+      Object.assign(new Error("issue type Product not found"), { status: 400 }),
+    );
+    const r = await createRemediationEpic({
+      payload: { findingKey: "filter-ownership", items: ITEMS },
+      context: ctxWithAccount(),
+    });
+    expect(r.error).toMatch(
+      /Placing the epic under its initiative failed: issue type Product not found.*Configuration/,
+    );
     expect(mocks.recordRemediationTicket).not.toHaveBeenCalled();
   });
 
   test("organise moves only epics not already under their initiative", async () => {
     mocks.kvsGet.mockResolvedValue(config());
-    mocks.loadHierarchyNodes.mockResolvedValue(new Map([
-      ["root", { issueKey: "ATLASDEV-5627" }],
-      ["initiative:Filters", { issueKey: "ATLASDEV-5616" }],
-      ["initiative:Roles", { issueKey: "ATLASDEV-5624" }],
-    ]));
+    mocks.loadHierarchyNodes.mockResolvedValue(
+      new Map([
+        ["root", { issueKey: "ATLASDEV-5627" }],
+        ["initiative:Filters", { issueKey: "ATLASDEV-5616" }],
+        ["initiative:Roles", { issueKey: "ATLASDEV-5624" }],
+      ]),
+    );
     mocks.loadRemediationTickets.mockResolvedValueOnce([
       { isEpic: true, period: "2026-Q3", pillar: "filters", issueKey: "ATLASDEV-100" },
       { isEpic: true, period: "2026-Q3", pillar: "roles", issueKey: "ATLASDEV-200" },
@@ -11807,9 +14126,20 @@ describe("remediation hierarchy", () => {
       { key: "ATLASDEV-200", fields: { parent: null } },
     ]);
     const r = await organiseRemediationHierarchy({ context: ctxWithAccount() });
-    expect(r).toMatchObject({ ok: true, organised: 1, alreadyPlaced: 1, remaining: 0, failures: [], rootKey: "ATLASDEV-5627" });
+    expect(r).toMatchObject({
+      ok: true,
+      organised: 1,
+      alreadyPlaced: 1,
+      remaining: 0,
+      failures: [],
+      rootKey: "ATLASDEV-5627",
+    });
     expect(mocks.updateJiraIssue).toHaveBeenCalledTimes(1);
-    expect(mocks.updateJiraIssue).toHaveBeenCalledWith("ATLASDEV-200", { parent: { key: "ATLASDEV-5624" } }, { asUser: true });
+    expect(mocks.updateJiraIssue).toHaveBeenCalledWith(
+      "ATLASDEV-200",
+      { parent: { key: "ATLASDEV-5624" } },
+      { asUser: true },
+    );
   });
 
   test("organise refuses in read-only mode and when the hierarchy is off", async () => {
@@ -11822,7 +14152,12 @@ describe("remediation hierarchy", () => {
 
   test("a failed move is reported per epic, and the rest still move", async () => {
     mocks.kvsGet.mockResolvedValue(config());
-    mocks.loadHierarchyNodes.mockResolvedValue(new Map([["root", { issueKey: "R" }], ["initiative:Filters", { issueKey: "F" }]]));
+    mocks.loadHierarchyNodes.mockResolvedValue(
+      new Map([
+        ["root", { issueKey: "R" }],
+        ["initiative:Filters", { issueKey: "F" }],
+      ]),
+    );
     mocks.loadRemediationTickets.mockResolvedValueOnce([
       { isEpic: true, period: "2026-Q3", pillar: "filters", issueKey: "E1" },
       { isEpic: true, period: "2026-Q3", pillar: "filters", issueKey: "E2" },
@@ -11839,7 +14174,9 @@ describe("remediation hierarchy", () => {
   });
 
   test("config validation rejects a non-boolean hierarchy switch", async () => {
-    await expect(saveAdminConfigResolver({ payload: { remediation: { hierarchyEnabled: "yes" } } })).rejects.toThrow(/hierarchyEnabled/);
+    await expect(saveAdminConfigResolver({ payload: { remediation: { hierarchyEnabled: "yes" } } })).rejects.toThrow(
+      /hierarchyEnabled/,
+    );
   });
 });
 
@@ -11852,7 +14189,9 @@ describe("getDeletionSafety -- archived projects", () => {
 
   async function assess(fieldId = "customfield_500") {
     mocks.readSnapshotMeta.mockResolvedValueOnce({ version: "v1", refreshedAt: "2026-10-01" });
-    mocks.loadSnapshotFields.mockResolvedValueOnce([{ id: fieldId, name: "Hiring Manager", totalIssueCount: 0, activeProjectCount: 0 }]);
+    mocks.loadSnapshotFields.mockResolvedValueOnce([
+      { id: fieldId, name: "Hiring Manager", totalIssueCount: 0, activeProjectCount: 0 },
+    ]);
     const r = await getDeletionSafety({ payload: { fieldIds: [fieldId] }, context: ctxWithAccount() });
     return r.fields?.[0] ?? r.assessments?.[0] ?? r.results?.[0] ?? r;
   }
@@ -11864,10 +14203,17 @@ describe("getDeletionSafety -- archived projects", () => {
 
   test("values counted before the project was archived are a high blocker naming it", async () => {
     mocks.loadArchivedProjects.mockResolvedValueOnce({ available: true, projects: [TT] });
-    mocks.loadArchivedFieldUsage.mockResolvedValueOnce(new Map([["customfield_500", [{ projectId: "20001", projectKey: "TT", issueCount: 2340, lastSeenAt: "2026-05-30" }]]]));
+    mocks.loadArchivedFieldUsage.mockResolvedValueOnce(
+      new Map([
+        ["customfield_500", [{ projectId: "20001", projectKey: "TT", issueCount: 2340, lastSeenAt: "2026-05-30" }]],
+      ]),
+    );
     const a = await assess();
     expect(a.verdict).toBe("in-use");
-    expect(findArchived(a).blocker).toMatchObject({ severity: "high", summary: expect.stringMatching(/2,340 values in 1 archived project.*TT \(2,340\)/) });
+    expect(findArchived(a).blocker).toMatchObject({
+      severity: "high",
+      summary: expect.stringMatching(/2,340 values in 1 archived project.*TT \(2,340\)/),
+    });
   });
 
   test("configured in an archived project never counted: a gap naming it, so never 'no evidence'", async () => {
@@ -11876,7 +14222,9 @@ describe("getDeletionSafety -- archived projects", () => {
     const a = await assess();
     expect(a.verdict).not.toBe("no-evidence-of-use");
     // OLD reports no issues at all, so it cannot hide values and is not named.
-    expect(findArchived(a).gap.reason).toMatch(/Configured in 1 archived project whose values were never counted \(TT\)/);
+    expect(findArchived(a).gap.reason).toMatch(
+      /Configured in 1 archived project whose values were never counted \(TT\)/,
+    );
   });
 
   test("a global context reaches every archived project", async () => {

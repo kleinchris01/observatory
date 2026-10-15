@@ -61,14 +61,16 @@ export function ConfigRow({ label, hint, children }) {
   return (
     <div className="admin-config-row">
       <div className="admin-config-row__label">
-        <span className="admin-config-row__name" id={labelId}>{label}</span>
+        <span className="admin-config-row__name" id={labelId}>
+          {label}
+        </span>
         {hint && <span className="admin-config-row__hint">{hint}</span>}
       </div>
       <div className="admin-config-row__control">
         {React.Children.map(children, (child) =>
           React.isValidElement(child) && child.type === Toggle
             ? React.cloneElement(child, { labelledBy: labelId })
-            : child
+            : child,
         )}
       </div>
     </div>
@@ -85,7 +87,7 @@ export function ThresholdInput({ label, value, onChange, min = 1, max = 100000, 
         max={max}
         step={step}
         value={value}
-        onChange={(e) => onChange(step === "1" ? (Number(e.target.value) || min) : (parseFloat(e.target.value) || min))}
+        onChange={(e) => onChange(step === "1" ? Number(e.target.value) || min : parseFloat(e.target.value) || min)}
         className="admin-threshold-input__field"
       />
     </label>
@@ -101,7 +103,7 @@ export function InlineThresholdInput({ value, onChange, min = 1, max = 100000, s
       max={max}
       step={step}
       value={value}
-      onChange={(e) => onChange(step === 1 ? (Number(e.target.value) || min) : (parseFloat(e.target.value) || min))}
+      onChange={(e) => onChange(step === 1 ? Number(e.target.value) || min : parseFloat(e.target.value) || min)}
     />
   );
 }
@@ -141,30 +143,32 @@ export function SubNavLayout({ items, activeKey, onSelect, children }) {
       <nav className="sub-nav" aria-label="Section navigation">
         {items.map(({ key, label, icon, badge, disabled = false, reason = null, group = null }, index) => (
           <React.Fragment key={key}>
-          {/* A heading wherever `group` changes. Optional: a list with no groups renders
+            {/* A heading wherever `group` changes. Optional: a list with no groups renders
               exactly as it always has. */}
-          {group && group !== items[index - 1]?.group && (
-            <div className="sub-nav__group" role="presentation">{group}</div>
-          )}
-          <button
-            type="button"
-            className={`sub-nav__item ${activeKey === key ? "sub-nav__item--active" : ""}${disabled ? " sub-nav__item--disabled" : ""}`}
-            onClick={() => { if (!disabled) onSelect(key); }}
-            disabled={disabled}
-            aria-current={activeKey === key ? "page" : undefined}
-            title={disabled ? reason || undefined : undefined}
-            aria-description={disabled ? reason || undefined : undefined}
-          >
-            {icon && <Icon name={icon} size={14} />}
-            <span>{label}</span>
-            {badge != null && <span className="sub-nav__badge">{badge}</span>}
-          </button>
+            {group && group !== items[index - 1]?.group && (
+              <div className="sub-nav__group" role="presentation">
+                {group}
+              </div>
+            )}
+            <button
+              type="button"
+              className={`sub-nav__item ${activeKey === key ? "sub-nav__item--active" : ""}${disabled ? " sub-nav__item--disabled" : ""}`}
+              onClick={() => {
+                if (!disabled) onSelect(key);
+              }}
+              disabled={disabled}
+              aria-current={activeKey === key ? "page" : undefined}
+              title={disabled ? reason || undefined : undefined}
+              aria-description={disabled ? reason || undefined : undefined}
+            >
+              {icon && <Icon name={icon} size={14} />}
+              <span>{label}</span>
+              {badge != null && <span className="sub-nav__badge">{badge}</span>}
+            </button>
           </React.Fragment>
         ))}
       </nav>
-      <div className="sub-nav__panel">
-        {children}
-      </div>
+      <div className="sub-nav__panel">{children}</div>
     </div>
   );
 }

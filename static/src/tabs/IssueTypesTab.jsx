@@ -2,7 +2,23 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatNumber, formatRelativeTime, buildIssueTypeAdminUrl } from "../utils";
 import { Icon } from "../components/Icons";
-import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PanelGrid, GridSpan, BarList, PillarHealthPanel, FindingRow, SortFilterBar, AskRovo, JiraLink, UsageTriple } from "../components/ui";
+import {
+  StatTile,
+  StatRow,
+  Panel,
+  EmptyState,
+  Chip,
+  PageHeader,
+  PanelGrid,
+  GridSpan,
+  BarList,
+  PillarHealthPanel,
+  FindingRow,
+  SortFilterBar,
+  AskRovo,
+  JiraLink,
+  UsageTriple,
+} from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useNavIntent, useVisiblePolling, usePersistentState, usePillarUsage } from "../hooks";
@@ -38,7 +54,10 @@ function daysSince(iso) {
 export function TypeUsageChip({ type, measurement }) {
   if (measurement === "not-measured") {
     return (
-      <Chip tone="neutral" title="No issue crawl has completed, so nothing is known about how much this type is used. Run a full scan from the Scans tab.">
+      <Chip
+        tone="neutral"
+        title="No issue crawl has completed, so nothing is known about how much this type is used. Run a full scan from the Scans tab."
+      >
         Not measured
       </Chip>
     );
@@ -52,7 +71,10 @@ export function TypeUsageChip({ type, measurement }) {
   }
   if (type.issueCount === null || type.issueCount === undefined) {
     return (
-      <Chip tone="warning" title="The last crawl did not finish, so this type was not reached. Not evidence that nobody uses it.">
+      <Chip
+        tone="warning"
+        title="The last crawl did not finish, so this type was not reached. Not evidence that nobody uses it."
+      >
         Not reached
       </Chip>
     );
@@ -67,7 +89,11 @@ export function TypeUsageChip({ type, measurement }) {
   return (
     <Chip
       tone="neutral"
-      title={type.usedInProjects ? `In ${formatNumber(type.usedInProjects)} project${type.usedInProjects === 1 ? "" : "s"}` : undefined}
+      title={
+        type.usedInProjects
+          ? `In ${formatNumber(type.usedInProjects)} project${type.usedInProjects === 1 ? "" : "s"}`
+          : undefined
+      }
     >
       {formatNumber(type.issueCount)} {type.issueCount === 1 ? "issue" : "issues"}
     </Chip>
@@ -88,7 +114,9 @@ function TypeChips({ type, measurement }) {
           Project-scoped
         </Chip>
       )}
-      <Chip tone="neutral" title="Issue type id">#{type.id}</Chip>
+      <Chip tone="neutral" title="Issue type id">
+        #{type.id}
+      </Chip>
     </>
   );
 }
@@ -131,7 +159,9 @@ export function SchemeCard({ scheme }) {
       <div className="issue-type-scheme__head">
         <span className="issue-type-scheme__name">{scheme.name}</span>
         {scheme.isDefault && (
-          <Chip tone="neutral" title="The site-wide fallback every classic project starts on">Default scheme</Chip>
+          <Chip tone="neutral" title="The site-wide fallback every classic project starts on">
+            Default scheme
+          </Chip>
         )}
         <Chip
           tone={scheme.projectCount === 0 ? "warning" : "neutral"}
@@ -173,7 +203,9 @@ export function SchemeCard({ scheme }) {
       {scheme.projects.length > 0 && (
         <div className="issue-type-scheme__projects">
           {scheme.projects.slice(0, 12).map((p) => (
-            <span className="issue-type-scheme__project" key={p.projectId} title={p.projectName}>{p.projectKey}</span>
+            <span className="issue-type-scheme__project" key={p.projectId} title={p.projectName}>
+              {p.projectKey}
+            </span>
           ))}
           {scheme.projects.length > 12 && (
             <span className="issue-type-scheme__project issue-type-scheme__project--more">
@@ -201,38 +233,58 @@ export function IssueTypeFindings({ findings }) {
   const rows = [];
   if (findings.orphanTypeCount > 0) {
     rows.push({
-      tone: "critical", count: findings.orphanTypeCount,
+      tone: "critical",
+      count: findings.orphanTypeCount,
       title: "Issue types on no scheme",
-      detail: `No project can create ${findings.orphanTypeCount === 1 ? "this type" : "these"}. ${findings.orphanSubtaskCount > 0 ? `${findings.orphanSubtaskCount} are sub-tasks. ` : ""}${(findings.orphanTypes || []).slice(0, 6).map((t) => t.name).join(", ")}${findings.orphanTypes?.length > 6 ? "…" : ""}`,
+      detail: `No project can create ${findings.orphanTypeCount === 1 ? "this type" : "these"}. ${findings.orphanSubtaskCount > 0 ? `${findings.orphanSubtaskCount} are sub-tasks. ` : ""}${(
+        findings.orphanTypes || []
+      )
+        .slice(0, 6)
+        .map((t) => t.name)
+        .join(", ")}${findings.orphanTypes?.length > 6 ? "…" : ""}`,
     });
   }
   if (findings.hierarchyFlaggedSchemeCount > 0) {
     rows.push({
-      tone: "critical", count: findings.hierarchyFlaggedSchemeCount,
+      tone: "critical",
+      count: findings.hierarchyFlaggedSchemeCount,
       title: "Schemes that cannot start an issue",
-      detail: `Sub-tasks with no standalone type, or a default that cannot be created. ${(findings.flaggedSchemes || []).slice(0, 4).map((s) => s.name).join(", ")}${findings.flaggedSchemes?.length > 4 ? "…" : ""}`,
+      detail: `Sub-tasks with no standalone type, or a default that cannot be created. ${(findings.flaggedSchemes || [])
+        .slice(0, 4)
+        .map((s) => s.name)
+        .join(", ")}${findings.flaggedSchemes?.length > 4 ? "…" : ""}`,
     });
   }
   if (findings.reducibleTypeCount > 0) {
     rows.push({
-      tone: "warning", count: findings.reducibleTypeCount,
+      tone: "warning",
+      count: findings.reducibleTypeCount,
       title: "Near-duplicate type names",
       detail: `${findings.duplicateTypeGroupCount} group${findings.duplicateTypeGroupCount === 1 ? "" : "s"} — a Bug / Defect split makes every by-type report wrong by however many issues sit on the wrong one.`,
     });
   }
   if (findings.unusedSchemeCount > 0) {
     rows.push({
-      tone: "warning", count: findings.unusedSchemeCount,
+      tone: "warning",
+      count: findings.unusedSchemeCount,
       title: "Issue type schemes assigned to no project",
       detail: "A scheme no project uses is a decision nobody made.",
     });
   }
 
   return (
-    <Panel title="Findings" icon="alertTriangle" description="What the issue types pillar of the site health score is built from.">
-      {rows.length === 0
-        ? <EmptyState inline>No issue type governance findings. Every type is reachable, every scheme is in use, and no names collide.</EmptyState>
-        : rows.map((r) => <FindingRow key={r.title} tone={r.tone} title={r.title} detail={r.detail} count={r.count} />)}
+    <Panel
+      title="Findings"
+      icon="alertTriangle"
+      description="What the issue types pillar of the site health score is built from."
+    >
+      {rows.length === 0 ? (
+        <EmptyState inline>
+          No issue type governance findings. Every type is reachable, every scheme is in use, and no names collide.
+        </EmptyState>
+      ) : (
+        rows.map((r) => <FindingRow key={r.title} tone={r.tone} title={r.title} detail={r.detail} count={r.count} />)
+      )}
     </Panel>
   );
 }
@@ -265,7 +317,9 @@ export function IssueTypesTab({ intent, siteOrigin }) {
     }
   }, []);
 
-  React.useEffect(() => { load(); }, [load]);
+  React.useEffect(() => {
+    load();
+  }, [load]);
 
   // The issue types pillar of the site health score, fetched on its own so this tab shows
   // the same governance reading the Overview does -- matching ScreensTab.
@@ -273,9 +327,15 @@ export function IssueTypesTab({ intent, siteOrigin }) {
   React.useEffect(() => {
     let cancelled = false;
     invoke("getPillarHealth", { pillar: "issueTypes" })
-      .then((result) => { if (!cancelled) setPillar(result?.pillar || null); })
-      .catch(() => { if (!cancelled) setPillar(null); });
-    return () => { cancelled = true; };
+      .then((result) => {
+        if (!cancelled) setPillar(result?.pillar || null);
+      })
+      .catch(() => {
+        if (!cancelled) setPillar(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [data?.refreshedAt]);
 
   // "queued" counts as in flight, not just "building" -- the row is marked building at queue
@@ -344,10 +404,20 @@ export function IssueTypesTab({ intent, siteOrigin }) {
           description="The issue type catalog by hierarchy level, and the schemes that decide which types each project may use."
           actions={buildAction}
         />
-        {error && <div className="danger-zone__error" role="alert">{error}</div>}
-        {notice && !error && <p className="admin-config-row__hint" role="status">{notice}</p>}
+        {error && (
+          <div className="danger-zone__error" role="alert">
+            {error}
+          </div>
+        )}
+        {notice && !error && (
+          <p className="admin-config-row__hint" role="status">
+            {notice}
+          </p>
+        )}
         {data?.lastError && !isBuilding && (
-          <div className="danger-zone__error" role="alert">Last build failed: {data.lastError}</div>
+          <div className="danger-zone__error" role="alert">
+            Last build failed: {data.lastError}
+          </div>
         )}
         {data?.staleBuild && (
           <p className="admin-config-row__hint">A build was started but is no longer running. Rebuild to recover it.</p>
@@ -356,16 +426,16 @@ export function IssueTypesTab({ intent, siteOrigin }) {
         {isBuilding ? (
           <Panel title="Building the first inventory" icon="refreshCw">
             <p>
-              Reading every issue type, every issue type scheme, its ordered membership and its
-              project assignments. This is a small structural build — under a minute on most
-              sites. This page refreshes itself; you can leave it.
+              Reading every issue type, every issue type scheme, its ordered membership and its project assignments.
+              This is a small structural build — under a minute on most sites. This page refreshes itself; you can leave
+              it.
             </p>
             {data?.startedAt && <p className="admin-config-row__hint">Started {formatRelativeTime(data.startedAt)}.</p>}
           </Panel>
         ) : (
           <EmptyState action={buildAction}>
-            No issue type inventory has been built yet. It is also produced by every full and
-            quick scan — or build it on its own here.
+            No issue type inventory has been built yet. It is also produced by every full and quick scan — or build it
+            on its own here.
           </EmptyState>
         )}
       </div>
@@ -380,22 +450,32 @@ export function IssueTypesTab({ intent, siteOrigin }) {
     { key: "overview", label: "Overview", icon: "barChart" },
     { key: "hierarchy", label: "Types", icon: "layers", badge: formatNumber(data?.totalTypes ?? 0) },
     { key: "schemes", label: "Schemes", icon: "folder", badge: formatNumber(data?.totalSchemes ?? 0) },
-    { key: "screen-schemes", label: "Screen schemes", icon: "copy", badge: formatNumber(data?.issueTypeScreenSchemes?.length ?? 0) },
+    {
+      key: "screen-schemes",
+      label: "Screen schemes",
+      icon: "copy",
+      badge: formatNumber(data?.issueTypeScreenSchemes?.length ?? 0),
+    },
   ];
 
   const term = search.trim().toLowerCase();
 
   const filteredSchemes = (() => {
     if (!term) return data?.schemes || [];
-    return (data?.schemes || []).filter((s) =>
-      s.name.toLowerCase().includes(term) ||
-      s.issueTypes.some((t) => (t.name || "").toLowerCase().includes(term)) ||
-      s.projects.some((p) => p.projectKey.toLowerCase().includes(term)));
+    return (data?.schemes || []).filter(
+      (s) =>
+        s.name.toLowerCase().includes(term) ||
+        s.issueTypes.some((t) => (t.name || "").toLowerCase().includes(term)) ||
+        s.projects.some((p) => p.projectKey.toLowerCase().includes(term)),
+    );
   })();
 
   const matchingTypeCount = term
-    ? (data?.hierarchy || []).reduce((n, level) => n + level.types.filter(
-        (t) => t.name.toLowerCase().includes(term) || String(t.id) === term).length, 0)
+    ? (data?.hierarchy || []).reduce(
+        (n, level) =>
+          n + level.types.filter((t) => t.name.toLowerCase().includes(term) || String(t.id) === term).length,
+        0,
+      )
     : (data?.totalTypes ?? 0);
 
   return (
@@ -404,25 +484,53 @@ export function IssueTypesTab({ intent, siteOrigin }) {
         title="Issue Types"
         description="Issue types by hierarchy level, and the schemes that gate which types each project may use. Read-only — changes stay in Jira's admin UI."
         meta={data?.refreshedAt ? `Built ${formatRelativeTime(data.refreshedAt)}` : "Never built"}
-        actions={<>
-          <JiraLink className="ui-linkbutton" href={buildIssueTypeAdminUrl(siteOrigin)} title="Manage issue types in Jira">Manage in Jira</JiraLink>
-          {buildAction}
-        </>}
+        actions={
+          <>
+            <JiraLink
+              className="ui-linkbutton"
+              href={buildIssueTypeAdminUrl(siteOrigin)}
+              title="Manage issue types in Jira"
+            >
+              Manage in Jira
+            </JiraLink>
+            {buildAction}
+          </>
+        }
       />
 
-      {error && <div className="danger-zone__error" role="alert">{error}</div>}
-      {notice && !error && <p className="admin-config-row__hint" role="status">{notice}</p>}
+      {error && (
+        <div className="danger-zone__error" role="alert">
+          {error}
+        </div>
+      )}
+      {notice && !error && (
+        <p className="admin-config-row__hint" role="status">
+          {notice}
+        </p>
+      )}
       {isBuilding && <p className="admin-config-row__hint">Building the inventory… this page refreshes itself.</p>}
       {data?.staleBuild && (
         <p className="admin-config-row__hint">A build was started but is no longer running. Rebuild to recover it.</p>
       )}
       {data?.lastError && !isBuilding && (
-        <div className="danger-zone__error" role="alert">Last build failed: {data.lastError}</div>
+        <div className="danger-zone__error" role="alert">
+          Last build failed: {data.lastError}
+        </div>
       )}
 
       <StatRow>
-        <StatTile label="Issue types" value={formatNumber(data?.totalTypes ?? 0)} hint="Defined across the site" icon="layers" />
-        <StatTile label="Issue type schemes" value={formatNumber(data?.totalSchemes ?? 0)} hint="Gate which types a project can use" icon="folder" />
+        <StatTile
+          label="Issue types"
+          value={formatNumber(data?.totalTypes ?? 0)}
+          hint="Defined across the site"
+          icon="layers"
+        />
+        <StatTile
+          label="Issue type schemes"
+          value={formatNumber(data?.totalSchemes ?? 0)}
+          hint="Gate which types a project can use"
+          icon="folder"
+        />
         <StatTile
           label="Unused schemes"
           value={formatNumber(g?.unusedSchemes ?? 0)}
@@ -442,9 +550,8 @@ export function IssueTypesTab({ intent, siteOrigin }) {
       {isStale && (
         <Panel title="This inventory is stale" icon="alertTriangle">
           <p>
-            It was built {Math.floor(buildAgeDays)} days ago. Every full and quick scan
-            refreshes it — run one, or rebuild here. A scheme changed since the last build is
-            not reflected above.
+            It was built {Math.floor(buildAgeDays)} days ago. Every full and quick scan refreshes it — run one, or
+            rebuild here. A scheme changed since the last build is not reflected above.
           </p>
         </Panel>
       )}
@@ -461,7 +568,11 @@ export function IssueTypesTab({ intent, siteOrigin }) {
             </GridSpan>
 
             <GridSpan>
-              <Panel title="Types by hierarchy level" icon="layers" description="Jira's level: −1 sub-task, 0 base, 1 Epic, 2+ custom hierarchy above Epic.">
+              <Panel
+                title="Types by hierarchy level"
+                icon="layers"
+                description="Jira's level: −1 sub-task, 0 base, 1 Epic, 2+ custom hierarchy above Epic."
+              >
                 <BarList
                   items={(data?.hierarchy || []).map((h) => ({ label: h.label, count: h.types.length }))}
                   labelKey="label"
@@ -473,7 +584,11 @@ export function IssueTypesTab({ intent, siteOrigin }) {
             </GridSpan>
 
             <GridSpan>
-              <Panel title="Widest-reaching schemes" icon="folder" description="How many projects each issue type scheme governs. A scheme on hundreds of projects is not a local edit.">
+              <Panel
+                title="Widest-reaching schemes"
+                icon="folder"
+                description="How many projects each issue type scheme governs. A scheme on hundreds of projects is not a local edit."
+              >
                 <BarList
                   items={(data?.schemes || []).slice(0, 10).map((s) => ({ label: s.name, count: s.projectCount }))}
                   labelKey="label"
@@ -488,13 +603,21 @@ export function IssueTypesTab({ intent, siteOrigin }) {
             <GridSpan>
               <Panel title="Coverage" icon="info" description="What this snapshot holds.">
                 <StatRow>
-                  <StatTile label="Sub-task types" value={formatNumber(g?.subtaskTypes ?? 0)} hint="Live under another issue" />
+                  <StatTile
+                    label="Sub-task types"
+                    value={formatNumber(g?.subtaskTypes ?? 0)}
+                    hint="Live under another issue"
+                  />
                   <StatTile
                     label="Project-scoped types"
                     value={formatNumber(g?.projectScopedTypes ?? 0)}
                     hint="Belong to one team-managed project"
                   />
-                  <StatTile label="Hierarchy levels" value={formatNumber(g?.hierarchyLevels ?? 0)} hint="Distinct levels in use" />
+                  <StatTile
+                    label="Hierarchy levels"
+                    value={formatNumber(g?.hierarchyLevels ?? 0)}
+                    hint="Distinct levels in use"
+                  />
                 </StatRow>
               </Panel>
             </GridSpan>
@@ -515,8 +638,14 @@ export function IssueTypesTab({ intent, siteOrigin }) {
             {(data?.hierarchy || []).length === 0 ? (
               <EmptyState inline>No issue types in this snapshot.</EmptyState>
             ) : (
-              (data.hierarchy).map((level) => (
-                <HierarchyLevelPanel key={level.level} level={level} search={search} measurement={data?.usage?.measurement || "not-measured"} usage={usage} />
+              data.hierarchy.map((level) => (
+                <HierarchyLevelPanel
+                  key={level.level}
+                  level={level}
+                  search={search}
+                  measurement={data?.usage?.measurement || "not-measured"}
+                  usage={usage}
+                />
               ))
             )}
           </div>
@@ -538,7 +667,9 @@ export function IssueTypesTab({ intent, siteOrigin }) {
               onClear={() => setSearch("")}
             />
             {filteredSchemes.length === 0 ? (
-              <EmptyState inline>{search ? "No schemes match that search." : "No issue type schemes in this snapshot."}</EmptyState>
+              <EmptyState inline>
+                {search ? "No schemes match that search." : "No issue type schemes in this snapshot."}
+              </EmptyState>
             ) : (
               <div className="issue-type-scheme-list">
                 {filteredSchemes.map((scheme) => (
@@ -557,8 +688,8 @@ export function IssueTypesTab({ intent, siteOrigin }) {
           >
             {(data?.issueTypeScreenSchemes || []).length === 0 ? (
               <EmptyState inline>
-                No issue type screen schemes are available. They come from the Screens snapshot;
-                build it from the Screens tab.
+                No issue type screen schemes are available. They come from the Screens snapshot; build it from the
+                Screens tab.
               </EmptyState>
             ) : (
               <div className="issue-type-scheme-list">
@@ -580,7 +711,8 @@ export function IssueTypesTab({ intent, siteOrigin }) {
                             tone="neutral"
                             title={m.screenSchemeId ? `Screen scheme #${m.screenSchemeId}` : "Maps to no screen scheme"}
                           >
-                            {m.issueTypeName || `#${m.issueTypeId}`} → {m.screenSchemeId ? `#${m.screenSchemeId}` : "none"}
+                            {m.issueTypeName || `#${m.issueTypeId}`} →{" "}
+                            {m.screenSchemeId ? `#${m.screenSchemeId}` : "none"}
                           </Chip>
                         ))
                       )}

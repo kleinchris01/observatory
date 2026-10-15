@@ -15,14 +15,35 @@ import {
 // Full replace, mirroring replaceSnapshotFields: delete this scope's rows, then
 // insert the fresh set. Workflow schemes/statuses are small site-wide catalogs
 // (no resume/append path needed, unlike the custom-field snapshot).
-export async function replaceWorkflowSnapshot(scopeKey, version, { schemes = [], schemeProjects = [], statuses = [], schemeStatuses = [], transitionScreens = [], workflowRules = null }) {
+export async function replaceWorkflowSnapshot(
+  scopeKey,
+  version,
+  {
+    schemes = [],
+    schemeProjects = [],
+    statuses = [],
+    schemeStatuses = [],
+    transitionScreens = [],
+    workflowRules = null,
+  },
+) {
   await ensureProjectStoreReady();
 
-  await withSqlRetry(() => sql.prepare("DELETE FROM snapshot_workflow_schemes WHERE scope_key = ?").bindParams(scopeKey).execute());
-  await withSqlRetry(() => sql.prepare("DELETE FROM snapshot_workflow_scheme_projects WHERE scope_key = ?").bindParams(scopeKey).execute());
-  await withSqlRetry(() => sql.prepare("DELETE FROM snapshot_statuses WHERE scope_key = ?").bindParams(scopeKey).execute());
-  await withSqlRetry(() => sql.prepare("DELETE FROM snapshot_workflow_statuses WHERE scope_key = ?").bindParams(scopeKey).execute());
-  await withSqlRetry(() => sql.prepare("DELETE FROM snapshot_transition_screens WHERE scope_key = ?").bindParams(scopeKey).execute());
+  await withSqlRetry(() =>
+    sql.prepare("DELETE FROM snapshot_workflow_schemes WHERE scope_key = ?").bindParams(scopeKey).execute(),
+  );
+  await withSqlRetry(() =>
+    sql.prepare("DELETE FROM snapshot_workflow_scheme_projects WHERE scope_key = ?").bindParams(scopeKey).execute(),
+  );
+  await withSqlRetry(() =>
+    sql.prepare("DELETE FROM snapshot_statuses WHERE scope_key = ?").bindParams(scopeKey).execute(),
+  );
+  await withSqlRetry(() =>
+    sql.prepare("DELETE FROM snapshot_workflow_statuses WHERE scope_key = ?").bindParams(scopeKey).execute(),
+  );
+  await withSqlRetry(() =>
+    sql.prepare("DELETE FROM snapshot_transition_screens WHERE scope_key = ?").bindParams(scopeKey).execute(),
+  );
   // The rule tables run to tens of thousands of rows on a large site, so each DELETE is
   // bounded -- one unbounded statement is what tripped TiDB's memory quota on the access tables.
   for (const table of WORKFLOW_RULE_TABLES) await deleteScopeInChunks(table, scopeKey);
@@ -30,44 +51,74 @@ export async function replaceWorkflowSnapshot(scopeKey, version, { schemes = [],
   for (const batch of chunkArray(schemes, 50)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((scheme) => [
-      scopeKey, version, scheme.id, scheme.name, scheme.description || null,
-      scheme.defaultWorkflow || null, JSON.stringify(scheme.issueTypeMapping || null),
-      scheme.projectCount ?? 0, JSON.stringify(scheme.findings || null),
+      scopeKey,
+      version,
+      scheme.id,
+      scheme.name,
+      scheme.description || null,
+      scheme.defaultWorkflow || null,
+      JSON.stringify(scheme.issueTypeMapping || null),
+      scheme.projectCount ?? 0,
+      JSON.stringify(scheme.findings || null),
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_workflow_schemes
           (scope_key, version, scheme_id, name, description, default_workflow, issue_type_mapping_json, project_count, findings_json)
         VALUES ${valuesSql}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
   for (const batch of chunkArray(schemeProjects, 50)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((row) => [
-      scopeKey, version, row.schemeId, row.projectId, row.projectKey, row.projectName,
+      scopeKey,
+      version,
+      row.schemeId,
+      row.projectId,
+      row.projectKey,
+      row.projectName,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_workflow_scheme_projects
           (scope_key, version, scheme_id, project_id, project_key, project_name)
         VALUES ${valuesSql}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
   for (const batch of chunkArray(statuses, 50)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((status) => [
-      scopeKey, version, status.id, status.name, status.statusCategory || null,
+      scopeKey,
+      version,
+      status.id,
+      status.name,
+      status.statusCategory || null,
       JSON.stringify(status.findings || null),
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_statuses (scope_key, version, status_id, name, status_category, findings_json)
         VALUES ${valuesSql}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
@@ -75,26 +126,40 @@ export async function replaceWorkflowSnapshot(scopeKey, version, { schemes = [],
     const valuesSql = batch.map(() => "(?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((row) => [scopeKey, version, row.schemeId, row.statusId]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_workflow_statuses (scope_key, version, scheme_id, status_id)
         VALUES ${valuesSql}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
   for (const batch of chunkArray(transitionScreens, 50)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((row) => [
-      scopeKey, version, String(row.workflowName), String(row.transitionId),
-      row.transitionName || null, row.toStatus == null ? null : String(row.toStatus),
+      scopeKey,
+      version,
+      String(row.workflowName),
+      String(row.transitionId),
+      row.transitionName || null,
+      row.toStatus == null ? null : String(row.toStatus),
       String(row.screenId),
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_transition_screens
           (scope_key, version, workflow_name, transition_id, transition_name, to_status, screen_id)
         VALUES ${valuesSql}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
@@ -112,53 +177,89 @@ const WORKFLOW_RULE_TABLES = [
 // INSERT IGNORE on every table: a duplicate key from an unexpected workflow payload costs
 // that one row, never the whole workflow snapshot -- the scheme and status inventory this
 // is written alongside is worth more than any one rule.
-async function insertWorkflowRuleRows(scopeKey, version, { workflows = [], transitions = [], rules = [], properties = [], refs = [] }) {
+async function insertWorkflowRuleRows(
+  scopeKey,
+  version,
+  { workflows = [], transitions = [], rules = [], properties = [], refs = [] },
+) {
   for (const batch of chunkArray(workflows, 50)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((row) => [
-      scopeKey, version, String(row.workflowName), row.workflowId == null ? null : String(row.workflowId).slice(0, 64),
-      row.scopeType || null, row.scopeProjectId || null, Number(row.statusCount) || 0,
-      Number(row.transitionCount) || 0, Number(row.ruleCount) || 0, Number(row.schemeCount) || 0,
+      scopeKey,
+      version,
+      String(row.workflowName),
+      row.workflowId == null ? null : String(row.workflowId).slice(0, 64),
+      row.scopeType || null,
+      row.scopeProjectId || null,
+      Number(row.statusCount) || 0,
+      Number(row.transitionCount) || 0,
+      Number(row.ruleCount) || 0,
+      Number(row.schemeCount) || 0,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT IGNORE INTO snapshot_workflows
           (scope_key, version, workflow_name, workflow_id, scope_type, scope_project_id, status_count, transition_count, rule_count, scheme_count)
         VALUES ${valuesSql}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
   for (const batch of chunkArray(transitions, 50)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((row) => [
-      scopeKey, version, String(row.workflowName), String(row.transitionId),
+      scopeKey,
+      version,
+      String(row.workflowName),
+      String(row.transitionId),
       row.transitionName == null ? null : String(row.transitionName).slice(0, 255),
-      row.transitionType || null, JSON.stringify(row.fromStatusIds || []),
-      row.toStatusId == null ? null : String(row.toStatusId), Number(row.ruleCount) || 0,
+      row.transitionType || null,
+      JSON.stringify(row.fromStatusIds || []),
+      row.toStatusId == null ? null : String(row.toStatusId),
+      Number(row.ruleCount) || 0,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT IGNORE INTO snapshot_workflow_transitions
           (scope_key, version, workflow_name, transition_id, transition_name, transition_type, from_status_ids, to_status_id, rule_count)
         VALUES ${valuesSql}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
   for (const batch of chunkArray(rules, 100)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((row) => [
-      scopeKey, version, String(row.workflowName), String(row.transitionId), Number(row.ruleSeq),
-      row.kind, row.ruleKey == null ? null : String(row.ruleKey).slice(0, 191),
+      scopeKey,
+      version,
+      String(row.workflowName),
+      String(row.transitionId),
+      Number(row.ruleSeq),
+      row.kind,
+      row.ruleKey == null ? null : String(row.ruleKey).slice(0, 191),
       row.summary == null ? null : String(row.summary).slice(0, 500),
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT IGNORE INTO snapshot_workflow_rules
           (scope_key, version, workflow_name, transition_id, rule_seq, rule_kind, rule_key, summary)
         VALUES ${valuesSql}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
@@ -166,34 +267,56 @@ async function insertWorkflowRuleRows(scopeKey, version, { workflows = [], trans
   for (const batch of chunkArray(properties, 100)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((row) => [
-      scopeKey, version, String(row.workflowName), row.ownerKind, String(row.ownerId),
-      String(row.key).slice(0, 160), row.value == null ? null : String(row.value),
+      scopeKey,
+      version,
+      String(row.workflowName),
+      row.ownerKind,
+      String(row.ownerId),
+      String(row.key).slice(0, 160),
+      row.value == null ? null : String(row.value),
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT IGNORE INTO snapshot_workflow_properties
           (scope_key, version, workflow_name, owner_kind, owner_id, prop_key, prop_value)
         VALUES ${valuesSql}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
   for (const batch of chunkArray(refs, 100)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((row) => [
-      scopeKey, version, Number(row.seq), row.refType, String(row.refId),
+      scopeKey,
+      version,
+      Number(row.seq),
+      row.refType,
+      String(row.refId),
       row.refLabel == null ? null : String(row.refLabel).slice(0, 255),
-      row.refMissing == null ? null : (row.refMissing ? 1 : 0),
-      String(row.workflowName), row.source, row.ownerKind, String(row.ownerId),
+      row.refMissing == null ? null : row.refMissing ? 1 : 0,
+      String(row.workflowName),
+      row.source,
+      row.ownerKind,
+      String(row.ownerId),
       row.ruleSeq == null ? null : Number(row.ruleSeq),
       row.propKey == null ? null : String(row.propKey).slice(0, 160),
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_workflow_refs
           (scope_key, version, seq, ref_type, ref_id, ref_label, ref_missing, workflow_name, source, owner_kind, owner_id, rule_seq, prop_key)
         VALUES ${valuesSql}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 }
@@ -230,7 +353,9 @@ export async function loadWorkflowRefsFor(scopeKey, version, refType, refIds) {
   if (!ids.length) return [];
   const placeholders = ids.map(() => "?").join(", ");
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT r.ref_type, r.ref_id, r.ref_label, r.ref_missing, r.workflow_name, r.source,
              r.owner_kind, r.owner_id, r.rule_seq, r.prop_key,
              t.transition_name, t.transition_type, t.from_status_ids, t.to_status_id,
@@ -249,7 +374,10 @@ export async function loadWorkflowRefsFor(scopeKey, version, refType, refIds) {
       WHERE r.scope_key = ? AND r.version = ? AND r.ref_type = ? AND r.ref_id IN (${placeholders})
       ORDER BY r.workflow_name ASC, r.seq ASC
       LIMIT 2000
-    `).bindParams(scopeKey, version, String(refType), ...ids).execute()
+    `,
+      )
+      .bindParams(scopeKey, version, String(refType), ...ids)
+      .execute(),
   );
   return (result.rows || []).map(mapRefRow);
 }
@@ -263,13 +391,18 @@ export async function loadWorkflowRefsByType(scopeKey, version, refTypes = []) {
   if (!types.length) return [];
   const placeholders = types.map(() => "?").join(", ");
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT ref_type, ref_id, ref_label, ref_missing, workflow_name, source, owner_kind, owner_id, rule_seq, prop_key
       FROM snapshot_workflow_refs
       WHERE scope_key = ? AND version = ? AND ref_type IN (${placeholders})
       ORDER BY workflow_name ASC, seq ASC
       LIMIT 20000
-    `).bindParams(scopeKey, version, ...types).execute()
+    `,
+      )
+      .bindParams(scopeKey, version, ...types)
+      .execute(),
   );
   return (result.rows || []).map(mapRefRow);
 }
@@ -279,13 +412,18 @@ export async function loadWorkflowRefsByType(scopeKey, version, refTypes = []) {
 export async function loadStatusWorkflowProperties(scopeKey, version, statusId) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT workflow_name, prop_key, prop_value
       FROM snapshot_workflow_properties
       WHERE scope_key = ? AND version = ? AND owner_kind = 'status' AND owner_id = ?
       ORDER BY workflow_name ASC, prop_key ASC
       LIMIT 2000
-    `).bindParams(scopeKey, version, String(statusId)).execute()
+    `,
+      )
+      .bindParams(scopeKey, version, String(statusId))
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     workflowName: row.workflow_name,
@@ -309,7 +447,11 @@ function likePattern(text) {
 // matches workflow name, transition name, rule key -- or the id or name of anything the rule
 // points at, which is what makes "where is Onsite Modification validated" one search.
 // `kind` narrows to one rule kind; `brokenOnly` to rules naming something that is gone.
-export async function loadWorkflowRulesPage(scopeKey, version, { query = "", kind = null, brokenOnly = false, offset = 0, limit = 50 } = {}) {
+export async function loadWorkflowRulesPage(
+  scopeKey,
+  version,
+  { query = "", kind = null, brokenOnly = false, offset = 0, limit = 50 } = {},
+) {
   await ensureProjectStoreReady();
   const where = ["ru.scope_key = ?", "ru.version = ?"];
   const params = [scopeKey, version];
@@ -317,7 +459,9 @@ export async function loadWorkflowRulesPage(scopeKey, version, { query = "", kin
     where.push("ru.rule_kind = ?");
     params.push(String(kind));
   }
-  const q = String(query || "").trim().toLowerCase();
+  const q = String(query || "")
+    .trim()
+    .toLowerCase();
   if (q) {
     where.push(`(LOWER(ru.workflow_name) LIKE ? OR LOWER(t.transition_name) LIKE ? OR LOWER(ru.rule_key) LIKE ?
       OR EXISTS (${RULE_REF_EXISTS} AND (LOWER(r.ref_id) LIKE ? OR LOWER(r.ref_label) LIKE ?)))`);
@@ -338,15 +482,25 @@ export async function loadWorkflowRulesPage(scopeKey, version, { query = "", kin
   `;
   const [rows, count] = await Promise.all([
     withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         SELECT ru.workflow_name, ru.transition_id, ru.rule_seq, ru.rule_kind, ru.rule_key, ru.summary,
                t.transition_name, t.transition_type, t.from_status_ids, t.to_status_id
         ${from}
         ORDER BY ru.workflow_name ASC, t.transition_name ASC, ru.rule_seq ASC
         LIMIT ${safeLimit} OFFSET ${safeOffset}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     ),
-    withSqlRetry(() => sql.prepare(`SELECT COUNT(*) AS n ${from}`).bindParams(...params).execute()),
+    withSqlRetry(() =>
+      sql
+        .prepare(`SELECT COUNT(*) AS n ${from}`)
+        .bindParams(...params)
+        .execute(),
+    ),
   ]);
 
   return {
@@ -373,12 +527,17 @@ export async function loadRefsForRules(scopeKey, version, keys = []) {
   const clauses = keys.map(() => "(workflow_name = ? AND owner_id = ? AND rule_seq = ?)").join(" OR ");
   const params = keys.flatMap((k) => [String(k.workflowName), String(k.transitionId), Number(k.ruleSeq)]);
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT ref_type, ref_id, ref_label, ref_missing, workflow_name, source, owner_kind, owner_id, rule_seq, prop_key
       FROM snapshot_workflow_refs
       WHERE scope_key = ? AND version = ? AND source = 'rule' AND (${clauses})
       ORDER BY seq ASC
-    `).bindParams(scopeKey, version, ...params).execute()
+    `,
+      )
+      .bindParams(scopeKey, version, ...params)
+      .execute(),
   );
   return (result.rows || []).map(mapRefRow);
 }
@@ -388,14 +547,19 @@ export async function loadRefsForRules(scopeKey, version, keys = []) {
 export async function loadRestrictingProperties(scopeKey, version) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT workflow_name, owner_kind, owner_id, prop_key, prop_value
       FROM snapshot_workflow_properties
       WHERE scope_key = ? AND version = ?
         AND (prop_key LIKE 'jira.permission.%' OR prop_key = 'jira.issue.editable' OR prop_key = 'approval.field.id')
       ORDER BY workflow_name ASC, owner_kind ASC, owner_id ASC, prop_key ASC
       LIMIT 10000
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     workflowName: row.workflow_name,
@@ -411,12 +575,17 @@ export async function loadRestrictingProperties(scopeKey, version) {
 export async function loadWorkflowsCatalog(scopeKey, version) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT workflow_name, workflow_id, scope_type, scope_project_id, status_count, transition_count, rule_count, scheme_count
       FROM snapshot_workflows
       WHERE scope_key = ? AND version = ?
       ORDER BY workflow_name ASC
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     name: row.workflow_name,
@@ -437,12 +606,17 @@ export async function loadWorkflowsCatalog(scopeKey, version) {
 export async function loadTransitionScreens(scopeKey, version) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT workflow_name, transition_id, transition_name, to_status, screen_id
       FROM snapshot_transition_screens
       WHERE scope_key = ? AND version = ?
       ORDER BY workflow_name ASC, transition_name ASC
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     workflowName: row.workflow_name,
@@ -458,12 +632,17 @@ export async function loadTransitionScreens(scopeKey, version) {
 export async function loadTransitionsForScreen(scopeKey, version, screenId) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT workflow_name, transition_id, transition_name, to_status
       FROM snapshot_transition_screens
       WHERE scope_key = ? AND version = ? AND screen_id = ?
       ORDER BY workflow_name ASC, transition_name ASC
-    `).bindParams(scopeKey, version, String(screenId)).execute()
+    `,
+      )
+      .bindParams(scopeKey, version, String(screenId))
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     workflowName: row.workflow_name,
@@ -481,11 +660,16 @@ export async function loadTransitionsForScreen(scopeKey, version, screenId) {
 export async function loadTransitionScreenIds(scopeKey, version) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT DISTINCT screen_id
       FROM snapshot_transition_screens
       WHERE scope_key = ? AND version = ?
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
   return new Set((result.rows || []).map((row) => String(row.screen_id)));
 }
@@ -500,11 +684,16 @@ export async function loadTransitionScreenIds(scopeKey, version) {
 export async function loadWorkflowSchemeStatuses(scopeKey, version) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT scheme_id, status_id
       FROM snapshot_workflow_statuses
       WHERE scope_key = ? AND version = ?
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
   return (result.rows || []).map((row) => ({ schemeId: row.scheme_id, statusId: row.status_id }));
 }
@@ -519,12 +708,17 @@ export async function loadWorkflowSchemeStatuses(scopeKey, version) {
 export async function loadStatusIssueCounts(scopeKey) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT status_id, SUM(issue_count) AS total
       FROM issue_scan_status_totals
       WHERE scope_key = ?
       GROUP BY status_id
-    `).bindParams(scopeKey).execute()
+    `,
+      )
+      .bindParams(scopeKey)
+      .execute(),
   );
   const counts = new Map();
   for (const row of result.rows || []) {
@@ -541,11 +735,16 @@ export async function loadStatusIssueCounts(scopeKey) {
 export async function loadStatusHistoryCounts(scopeKey) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT status_id, ever_count, measured_at
       FROM status_history_totals
       WHERE scope_key = ?
-    `).bindParams(scopeKey).execute()
+    `,
+      )
+      .bindParams(scopeKey)
+      .execute(),
   );
   const counts = new Map();
   let measuredAt = null;
@@ -571,11 +770,16 @@ export async function upsertStatusHistoryCounts(scopeKey, counts, measuredAt) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?)").join(", ");
     const params = batch.flatMap(([statusId, count]) => [scopeKey, String(statusId), Number(count) || 0, measuredAt]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO status_history_totals (scope_key, status_id, ever_count, measured_at)
         VALUES ${valuesSql}
         ON DUPLICATE KEY UPDATE ever_count = VALUES(ever_count), measured_at = VALUES(measured_at)
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 }
@@ -583,7 +787,7 @@ export async function upsertStatusHistoryCounts(scopeKey, counts, measuredAt) {
 export async function clearStatusIssueCounts(scopeKey) {
   await ensureProjectStoreReady();
   await withSqlRetry(() =>
-    sql.prepare("DELETE FROM issue_scan_status_totals WHERE scope_key = ?").bindParams(scopeKey).execute()
+    sql.prepare("DELETE FROM issue_scan_status_totals WHERE scope_key = ?").bindParams(scopeKey).execute(),
   );
 }
 
@@ -607,16 +811,26 @@ export async function flushIssueScanStatusCounts(scopeKey, statusCounts) {
   for (const batch of chunkArray(rows, 100)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((row) => [
-      scopeKey, row.statusId, row.projectId, row.statusName || null,
-      row.statusCategory || null, row.projectKey || null, row.count,
+      scopeKey,
+      row.statusId,
+      row.projectId,
+      row.statusName || null,
+      row.statusCategory || null,
+      row.projectKey || null,
+      row.count,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO issue_scan_status_totals
           (scope_key, status_id, project_id, status_name, status_category, project_key, issue_count)
         VALUES ${valuesSql}
         ON DUPLICATE KEY UPDATE issue_count = issue_count + VALUES(issue_count)
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 }
@@ -624,12 +838,17 @@ export async function flushIssueScanStatusCounts(scopeKey, statusCounts) {
 export async function loadWorkflowSchemes(scopeKey, version) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT scheme_id, name, description, default_workflow, issue_type_mapping_json, project_count, findings_json
       FROM snapshot_workflow_schemes
       WHERE scope_key = ? AND version = ?
       ORDER BY name ASC
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     id: row.scheme_id,
@@ -645,12 +864,17 @@ export async function loadWorkflowSchemes(scopeKey, version) {
 export async function loadWorkflowSchemeProjects(scopeKey, version, schemeId) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT project_id, project_key, project_name
       FROM snapshot_workflow_scheme_projects
       WHERE scope_key = ? AND version = ? AND scheme_id = ?
       ORDER BY project_name ASC
-    `).bindParams(scopeKey, version, schemeId).execute()
+    `,
+      )
+      .bindParams(scopeKey, version, schemeId)
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     projectId: row.project_id,
@@ -665,14 +889,19 @@ export async function loadWorkflowSchemeProjects(scopeKey, version, schemeId) {
 export async function loadWorkflowSchemeForProject(scopeKey, version, projectId) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT wsp.scheme_id, ws.name, ws.description
       FROM snapshot_workflow_scheme_projects wsp
       JOIN snapshot_workflow_schemes ws
         ON ws.scope_key = wsp.scope_key AND ws.version = wsp.version AND ws.scheme_id = wsp.scheme_id
       WHERE wsp.scope_key = ? AND wsp.version = ? AND wsp.project_id = ?
       LIMIT 1
-    `).bindParams(scopeKey, version, projectId).execute()
+    `,
+      )
+      .bindParams(scopeKey, version, projectId)
+      .execute(),
   );
   const row = result.rows?.[0];
   if (!row) return null;
@@ -695,13 +924,18 @@ export async function loadWorkflowSchemeForProject(scopeKey, version, projectId)
 export async function loadProjectWorkflowSchemeMap(scopeKey, version) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT wsp.project_id, wsp.scheme_id, ws.name
       FROM snapshot_workflow_scheme_projects wsp
       JOIN snapshot_workflow_schemes ws
         ON ws.scope_key = wsp.scope_key AND ws.version = wsp.version AND ws.scheme_id = wsp.scheme_id
       WHERE wsp.scope_key = ? AND wsp.version = ?
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
   const map = new Map();
   for (const row of result.rows || []) {
@@ -715,12 +949,17 @@ export async function loadProjectWorkflowSchemeMap(scopeKey, version) {
 export async function loadStatusesCatalog(scopeKey, version) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT status_id, name, status_category, findings_json
       FROM snapshot_statuses
       WHERE scope_key = ? AND version = ?
       ORDER BY name ASC
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     id: row.status_id,
@@ -733,12 +972,17 @@ export async function loadStatusesCatalog(scopeKey, version) {
 export async function readWorkflowSnapshotMeta(scopeKey) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT state, version, started_at, completed_at, refreshed_at, total_schemes, transition_screens, workflow_rules, last_error
       FROM workflow_snapshot_meta
       WHERE scope_key = ?
       LIMIT 1
-    `).bindParams(scopeKey).execute()
+    `,
+      )
+      .bindParams(scopeKey)
+      .execute(),
   );
   const row = result.rows?.[0];
   if (!row) return null;
@@ -782,7 +1026,9 @@ export async function writeWorkflowSnapshotMeta(scopeKey, patch) {
   };
 
   await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       INSERT INTO workflow_snapshot_meta (scope_key, state, version, started_at, completed_at, refreshed_at, total_schemes, transition_screens, workflow_rules, last_error)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE
@@ -795,7 +1041,21 @@ export async function writeWorkflowSnapshotMeta(scopeKey, patch) {
         transition_screens = VALUES(transition_screens),
         workflow_rules = VALUES(workflow_rules),
         last_error = VALUES(last_error)
-    `).bindParams(scopeKey, next.state, next.version, next.startedAt, next.completedAt, next.refreshedAt, next.totalSchemes, next.transitionScreens ?? null, next.workflowRules ?? null, next.lastError).execute()
+    `,
+      )
+      .bindParams(
+        scopeKey,
+        next.state,
+        next.version,
+        next.startedAt,
+        next.completedAt,
+        next.refreshedAt,
+        next.totalSchemes,
+        next.transitionScreens ?? null,
+        next.workflowRules ?? null,
+        next.lastError,
+      )
+      .execute(),
   );
 
   return next;
@@ -808,26 +1068,34 @@ export async function loadTransitionsTouchingStatus(scopeKey, version, statusId)
   await ensureProjectStoreReady();
   const id = String(statusId);
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT workflow_name, transition_id, transition_name, transition_type, from_status_ids, to_status_id, rule_count
       FROM snapshot_workflow_transitions
       WHERE scope_key = ? AND version = ? AND (to_status_id = ? OR from_status_ids LIKE ?)
       ORDER BY workflow_name ASC, transition_name ASC
       LIMIT 2000
-    `).bindParams(scopeKey, version, id, `%"${id.replace(/[\%_"]/g, "")}"%`).execute()
+    `,
+      )
+      .bindParams(scopeKey, version, id, `%"${id.replace(/[\%_"]/g, "")}"%`)
+      .execute(),
   );
-  return (result.rows || []).map((row) => ({
-    workflowName: row.workflow_name,
-    transitionId: row.transition_id,
-    transitionName: row.transition_name || row.transition_id,
-    transitionType: row.transition_type || null,
-    fromStatusIds: safeParseJson(row.from_status_ids, []),
-    toStatusId: row.to_status_id || null,
-    ruleCount: toNumber(row.rule_count, 0),
-  }))
-    // The LIKE is a prefilter; a status id that is a substring of another ("1" in "10") is
-    // excluded here, where the parsed list can be checked exactly.
-    .filter((t) => t.toStatusId === id || t.fromStatusIds.map(String).includes(id));
+  return (
+    (result.rows || [])
+      .map((row) => ({
+        workflowName: row.workflow_name,
+        transitionId: row.transition_id,
+        transitionName: row.transition_name || row.transition_id,
+        transitionType: row.transition_type || null,
+        fromStatusIds: safeParseJson(row.from_status_ids, []),
+        toStatusId: row.to_status_id || null,
+        ruleCount: toNumber(row.rule_count, 0),
+      }))
+      // The LIKE is a prefilter; a status id that is a substring of another ("1" in "10") is
+      // excluded here, where the parsed list can be checked exactly.
+      .filter((t) => t.toStatusId === id || t.fromStatusIds.map(String).includes(id))
+  );
 }
 
 // Each workflow's transitions and rules in two reads, for the change log. Rules are the
@@ -837,20 +1105,30 @@ export async function loadWorkflowStructure(scopeKey, version) {
   await ensureProjectStoreReady();
   const [transitions, rules] = await Promise.all([
     withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         SELECT workflow_name, transition_id, transition_name, transition_type, from_status_ids, to_status_id
         FROM snapshot_workflow_transitions
         WHERE scope_key = ? AND version = ?
         ORDER BY workflow_name ASC, transition_id ASC
-      `).bindParams(scopeKey, version).execute()
+      `,
+        )
+        .bindParams(scopeKey, version)
+        .execute(),
     ),
     withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         SELECT workflow_name, transition_id, rule_seq, rule_kind, rule_key
         FROM snapshot_workflow_rules
         WHERE scope_key = ? AND version = ?
         ORDER BY workflow_name ASC, transition_id ASC, rule_seq ASC
-      `).bindParams(scopeKey, version).execute()
+      `,
+        )
+        .bindParams(scopeKey, version)
+        .execute(),
     ),
   ]);
   return {

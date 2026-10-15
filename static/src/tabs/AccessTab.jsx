@@ -1,11 +1,30 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
-import { formatNumber, formatRelativeTime, buildPermissionSchemeUrl, buildNotificationSchemeAdminUrl, buildIssueSecuritySchemeAdminUrl } from "../utils";
+import {
+  formatNumber,
+  formatRelativeTime,
+  buildPermissionSchemeUrl,
+  buildNotificationSchemeAdminUrl,
+  buildIssueSecuritySchemeAdminUrl,
+} from "../utils";
 import { Icon } from "../components/Icons";
 import {
-  StatTile, StatRow, Panel, EmptyState, Chip, PageHeader,
-  PanelGrid, GridSpan, PillarHealthPanel, BarList, FindingRow, SortFilterBar, AskRovo, JiraLink,
-  UsageTriple, combineUsageItems,
+  StatTile,
+  StatRow,
+  Panel,
+  EmptyState,
+  Chip,
+  PageHeader,
+  PanelGrid,
+  GridSpan,
+  PillarHealthPanel,
+  BarList,
+  FindingRow,
+  SortFilterBar,
+  AskRovo,
+  JiraLink,
+  UsageTriple,
+  combineUsageItems,
 } from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
@@ -61,23 +80,45 @@ const SCHEME_SORTS = [
 // members / recipients behind it. `flags` are already-computed booleans from the parent.
 // `jiraHref`/`jiraLabel`: the Jira back-link lives in the expanded body, not the header --
 // the header is the expand <button>, and an anchor cannot legally nest inside one.
-function SchemeRow({ scheme, holders, flags, contextNoun, holderNoun, jiraHref = null, jiraLabel = "Open in Jira", usage = null, usageIds = null, usageLabel = "issues" }) {
+function SchemeRow({
+  scheme,
+  holders,
+  flags,
+  contextNoun,
+  holderNoun,
+  jiraHref = null,
+  jiraLabel = "Open in Jira",
+  usage = null,
+  usageIds = null,
+  usageLabel = "issues",
+}) {
   const [open, setOpen] = React.useState(false);
   const rows = holders.filter((h) => String(h.schemeId) === String(scheme.id));
 
   return (
     <div className={`access-row${open ? " access-row--open" : ""}`}>
       <button type="button" className="access-row__head" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-        <span className="access-row__chevron" aria-hidden="true">{open ? "▾" : "▸"}</span>
+        <span className="access-row__chevron" aria-hidden="true">
+          {open ? "▾" : "▸"}
+        </span>
         <span className="access-row__identity">
           <span className="access-row__name">{scheme.name}</span>
           {scheme.description && <span className="access-row__desc">{scheme.description}</span>}
           {usage && usageIds && (
-            <UsageTriple usage={usage} item={usage.available ? combineUsageItems(usage, usageIds) : null} totalLabel={usageLabel} compact />
+            <UsageTriple
+              usage={usage}
+              item={usage.available ? combineUsageItems(usage, usageIds) : null}
+              totalLabel={usageLabel}
+              compact
+            />
           )}
         </span>
         <span className="access-row__meta">
-          {scheme.isDefault && <Chip tone="neutral" title="The site-wide default scheme">default</Chip>}
+          {scheme.isDefault && (
+            <Chip tone="neutral" title="The site-wide default scheme">
+              default
+            </Chip>
+          )}
           <Chip
             tone={scheme.projectCount === 0 && !scheme.isDefault ? "warning" : "neutral"}
             title={scheme.projectCount === 0 ? "No project is assigned to this scheme" : undefined}
@@ -85,7 +126,9 @@ function SchemeRow({ scheme, holders, flags, contextNoun, holderNoun, jiraHref =
             {formatNumber(scheme.projectCount)} {scheme.projectCount === 1 ? "project" : "projects"}
           </Chip>
           {flags.map((f) => (
-            <Chip key={f.label} tone={f.tone} title={f.title}>{f.label}</Chip>
+            <Chip key={f.label} tone={f.tone} title={f.title}>
+              {f.label}
+            </Chip>
           ))}
         </span>
       </button>
@@ -94,7 +137,9 @@ function SchemeRow({ scheme, holders, flags, contextNoun, holderNoun, jiraHref =
         <div className="access-row__detail">
           {jiraHref && (
             <p className="admin-config-row__hint">
-              <JiraLink href={jiraHref} title={jiraLabel}>{jiraLabel}</JiraLink>
+              <JiraLink href={jiraHref} title={jiraLabel}>
+                {jiraLabel}
+              </JiraLink>
             </p>
           )}
           {rows.length === 0 ? (
@@ -117,7 +162,8 @@ function SchemeRow({ scheme, holders, flags, contextNoun, holderNoun, jiraHref =
           )}
           {rows.length > HOLDER_ROW_LIMIT && (
             <p className="admin-config-row__hint">
-              Showing {formatNumber(HOLDER_ROW_LIMIT)} of {formatNumber(rows.length)} {holderNoun}. The Access report in Reports lists every one.
+              Showing {formatNumber(HOLDER_ROW_LIMIT)} of {formatNumber(rows.length)} {holderNoun}. The Access report in
+              Reports lists every one.
             </p>
           )}
         </div>
@@ -137,44 +183,61 @@ function AccessFindings({ permissions, security, notifications, roles }) {
 
   if (p.riskySchemeCount > 0) {
     rows.push({
-      tone: "critical", count: p.riskySchemeCount,
+      tone: "critical",
+      count: p.riskySchemeCount,
       title: "Permission schemes that break least privilege",
-      detail: "Browse open to anyone, project admin handed to a whole group, or a permission held by a named individual. "
-        + (p.riskySchemes || []).slice(0, 4).map((x) => x.name).join(", ") + ((p.riskySchemes || []).length > 4 ? "…" : ""),
+      detail:
+        "Browse open to anyone, project admin handed to a whole group, or a permission held by a named individual. " +
+        (p.riskySchemes || [])
+          .slice(0, 4)
+          .map((x) => x.name)
+          .join(", ") +
+        ((p.riskySchemes || []).length > 4 ? "…" : ""),
     });
   }
   if (p.offRosterUserGrantCount > 0) {
     rows.push({
-      tone: "critical", count: p.offRosterUserGrantCount,
+      tone: "critical",
+      count: p.offRosterUserGrantCount,
       title: "Permission grants to someone off the roster",
-      detail: "A permission is held directly by an account that is no longer licensed — nobody reviews it and nothing removes it.",
+      detail:
+        "A permission is held directly by an account that is no longer licensed — nobody reviews it and nothing removes it.",
     });
   }
   if (s.brokenLevelCount > 0 || s.noLevelSchemeCount > 0) {
     rows.push({
-      tone: "critical", count: (s.emptyLevelCount || 0) + (s.noLevelSchemeCount || 0),
+      tone: "critical",
+      count: (s.emptyLevelCount || 0) + (s.noLevelSchemeCount || 0),
       title: "Issue security levels nobody can see through",
-      detail: "Levels with no members, or schemes with no levels at all. An issue set to one is invisible to everyone but a site admin.",
+      detail:
+        "Levels with no members, or schemes with no levels at all. An issue set to one is invisible to everyone but a site admin.",
     });
   }
   if (n.fragileSchemeCount > 0) {
     rows.push({
-      tone: "warning", count: n.fragileSchemeCount,
+      tone: "warning",
+      count: n.fragileSchemeCount,
       title: "Notification schemes routing to a named individual",
       detail: "The notification stops silently the day that person leaves. Route to a project role or group instead.",
     });
   }
   if (r.projectsMissingAdminActorCount > 0) {
     rows.push({
-      tone: "critical", count: r.projectsMissingAdminActorCount,
+      tone: "critical",
+      count: r.projectsMissingAdminActorCount,
       title: "Projects nobody can administer",
-      detail: "No group or user is in the project's admin role — only a site admin can administer it. "
-        + (r.projectsMissingAdminActor || []).slice(0, 6).map((x) => x.projectKey).join(", "),
+      detail:
+        "No group or user is in the project's admin role — only a site admin can administer it. " +
+        (r.projectsMissingAdminActor || [])
+          .slice(0, 6)
+          .map((x) => x.projectKey)
+          .join(", "),
     });
   }
   if (r.offRosterActorCount > 0) {
     rows.push({
-      tone: "warning", count: r.offRosterActorCount,
+      tone: "warning",
+      count: r.offRosterActorCount,
       title: "Project-role actors off the licensed roster",
       detail: "An account no longer licensed still sits in a project role.",
     });
@@ -182,17 +245,27 @@ function AccessFindings({ permissions, security, notifications, roles }) {
   const unused = (p.unusedSchemeCount || 0) + (s.unusedSchemeCount || 0) + (n.unusedSchemeCount || 0);
   if (unused > 0) {
     rows.push({
-      tone: "info", count: unused,
+      tone: "info",
+      count: unused,
       title: "Access schemes assigned to no project",
       detail: `${p.unusedSchemeCount || 0} permission, ${s.unusedSchemeCount || 0} security and ${n.unusedSchemeCount || 0} notification schemes nothing uses — clutter in every scheme picker.`,
     });
   }
 
   return (
-    <Panel title="What needs attention" icon="alertTriangle" description="What the permission, issue-security and notification pillars of the site health score are built from.">
-      {rows.length === 0
-        ? <EmptyState inline>Nothing flagged. No blanket grants, every security level has members, and no notification routes to a single person.</EmptyState>
-        : rows.map((r) => <FindingRow key={r.title} tone={r.tone} title={r.title} detail={r.detail} count={r.count} />)}
+    <Panel
+      title="What needs attention"
+      icon="alertTriangle"
+      description="What the permission, issue-security and notification pillars of the site health score are built from."
+    >
+      {rows.length === 0 ? (
+        <EmptyState inline>
+          Nothing flagged. No blanket grants, every security level has members, and no notification routes to a single
+          person.
+        </EmptyState>
+      ) : (
+        rows.map((r) => <FindingRow key={r.title} tone={r.tone} title={r.title} detail={r.detail} count={r.count} />)
+      )}
     </Panel>
   );
 }
@@ -202,18 +275,36 @@ function permissionFlags(scheme, governance) {
   const flags = [];
   if (risky) {
     for (const reason of risky.reasons || []) {
-      flags.push({ label: reason, tone: reason.includes("anyone") ? "critical" : "warning", title: "Least-privilege concern" });
+      flags.push({
+        label: reason,
+        tone: reason.includes("anyone") ? "critical" : "warning",
+        title: "Least-privilege concern",
+      });
     }
   }
   return flags;
 }
 
-function AccessTabInner({ data, view, setView, search, setSearch, schemeSort, setSchemeSort, pillars, siteOrigin, levelUsage = null }) {
+function AccessTabInner({
+  data,
+  view,
+  setView,
+  search,
+  setSearch,
+  schemeSort,
+  setSchemeSort,
+  pillars,
+  siteOrigin,
+  levelUsage = null,
+}) {
   const term = search.trim().toLowerCase();
 
   const filterSchemes = (schemes, governance, flagFn) => {
     let rows = schemes;
-    if (term) rows = rows.filter((s) => s.name.toLowerCase().includes(term) || (s.description || "").toLowerCase().includes(term));
+    if (term)
+      rows = rows.filter(
+        (s) => s.name.toLowerCase().includes(term) || (s.description || "").toLowerCase().includes(term),
+      );
     const flaggedIds = new Set((governance?.riskySchemes || governance?.fragileSchemes || []).map((x) => String(x.id)));
     const by = {
       "name-asc": (a, b) => a.name.localeCompare(b.name),
@@ -242,19 +333,36 @@ function AccessTabInner({ data, view, setView, search, setSearch, schemeSort, se
     <SubNavLayout items={items} activeKey={view} onSelect={setView}>
       {view === "overview" && (
         <PanelGrid>
-          <GridSpan><PillarHealthPanel pillar={pillars.permissions} /></GridSpan>
-          <GridSpan><PillarHealthPanel pillar={pillars.security} /></GridSpan>
-          <GridSpan><PillarHealthPanel pillar={pillars.notifications} /></GridSpan>
-          <GridSpan><PillarHealthPanel pillar={pillars.roles} /></GridSpan>
+          <GridSpan>
+            <PillarHealthPanel pillar={pillars.permissions} />
+          </GridSpan>
+          <GridSpan>
+            <PillarHealthPanel pillar={pillars.security} />
+          </GridSpan>
+          <GridSpan>
+            <PillarHealthPanel pillar={pillars.notifications} />
+          </GridSpan>
+          <GridSpan>
+            <PillarHealthPanel pillar={pillars.roles} />
+          </GridSpan>
           <GridSpan>
             <AccessFindings permissions={perm} security={sec} notifications={notif} roles={role} />
           </GridSpan>
           <GridSpan>
-            <Panel title="Permission schemes by project reach" icon="shield" description="A scheme on hundreds of projects is not a local edit.">
+            <Panel
+              title="Permission schemes by project reach"
+              icon="shield"
+              description="A scheme on hundreds of projects is not a local edit."
+            >
               <BarList
-                items={(perm.schemes || []).slice().sort((a, b) => (b.projectCount || 0) - (a.projectCount || 0)).slice(0, 10)
+                items={(perm.schemes || [])
+                  .slice()
+                  .sort((a, b) => (b.projectCount || 0) - (a.projectCount || 0))
+                  .slice(0, 10)
                   .map((s) => ({ label: s.name, count: s.projectCount || 0 }))}
-                labelKey="label" valueKey="count" formatValue={formatNumber}
+                labelKey="label"
+                valueKey="count"
+                formatValue={formatNumber}
                 emptyMessage="No permission schemes in this snapshot."
               />
             </Panel>
@@ -263,14 +371,25 @@ function AccessTabInner({ data, view, setView, search, setSearch, schemeSort, se
       )}
 
       {view === "permissions" && (
-        <Panel title="Permission schemes" icon="shield" description="Every permission scheme, its grants and which projects use it. A grant to a named individual, or browse open to anyone, is flagged.">
+        <Panel
+          title="Permission schemes"
+          icon="shield"
+          description="Every permission scheme, its grants and which projects use it. A grant to a named individual, or browse open to anyone, is flagged."
+        >
           <SortFilterBar
-            search={search} onSearchChange={setSearch}
-            searchLabel="Search permission schemes" searchPlaceholder="Search schemes by name…"
-            sort={schemeSort} onSortChange={setSchemeSort} sortOptions={SCHEME_SORTS}
+            search={search}
+            onSearchChange={setSearch}
+            searchLabel="Search permission schemes"
+            searchPlaceholder="Search schemes by name…"
+            sort={schemeSort}
+            onSortChange={setSchemeSort}
+            sortOptions={SCHEME_SORTS}
             resultCount={filterSchemes(perm.schemes || [], perm.governance).length}
             totalCount={(perm.schemes || []).length}
-            onClear={() => { setSearch(""); setSchemeSort("name-asc"); }}
+            onClear={() => {
+              setSearch("");
+              setSchemeSort("name-asc");
+            }}
           />
           {(perm.schemes || []).length === 0 ? (
             <EmptyState inline>No permission schemes in this snapshot.</EmptyState>
@@ -278,9 +397,12 @@ function AccessTabInner({ data, view, setView, search, setSearch, schemeSort, se
             <div className="access-list">
               {filterSchemes(perm.schemes, perm.governance).map((s) => (
                 <SchemeRow
-                  key={s.id} scheme={s} holders={perm.holders || []}
+                  key={s.id}
+                  scheme={s}
+                  holders={perm.holders || []}
                   flags={permissionFlags(s, perm.governance)}
-                  contextNoun="permission" holderNoun="grants"
+                  contextNoun="permission"
+                  holderNoun="grants"
                   jiraHref={buildPermissionSchemeUrl(siteOrigin, s.id)}
                   jiraLabel="Open this scheme's grants in Jira"
                 />
@@ -291,14 +413,25 @@ function AccessTabInner({ data, view, setView, search, setSearch, schemeSort, se
       )}
 
       {view === "security" && (
-        <Panel title="Issue security schemes" icon="lock" description="Each scheme's security levels and their members. A level with no members hides every issue set to it from everyone but a site admin.">
+        <Panel
+          title="Issue security schemes"
+          icon="lock"
+          description="Each scheme's security levels and their members. A level with no members hides every issue set to it from everyone but a site admin."
+        >
           <SortFilterBar
-            search={search} onSearchChange={setSearch}
-            searchLabel="Search issue security schemes" searchPlaceholder="Search schemes by name…"
-            sort={schemeSort} onSortChange={setSchemeSort} sortOptions={SCHEME_SORTS}
+            search={search}
+            onSearchChange={setSearch}
+            searchLabel="Search issue security schemes"
+            searchPlaceholder="Search schemes by name…"
+            sort={schemeSort}
+            onSortChange={setSchemeSort}
+            sortOptions={SCHEME_SORTS}
             resultCount={filterSchemes(sec.schemes || [], sec.governance).length}
             totalCount={(sec.schemes || []).length}
-            onClear={() => { setSearch(""); setSchemeSort("name-asc"); }}
+            onClear={() => {
+              setSearch("");
+              setSchemeSort("name-asc");
+            }}
           />
           {(sec.schemes || []).length === 0 ? (
             <EmptyState inline>No issue security schemes on this site.</EmptyState>
@@ -306,15 +439,28 @@ function AccessTabInner({ data, view, setView, search, setSearch, schemeSort, se
             <div className="access-list">
               {filterSchemes(sec.schemes, sec.governance).map((s) => {
                 const levels = (sec.levels || []).filter((l) => String(l.schemeId) === String(s.id));
-                const emptyIds = new Set((sec.governance?.emptyLevels || [])
-                  .filter((e) => String(e.schemeId) === String(s.id)).map((e) => String(e.levelId)));
+                const emptyIds = new Set(
+                  (sec.governance?.emptyLevels || [])
+                    .filter((e) => String(e.schemeId) === String(s.id))
+                    .map((e) => String(e.levelId)),
+                );
                 const flags = [];
-                if (levels.length === 0) flags.push({ label: "no levels", tone: "critical", title: "The scheme defines no security levels" });
-                if (emptyIds.size > 0) flags.push({ label: `${emptyIds.size} empty ${emptyIds.size === 1 ? "level" : "levels"}`, tone: "critical", title: "Security levels with no members" });
+                if (levels.length === 0)
+                  flags.push({ label: "no levels", tone: "critical", title: "The scheme defines no security levels" });
+                if (emptyIds.size > 0)
+                  flags.push({
+                    label: `${emptyIds.size} empty ${emptyIds.size === 1 ? "level" : "levels"}`,
+                    tone: "critical",
+                    title: "Security levels with no members",
+                  });
                 return (
                   <SchemeRow
-                    key={s.id} scheme={s} holders={sec.holders || []}
-                    flags={flags} contextNoun="level" holderNoun="members"
+                    key={s.id}
+                    scheme={s}
+                    holders={sec.holders || []}
+                    flags={flags}
+                    contextNoun="level"
+                    holderNoun="members"
                     jiraHref={buildIssueSecuritySchemeAdminUrl(siteOrigin)}
                     jiraLabel="Open issue security schemes in Jira"
                     usage={levelUsage}
@@ -329,14 +475,25 @@ function AccessTabInner({ data, view, setView, search, setSearch, schemeSort, se
       )}
 
       {view === "notifications" && (
-        <Panel title="Notification schemes" icon="bell" description="Each scheme's events and who they notify. A recipient that is a named account, rather than a role or group, breaks silently when that person leaves.">
+        <Panel
+          title="Notification schemes"
+          icon="bell"
+          description="Each scheme's events and who they notify. A recipient that is a named account, rather than a role or group, breaks silently when that person leaves."
+        >
           <SortFilterBar
-            search={search} onSearchChange={setSearch}
-            searchLabel="Search notification schemes" searchPlaceholder="Search schemes by name…"
-            sort={schemeSort} onSortChange={setSchemeSort} sortOptions={SCHEME_SORTS}
+            search={search}
+            onSearchChange={setSearch}
+            searchLabel="Search notification schemes"
+            searchPlaceholder="Search schemes by name…"
+            sort={schemeSort}
+            onSortChange={setSchemeSort}
+            sortOptions={SCHEME_SORTS}
             resultCount={filterSchemes(notif.schemes || [], notif.governance).length}
             totalCount={(notif.schemes || []).length}
-            onClear={() => { setSearch(""); setSchemeSort("name-asc"); }}
+            onClear={() => {
+              setSearch("");
+              setSchemeSort("name-asc");
+            }}
           />
           {(notif.schemes || []).length === 0 ? (
             <EmptyState inline>No notification schemes in this snapshot.</EmptyState>
@@ -346,14 +503,34 @@ function AccessTabInner({ data, view, setView, search, setSearch, schemeSort, se
                 const fragile = (notif.governance?.fragileSchemes || []).find((x) => String(x.id) === String(s.id));
                 const flags = fragile
                   ? [
-                    ...(fragile.namedUserCount ? [{ label: `${fragile.namedUserCount} named ${fragile.namedUserCount === 1 ? "recipient" : "recipients"}`, tone: "warning", title: "Routes an event to a specific person" }] : []),
-                    ...(fragile.emailAddressCount ? [{ label: `${fragile.emailAddressCount} email ${fragile.emailAddressCount === 1 ? "address" : "addresses"}`, tone: "warning", title: "Sends issue content to an address outside the user directory" }] : []),
-                  ]
+                      ...(fragile.namedUserCount
+                        ? [
+                            {
+                              label: `${fragile.namedUserCount} named ${fragile.namedUserCount === 1 ? "recipient" : "recipients"}`,
+                              tone: "warning",
+                              title: "Routes an event to a specific person",
+                            },
+                          ]
+                        : []),
+                      ...(fragile.emailAddressCount
+                        ? [
+                            {
+                              label: `${fragile.emailAddressCount} email ${fragile.emailAddressCount === 1 ? "address" : "addresses"}`,
+                              tone: "warning",
+                              title: "Sends issue content to an address outside the user directory",
+                            },
+                          ]
+                        : []),
+                    ]
                   : [];
                 return (
                   <SchemeRow
-                    key={s.id} scheme={s} holders={notif.holders || []}
-                    flags={flags} contextNoun="event" holderNoun="recipients"
+                    key={s.id}
+                    scheme={s}
+                    holders={notif.holders || []}
+                    flags={flags}
+                    contextNoun="event"
+                    holderNoun="recipients"
                     jiraHref={buildNotificationSchemeAdminUrl(siteOrigin)}
                     jiraLabel="Open notification schemes in Jira"
                   />
@@ -365,14 +542,25 @@ function AccessTabInner({ data, view, setView, search, setSearch, schemeSort, se
       )}
 
       {view === "roles" && (
-        <Panel title="Project roles" icon="user" description="Each project role and who is in it, per project. Permission and notification schemes grant to these roles — a project with nobody in any administering role can only be managed by a site admin.">
+        <Panel
+          title="Project roles"
+          icon="user"
+          description="Each project role and who is in it, per project. Permission and notification schemes grant to these roles — a project with nobody in any administering role can only be managed by a site admin."
+        >
           <SortFilterBar
-            search={search} onSearchChange={setSearch}
-            searchLabel="Search project roles" searchPlaceholder="Search roles by name…"
-            sort={schemeSort} onSortChange={setSchemeSort} sortOptions={SCHEME_SORTS}
+            search={search}
+            onSearchChange={setSearch}
+            searchLabel="Search project roles"
+            searchPlaceholder="Search roles by name…"
+            sort={schemeSort}
+            onSortChange={setSchemeSort}
+            sortOptions={SCHEME_SORTS}
             resultCount={filterSchemes(role.schemes || [], role.governance).length}
             totalCount={(role.schemes || []).length}
-            onClear={() => { setSearch(""); setSchemeSort("name-asc"); }}
+            onClear={() => {
+              setSearch("");
+              setSchemeSort("name-asc");
+            }}
           />
           {(role.schemes || []).length === 0 ? (
             <EmptyState inline>No project roles in this snapshot.</EmptyState>
@@ -384,16 +572,22 @@ function AccessTabInner({ data, view, setView, search, setSearch, schemeSort, se
                 // role of any other kind is worth knowing but not an emergency.
                 const more = emptyProjectKeys.length > 12 ? ` and ${emptyProjectKeys.length - 12} more` : "";
                 const flags = emptyProjectKeys.length
-                  ? [{
-                    label: `empty on ${formatNumber(emptyProjectKeys.length)} ${emptyProjectKeys.length === 1 ? "project" : "projects"}`,
-                    tone: ADMIN_ROLE.test(s.name || "") ? "critical" : "neutral",
-                    title: `No actor on: ${emptyProjectKeys.slice(0, 12).join(", ")}${more}`,
-                  }]
+                  ? [
+                      {
+                        label: `empty on ${formatNumber(emptyProjectKeys.length)} ${emptyProjectKeys.length === 1 ? "project" : "projects"}`,
+                        tone: ADMIN_ROLE.test(s.name || "") ? "critical" : "neutral",
+                        title: `No actor on: ${emptyProjectKeys.slice(0, 12).join(", ")}${more}`,
+                      },
+                    ]
                   : [];
                 return (
                   <SchemeRow
-                    key={s.id} scheme={{ ...s, projectCount: s.projectCount }} holders={role.holders || []}
-                    flags={flags} contextNoun="project" holderNoun="actors"
+                    key={s.id}
+                    scheme={{ ...s, projectCount: s.projectCount }}
+                    holders={role.holders || []}
+                    flags={flags}
+                    contextNoun="project"
+                    holderNoun="actors"
                   />
                 );
               })}
@@ -433,7 +627,9 @@ export function AccessTab({ intent, siteOrigin }) {
     }
   }, []);
 
-  React.useEffect(() => { load(); }, [load]);
+  React.useEffect(() => {
+    load();
+  }, [load]);
 
   // The three access pillars of the site health score, on their own so this tab shows the
   // same governance reading the Overview does -- matching IssueTypesTab and AssetsTab.
@@ -447,9 +643,16 @@ export function AccessTab({ intent, siteOrigin }) {
       invoke("getPillarHealth", { pillar: "roles" }).catch(() => null),
     ]).then(([p, s, n, r]) => {
       if (cancelled) return;
-      setPillars({ permissions: p?.pillar || null, security: s?.pillar || null, notifications: n?.pillar || null, roles: r?.pillar || null });
+      setPillars({
+        permissions: p?.pillar || null,
+        security: s?.pillar || null,
+        notifications: n?.pillar || null,
+        roles: r?.pillar || null,
+      });
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [data?.refreshedAt]);
 
   const isBuilding = ["building", "queued"].includes(data?.state) && !data?.staleBuild;
@@ -518,14 +721,26 @@ export function AccessTab({ intent, siteOrigin }) {
 
   const banners = (
     <>
-      {error && <div className="danger-zone__error" role="alert">{error}</div>}
-      {notice && !error && <p className="admin-config-row__hint" role="status">{notice}</p>}
-      {isBuilding && <p className="admin-config-row__hint">Reading the scheme configuration… this page refreshes itself.</p>}
+      {error && (
+        <div className="danger-zone__error" role="alert">
+          {error}
+        </div>
+      )}
+      {notice && !error && (
+        <p className="admin-config-row__hint" role="status">
+          {notice}
+        </p>
+      )}
+      {isBuilding && (
+        <p className="admin-config-row__hint">Reading the scheme configuration… this page refreshes itself.</p>
+      )}
       {data?.staleBuild && (
         <p className="admin-config-row__hint">A build was started but is no longer running. Rebuild to recover it.</p>
       )}
       {data?.lastError && !isBuilding && (
-        <div className="danger-zone__error" role="alert">Last build failed: {data.lastError}</div>
+        <div className="danger-zone__error" role="alert">
+          Last build failed: {data.lastError}
+        </div>
       )}
     </>
   );
@@ -538,17 +753,16 @@ export function AccessTab({ intent, siteOrigin }) {
         {isBuilding ? (
           <Panel title="Building the first inventory" icon="refreshCw">
             <p>
-              Reading every permission scheme with its grants, every issue-security scheme
-              with its levels and members, and every notification scheme with its events and
-              recipients — plus which projects each is assigned to. A small structural build.
-              This page refreshes itself; you can leave it.
+              Reading every permission scheme with its grants, every issue-security scheme with its levels and members,
+              and every notification scheme with its events and recipients — plus which projects each is assigned to. A
+              small structural build. This page refreshes itself; you can leave it.
             </p>
             {data?.startedAt && <p className="admin-config-row__hint">Started {formatRelativeTime(data.startedAt)}.</p>}
           </Panel>
         ) : (
           <EmptyState action={buildAction}>
-            No access inventory has been built yet. It is also produced by every full and quick
-            scan — or build it on its own here.
+            No access inventory has been built yet. It is also produced by every full and quick scan — or build it on
+            its own here.
           </EmptyState>
         )}
       </div>
@@ -584,9 +798,11 @@ export function AccessTab({ intent, siteOrigin }) {
         <StatTile
           label="Security levels"
           value={formatNumber(sec.totalLevels ?? 0)}
-          hint={(sec.emptyLevelCount ?? 0) + (sec.noLevelSchemeCount ?? 0) > 0
-            ? `${formatNumber((sec.emptyLevelCount ?? 0) + (sec.noLevelSchemeCount ?? 0))} unreachable`
-            : "Every level has members"}
+          hint={
+            (sec.emptyLevelCount ?? 0) + (sec.noLevelSchemeCount ?? 0) > 0
+              ? `${formatNumber((sec.emptyLevelCount ?? 0) + (sec.noLevelSchemeCount ?? 0))} unreachable`
+              : "Every level has members"
+          }
           tone={(sec.emptyLevelCount ?? 0) + (sec.noLevelSchemeCount ?? 0) > 0 ? "critical" : "success"}
           icon="lock"
         />
@@ -600,7 +816,11 @@ export function AccessTab({ intent, siteOrigin }) {
         <StatTile
           label="Empty admin roles"
           value={formatNumber(roleGov.projectsMissingAdminActorCount ?? 0)}
-          hint={(roleGov.projectsMissingAdminActorCount ?? 0) > 0 ? "Only a site admin can manage these" : "Every project has a role admin"}
+          hint={
+            (roleGov.projectsMissingAdminActorCount ?? 0) > 0
+              ? "Only a site admin can manage these"
+              : "Every project has a role admin"
+          }
           tone={(roleGov.projectsMissingAdminActorCount ?? 0) > 0 ? "critical" : "success"}
           icon="user"
         />
@@ -608,7 +828,10 @@ export function AccessTab({ intent, siteOrigin }) {
 
       {isStale && (
         <Panel title="This inventory is stale" icon="alertTriangle">
-          <p>It was built {Math.floor(buildAgeDays)} days ago. Every full and quick scan refreshes it — run one, or rebuild here.</p>
+          <p>
+            It was built {Math.floor(buildAgeDays)} days ago. Every full and quick scan refreshes it — run one, or
+            rebuild here.
+          </p>
         </Panel>
       )}
 

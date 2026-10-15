@@ -69,7 +69,7 @@ export function rankPriorities({ ledger, health, remediation = null, limit = 8 }
       const counted = row.unscored ? [row.count] : findings.map((f) => f.count);
       const known = counted.filter((n) => typeof n === "number");
       const count = known.length ? known.reduce((a, b) => a + b, 0) : null;
-      const lift = row.unscored ? null : lifts.get(row.key) ?? null;
+      const lift = row.unscored ? null : (lifts.get(row.key) ?? null);
       // A scored check already at 100 lifts nothing; it is here only because a finding beneath
       // it is urgent, so it competes as an unscored finding would.
       const effectiveLift = lift && lift > 0 ? lift : findingKeys.length ? UNSCORED_LIFT : 0;

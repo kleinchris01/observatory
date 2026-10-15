@@ -41,7 +41,13 @@ function HandoverSection({ section, siteOrigin }) {
               const href = itemHref(item, siteOrigin);
               return (
                 <li key={`${item.kind}-${item.id}`}>
-                  {href ? <JiraLink href={href} title={`Open ${item.name} in Jira`}>{item.name}</JiraLink> : item.name}
+                  {href ? (
+                    <JiraLink href={href} title={`Open ${item.name} in Jira`}>
+                      {item.name}
+                    </JiraLink>
+                  ) : (
+                    item.name
+                  )}
                   <span className="handover-section__detail"> · {item.detail}</span>
                 </li>
               );
@@ -70,14 +76,24 @@ export function HandoverReport({ accountId, siteOrigin = "", load = invoke }) {
   if (state.status === "idle" || state.status === "error") {
     return (
       <div className="handover">
-        <button type="button" className="secondary-button" onClick={prepare}>Prepare handover report</button>
+        <button type="button" className="secondary-button" onClick={prepare}>
+          Prepare handover report
+        </button>
         <span className="admin-config-row__hint"> What breaks or needs a new owner if this account is removed.</span>
-        {state.error && <div className="danger-zone__error" role="alert">{state.error}</div>}
+        {state.error && (
+          <div className="danger-zone__error" role="alert">
+            {state.error}
+          </div>
+        )}
       </div>
     );
   }
   if (state.status === "loading") {
-    return <div className="handover"><p className="admin-config-row__hint">Preparing the handover report…</p></div>;
+    return (
+      <div className="handover">
+        <p className="admin-config-row__hint">Preparing the handover report…</p>
+      </div>
+    );
   }
 
   const { report } = state;
@@ -95,7 +111,8 @@ export function HandoverReport({ accountId, siteOrigin = "", load = invoke }) {
         <p className="handover__summary">{report.summary}</p>
         {report.beforeRemoval > 0 && (
           <p className="admin-config-row__hint">
-            {formatNumber(report.beforeRemoval)} item{report.beforeRemoval === 1 ? "" : "s"} to deal with before the account is removed.
+            {formatNumber(report.beforeRemoval)} item{report.beforeRemoval === 1 ? "" : "s"} to deal with before the
+            account is removed.
           </p>
         )}
       </div>

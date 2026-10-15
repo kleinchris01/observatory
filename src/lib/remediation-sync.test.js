@@ -18,7 +18,8 @@ vi.mock("./store/remediation.js", () => ({
 const queuePush = vi.fn().mockResolvedValue(undefined);
 vi.mock("./queues.js", () => ({ inventorySnapshotQueue: { push: (...args) => queuePush(...args) } }));
 
-const { syncRemediationTickets, queueRemediationSync, resolveDoneAt, REOPEN_WINDOW_DAYS } = await import("./remediation-sync.js");
+const { syncRemediationTickets, queueRemediationSync, resolveDoneAt, REOPEN_WINDOW_DAYS } =
+  await import("./remediation-sync.js");
 
 beforeEach(() => {
   getIssuesStatus.mockReset();
@@ -35,20 +36,31 @@ describe("syncRemediationTickets", () => {
   });
 
   it("writes the live status back for every ticket Jira still returns", async () => {
-    loadRemediationTicketsToSync.mockResolvedValue([
-      { issueKey: "OPS-1" }, { issueKey: "OPS-2" },
-    ]);
+    loadRemediationTicketsToSync.mockResolvedValue([{ issueKey: "OPS-1" }, { issueKey: "OPS-2" }]);
     getIssuesStatus.mockResolvedValue([
-      { key: "OPS-1", status: "In Progress", statusCategory: "indeterminate", assigneeAccountId: "acc-1", assigneeName: "Sam" },
+      {
+        key: "OPS-1",
+        status: "In Progress",
+        statusCategory: "indeterminate",
+        assigneeAccountId: "acc-1",
+        assigneeName: "Sam",
+      },
       { key: "OPS-2", status: "Done", statusCategory: "done", assigneeAccountId: "acc-2", assigneeName: "Ann" },
     ]);
 
     const result = await syncRemediationTickets("scope");
 
     expect(updateRemediationSync).toHaveBeenCalledTimes(2);
-    expect(updateRemediationSync).toHaveBeenCalledWith("scope", "OPS-1", expect.objectContaining({
-      lastStatus: "In Progress", lastStatusCategory: "indeterminate", assigneeAccountId: "acc-1", assigneeName: "Sam",
-    }));
+    expect(updateRemediationSync).toHaveBeenCalledWith(
+      "scope",
+      "OPS-1",
+      expect.objectContaining({
+        lastStatus: "In Progress",
+        lastStatusCategory: "indeterminate",
+        assigneeAccountId: "acc-1",
+        assigneeName: "Sam",
+      }),
+    );
     expect(result).toEqual({ checked: 2, updated: 2, failedBatches: 0 });
   });
 
@@ -86,9 +98,13 @@ describe("syncRemediationTickets", () => {
     const tickets = Array.from({ length: 250 }, (_, i) => ({ issueKey: `OPS-${i}` }));
     loadRemediationTicketsToSync.mockResolvedValue(tickets);
     getIssuesStatus
-      .mockResolvedValueOnce(tickets.slice(0, 100).map((t) => ({ key: t.issueKey, status: "Done", statusCategory: "done" })))
+      .mockResolvedValueOnce(
+        tickets.slice(0, 100).map((t) => ({ key: t.issueKey, status: "Done", statusCategory: "done" })),
+      )
       .mockRejectedValueOnce(new Error("Jira request failed (500)"))
-      .mockResolvedValueOnce(tickets.slice(200).map((t) => ({ key: t.issueKey, status: "To Do", statusCategory: "new" })));
+      .mockResolvedValueOnce(
+        tickets.slice(200).map((t) => ({ key: t.issueKey, status: "To Do", statusCategory: "new" })),
+      );
 
     const result = await syncRemediationTickets("scope");
 
@@ -109,25 +125,42 @@ describe("syncRemediationTickets", () => {
 
   it("records when a ticket was done, from Jira's resolution date", async () => {
     loadRemediationTicketsToSync.mockResolvedValue([{ issueKey: "OPS-1" }]);
-    getIssuesStatus.mockResolvedValue([{
-      key: "OPS-1", status: "Done", statusCategory: "done",
-      resolvedAt: "2026-09-27T10:00:00.000Z", statusCategoryChangedAt: "2026-09-27T10:05:00.000Z",
-    }]);
+    getIssuesStatus.mockResolvedValue([
+      {
+        key: "OPS-1",
+        status: "Done",
+        statusCategory: "done",
+        resolvedAt: "2026-09-27T10:00:00.000Z",
+        statusCategoryChangedAt: "2026-09-27T10:05:00.000Z",
+      },
+    ]);
     await syncRemediationTickets("scope", new Date("2026-09-28T16:00:00.000Z"));
-    expect(updateRemediationSync).toHaveBeenCalledWith("scope", "OPS-1", expect.objectContaining({
-      doneAt: "2026-09-27T10:00:00.000Z", statusChangedAt: "2026-09-27T10:05:00.000Z",
-    }));
+    expect(updateRemediationSync).toHaveBeenCalledWith(
+      "scope",
+      "OPS-1",
+      expect.objectContaining({
+        doneAt: "2026-09-27T10:00:00.000Z",
+        statusChangedAt: "2026-09-27T10:05:00.000Z",
+      }),
+    );
   });
 
   // The gap this closes: the sync used to stop reading a ticket the moment it was Done, so a
   // reopen in Jira was never seen and the tab showed it Done for good.
   it("clears the done date when a ticket has been reopened", async () => {
-    loadRemediationTicketsToSync.mockResolvedValue([{ issueKey: "OPS-1", lastStatusCategory: "done", doneAt: "2026-09-20T00:00:00.000Z" }]);
+    loadRemediationTicketsToSync.mockResolvedValue([
+      { issueKey: "OPS-1", lastStatusCategory: "done", doneAt: "2026-09-20T00:00:00.000Z" },
+    ]);
     getIssuesStatus.mockResolvedValue([{ key: "OPS-1", status: "Reopened", statusCategory: "indeterminate" }]);
     await syncRemediationTickets("scope");
-    expect(updateRemediationSync).toHaveBeenCalledWith("scope", "OPS-1", expect.objectContaining({
-      lastStatusCategory: "indeterminate", doneAt: null,
-    }));
+    expect(updateRemediationSync).toHaveBeenCalledWith(
+      "scope",
+      "OPS-1",
+      expect.objectContaining({
+        lastStatusCategory: "indeterminate",
+        doneAt: null,
+      }),
+    );
   });
 });
 
@@ -144,8 +177,16 @@ describe("resolveDoneAt", () => {
     expect(resolveDoneAt({ statusCategory: "indeterminate", resolvedAt: "x" }, null, syncedAt)).toBeNull();
   });
   it("prefers the resolution date, then the status-category change, then the stored date, then now", () => {
-    expect(resolveDoneAt({ statusCategory: "done", resolvedAt: "a", statusCategoryChangedAt: "b" }, { doneAt: "c" }, syncedAt)).toBe("a");
-    expect(resolveDoneAt({ statusCategory: "done", statusCategoryChangedAt: "b" }, { doneAt: "c" }, syncedAt)).toBe("b");
+    expect(
+      resolveDoneAt(
+        { statusCategory: "done", resolvedAt: "a", statusCategoryChangedAt: "b" },
+        { doneAt: "c" },
+        syncedAt,
+      ),
+    ).toBe("a");
+    expect(resolveDoneAt({ statusCategory: "done", statusCategoryChangedAt: "b" }, { doneAt: "c" }, syncedAt)).toBe(
+      "b",
+    );
     expect(resolveDoneAt({ statusCategory: "done" }, { doneAt: "c" }, syncedAt)).toBe("c");
     expect(resolveDoneAt({ statusCategory: "done" }, null, syncedAt)).toBe(syncedAt);
   });

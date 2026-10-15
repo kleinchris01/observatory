@@ -48,7 +48,9 @@ vi.mock("./lib/drift-engine.js", () => ({
   buildDriftSnapshot: vi.fn().mockResolvedValue({ version: "v1", changes: 3, seeded: [] }),
 }));
 vi.mock("./lib/fieldconfig-engine.js", () => ({
-  buildFieldConfigSnapshot: vi.fn().mockResolvedValue({ version: "v1", source: "field-schemes", schemes: 4, configs: 0, unread: 0 }),
+  buildFieldConfigSnapshot: vi
+    .fn()
+    .mockResolvedValue({ version: "v1", source: "field-schemes", schemes: 4, configs: 0, unread: 0 }),
 }));
 vi.mock("./lib/estate-engine.js", () => ({
   buildEstateSnapshot: vi.fn().mockResolvedValue({ version: "v1", resolutions: 7, priorities: 5 }),
@@ -70,7 +72,9 @@ vi.mock("./lib/filter-engine.js", () => ({
 }));
 
 vi.mock("./lib/dashboard-engine.js", () => ({
-  buildDashboardSnapshot: vi.fn().mockResolvedValue({ built: true, version: "v1", dashboards: 212, gadgets: 900, walked: 212 }),
+  buildDashboardSnapshot: vi
+    .fn()
+    .mockResolvedValue({ built: true, version: "v1", dashboards: 212, gadgets: 900, walked: 212 }),
 }));
 
 vi.mock("./lib/scan-engine.js", () => ({
@@ -83,9 +87,12 @@ vi.mock("./lib/scan-engine.js", () => ({
   isForgeBackpressureError: (error) => {
     if (error?.code === "RATE_LIMIT_EXCEEDED") return true;
     const m = String(error?.message || error || "").toLowerCase();
-    return m.includes("too many requests") || m.includes("rate limit")
-      || m.includes("cyclic invocation")
-      || m.includes("limits for the current installation have been exceeded");
+    return (
+      m.includes("too many requests") ||
+      m.includes("rate limit") ||
+      m.includes("cyclic invocation") ||
+      m.includes("limits for the current installation have been exceeded")
+    );
   },
 }));
 
@@ -126,7 +133,14 @@ vi.mock("./resolvers.js", () => ({
   readAdminConfig: vi.fn().mockResolvedValue({
     autoSnapshotEnabled: true,
     autoSnapshotFrequency: "daily",
-    quickScanSchedule: { enabled: false, frequency: "weekly", dayOfWeek: 0, hourUtc: 0, windowHours: 168, lastScheduledRunAt: null },
+    quickScanSchedule: {
+      enabled: false,
+      frequency: "weekly",
+      dayOfWeek: 0,
+      hourUtc: 0,
+      windowHours: 168,
+      lastScheduledRunAt: null,
+    },
   }),
   runDeltaIssueScanJob: vi.fn().mockResolvedValue(undefined),
   DELTA_ISSUE_SCAN_DEFAULT_WINDOW_HOURS: 24,
@@ -162,9 +176,10 @@ vi.mock("./resolvers.js", () => ({
   rovoProjectInspect: vi.fn(),
   SHARED_RESOLVER_FUNCTIONS: { getFieldInventory: vi.fn() },
   // Tags each wrapped function so the test can see the macro registry went through it.
-  withMacroAccessGuard: (fns) => Object.fromEntries(
-    Object.entries(fns).map(([name, fn]) => [name, Object.assign((...args) => fn(...args), { macroGuarded: true })])
-  ),
+  withMacroAccessGuard: (fns) =>
+    Object.fromEntries(
+      Object.entries(fns).map(([name, fn]) => [name, Object.assign((...args) => fn(...args), { macroGuarded: true })]),
+    ),
   ADMIN_ONLY_FUNCTIONS: { startIssueScan: vi.fn() },
   getAdminConfigResolver: vi.fn(),
   saveAdminConfigResolver: vi.fn(),
@@ -230,7 +245,13 @@ import { buildBoardSnapshot } from "./lib/board-engine.js";
 import { runFullScanStep, runQuickScanStep, startQuickScan, recoverStalledScan } from "./lib/full-scan-runner.js";
 import { buildFilterSnapshot } from "./lib/filter-engine.js";
 import { buildDashboardSnapshot } from "./lib/dashboard-engine.js";
-import { readAdminConfig, runDeltaIssueScanJob, recordQuickScanScheduledRun, ADMIN_ONLY_FUNCTIONS, SHARED_RESOLVER_FUNCTIONS } from "./resolvers.js";
+import {
+  readAdminConfig,
+  runDeltaIssueScanJob,
+  recordQuickScanScheduledRun,
+  ADMIN_ONLY_FUNCTIONS,
+  SHARED_RESOLVER_FUNCTIONS,
+} from "./resolvers.js";
 
 const CONTEXT = { installContext: "ari:cloud:jira::site/UUID" };
 
@@ -399,7 +420,9 @@ describe("quickScanScheduleCheck", () => {
   });
 
   test("weekly: fires only on the configured day AND hour, in UTC", async () => {
-    readAdminConfig.mockResolvedValue({ quickScanSchedule: schedule({ frequency: "weekly", dayOfWeek: 0, hourUtc: 0 }) });
+    readAdminConfig.mockResolvedValue({
+      quickScanSchedule: schedule({ frequency: "weekly", dayOfWeek: 0, hourUtc: 0 }),
+    });
     vi.useFakeTimers();
 
     // 2026-08-23 is a Sunday. Right day, wrong hour -- not due.
@@ -418,7 +441,9 @@ describe("quickScanScheduleCheck", () => {
   });
 
   test("daily: fires at the configured hour regardless of day", async () => {
-    readAdminConfig.mockResolvedValue({ quickScanSchedule: schedule({ frequency: "daily", hourUtc: 6, windowHours: 24 }) });
+    readAdminConfig.mockResolvedValue({
+      quickScanSchedule: schedule({ frequency: "daily", hourUtc: 6, windowHours: 24 }),
+    });
     vi.useFakeTimers();
 
     vi.setSystemTime(new Date("2026-08-25T06:15:00.000Z"));
@@ -488,7 +513,11 @@ describe("quickScanScheduleCheck", () => {
 
     const result = await quickScanScheduleCheck({}, CONTEXT);
 
-    expect(result).toMatchObject({ skipped: true, reason: "disabled", recovery: { recovered: false, reason: "error" } });
+    expect(result).toMatchObject({
+      skipped: true,
+      reason: "disabled",
+      recovery: { recovered: false, reason: "error" },
+    });
   });
 
   test("a watchdog failure with no Error message still degrades cleanly", async () => {
@@ -604,24 +633,36 @@ describe("consumeSnapshot job routing", () => {
   });
 
   test("routes build-field-summary with its cursor state", async () => {
-    await consumeSnapshot(event({
-      jobType: "build-field-summary",
-      version: "v1",
-      fieldId: "customfield_1",
-      jobToken: "tok",
-      startAt: 100,
-      nextPageToken: "page-2",
-    }));
+    await consumeSnapshot(
+      event({
+        jobType: "build-field-summary",
+        version: "v1",
+        fieldId: "customfield_1",
+        jobToken: "tok",
+        startAt: 100,
+        nextPageToken: "page-2",
+      }),
+    );
 
     expect(processFieldSummaryChunk).toHaveBeenCalledWith(
-      "scope-1", "v1", { id: "customfield_1" }, "tok", 100, "page-2",
+      "scope-1",
+      "v1",
+      { id: "customfield_1" },
+      "tok",
+      100,
+      "page-2",
     );
   });
 
   test("passes a null page token on the first field-summary chunk", async () => {
-    await consumeSnapshot(event({
-      jobType: "build-field-summary", version: "v1", fieldId: "customfield_1", jobToken: "tok",
-    }));
+    await consumeSnapshot(
+      event({
+        jobType: "build-field-summary",
+        version: "v1",
+        fieldId: "customfield_1",
+        jobToken: "tok",
+      }),
+    );
     expect(processFieldSummaryChunk).toHaveBeenCalledWith("scope-1", "v1", expect.anything(), "tok", 0, null);
   });
 
@@ -634,31 +675,40 @@ describe("consumeSnapshot job routing", () => {
 
   test("drops a field-summary job whose field is absent from the snapshot", async () => {
     loadSnapshotField.mockResolvedValueOnce(null);
-    await consumeSnapshot(event({
-      jobType: "build-field-summary", version: "v1", fieldId: "gone", jobToken: "tok",
-    }));
+    await consumeSnapshot(
+      event({
+        jobType: "build-field-summary",
+        version: "v1",
+        fieldId: "gone",
+        jobToken: "tok",
+      }),
+    );
     expect(processFieldSummaryChunk).not.toHaveBeenCalled();
   });
 
   test("routes refresh-field-project-delta with its project scope", async () => {
-    await consumeSnapshot(event({
-      jobType: "refresh-field-project-delta",
-      version: "v1",
-      fieldId: "customfield_1",
-      jobToken: "tok",
-      projectKeys: ["AAA"],
-      windowHours: 48,
-    }));
-
-    expect(processFieldUsageDelta).toHaveBeenCalledWith(
-      "scope-1", "v1", { id: "customfield_1" }, "tok", ["AAA"], 48,
+    await consumeSnapshot(
+      event({
+        jobType: "refresh-field-project-delta",
+        version: "v1",
+        fieldId: "customfield_1",
+        jobToken: "tok",
+        projectKeys: ["AAA"],
+        windowHours: 48,
+      }),
     );
+
+    expect(processFieldUsageDelta).toHaveBeenCalledWith("scope-1", "v1", { id: "customfield_1" }, "tok", ["AAA"], 48);
   });
 
   test("drops a delta refresh with no job token", async () => {
-    await consumeSnapshot(event({
-      jobType: "refresh-field-project-delta", version: "v1", fieldId: "customfield_1",
-    }));
+    await consumeSnapshot(
+      event({
+        jobType: "refresh-field-project-delta",
+        version: "v1",
+        fieldId: "customfield_1",
+      }),
+    );
     expect(processFieldUsageDelta).not.toHaveBeenCalled();
   });
 
@@ -806,7 +856,7 @@ describe("consumeSnapshot job routing", () => {
     await consumeSnapshot(event({ jobType: "run-full-scan", stage: null, jobToken: "t" }));
     expect(runFullScanStep).toHaveBeenCalledWith(
       "scope-1",
-      expect.objectContaining({ jobType: "run-full-scan", jobToken: "t" })
+      expect.objectContaining({ jobType: "run-full-scan", jobToken: "t" }),
     );
     expect(log).toHaveBeenCalledWith(expect.stringContaining("2/8 stages done"));
 
@@ -853,7 +903,7 @@ describe("consumeSnapshot job routing", () => {
     await consumeSnapshot(event({ jobType: "run-quick-scan", jobToken: "t" }));
     expect(runQuickScanStep).toHaveBeenCalledWith(
       "scope-1",
-      expect.objectContaining({ jobType: "run-quick-scan", jobToken: "t" })
+      expect.objectContaining({ jobType: "run-quick-scan", jobToken: "t" }),
     );
     expect(runFullScanStep).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledWith(expect.stringContaining("run-quick-scan"));
@@ -877,7 +927,7 @@ describe("consumeSnapshot job routing", () => {
     // continuation from a second person clicking Rebuild.
     expect(buildFilterSnapshot).toHaveBeenCalledWith(
       "scope-1",
-      expect.objectContaining({ jobType: "build-filter-snapshot", buildToken: "tok-1" })
+      expect.objectContaining({ jobType: "build-filter-snapshot", buildToken: "tok-1" }),
     );
   });
 
@@ -887,7 +937,7 @@ describe("consumeSnapshot job routing", () => {
     // own continuation from a fresh Rebuild.
     expect(buildDashboardSnapshot).toHaveBeenCalledWith(
       "scope-1",
-      expect.objectContaining({ jobType: "build-dashboard-snapshot", buildToken: "tok-2" })
+      expect.objectContaining({ jobType: "build-dashboard-snapshot", buildToken: "tok-2" }),
     );
   });
 
@@ -1049,9 +1099,14 @@ describe("consumeSnapshot error handling", () => {
     processFieldSummaryChunk.mockRejectedValueOnce(new Error("chunk failed"));
     loadFieldSummary.mockResolvedValueOnce({ progressLog: [] });
 
-    await consumeSnapshot(event({
-      jobType: "build-field-summary", version: "v1", fieldId: "customfield_1", jobToken: "tok",
-    }));
+    await consumeSnapshot(
+      event({
+        jobType: "build-field-summary",
+        version: "v1",
+        fieldId: "customfield_1",
+        jobToken: "tok",
+      }),
+    );
 
     const saved = replaceFieldSummary.mock.calls[0][2];
     expect(saved.summaryStatus).toBe("failed");
@@ -1069,9 +1124,14 @@ describe("consumeSnapshot error handling", () => {
     processFieldSummaryChunk.mockRejectedValueOnce(new Error(message));
     loadFieldSummary.mockResolvedValueOnce({ progressLog: [] });
 
-    await consumeSnapshot(event({
-      jobType: "build-field-summary", version: "v1", fieldId: "customfield_1", jobToken: "tok",
-    }));
+    await consumeSnapshot(
+      event({
+        jobType: "build-field-summary",
+        version: "v1",
+        fieldId: "customfield_1",
+        jobToken: "tok",
+      }),
+    );
 
     const saved = replaceFieldSummary.mock.calls[0][2];
     expect(saved.summaryStatus).toBe("queued");
@@ -1083,9 +1143,14 @@ describe("consumeSnapshot error handling", () => {
     processFieldSummaryChunk.mockRejectedValueOnce(new Error("chunk failed"));
     loadFieldSummary.mockResolvedValueOnce(null);
 
-    await consumeSnapshot(event({
-      jobType: "build-field-summary", version: "v1", fieldId: "customfield_1", jobToken: "tok",
-    }));
+    await consumeSnapshot(
+      event({
+        jobType: "build-field-summary",
+        version: "v1",
+        fieldId: "customfield_1",
+        jobToken: "tok",
+      }),
+    );
     expect(replaceFieldSummary).not.toHaveBeenCalled();
   });
 
@@ -1095,9 +1160,14 @@ describe("consumeSnapshot error handling", () => {
       progressLog: Array.from({ length: 150 }, (_, i) => ({ t: "t", msg: `e${i}` })),
     });
 
-    await consumeSnapshot(event({
-      jobType: "build-field-summary", version: "v1", fieldId: "customfield_1", jobToken: "tok",
-    }));
+    await consumeSnapshot(
+      event({
+        jobType: "build-field-summary",
+        version: "v1",
+        fieldId: "customfield_1",
+        jobToken: "tok",
+      }),
+    );
 
     expect(replaceFieldSummary.mock.calls[0][2].progressLog).toHaveLength(100);
   });
@@ -1151,10 +1221,7 @@ describe("resolver handler registries", () => {
   // anything spread in directly would be unguarded.
   test("the admin handler registers nothing beyond the two guarded registries", () => {
     const registered = Object.keys(adminHandler.__registered);
-    const expected = new Set([
-      ...Object.keys(SHARED_RESOLVER_FUNCTIONS),
-      ...Object.keys(ADMIN_ONLY_FUNCTIONS),
-    ]);
+    const expected = new Set([...Object.keys(SHARED_RESOLVER_FUNCTIONS), ...Object.keys(ADMIN_ONLY_FUNCTIONS)]);
     expect(registered.filter((name) => !expected.has(name))).toEqual([]);
   });
 
@@ -1236,7 +1303,9 @@ describe("Rovo action routing", () => {
     expect(await route({ name: "In Review" }, {})).toBe("impact");
     // Nothing usable falls through to search, which reports its own missing query.
     expect(await route({ identifier: "  " }, {})).toBe("search");
-    expect(await routeAgentAction({ search, inspect, impact, impactInput: "field" })({ field: "Cost" }, {})).toBe("impact");
+    expect(await routeAgentAction({ search, inspect, impact, impactInput: "field" })({ field: "Cost" }, {})).toBe(
+      "impact",
+    );
   });
 
   test("every handler the manifest names is exported by index.js", async () => {

@@ -59,11 +59,15 @@ describe("computeProjectAdoption — age and rate", () => {
   // infinitely productive.
   test("floors age at a day", () => {
     const months = [{ month: NOW ? new Date(NOW).toISOString().slice(0, 7) : "", issueCount: 5 }];
-    const adoption = computeProjectAdoption(project(), {
-      months,
-      firstIssueCreatedAt: new Date(NOW).toISOString(),
-      lastIssueCreatedAt: new Date(NOW).toISOString(),
-    }, { now: NOW });
+    const adoption = computeProjectAdoption(
+      project(),
+      {
+        months,
+        firstIssueCreatedAt: new Date(NOW).toISOString(),
+        lastIssueCreatedAt: new Date(NOW).toISOString(),
+      },
+      { now: NOW },
+    );
 
     expect(adoption.ageDays).toBe(1);
     expect(Number.isFinite(adoption.issuesPerDay)).toBe(true);
@@ -242,7 +246,12 @@ describe("summarizeAdoption", () => {
   test("counts what fell off and what never started, separately", () => {
     const out = build([
       { id: "LEFT", counts: [...Array(24).fill(400), 0, 0, 0, 0] },
-      { id: "NEVER", counts: Array(36).fill(0).map(() => 0) },
+      {
+        id: "NEVER",
+        counts: Array(36)
+          .fill(0)
+          .map(() => 0),
+      },
       { id: "FINE", counts: Array(24).fill(100) },
     ]);
 

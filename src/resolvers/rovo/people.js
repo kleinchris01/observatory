@@ -3,12 +3,7 @@
 // Moved verbatim from src/resolvers.js; see docs/resolvers-refactor.md.
 
 import { incrMetric, METRIC_NAMES } from "../../lib/jira-api.js";
-import {
-  pillarUnavailable,
-  agentOk,
-  rankMatches,
-  clampResults,
-} from "../../lib/rovo-agents.js";
+import { pillarUnavailable, agentOk, rankMatches, clampResults } from "../../lib/rovo-agents.js";
 import { getUserInventory, getUserDetails } from "../people.js";
 
 // ── Rovo: people expert ─────────────────────────────────────────────────────
@@ -27,18 +22,23 @@ export async function rovoPeopleSearch(payload, context) {
 
     const users = rankMatches(inv.users, query, (u) => [u.displayName, u.accountId], limit);
     const groups = new Map();
-    for (const u of inv.users) for (const g of u.groups || []) {
-      if (!groups.has(g.id)) groups.set(g.id, { id: g.id, name: g.name, memberCount: 0 });
-      groups.get(g.id).memberCount += 1;
-    }
+    for (const u of inv.users)
+      for (const g of u.groups || []) {
+        if (!groups.has(g.id)) groups.set(g.id, { id: g.id, name: g.name, memberCount: 0 });
+        groups.get(g.id).memberCount += 1;
+      }
     const groupMatches = rankMatches([...groups.values()], query, (g) => [g.name, g.id], limit);
 
     return agentOk(inv.refreshedAt || null, {
       query,
       users: users.map((u) => ({
-        accountId: u.accountId, displayName: u.displayName, active: u.active !== false,
-        ownedFilters: u.ownedFilters ?? 0, ownedDashboards: u.ownedDashboards ?? 0,
-        authoredRules: u.authoredRules ?? 0, automationRefs: u.automationRefs ?? 0,
+        accountId: u.accountId,
+        displayName: u.displayName,
+        active: u.active !== false,
+        ownedFilters: u.ownedFilters ?? 0,
+        ownedDashboards: u.ownedDashboards ?? 0,
+        authoredRules: u.authoredRules ?? 0,
+        automationRefs: u.automationRefs ?? 0,
       })),
       groups: groupMatches,
       rosterSize: inv.users.length,
@@ -54,7 +54,8 @@ export async function rovoPeopleInspect(payload, context) {
   incrMetric(METRIC_NAMES.resolver);
   try {
     const accountId = String(payload?.accountId || "").trim();
-    if (!accountId) return { status: "error", message: "An accountId is required. Use search first to resolve a name." };
+    if (!accountId)
+      return { status: "error", message: "An accountId is required. Use search first to resolve a name." };
     const details = await getUserDetails({ payload: { accountId }, context });
     if (!details.available) return pillarUnavailable("people", { state: "idle", refreshedAt: null });
 
@@ -70,8 +71,16 @@ export async function rovoPeopleInspect(payload, context) {
       ownedFilters: (details.ownedFilters || []).length,
       ownedDashboards: (details.ownedDashboards || []).length,
       authoredRules: (details.authoredRules || []).length,
-      referencedInRules: (details.referencedInRules || []).map((r) => ({ id: r.id, name: r.name, direction: r.direction })),
-      grantedBySchemes: (details.grantedBySchemes || []).map((s) => ({ scheme: s.schemeName || s.name, family: s.schemeType || s.family, grants: s.permission || s.level || s.eventName || null })),
+      referencedInRules: (details.referencedInRules || []).map((r) => ({
+        id: r.id,
+        name: r.name,
+        direction: r.direction,
+      })),
+      grantedBySchemes: (details.grantedBySchemes || []).map((s) => ({
+        scheme: s.schemeName || s.name,
+        family: s.schemeType || s.family,
+        grants: s.permission || s.level || s.eventName || null,
+      })),
       fieldAppearances: (details.fieldAppearances || []).map((f) => ({ field: f.fieldName, issueCount: f.issueCount })),
     });
   } catch (error) {
@@ -99,16 +108,24 @@ export async function rovoPeopleImpact(payload, context) {
     // counting it twice would make a well-organized site (grants via role-shaped groups)
     // look more exposed than a badly-organized one (the same grant added directly twice).
     const groupGrantKeys = new Set(
-      (details.grantedByGroups || []).map((g) => `${g.schemeType}:${g.schemeId}:${g.context}`)
+      (details.grantedByGroups || []).map((g) => `${g.schemeType}:${g.schemeId}:${g.context}`),
     );
     const groupGrants = groupGrantKeys.size;
-    const anything = ownedFilters + ownedDashboards + authoredRules + (details.referencedInRules || []).length + directGrants + groupGrants;
+    const anything =
+      ownedFilters +
+      ownedDashboards +
+      authoredRules +
+      (details.referencedInRules || []).length +
+      directGrants +
+      groupGrants;
 
     return agentOk(null, {
       accountId,
       displayName: details.user?.displayName || accountId,
       active: details.user?.active ?? null,
-      ownedFilters, ownedDashboards, authoredRules,
+      ownedFilters,
+      ownedDashboards,
+      authoredRules,
       rulesRoutingWorkHere: writeRefs.map((r) => ({ id: r.id, name: r.name })),
       referencedInRuleCount: (details.referencedInRules || []).length,
       directSchemeGrants: directGrants,

@@ -34,7 +34,10 @@ function harness() {
     const entry = { statement: String(statement), params: null };
     issued.push(entry);
     const stub = {
-      bindParams: (...params) => { entry.params = params; return stub; },
+      bindParams: (...params) => {
+        entry.params = params;
+        return stub;
+      },
       execute: () => Promise.resolve({ rows: nextRows, rowsAffected: nextRows.length }),
     };
     return stub;
@@ -42,7 +45,9 @@ function harness() {
 }
 
 const find = (match) => issued.find((e) => e.statement.includes(match));
-const mockRows = (rows) => { nextRows = rows; };
+const mockRows = (rows) => {
+  nextRows = rows;
+};
 
 beforeEach(() => {
   vi.clearAllMocks();

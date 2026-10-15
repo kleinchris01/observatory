@@ -21,7 +21,11 @@ vi.mock("./jira-api.js", () => ({
   incrMetric: vi.fn(),
   METRIC_NAMES: {},
   // Real bounded concurrency, sequential here: enough to exercise the walk.
-  mapWithConcurrency: async (items, _c, fn) => { const out = []; for (const [i, x] of items.entries()) out.push(await fn(x, i)); return out; },
+  mapWithConcurrency: async (items, _c, fn) => {
+    const out = [];
+    for (const [i, x] of items.entries()) out.push(await fn(x, i));
+    return out;
+  },
   ...api,
 }));
 vi.mock("./project-store.js", () => store);
@@ -40,7 +44,10 @@ import {
   LEGACY_DEFAULT_SCHEME_ID,
 } from "./fieldconfig-engine.js";
 
-const projects = [{ id: "10", key: "BLD", name: "Build" }, { id: "20", key: "OPS", name: "Ops" }];
+const projects = [
+  { id: "10", key: "BLD", name: "Build" },
+  { id: "20", key: "OPS", name: "Ops" },
+];
 
 function legacySite() {
   api.getAllFieldConfigurations.mockResolvedValue([
@@ -48,14 +55,22 @@ function legacySite() {
     { id: 2, name: "Build fields" },
   ]);
   api.getAllFieldConfigurationSchemes.mockResolvedValue([{ id: 5, name: "Build scheme" }]);
-  api.getFieldConfigurationSchemeMappings.mockResolvedValue([{ fieldConfigurationSchemeId: "5", issueTypeId: "default", fieldConfigurationId: "2" }]);
+  api.getFieldConfigurationSchemeMappings.mockResolvedValue([
+    { fieldConfigurationSchemeId: "5", issueTypeId: "default", fieldConfigurationId: "2" },
+  ]);
   api.getFieldConfigurationSchemeProjects.mockResolvedValue([
     { projectIds: ["20"] },
     { fieldConfigurationScheme: { id: "5" }, projectIds: ["10"] },
   ]);
-  api.getFieldConfigurationItems.mockImplementation(async (id) => (id === "2"
-    ? [{ id: "customfield_1", isRequired: true, isHidden: true }, { id: "summary", isRequired: true }, { id: "customfield_2" }]
-    : [{ id: "summary", isRequired: true }]));
+  api.getFieldConfigurationItems.mockImplementation(async (id) =>
+    id === "2"
+      ? [
+          { id: "customfield_1", isRequired: true, isHidden: true },
+          { id: "summary", isRequired: true },
+          { id: "customfield_2" },
+        ]
+      : [{ id: "summary", isRequired: true }],
+  );
 }
 
 beforeEach(() => {
@@ -72,7 +87,14 @@ describe("normalisers", () => {
       workTypeParameters: [{ workTypeId: 10002, isRequired: true }, { isRequired: true }],
     });
     expect(rows).toEqual([
-      expect.objectContaining({ ownerId: "fs:1", workTypeId: "*", required: false, description: "Cost in USD", restrictedTo: ["10001"], associated: true }),
+      expect.objectContaining({
+        ownerId: "fs:1",
+        workTypeId: "*",
+        required: false,
+        description: "Cost in USD",
+        restrictedTo: ["10001"],
+        associated: true,
+      }),
       expect.objectContaining({ workTypeId: "10002", required: true }),
     ]);
     expect(normalizeSchemeField("fs:1", {})).toEqual([]);
@@ -83,7 +105,11 @@ describe("normalisers", () => {
     expect(isNotableItem({ isRequired: true })).toBe(true);
     expect(isNotableItem({ description: "Why" })).toBe(true);
     expect(isNotableItem({ id: "x", isHidden: false, isRequired: false, renderer: "wiki-renderer" })).toBe(false);
-    expect(normalizeConfigItem("fc:2", { id: "customfield_1", isHidden: true, isRequired: true })).toMatchObject({ hidden: true, required: true, workTypeId: "*" });
+    expect(normalizeConfigItem("fc:2", { id: "customfield_1", isHidden: true, isRequired: true })).toMatchObject({
+      hidden: true,
+      required: true,
+      workTypeId: "*",
+    });
   });
 });
 
@@ -92,10 +118,16 @@ describe("walkWithBudget", () => {
     let clock = 0;
     const now = () => clock;
     const { rows, read } = await walkWithBudget(
-      [{ id: "a", sourceId: "1" }, { id: "b", sourceId: "2" }],
-      async () => { clock += 100; return [{ id: "x" }]; },
+      [
+        { id: "a", sourceId: "1" },
+        { id: "b", sourceId: "2" },
+      ],
+      async () => {
+        clock += 100;
+        return [{ id: "x" }];
+      },
       (id, items) => items.map((i) => ({ ownerId: id, fieldId: i.id })),
-      { budgetMs: 50, now }
+      { budgetMs: 50, now },
     );
     expect(rows).toEqual([{ ownerId: "a", fieldId: "x" }]);
     expect(read.get("a")).toEqual({ read: true, fieldCount: 1 });
@@ -104,9 +136,15 @@ describe("walkWithBudget", () => {
 
   test("a failed owner is unread with its reason, and the walk carries on", async () => {
     const { read } = await walkWithBudget(
-      [{ id: "a", sourceId: "1" }, { id: "b", sourceId: "2" }],
-      async (id) => { if (id === "1") throw new Error("403"); return []; },
-      () => []
+      [
+        { id: "a", sourceId: "1" },
+        { id: "b", sourceId: "2" },
+      ],
+      async (id) => {
+        if (id === "1") throw new Error("403");
+        return [];
+      },
+      () => [],
     );
     expect(read.get("a")).toMatchObject({ read: false, reason: "403" });
     expect(read.get("b")).toEqual({ read: true, fieldCount: 0 });
@@ -115,8 +153,14 @@ describe("walkWithBudget", () => {
 
 describe("readFieldBehaviour", () => {
   test("uses field schemes when the site has them", async () => {
-    api.getAllFieldSchemes.mockResolvedValue([{ id: 1, name: "Default", isDefault: true }, { id: 2, name: "Build" }]);
-    api.getFieldSchemeProjectAssignments.mockResolvedValue([{ projectId: 10, schemeId: 2 }, { projectId: 20, schemeId: 1 }]);
+    api.getAllFieldSchemes.mockResolvedValue([
+      { id: 1, name: "Default", isDefault: true },
+      { id: 2, name: "Build" },
+    ]);
+    api.getFieldSchemeProjectAssignments.mockResolvedValue([
+      { projectId: 10, schemeId: 2 },
+      { projectId: 20, schemeId: 1 },
+    ]);
     api.getFieldSchemeFields.mockResolvedValue([{ fieldId: "customfield_1", parameters: { isRequired: true } }]);
 
     const model = await readFieldBehaviour({ projects });
@@ -138,8 +182,14 @@ describe("readFieldBehaviour", () => {
     expect(model.source).toBe("field-configurations");
     expect(model.fallbackReason).toMatch(/404/);
     // The implicit default scheme carries the unassigned project and routes to the default configuration.
-    expect(model.schemeProjects).toContainEqual(expect.objectContaining({ schemeId: LEGACY_DEFAULT_SCHEME_ID, projectKey: "OPS" }));
-    expect(model.mappings).toContainEqual({ schemeId: LEGACY_DEFAULT_SCHEME_ID, workTypeId: "default", configId: "fc:1" });
+    expect(model.schemeProjects).toContainEqual(
+      expect.objectContaining({ schemeId: LEGACY_DEFAULT_SCHEME_ID, projectKey: "OPS" }),
+    );
+    expect(model.mappings).toContainEqual({
+      schemeId: LEGACY_DEFAULT_SCHEME_ID,
+      workTypeId: "default",
+      configId: "fc:1",
+    });
     // Only notable items survive: customfield_2 was visible and optional.
     expect(model.items.filter((i) => i.ownerId === "fc:2").map((i) => i.fieldId)).toEqual(["customfield_1", "summary"]);
   });
@@ -156,7 +206,9 @@ describe("readFieldBehaviour", () => {
     api.getAllFieldConfigurations.mockResolvedValue([]);
     api.getAllFieldConfigurationSchemes.mockResolvedValue([]);
     api.getFieldConfigurationSchemeMappings.mockResolvedValue([]);
-    await expect(readFieldBehaviour({ projects })).rejects.toThrow(/Neither field schemes nor field configurations.*401/);
+    await expect(readFieldBehaviour({ projects })).rejects.toThrow(
+      /Neither field schemes nor field configurations.*401/,
+    );
   });
 });
 
@@ -174,14 +226,23 @@ describe("buildFieldConfigSnapshot", () => {
     expect(build.codes).toContain("required-hidden");
 
     const ready = store.writeFieldConfigSnapshotMeta.mock.calls.at(-1)[1];
-    expect(ready).toMatchObject({ state: "ready", source: "field-configurations", totalSchemes: 2, totalConfigs: 2, unreadOwners: 0 });
+    expect(ready).toMatchObject({
+      state: "ready",
+      source: "field-configurations",
+      totalSchemes: 2,
+      totalConfigs: 2,
+      unreadOwners: 0,
+    });
     expect(ready.summary).toMatchObject({ requiredHiddenConfigs: 1 });
   });
 
   test("records a failure with its message and rethrows", async () => {
     api.getAllJiraProjects.mockRejectedValueOnce(new Error("boom"));
     await expect(buildFieldConfigSnapshot("site")).rejects.toThrow("boom");
-    expect(store.writeFieldConfigSnapshotMeta.mock.calls.at(-1)[1]).toMatchObject({ state: "failed", lastError: "boom" });
+    expect(store.writeFieldConfigSnapshotMeta.mock.calls.at(-1)[1]).toMatchObject({
+      state: "failed",
+      lastError: "boom",
+    });
   });
 });
 
@@ -196,6 +257,9 @@ describe("build bookkeeping", () => {
 
   test("queueing marks the build started before the job is pushed", async () => {
     await queueFieldConfigSnapshotBuild("site");
-    expect(store.writeFieldConfigSnapshotMeta).toHaveBeenCalledWith("site", expect.objectContaining({ state: "building" }));
+    expect(store.writeFieldConfigSnapshotMeta).toHaveBeenCalledWith(
+      "site",
+      expect.objectContaining({ state: "building" }),
+    );
   });
 });

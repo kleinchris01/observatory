@@ -5,21 +5,39 @@ import { JobStatusBadge } from "../../components/admin/primitives";
 
 // Field-usage job list and its row/log sub-components.
 
-export function AdminJobRow({ job, expanded, onToggle, onCancel, onRestart, onResume, cancellingId, restartingId, resumingId }) {
+export function AdminJobRow({
+  job,
+  expanded,
+  onToggle,
+  onCancel,
+  onRestart,
+  onResume,
+  cancellingId,
+  restartingId,
+  resumingId,
+}) {
   const isCancelling = cancellingId === job.fieldId;
   const isRestarting = restartingId === job.fieldId;
   const isResuming = resumingId === job.fieldId;
   const canCancel = job.summaryStatus === "queued" || job.summaryStatus === "building";
-  const canRestart = job.summaryStatus === "failed" || job.summaryStatus === "cancelled" || job.summaryStatus === "ready";
+  const canRestart =
+    job.summaryStatus === "failed" || job.summaryStatus === "cancelled" || job.summaryStatus === "ready";
   const canResume = job.summaryStatus === "building";
 
-  const progressPct = job.estimatedIssueTotal > 0
-    ? Math.min(100, Math.round((job.processedIssueCount / job.estimatedIssueTotal) * 100))
-    : 0;
+  const progressPct =
+    job.estimatedIssueTotal > 0
+      ? Math.min(100, Math.round((job.processedIssueCount / job.estimatedIssueTotal) * 100))
+      : 0;
 
   return (
     <div className={`admin-job-row ${expanded ? "admin-job-row--expanded" : ""}`}>
-      <div className="admin-job-row__header" onClick={onToggle} role="button" tabIndex={0} onKeyDown={(e) => e.key === "Enter" && onToggle()}>
+      <div
+        className="admin-job-row__header"
+        onClick={onToggle}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => e.key === "Enter" && onToggle()}
+      >
         <span className="admin-job-row__name">{job.fieldName || job.fieldId}</span>
         <span className="admin-job-row__id">{job.fieldId}</span>
         <JobStatusBadge status={job.summaryStatus} />
@@ -28,17 +46,32 @@ export function AdminJobRow({ job, expanded, onToggle, onCancel, onRestart, onRe
         )}
         <div className="admin-job-row__actions" onClick={(e) => e.stopPropagation()}>
           {canCancel && (
-            <button className="secondary-button secondary-button--small" type="button" disabled={isCancelling} onClick={() => onCancel(job.fieldId)}>
+            <button
+              className="secondary-button secondary-button--small"
+              type="button"
+              disabled={isCancelling}
+              onClick={() => onCancel(job.fieldId)}
+            >
               {isCancelling ? "…" : "Cancel"}
             </button>
           )}
           {canResume && (
-            <button className="secondary-button secondary-button--small" type="button" disabled={isResuming} onClick={() => onResume(job.fieldId)}>
+            <button
+              className="secondary-button secondary-button--small"
+              type="button"
+              disabled={isResuming}
+              onClick={() => onResume(job.fieldId)}
+            >
               {isResuming ? "…" : "Resume"}
             </button>
           )}
           {canRestart && (
-            <button className="secondary-button secondary-button--small" type="button" disabled={isRestarting} onClick={() => onRestart(job.fieldId)}>
+            <button
+              className="secondary-button secondary-button--small"
+              type="button"
+              disabled={isRestarting}
+              onClick={() => onRestart(job.fieldId)}
+            >
               {isRestarting ? "…" : "Restart"}
             </button>
           )}
@@ -51,19 +84,29 @@ export function AdminJobRow({ job, expanded, onToggle, onCancel, onRestart, onRe
             <div className="status-progress" style={{ marginBottom: 10 }}>
               <div className="status-progress__meta">
                 <strong>{progressPct}%</strong>
-                <span>{job.processedIssueCount} / {job.estimatedIssueTotal} issues</span>
+                <span>
+                  {job.processedIssueCount} / {job.estimatedIssueTotal} issues
+                </span>
               </div>
-              <div className="status-progress__bar"><span style={{ width: `${progressPct}%` }} /></div>
+              <div className="status-progress__bar">
+                <span style={{ width: `${progressPct}%` }} />
+              </div>
             </div>
           )}
           <div className="admin-job-detail-grid">
-            <span>Started</span><span>{formatTimestamp(job.startedAt)}</span>
-            <span>Completed</span><span>{formatTimestamp(job.completedAt)}</span>
-            <span>Total issues</span><span>{job.totalIssueCount?.toLocaleString() ?? "—"}</span>
-            <span>Active projects</span><span>{job.activeProjectCount ?? "—"}</span>
+            <span>Started</span>
+            <span>{formatTimestamp(job.startedAt)}</span>
+            <span>Completed</span>
+            <span>{formatTimestamp(job.completedAt)}</span>
+            <span>Total issues</span>
+            <span>{job.totalIssueCount?.toLocaleString() ?? "—"}</span>
+            <span>Active projects</span>
+            <span>{job.activeProjectCount ?? "—"}</span>
           </div>
           {job.lastError && (
-            <div className="build-card__error" style={{ marginTop: 10 }}>{job.lastError}</div>
+            <div className="build-card__error" style={{ marginTop: 10 }}>
+              {job.lastError}
+            </div>
           )}
         </div>
       )}
@@ -85,11 +128,7 @@ export function SnapshotLog({ entries }) {
 
   return (
     <div className="admin-snapshot-log-wrap">
-      <button
-        type="button"
-        className="admin-snapshot-log-toggle"
-        onClick={() => setExpanded((v) => !v)}
-      >
+      <button type="button" className="admin-snapshot-log-toggle" onClick={() => setExpanded((v) => !v)}>
         <Icon name={expanded ? "x" : "activity"} size={12} />
         {expanded ? "Hide" : "Show"} build log ({entries.length} entries)
       </button>
@@ -107,7 +146,20 @@ export function SnapshotLog({ entries }) {
   );
 }
 
-export function JobsPanel({ jobs, loading, expandedId, onToggle, onCancel, onRestart, onResume, onRefresh, cancellingId, restartingId, resumingId, refreshing }) {
+export function JobsPanel({
+  jobs,
+  loading,
+  expandedId,
+  onToggle,
+  onCancel,
+  onRestart,
+  onResume,
+  onRefresh,
+  cancellingId,
+  restartingId,
+  resumingId,
+  refreshing,
+}) {
   const [jobQuery, setJobQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("all");
 
@@ -116,7 +168,9 @@ export function JobsPanel({ jobs, loading, expandedId, onToggle, onCancel, onRes
     if (statusFilter !== "all") list = list.filter((j) => j.summaryStatus === statusFilter);
     if (jobQuery.trim()) {
       const q = jobQuery.toLowerCase();
-      list = list.filter((j) => (j.fieldName || "").toLowerCase().includes(q) || (j.fieldId || "").toLowerCase().includes(q));
+      list = list.filter(
+        (j) => (j.fieldName || "").toLowerCase().includes(q) || (j.fieldId || "").toLowerCase().includes(q),
+      );
     }
     return list;
   }, [jobs, statusFilter, jobQuery]);

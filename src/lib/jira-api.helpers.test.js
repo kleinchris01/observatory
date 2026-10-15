@@ -199,26 +199,32 @@ describe("getFieldProjectAssociations", () => {
   // depending on the endpoint version, so the helper normalizes both shapes and
   // always emits all three keys.
   test("normalizes the projectId/projectKey/projectName shape", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({
-      body: { values: [{ projectId: "1", projectKey: "AAA", projectName: "Alpha" }] },
-    }));
-    await expect(getFieldProjectAssociations("customfield_1"))
-      .resolves.toEqual([{ id: "1", key: "AAA", name: "Alpha" }]);
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        body: { values: [{ projectId: "1", projectKey: "AAA", projectName: "Alpha" }] },
+      }),
+    );
+    await expect(getFieldProjectAssociations("customfield_1")).resolves.toEqual([
+      { id: "1", key: "AAA", name: "Alpha" },
+    ]);
   });
 
   test("normalizes the plain id/key/name shape and defaults a missing name", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({
-      body: { values: [{ id: "1", key: "AAA" }] },
-    }));
-    await expect(getFieldProjectAssociations("customfield_1"))
-      .resolves.toEqual([{ id: "1", key: "AAA", name: "" }]);
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        body: { values: [{ id: "1", key: "AAA" }] },
+      }),
+    );
+    await expect(getFieldProjectAssociations("customfield_1")).resolves.toEqual([{ id: "1", key: "AAA", name: "" }]);
   });
 
   // A row with no resolvable id cannot be joined to anything downstream.
   test("drops rows with no project id", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({
-      body: { values: [{ key: "AAA" }, { id: "2", key: "BBB" }] },
-    }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        body: { values: [{ key: "AAA" }, { id: "2", key: "BBB" }] },
+      }),
+    );
     const result = await getFieldProjectAssociations("customfield_1");
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe("2");
@@ -238,9 +244,16 @@ describe("getProjectBreakdownByAssociation", () => {
 
   test("counts issues per associated project", async () => {
     mockRequestJira
-      .mockResolvedValueOnce(jiraResponse({
-        body: { values: [{ id: "1", key: "AAA", name: "Alpha" }, { id: "2", key: "BBB", name: "Beta" }] },
-      }))
+      .mockResolvedValueOnce(
+        jiraResponse({
+          body: {
+            values: [
+              { id: "1", key: "AAA", name: "Alpha" },
+              { id: "2", key: "BBB", name: "Beta" },
+            ],
+          },
+        }),
+      )
       .mockResolvedValue(jiraResponse({ body: { total: 5 } }));
 
     const result = await getProjectBreakdownByAssociation("customfield_1");
@@ -298,16 +311,24 @@ describe("getProjectBreakdownByAssociation", () => {
 
 describe("getProjectBreakdownByIssueScan", () => {
   test("tallies issues per project from a single page", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({
-      body: {
-        total: 2,
-        isLast: true,
-        issues: [
-          { key: "AAA-1", fields: { project: { id: "1", key: "AAA", name: "Alpha" }, updated: "2026-01-01T00:00:00.000Z" } },
-          { key: "AAA-2", fields: { project: { id: "1", key: "AAA", name: "Alpha" }, updated: "2026-02-01T00:00:00.000Z" } },
-        ],
-      },
-    }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        body: {
+          total: 2,
+          isLast: true,
+          issues: [
+            {
+              key: "AAA-1",
+              fields: { project: { id: "1", key: "AAA", name: "Alpha" }, updated: "2026-01-01T00:00:00.000Z" },
+            },
+            {
+              key: "AAA-2",
+              fields: { project: { id: "1", key: "AAA", name: "Alpha" }, updated: "2026-02-01T00:00:00.000Z" },
+            },
+          ],
+        },
+      }),
+    );
 
     const result = await getProjectBreakdownByIssueScan("customfield_1");
     expect(result.projects).toHaveLength(1);
@@ -316,16 +337,18 @@ describe("getProjectBreakdownByIssueScan", () => {
   });
 
   test("keeps the newest issue as the latest-change marker", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({
-      body: {
-        total: 2,
-        isLast: true,
-        issues: [
-          { key: "AAA-1", fields: { project: { id: "1", key: "AAA" }, updated: "2026-01-01T00:00:00.000Z" } },
-          { key: "AAA-2", fields: { project: { id: "1", key: "AAA" }, updated: "2026-06-01T00:00:00.000Z" } },
-        ],
-      },
-    }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        body: {
+          total: 2,
+          isLast: true,
+          issues: [
+            { key: "AAA-1", fields: { project: { id: "1", key: "AAA" }, updated: "2026-01-01T00:00:00.000Z" } },
+            { key: "AAA-2", fields: { project: { id: "1", key: "AAA" }, updated: "2026-06-01T00:00:00.000Z" } },
+          ],
+        },
+      }),
+    );
 
     const result = await getProjectBreakdownByIssueScan("customfield_1");
     expect(result.projects[0].latestIssueKey).toBe("AAA-2");
@@ -349,13 +372,15 @@ describe("getProjectBreakdownByIssueScan", () => {
   });
 
   test("returns the continuation token when more pages remain", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({
-      body: {
-        total: 500,
-        nextPageToken: "next-1",
-        issues: [{ key: "AAA-1", fields: { project: { id: "1", key: "AAA" } } }],
-      },
-    }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        body: {
+          total: 500,
+          nextPageToken: "next-1",
+          issues: [{ key: "AAA-1", fields: { project: { id: "1", key: "AAA" } } }],
+        },
+      }),
+    );
 
     const result = await getProjectBreakdownByIssueScan("customfield_1", null, 1);
     expect(result.nextPageToken).toBe("next-1");
@@ -366,12 +391,14 @@ describe("getProjectBreakdownByIssueScan", () => {
   // token while total says more remain. Without this flag the scan would report a
   // partial tally as complete.
   test("flags paginationBroken when Jira stops paginating mid-result", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({
-      body: {
-        total: 500,
-        issues: [{ key: "AAA-1", fields: { project: { id: "1", key: "AAA" } } }],
-      },
-    }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        body: {
+          total: 500,
+          issues: [{ key: "AAA-1", fields: { project: { id: "1", key: "AAA" } } }],
+        },
+      }),
+    );
 
     const result = await getProjectBreakdownByIssueScan("customfield_1", null, 1);
     expect(result.paginationBroken).toBe(true);
@@ -379,9 +406,11 @@ describe("getProjectBreakdownByIssueScan", () => {
   });
 
   test("skips issues with no resolvable project", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({
-      body: { total: 1, isLast: true, issues: [{ key: "X-1", fields: {} }] },
-    }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        body: { total: 1, isLast: true, issues: [{ key: "X-1", fields: {} }] },
+      }),
+    );
 
     const result = await getProjectBreakdownByIssueScan("customfield_1");
     expect(result.projects).toEqual([]);
@@ -420,15 +449,19 @@ describe("loadFieldContexts", () => {
 
 describe("searchProjectFieldUsage", () => {
   test("returns the issue count with the most recent issue", async () => {
-    mockRequestJira.mockResolvedValue(jiraResponse({
-      body: {
-        total: 3,
-        issues: [{
-          key: "AAA-9",
-          fields: { updated: "2026-05-05T00:00:00.000Z", project: { id: "1", key: "AAA", name: "Alpha" } },
-        }],
-      },
-    }));
+    mockRequestJira.mockResolvedValue(
+      jiraResponse({
+        body: {
+          total: 3,
+          issues: [
+            {
+              key: "AAA-9",
+              fields: { updated: "2026-05-05T00:00:00.000Z", project: { id: "1", key: "AAA", name: "Alpha" } },
+            },
+          ],
+        },
+      }),
+    );
 
     await expect(searchProjectFieldUsage("customfield_1", "AAA")).resolves.toMatchObject({
       issueCount: 3,
@@ -456,12 +489,21 @@ describe("searchProjectFieldUsage", () => {
 describe("getLiveFieldProjectUsage", () => {
   test("paginates populated projects and totals their issue counts", async () => {
     mockRequestJira
-      .mockResolvedValueOnce(jiraResponse({
-        body: { values: [{ id: "1", key: "AAA", name: "Alpha" }, { id: "2", key: "BBB", name: "Beta" }] },
-      }))
-      .mockResolvedValue(jiraResponse({
-        body: { total: 4, issues: [{ key: "X-1", fields: { updated: "2026-01-01T00:00:00.000Z" } }] },
-      }));
+      .mockResolvedValueOnce(
+        jiraResponse({
+          body: {
+            values: [
+              { id: "1", key: "AAA", name: "Alpha" },
+              { id: "2", key: "BBB", name: "Beta" },
+            ],
+          },
+        }),
+      )
+      .mockResolvedValue(
+        jiraResponse({
+          body: { total: 4, issues: [{ key: "X-1", fields: { updated: "2026-01-01T00:00:00.000Z" } }] },
+        }),
+      );
 
     const result = await getLiveFieldProjectUsage("customfield_1", 1, 1);
     expect(result.total).toBe(2);
@@ -484,17 +526,21 @@ describe("getLiveFieldProjectUsage", () => {
 
 describe("collectRecentFieldProjectCandidates", () => {
   test("maps changed custom fields to the projects they changed in", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({
-      body: {
-        total: 1,
-        isLast: true,
-        issues: [{
-          id: "1",
-          fields: { project: { key: "AAA" }, updated: "2026-07-01T00:00:00.000Z" },
-          changelog: { histories: [{ items: [{ fieldId: "customfield_100" }] }] },
-        }],
-      },
-    }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        body: {
+          total: 1,
+          isLast: true,
+          issues: [
+            {
+              id: "1",
+              fields: { project: { key: "AAA" }, updated: "2026-07-01T00:00:00.000Z" },
+              changelog: { histories: [{ items: [{ fieldId: "customfield_100" }] }] },
+            },
+          ],
+        },
+      }),
+    );
 
     const result = await collectRecentFieldProjectCandidates(24, 100);
     expect(result.scannedIssues).toBe(1);
@@ -502,25 +548,31 @@ describe("collectRecentFieldProjectCandidates", () => {
   });
 
   test("ignores changelog entries for system fields", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({
-      body: {
-        total: 1,
-        isLast: true,
-        issues: [{
-          id: "1",
-          fields: { project: { key: "AAA" } },
-          changelog: { histories: [{ items: [{ field: "status" }] }] },
-        }],
-      },
-    }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        body: {
+          total: 1,
+          isLast: true,
+          issues: [
+            {
+              id: "1",
+              fields: { project: { key: "AAA" } },
+              changelog: { histories: [{ items: [{ field: "status" }] }] },
+            },
+          ],
+        },
+      }),
+    );
 
     await expect(collectRecentFieldProjectCandidates()).resolves.toMatchObject({ fields: [] });
   });
 
   test("skips issues with no project key", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({
-      body: { total: 1, isLast: true, issues: [{ id: "1", fields: {} }] },
-    }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        body: { total: 1, isLast: true, issues: [{ id: "1", fields: {} }] },
+      }),
+    );
 
     const result = await collectRecentFieldProjectCandidates();
     expect(result.scannedIssues).toBe(1);
@@ -590,12 +642,21 @@ describe("findFieldIdsByOptionValue", () => {
 describe("loadFieldOptionsFromJira", () => {
   test("returns options grouped per context", async () => {
     mockRequestJira
-      .mockResolvedValueOnce(jiraResponse({
-        body: { values: [{ id: "ctx-1", name: "Global", isGlobalContext: true }] },
-      }))
-      .mockResolvedValueOnce(jiraResponse({
-        body: { values: [{ id: "o1", value: "Alpha", disabled: false }, { id: "o2", value: "Beta", disabled: true }] },
-      }));
+      .mockResolvedValueOnce(
+        jiraResponse({
+          body: { values: [{ id: "ctx-1", name: "Global", isGlobalContext: true }] },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jiraResponse({
+          body: {
+            values: [
+              { id: "o1", value: "Alpha", disabled: false },
+              { id: "o2", value: "Beta", disabled: true },
+            ],
+          },
+        }),
+      );
 
     const result = await loadFieldOptionsFromJira("customfield_1");
     expect(result).toHaveLength(1);
@@ -659,8 +720,7 @@ describe("extractWorkflowScheme", () => {
   });
 
   it("falls back to a top-level workflowScheme if the API ever returns one", () => {
-    expect(extractWorkflowScheme({ workflowScheme: { id: 3, name: "Direct" } }))
-      .toEqual({ id: 3, name: "Direct" });
+    expect(extractWorkflowScheme({ workflowScheme: { id: 3, name: "Direct" } })).toEqual({ id: 3, name: "Direct" });
   });
 });
 
@@ -671,9 +731,11 @@ describe("extractWorkflowScheme", () => {
 // staging, leaving all 435 statuses looking unreachable.
 describe("normalizeWorkflowSearchResponse", () => {
   test("reads the deprecated shape, where statuses carry ids directly", () => {
-    expect(normalizeWorkflowSearchResponse({
-      values: [{ id: { name: "Bug WF" }, statuses: [{ id: "3" }, { id: "5" }] }],
-    })).toMatchObject([{ name: "Bug WF", statusIds: ["3", "5"], transitions: [] }]);
+    expect(
+      normalizeWorkflowSearchResponse({
+        values: [{ id: { name: "Bug WF" }, statuses: [{ id: "3" }, { id: "5" }] }],
+      }),
+    ).toMatchObject([{ name: "Bug WF", statusIds: ["3", "5"], transitions: [] }]);
   });
 
   test("resolves statusReference UUIDs through the current shape's lookup table", () => {
@@ -709,11 +771,11 @@ describe("normalizeWorkflowSearchResponse", () => {
   });
 
   test("tolerates a workflow with no statuses at all", () => {
-    expect(normalizeWorkflowSearchResponse({ workflows: [{ name: "Empty WF" }] }))
-      .toMatchObject([{ name: "Empty WF", statusIds: [], transitions: [] }]);
+    expect(normalizeWorkflowSearchResponse({ workflows: [{ name: "Empty WF" }] })).toMatchObject([
+      { name: "Empty WF", statusIds: [], transitions: [] },
+    ]);
   });
 });
-
 
 // Transitions that open a screen.
 //
@@ -722,39 +784,58 @@ describe("normalizeWorkflowSearchResponse", () => {
 // called it unreachable -- which is the premise for deleting a screen people use daily.
 describe("extractTransitionScreens", () => {
   test("reads the deprecated shape, where the screen sits on transition.screen", () => {
-    expect(extractTransitionScreens({
-      transitions: [{ id: "11", name: "Start Progress", screen: { id: "220" } }],
-    })).toEqual([{ id: "11", name: "Start Progress", toStatus: null, screenId: "220" }]);
+    expect(
+      extractTransitionScreens({
+        transitions: [{ id: "11", name: "Start Progress", screen: { id: "220" } }],
+      }),
+    ).toEqual([{ id: "11", name: "Start Progress", toStatus: null, screenId: "220" }]);
   });
 
   // Shape per Jira's published schema: transitionScreen is a WorkflowRuleConfiguration. Its
   // `id` is the RULE's id; the screen is parameters.screenId. The old test fed it
   // `{ id: "300" }`, which is why reading the rule id as a screen id was never caught.
   test("reads the current shape, where the screen is the transitionScreen rule's parameter", () => {
-    expect(extractTransitionScreens({
-      transitions: [{
-        id: "21", name: "Resolve", toStatusReference: "uuid-a",
-        transitionScreen: { id: "rule-9f2", ruleKey: "system:transition-screen", parameters: { screenId: "300" } },
-      }],
-    }, new Map([["uuid-a", "5"]]))).toEqual([{ id: "21", name: "Resolve", toStatus: "5", screenId: "300" }]);
+    expect(
+      extractTransitionScreens(
+        {
+          transitions: [
+            {
+              id: "21",
+              name: "Resolve",
+              toStatusReference: "uuid-a",
+              transitionScreen: {
+                id: "rule-9f2",
+                ruleKey: "system:transition-screen",
+                parameters: { screenId: "300" },
+              },
+            },
+          ],
+        },
+        new Map([["uuid-a", "5"]]),
+      ),
+    ).toEqual([{ id: "21", name: "Resolve", toStatus: "5", screenId: "300" }]);
   });
 
   test("never takes the rule id for a screen id", () => {
-    expect(extractTransitionScreens({
-      transitions: [{ id: "21", name: "Resolve", transitionScreen: { id: "rule-9f2", parameters: {} } }],
-    })).toEqual([]);
+    expect(
+      extractTransitionScreens({
+        transitions: [{ id: "21", name: "Resolve", transitionScreen: { id: "rule-9f2", parameters: {} } }],
+      }),
+    ).toEqual([]);
   });
 
   // Most transitions just move the issue. Recording those with a null screen would make
   // every workflow look like it opens screens it does not.
   test("drops transitions that open no screen", () => {
-    expect(extractTransitionScreens({
-      transitions: [
-        { id: "1", name: "Close", screen: null },
-        { id: "2", name: "Reopen" },
-        { id: "3", name: "Edit", screen: { id: "220" } },
-      ],
-    })).toEqual([{ id: "3", name: "Edit", toStatus: null, screenId: "220" }]);
+    expect(
+      extractTransitionScreens({
+        transitions: [
+          { id: "1", name: "Close", screen: null },
+          { id: "2", name: "Reopen" },
+          { id: "3", name: "Edit", screen: { id: "220" } },
+        ],
+      }),
+    ).toEqual([{ id: "3", name: "Edit", toStatus: null, screenId: "220" }]);
   });
 
   test("coerces screen ids to strings so they join against the screen catalog", () => {
@@ -772,19 +853,23 @@ describe("extractTransitionScreens", () => {
 describe("normalizeWorkflowSearchResponse - transitions", () => {
   test("carries transition screens alongside the statuses, in one pass", () => {
     const result = normalizeWorkflowSearchResponse({
-      workflows: [{
-        name: "Bug WF",
-        statuses: [{ statusReference: "uuid-a" }],
-        transitions: [{ id: "11", name: "Start", transitionScreen: { id: "r1", parameters: { screenId: "220" } } }],
-      }],
+      workflows: [
+        {
+          name: "Bug WF",
+          statuses: [{ statusReference: "uuid-a" }],
+          transitions: [{ id: "11", name: "Start", transitionScreen: { id: "r1", parameters: { screenId: "220" } } }],
+        },
+      ],
       statuses: [{ statusReference: "uuid-a", id: "3" }],
     });
 
-    expect(result).toMatchObject([{
-      name: "Bug WF",
-      statusIds: ["3"],
-      transitions: [{ id: "11", name: "Start", toStatus: null, screenId: "220" }],
-    }]);
+    expect(result).toMatchObject([
+      {
+        name: "Bug WF",
+        statusIds: ["3"],
+        transitions: [{ id: "11", name: "Start", toStatus: null, screenId: "220" }],
+      },
+    ]);
   });
 });
 
@@ -796,15 +881,19 @@ describe("getAllWorkflowsWithStatuses", () => {
   // GET with expand=values.transitions, per Jira's published spec. It was a POST with
   // expand=statuses,transitions, pinned by this very test, and failed on every real site.
   test("GETs the current search endpoint with the transitions expand", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({
-      body: {
-        values: [{ name: "Bug WF", statuses: [{ statusReference: "uuid-a" }] }],
-        statuses: [{ statusReference: "uuid-a", id: "3" }],
-        isLast: true,
-      },
-    }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        body: {
+          values: [{ name: "Bug WF", statuses: [{ statusReference: "uuid-a" }] }],
+          statuses: [{ statusReference: "uuid-a", id: "3" }],
+          isLast: true,
+        },
+      }),
+    );
 
-    await expect(getAllWorkflowsWithStatuses()).resolves.toMatchObject([{ name: "Bug WF", statusIds: ["3"], transitions: [] }]);
+    await expect(getAllWorkflowsWithStatuses()).resolves.toMatchObject([
+      { name: "Bug WF", statusIds: ["3"], transitions: [] },
+    ]);
     expect(mockRequestJira).toHaveBeenCalledTimes(1);
     const [path, init] = mockRequestJira.mock.calls[0];
     expect(String(path)).toContain("/workflows/search");
@@ -814,32 +903,43 @@ describe("getAllWorkflowsWithStatuses", () => {
 
   test("pages the current endpoint, resolving each page against its own statuses", async () => {
     mockRequestJira
-      .mockResolvedValueOnce(jiraResponse({
-        body: {
-          values: [{ name: "A", statuses: [{ statusReference: "ref-1" }] }],
-          statuses: [{ statusReference: "ref-1", id: "1" }],
-          isLast: false, total: 2,
-        },
-      }))
-      .mockResolvedValueOnce(jiraResponse({
-        body: {
-          values: [{ name: "B", statuses: [{ statusReference: "ref-2" }] }],
-          statuses: [{ statusReference: "ref-2", id: "2" }],
-          isLast: true, total: 2,
-        },
-      }));
+      .mockResolvedValueOnce(
+        jiraResponse({
+          body: {
+            values: [{ name: "A", statuses: [{ statusReference: "ref-1" }] }],
+            statuses: [{ statusReference: "ref-1", id: "1" }],
+            isLast: false,
+            total: 2,
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jiraResponse({
+          body: {
+            values: [{ name: "B", statuses: [{ statusReference: "ref-2" }] }],
+            statuses: [{ statusReference: "ref-2", id: "2" }],
+            isLast: true,
+            total: 2,
+          },
+        }),
+      );
 
     const result = await getAllWorkflowsWithStatuses();
-    expect(result.map((w) => [w.name, w.statusIds])).toEqual([["A", ["1"]], ["B", ["2"]]]);
+    expect(result.map((w) => [w.name, w.statusIds])).toEqual([
+      ["A", ["1"]],
+      ["B", ["2"]],
+    ]);
     expect(String(mockRequestJira.mock.calls[1][0])).toContain("startAt=1");
   });
 
   test("falls back to the legacy endpoint when the bulk one is rejected", async () => {
     mockRequestJira
       .mockResolvedValueOnce(jiraResponse({ ok: false, status: 401, text: "Unauthorized; scope does not match" }))
-      .mockResolvedValueOnce(jiraResponse({
-        body: { values: [{ id: { name: "Legacy WF" }, statuses: [{ id: "7" }] }], isLast: true },
-      }));
+      .mockResolvedValueOnce(
+        jiraResponse({
+          body: { values: [{ id: { name: "Legacy WF" }, statuses: [{ id: "7" }] }], isLast: true },
+        }),
+      );
 
     const result = await getAllWorkflowsWithStatuses();
 
@@ -848,15 +948,17 @@ describe("getAllWorkflowsWithStatuses", () => {
   });
 
   test("falls back when the bulk endpoint succeeds but yields nothing usable", async () => {
-    mockRequestJira
-      .mockResolvedValueOnce(jiraResponse({ body: { somethingElse: true } }))
-      .mockResolvedValueOnce(jiraResponse({
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { somethingElse: true } })).mockResolvedValueOnce(
+      jiraResponse({
         body: { values: [{ id: { name: "Legacy WF" }, statuses: [{ id: "7" }] }], isLast: true },
-      }));
+      }),
+    );
 
     // A 200 that parses to zero workflows means the shape changed, not that the site has
     // none -- so it must still try the other endpoint rather than report an empty site.
-    await expect(getAllWorkflowsWithStatuses()).resolves.toMatchObject([{ name: "Legacy WF", statusIds: ["7"], transitions: [] }]);
+    await expect(getAllWorkflowsWithStatuses()).resolves.toMatchObject([
+      { name: "Legacy WF", statusIds: ["7"], transitions: [] },
+    ]);
   });
 
   test("propagates the error when both endpoints fail", async () => {
@@ -924,10 +1026,14 @@ describe("getEverInStatusCounts", () => {
 // The route around the workflow endpoints, which 401 on a fully-upgraded install.
 describe("getProjectStatuses / getStatusesForProjects", () => {
   test("flattens statuses across issue types and deduplicates", async () => {
-    mockRequestJira.mockResolvedValue(jiraResponse({ body: [
-      { id: "1", name: "Bug", statuses: [{ id: "10" }, { id: "11" }] },
-      { id: "2", name: "Task", statuses: [{ id: "11" }, { id: "12" }] },
-    ] }));
+    mockRequestJira.mockResolvedValue(
+      jiraResponse({
+        body: [
+          { id: "1", name: "Bug", statuses: [{ id: "10" }, { id: "11" }] },
+          { id: "2", name: "Task", statuses: [{ id: "11" }, { id: "12" }] },
+        ],
+      }),
+    );
 
     // 11 appears under both issue types but is one reachable status.
     await expect(getProjectStatuses("10000")).resolves.toEqual(["10", "11", "12"]);
@@ -1082,14 +1188,20 @@ describe("getDashboardGadgets", () => {
   });
 });
 
-
 describe("getApplicationRoles", () => {
   test("returns the bare array of application roles", async () => {
-    mockRequestJira.mockResolvedValue(jiraResponse({
-      body: [
-        { key: "jira-software", name: "Jira Software", numberOfSeats: 500, groupDetails: [{ groupId: "g1", name: "sw" }] },
-      ],
-    }));
+    mockRequestJira.mockResolvedValue(
+      jiraResponse({
+        body: [
+          {
+            key: "jira-software",
+            name: "Jira Software",
+            numberOfSeats: 500,
+            groupDetails: [{ groupId: "g1", name: "sw" }],
+          },
+        ],
+      }),
+    );
     const roles = await getApplicationRoles();
     expect(roles).toHaveLength(1);
     expect(mockRequestJira.mock.calls[0][0]).toContain("/rest/api/3/applicationrole");
@@ -1106,7 +1218,9 @@ describe("getGroupMembers", () => {
   // People "Deactivated" view and licence hygiene can never see a departed user.
   test("paginates by groupId and includes deactivated users", async () => {
     mockRequestJira
-      .mockResolvedValueOnce(jiraResponse({ body: { values: [{ accountId: "a1" }, { accountId: "a2" }], total: 3, isLast: false } }))
+      .mockResolvedValueOnce(
+        jiraResponse({ body: { values: [{ accountId: "a1" }, { accountId: "a2" }], total: 3, isLast: false } }),
+      )
       .mockResolvedValueOnce(jiraResponse({ body: { values: [{ accountId: "a3" }], total: 3, isLast: true } }));
 
     const members = await getGroupMembers("grp-123");
@@ -1128,7 +1242,8 @@ describe("getGroupsByIds", () => {
   test("sorts ids into found, missing and failed, asking once per distinct id", async () => {
     mockRequestJira.mockImplementation(async (path) => {
       const p = String(path);
-      if (p.includes("groupId=live")) return jiraResponse({ body: { values: [{ groupId: "live", name: "Plant Engineers" }] } });
+      if (p.includes("groupId=live"))
+        return jiraResponse({ body: { values: [{ groupId: "live", name: "Plant Engineers" }] } });
       if (p.includes("groupId=gone")) return jiraResponse({ body: { values: [] } });
       return jiraResponse({ ok: false, status: 400, text: "bad request" });
     });
@@ -1149,7 +1264,14 @@ describe("getGroupsByIds", () => {
 
 describe("getFieldCatalog", () => {
   test("returns the whole field list from one unpaged call", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: [{ id: "customfield_1", name: "Cost" }, { id: "resolution", name: "Resolution" }] }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        body: [
+          { id: "customfield_1", name: "Cost" },
+          { id: "resolution", name: "Resolution" },
+        ],
+      }),
+    );
     expect(await getFieldCatalog()).toHaveLength(2);
     expect(String(mockRequestJira.mock.calls[0][0])).toMatch(/\/rest\/api\/3\/field$/);
   });
@@ -1166,7 +1288,9 @@ describe("legacy workflow expand", () => {
   test("requests transition rules and status properties", async () => {
     mockRequestJira
       .mockResolvedValueOnce(jiraResponse({ ok: false, status: 401, text: "scope does not match" }))
-      .mockResolvedValueOnce(jiraResponse({ body: { values: [{ id: { name: "Legacy WF" }, statuses: [{ id: "7" }] }], isLast: true } }));
+      .mockResolvedValueOnce(
+        jiraResponse({ body: { values: [{ id: { name: "Legacy WF" }, statuses: [{ id: "7" }] }], isLast: true } }),
+      );
     await getAllWorkflowsWithStatuses();
     const legacy = String(mockRequestJira.mock.calls[1][0]);
     expect(legacy).toContain("transitions.rules");
@@ -1182,12 +1306,24 @@ describe("field behaviour endpoints", () => {
 
   test.each([
     ["getAllFieldSchemes", () => getAllFieldSchemes(), "/rest/api/3/config/fieldschemes?"],
-    ["getFieldSchemeProjectAssignments", () => getFieldSchemeProjectAssignments(), "/rest/api/3/config/fieldschemes/projects?"],
+    [
+      "getFieldSchemeProjectAssignments",
+      () => getFieldSchemeProjectAssignments(),
+      "/rest/api/3/config/fieldschemes/projects?",
+    ],
     ["getFieldSchemeFields", () => getFieldSchemeFields("7"), "/rest/api/3/config/fieldschemes/7/fields?"],
     ["getAllFieldConfigurations", () => getAllFieldConfigurations(), "/rest/api/3/fieldconfiguration?"],
     ["getFieldConfigurationItems", () => getFieldConfigurationItems("3"), "/rest/api/3/fieldconfiguration/3/fields?"],
-    ["getAllFieldConfigurationSchemes", () => getAllFieldConfigurationSchemes(), "/rest/api/3/fieldconfigurationscheme?"],
-    ["getFieldConfigurationSchemeMappings", () => getFieldConfigurationSchemeMappings(), "/rest/api/3/fieldconfigurationscheme/mapping?"],
+    [
+      "getAllFieldConfigurationSchemes",
+      () => getAllFieldConfigurationSchemes(),
+      "/rest/api/3/fieldconfigurationscheme?",
+    ],
+    [
+      "getFieldConfigurationSchemeMappings",
+      () => getFieldConfigurationSchemeMappings(),
+      "/rest/api/3/fieldconfigurationscheme/mapping?",
+    ],
   ])("%s reads %s", async (_name, call, path) => {
     mockRequestJira.mockResolvedValueOnce(page([{ id: 1 }]));
     expect(await call()).toEqual([{ id: 1 }]);

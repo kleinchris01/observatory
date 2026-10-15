@@ -25,12 +25,27 @@ import { pillarUnavailable, agentOk, agentNotFound, rankMatches, clampResults } 
 
 // Jira's system fields by id, for labels: the field snapshot carries custom fields only.
 const SYSTEM_FIELD_NAMES = {
-  summary: "Summary", description: "Description", assignee: "Assignee", reporter: "Reporter",
-  priority: "Priority", labels: "Labels", components: "Components", fixVersions: "Fix versions",
-  versions: "Affects versions", duedate: "Due date", environment: "Environment",
-  timetracking: "Time tracking", attachment: "Attachment", issuelinks: "Linked issues",
-  resolution: "Resolution", security: "Security level", worklog: "Log work", comment: "Comment",
-  parent: "Parent", issuetype: "Work type", project: "Project",
+  summary: "Summary",
+  description: "Description",
+  assignee: "Assignee",
+  reporter: "Reporter",
+  priority: "Priority",
+  labels: "Labels",
+  components: "Components",
+  fixVersions: "Fix versions",
+  versions: "Affects versions",
+  duedate: "Due date",
+  environment: "Environment",
+  timetracking: "Time tracking",
+  attachment: "Attachment",
+  issuelinks: "Linked issues",
+  resolution: "Resolution",
+  security: "Security level",
+  worklog: "Log work",
+  comment: "Comment",
+  parent: "Parent",
+  issuetype: "Work type",
+  project: "Project",
 };
 
 async function namesFor(installationKey) {
@@ -45,7 +60,12 @@ async function namesFor(installationKey) {
   const typeNames = new Map(types.map((t) => [String(t.id), t.name]));
   const fieldNames = new Map(fields.map((f) => [String(f.id), f.name]));
   return {
-    workType: (id) => (id === "*" ? "All work types" : id === "default" ? "Default (unmapped work types)" : typeNames.get(String(id)) || `Work type ${id}`),
+    workType: (id) =>
+      id === "*"
+        ? "All work types"
+        : id === "default"
+          ? "Default (unmapped work types)"
+          : typeNames.get(String(id)) || `Work type ${id}`,
     field: (id) => fieldNames.get(String(id)) || SYSTEM_FIELD_NAMES[id] || id,
   };
 }
@@ -72,7 +92,14 @@ export async function getFieldConfigInventory({ context }) {
   const installationKey = getInstallationKey(context);
   const meta = await readFieldConfigSnapshotMeta(installationKey);
   if (!meta?.version) {
-    return { ...snapshotStatus(meta), neverBuilt: true, schemes: [], configs: [], summary: null, inconsistentRequired: [] };
+    return {
+      ...snapshotStatus(meta),
+      neverBuilt: true,
+      schemes: [],
+      configs: [],
+      summary: null,
+      inconsistentRequired: [],
+    };
   }
 
   const [schemes, configs, mappings, projects, names] = await Promise.all([
@@ -86,14 +113,23 @@ export async function getFieldConfigInventory({ context }) {
   const projectsByScheme = new Map();
   for (const p of projects) {
     if (!projectsByScheme.has(p.schemeId)) projectsByScheme.set(p.schemeId, []);
-    projectsByScheme.get(p.schemeId).push({ projectId: p.projectId, projectKey: p.projectKey, projectName: p.projectName });
+    projectsByScheme
+      .get(p.schemeId)
+      .push({ projectId: p.projectId, projectKey: p.projectKey, projectName: p.projectName });
   }
   const configName = new Map(configs.map((c) => [c.id, c.name]));
   const schemeName = new Map(schemes.map((s) => [s.id, s.name]));
   const routesByScheme = new Map();
   const routesByConfig = new Map();
   for (const m of mappings) {
-    const route = { schemeId: m.schemeId, schemeName: schemeName.get(m.schemeId) || m.schemeId, workTypeId: m.workTypeId, workTypeName: names.workType(m.workTypeId), configId: m.configId, configName: configName.get(m.configId) || m.configId };
+    const route = {
+      schemeId: m.schemeId,
+      schemeName: schemeName.get(m.schemeId) || m.schemeId,
+      workTypeId: m.workTypeId,
+      workTypeName: names.workType(m.workTypeId),
+      configId: m.configId,
+      configName: configName.get(m.configId) || m.configId,
+    };
     if (!routesByScheme.has(m.schemeId)) routesByScheme.set(m.schemeId, []);
     routesByScheme.get(m.schemeId).push(route);
     if (!routesByConfig.has(m.configId)) routesByConfig.set(m.configId, []);
@@ -106,14 +142,21 @@ export async function getFieldConfigInventory({ context }) {
     summary: meta.summary,
     schemes: schemes.map((s) => {
       const list = projectsByScheme.get(s.id) || [];
-      return { ...s, projects: list.slice(0, 50), projectsTruncated: list.length > 50, routes: routesByScheme.get(s.id) || [] };
+      return {
+        ...s,
+        projects: list.slice(0, 50),
+        projectsTruncated: list.length > 50,
+        routes: routesByScheme.get(s.id) || [],
+      };
     }),
     configs: configs.map((c) => ({
       ...c,
       requiredHidden: c.requiredHidden.map((id) => ({ fieldId: id, fieldName: names.field(id) })),
       routes: routesByConfig.get(c.id) || [],
     })),
-    inconsistentRequired: (meta.inconsistentRequired || []).slice(0, 100).map((r) => ({ ...r, fieldName: names.field(r.fieldId) })),
+    inconsistentRequired: (meta.inconsistentRequired || [])
+      .slice(0, 100)
+      .map((r) => ({ ...r, fieldName: names.field(r.fieldId) })),
   };
 }
 
@@ -131,7 +174,9 @@ export async function getFieldConfigItems({ payload, context }) {
 
   const [page, names] = await Promise.all([
     loadFieldConfigItemsForOwner(installationKey, meta.version, ownerKind, ownerId, {
-      offset: payload?.offset, limit: payload?.limit, requiredOnly: payload?.requiredOnly === true,
+      offset: payload?.offset,
+      limit: payload?.limit,
+      requiredOnly: payload?.requiredOnly === true,
     }),
     namesFor(installationKey),
   ]);
@@ -178,7 +223,14 @@ export async function getFieldBehaviour({ payload, context }) {
     if (!projectKeys.has(p.schemeId)) projectKeys.set(p.schemeId, []);
     projectKeys.get(p.schemeId).push(p.projectKey);
   }
-  const base = { available: true, refreshedAt: meta.refreshedAt || null, source: meta.source, sourceLabel: SOURCE_LABEL[meta.source] || meta.source, fieldId, fieldName: names.field(fieldId) };
+  const base = {
+    available: true,
+    refreshedAt: meta.refreshedAt || null,
+    source: meta.source,
+    sourceLabel: SOURCE_LABEL[meta.source] || meta.source,
+    fieldId,
+    fieldName: names.field(fieldId),
+  };
 
   if (meta.source === "field-schemes") {
     const byScheme = new Map();
@@ -186,24 +238,32 @@ export async function getFieldBehaviour({ payload, context }) {
       if (!byScheme.has(item.ownerId)) byScheme.set(item.ownerId, []);
       byScheme.get(item.ownerId).push(item);
     }
-    const rows = schemes.filter((s) => s.projectCount > 0 || s.isDefault).map((s) => {
-      const own = byScheme.get(s.id) || [];
-      const baseItem = own.find((i) => i.workTypeId === "*");
-      return {
-        ownerKind: "scheme",
-        id: s.id,
-        name: s.name,
-        projectCount: s.projectCount,
-        projectKeys: (projectKeys.get(s.id) || []).slice(0, 12),
-        measured: s.measured,
-        associated: s.measured ? Boolean(baseItem) : null,
-        required: baseItem ? Boolean(baseItem.required) : null,
-        description: baseItem?.description || null,
-        renderer: baseItem?.renderer || null,
-        restrictedTo: (baseItem?.restrictedTo || []).map(names.workType),
-        overrides: own.filter((i) => i.workTypeId !== "*").map((i) => ({ workTypeName: names.workType(i.workTypeId), required: i.required, description: i.description })),
-      };
-    });
+    const rows = schemes
+      .filter((s) => s.projectCount > 0 || s.isDefault)
+      .map((s) => {
+        const own = byScheme.get(s.id) || [];
+        const baseItem = own.find((i) => i.workTypeId === "*");
+        return {
+          ownerKind: "scheme",
+          id: s.id,
+          name: s.name,
+          projectCount: s.projectCount,
+          projectKeys: (projectKeys.get(s.id) || []).slice(0, 12),
+          measured: s.measured,
+          associated: s.measured ? Boolean(baseItem) : null,
+          required: baseItem ? Boolean(baseItem.required) : null,
+          description: baseItem?.description || null,
+          renderer: baseItem?.renderer || null,
+          restrictedTo: (baseItem?.restrictedTo || []).map(names.workType),
+          overrides: own
+            .filter((i) => i.workTypeId !== "*")
+            .map((i) => ({
+              workTypeName: names.workType(i.workTypeId),
+              required: i.required,
+              description: i.description,
+            })),
+        };
+      });
     return {
       ...base,
       requiredIn: rows.filter((r) => r.required).length,
@@ -220,23 +280,32 @@ export async function getFieldBehaviour({ payload, context }) {
   for (const m of mappings) {
     if (!routes.has(m.configId)) routes.set(m.configId, []);
     const scheme = schemeById.get(m.schemeId);
-    routes.get(m.configId).push({ schemeName: scheme?.name || m.schemeId, workTypeName: names.workType(m.workTypeId), projectKeys: (projectKeys.get(m.schemeId) || []).slice(0, 12), projectCount: scheme?.projectCount || 0 });
+    routes
+      .get(m.configId)
+      .push({
+        schemeName: scheme?.name || m.schemeId,
+        workTypeName: names.workType(m.workTypeId),
+        projectKeys: (projectKeys.get(m.schemeId) || []).slice(0, 12),
+        projectCount: scheme?.projectCount || 0,
+      });
   }
-  const rows = configs.filter((c) => c.used || itemByConfig.has(c.id)).map((c) => {
-    const item = itemByConfig.get(c.id);
-    return {
-      ownerKind: "config",
-      id: c.id,
-      name: c.name,
-      used: c.used,
-      measured: c.itemsRead,
-      hidden: item ? Boolean(item.hidden) : (c.itemsRead ? false : null),
-      required: item ? Boolean(item.required) : (c.itemsRead ? false : null),
-      description: item?.description || null,
-      renderer: item?.renderer || null,
-      routes: routes.get(c.id) || [],
-    };
-  });
+  const rows = configs
+    .filter((c) => c.used || itemByConfig.has(c.id))
+    .map((c) => {
+      const item = itemByConfig.get(c.id);
+      return {
+        ownerKind: "config",
+        id: c.id,
+        name: c.name,
+        used: c.used,
+        measured: c.itemsRead,
+        hidden: item ? Boolean(item.hidden) : c.itemsRead ? false : null,
+        required: item ? Boolean(item.required) : c.itemsRead ? false : null,
+        description: item?.description || null,
+        renderer: item?.renderer || null,
+        routes: routes.get(c.id) || [],
+      };
+    });
   return {
     ...base,
     requiredIn: rows.filter((r) => r.required).length,
@@ -273,11 +342,22 @@ export async function rovoFieldConfigSearch(payload, context) {
   const inv = await getFieldConfigInventory({ context });
   if (inv.neverBuilt) return pillarUnavailable(PILLAR, { state: inv.state, refreshedAt: null });
 
-  const shape = (o) => ({ id: o.id, name: o.name, isDefault: o.isDefault, projectCount: o.projectCount ?? null, findings: o.codes });
+  const shape = (o) => ({
+    id: o.id,
+    name: o.name,
+    isDefault: o.isDefault,
+    projectCount: o.projectCount ?? null,
+    findings: o.codes,
+  });
   return agentOk(inv.refreshedAt, {
     query,
     model: inv.sourceLabel,
-    schemes: rankMatches(inv.schemes, query, (s) => [s.name, s.id, ...(s.projects || []).map((p) => p.projectKey)], limit).map(shape),
+    schemes: rankMatches(
+      inv.schemes,
+      query,
+      (s) => [s.name, s.id, ...(s.projects || []).map((p) => p.projectKey)],
+      limit,
+    ).map(shape),
     configurations: rankMatches(inv.configs, query, (c) => [c.name, c.id], limit).map(shape),
   });
 }
@@ -291,10 +371,18 @@ export async function rovoFieldConfigInspect(payload, context) {
 
   const [scheme] = rankMatches(inv.schemes, identifier, (s) => [s.name, s.id], 1);
   const [config] = rankMatches(inv.configs, identifier, (c) => [c.name, c.id], 1);
-  const target = scheme && (!config || scheme.name?.toLowerCase() === identifier.toLowerCase()) ? { kind: "scheme", row: scheme } : config ? { kind: "config", row: config } : null;
+  const target =
+    scheme && (!config || scheme.name?.toLowerCase() === identifier.toLowerCase())
+      ? { kind: "scheme", row: scheme }
+      : config
+        ? { kind: "config", row: config }
+        : null;
   if (!target) return agentNotFound(inv.refreshedAt, `No field scheme or configuration matches "${identifier}".`);
 
-  const required = await getFieldConfigItems({ payload: { ownerKind: target.kind, ownerId: target.row.id, requiredOnly: true, limit: 100 }, context });
+  const required = await getFieldConfigItems({
+    payload: { ownerKind: target.kind, ownerId: target.row.id, requiredOnly: true, limit: 100 },
+    context,
+  });
   return agentOk(inv.refreshedAt, {
     model: inv.sourceLabel,
     kind: target.kind === "scheme" ? "scheme" : "field configuration",
@@ -307,7 +395,9 @@ export async function rovoFieldConfigInspect(payload, context) {
     projectCount: target.row.projectCount ?? null,
     routes: (target.row.routes || []).map((r) => `${r.schemeName}: ${r.workTypeName} -> ${r.configName}`),
     requiredHiddenFields: (target.row.requiredHidden || []).map((f) => f.fieldName),
-    requiredFields: required.available ? required.items.map((i) => (i.workTypeId === "*" ? i.fieldName : `${i.fieldName} (${i.workTypeName})`)) : null,
+    requiredFields: required.available
+      ? required.items.map((i) => (i.workTypeId === "*" ? i.fieldName : `${i.fieldName} (${i.workTypeName})`))
+      : null,
     requiredFieldsTotal: required.available ? required.total : null,
   });
 }
@@ -336,7 +426,9 @@ export async function rovoFieldConfigImpact(payload, context) {
       hidden: o.hidden ?? null,
       restrictedTo: o.restrictedTo || [],
       workTypeOverrides: o.overrides || [],
-      usedBy: o.routes ? o.routes.map((r) => `${r.schemeName} (${r.workTypeName}, ${r.projectCount} projects)`) : (o.projectKeys || []),
+      usedBy: o.routes
+        ? o.routes.map((r) => `${r.schemeName} (${r.workTypeName}, ${r.projectCount} projects)`)
+        : o.projectKeys || [],
     })),
   });
 }

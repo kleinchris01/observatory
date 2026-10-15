@@ -17,7 +17,14 @@ vi.mock("@forge/sql", () => {
 });
 
 import { sql } from "@forge/sql";
-import { flushUsageBuffer, promoteUsageTally, readUsageMeta, loadUsageTally, USAGE_PILLARS, USAGE_WINDOW_DAYS } from "./usage.js";
+import {
+  flushUsageBuffer,
+  promoteUsageTally,
+  readUsageMeta,
+  loadUsageTally,
+  USAGE_PILLARS,
+  USAGE_WINDOW_DAYS,
+} from "./usage.js";
 
 let issued = [];
 let rowsFor = () => [];
@@ -30,20 +37,38 @@ beforeEach(() => {
     const entry = { statement: String(statement), params: null };
     issued.push(entry);
     const stub = {
-      bindParams: (...params) => { entry.params = params; return stub; },
+      bindParams: (...params) => {
+        entry.params = params;
+        return stub;
+      },
       execute: () => Promise.resolve({ rows: rowsFor(entry.statement) }),
     };
     return stub;
   });
 });
 
-const find = (match) => issued.find((e) => (match instanceof RegExp ? match.test(e.statement) : e.statement.includes(match)));
+const find = (match) =>
+  issued.find((e) => (match instanceof RegExp ? match.test(e.statement) : e.statement.includes(match)));
 
 describe("flushUsageBuffer", () => {
   test("adds totals and keeps the latest date, per pillar, item and project", async () => {
     const buffer = new Map([
-      ["field|cf1|10", { pillar: "field", entityId: "cf1", projectId: "10", projectKey: "ABC", total: 3, recent: 1, lastAt: "2026-10-01T00:00:00.000Z" }],
-      ["status|5|10", { pillar: "status", entityId: "5", projectId: "10", projectKey: "ABC", total: 2, recent: 0, lastAt: null }],
+      [
+        "field|cf1|10",
+        {
+          pillar: "field",
+          entityId: "cf1",
+          projectId: "10",
+          projectKey: "ABC",
+          total: 3,
+          recent: 1,
+          lastAt: "2026-10-01T00:00:00.000Z",
+        },
+      ],
+      [
+        "status|5|10",
+        { pillar: "status", entityId: "5", projectId: "10", projectKey: "ABC", total: 2, recent: 0, lastAt: null },
+      ],
     ]);
     await flushUsageBuffer("inst", buffer);
     const insert = find("INSERT INTO issue_scan_usage_buffer");
@@ -51,8 +76,22 @@ describe("flushUsageBuffer", () => {
     expect(insert.statement).toContain("recent = recent + VALUES(recent)");
     expect(insert.statement).toContain("GREATEST(last_at, VALUES(last_at))");
     expect(insert.params).toEqual([
-      "inst", "field", "cf1", "10", "ABC", 3, 1, "2026-10-01T00:00:00.000Z",
-      "inst", "status", "5", "10", "ABC", 2, 0, null,
+      "inst",
+      "field",
+      "cf1",
+      "10",
+      "ABC",
+      3,
+      1,
+      "2026-10-01T00:00:00.000Z",
+      "inst",
+      "status",
+      "5",
+      "10",
+      "ABC",
+      2,
+      0,
+      null,
     ]);
   });
 
@@ -70,9 +109,19 @@ describe("promoteUsageTally", () => {
   });
 
   test("a complete crawl folds projects into one row per item, drops items it never saw, and stamps the meta", async () => {
-    rowsFor = (st) => (st.includes("FROM issue_scan_usage_buffer")
-      ? [{ pillar: "field", entity_id: "cf1", total: "7", recent: "2", last_at: "2026-10-02T00:00:00.000Z", project_count: "3" }]
-      : []);
+    rowsFor = (st) =>
+      st.includes("FROM issue_scan_usage_buffer")
+        ? [
+            {
+              pillar: "field",
+              entity_id: "cf1",
+              total: "7",
+              recent: "2",
+              last_at: "2026-10-02T00:00:00.000Z",
+              project_count: "3",
+            },
+          ]
+        : [];
     const now = new Date("2026-10-07T00:00:00.000Z");
     const r = await promoteUsageTally("inst", { coverageComplete: true, now });
 
@@ -80,7 +129,16 @@ describe("promoteUsageTally", () => {
     const select = find("FROM issue_scan_usage_buffer");
     expect(select.statement).toContain("GROUP BY pillar, entity_id");
     expect(select.params).toEqual(["inst"]);
-    expect(find(/INSERT INTO usage_tally\s*\(/).params).toEqual(["inst", "field", "cf1", 7, 2, "2026-10-02T00:00:00.000Z", 3, now.toISOString()]);
+    expect(find(/INSERT INTO usage_tally\s*\(/).params).toEqual([
+      "inst",
+      "field",
+      "cf1",
+      7,
+      2,
+      "2026-10-02T00:00:00.000Z",
+      3,
+      now.toISOString(),
+    ]);
     // Old rows go only after the new ones are written, and only this site's.
     const del = find("DELETE FROM usage_tally");
     expect(issued.indexOf(del)).toBeGreaterThan(issued.indexOf(find(/INSERT INTO usage_tally\s*\(/)));
@@ -92,7 +150,9 @@ describe("promoteUsageTally", () => {
 
 describe("reads", () => {
   test("loadUsageTally maps one pillar's rows to numbers", async () => {
-    rowsFor = () => [{ entity_id: "10001", total: "12", recent: "4", last_at: "2026-09-30T00:00:00.000Z", project_count: "2" }];
+    rowsFor = () => [
+      { entity_id: "10001", total: "12", recent: "4", last_at: "2026-09-30T00:00:00.000Z", project_count: "2" },
+    ];
     const map = await loadUsageTally("inst", "issuetype");
     expect(find("FROM usage_tally WHERE").params).toEqual(["inst", "issuetype"]);
     expect(map.get("10001")).toEqual({ total: 12, recent: 4, lastAt: "2026-09-30T00:00:00.000Z", projectCount: 2 });

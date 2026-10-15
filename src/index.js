@@ -1,11 +1,6 @@
 import { makeResolver } from "@forge/resolver";
 import { logger, fallbackOn, ignoreWith } from "./lib/logger.js";
-import {
-  incrMetric,
-  METRIC_NAMES,
-  getInstallationKey,
-  sanitizeCacheKeyPart,
-} from "./lib/jira-api.js";
+import { incrMetric, METRIC_NAMES, getInstallationKey, sanitizeCacheKeyPart } from "./lib/jira-api.js";
 import {
   runIssueScanCoordinator,
   runIssueScanWorkerV2,
@@ -99,7 +94,7 @@ export async function runRetentionCleanup(_event, context) {
     snapshotPruned = await pruneOldSnapshotVersions(installationKey, activeVersion);
     if (snapshotPruned.fieldsDeleted > 0 || snapshotPruned.usageRowsDeleted > 0) {
       console.log(
-        `runRetentionCleanup: pruned old snapshot data — ${snapshotPruned.fieldsDeleted} fields, ${snapshotPruned.usageRowsDeleted} usage rows`
+        `runRetentionCleanup: pruned old snapshot data — ${snapshotPruned.fieldsDeleted} fields, ${snapshotPruned.usageRowsDeleted} usage rows`,
       );
     }
   } else {
@@ -134,9 +129,9 @@ export async function runRetentionCleanup(_event, context) {
     configChangesDeleted: changesPruned.changesDeleted,
   };
   console.log(
-    `runRetentionCleanup: complete — ${summary.snapshotFieldsDeleted} fields, `
-    + `${summary.snapshotUsageRowsDeleted} usage rows, ${summary.reportJobsDeleted} report jobs, `
-    + `${summary.auditEventsDeleted} audit events, ${summary.configChangesDeleted} config-change rows`
+    `runRetentionCleanup: complete — ${summary.snapshotFieldsDeleted} fields, ` +
+      `${summary.snapshotUsageRowsDeleted} usage rows, ${summary.reportJobsDeleted} report jobs, ` +
+      `${summary.auditEventsDeleted} audit events, ${summary.configChangesDeleted} config-change rows`,
   );
 
   return summary;
@@ -166,9 +161,7 @@ export async function autoSnapshotCheck(_event, context) {
   }
 
   const lastRun = meta?.refreshedAt ? new Date(meta.refreshedAt).getTime() : 0;
-  const minAgeMs = config.autoSnapshotFrequency === "daily"
-    ? 20 * 60 * 60 * 1000
-    : 6 * 24 * 60 * 60 * 1000;
+  const minAgeMs = config.autoSnapshotFrequency === "daily" ? 20 * 60 * 60 * 1000 : 6 * 24 * 60 * 60 * 1000;
 
   if (Date.now() - lastRun < minAgeMs) {
     return { skipped: true, reason: "not due yet" };
@@ -213,9 +206,10 @@ export async function quickScanScheduleCheck(_event, context) {
   if (!schedule?.enabled) return { skipped: true, reason: "disabled", recovery };
 
   const now = new Date();
-  const due = schedule.frequency === "daily"
-    ? now.getUTCHours() === schedule.hourUtc
-    : now.getUTCDay() === schedule.dayOfWeek && now.getUTCHours() === schedule.hourUtc;
+  const due =
+    schedule.frequency === "daily"
+      ? now.getUTCHours() === schedule.hourUtc
+      : now.getUTCDay() === schedule.dayOfWeek && now.getUTCHours() === schedule.hourUtc;
 
   if (!due) return { skipped: true, reason: "not due yet", recovery };
 
@@ -273,9 +267,7 @@ export async function runProjectStorageMigrations() {
 
 export async function consumeSnapshot(event) {
   incrMetric(METRIC_NAMES.snapshotConsumer);
-  const installationKey = sanitizeCacheKeyPart(
-    event?.body?.installationKey || event?.installationKey || "global"
-  );
+  const installationKey = sanitizeCacheKeyPart(event?.body?.installationKey || event?.installationKey || "global");
   const jobType = event?.body?.jobType || "run-snapshot";
   try {
     if (jobType === "build-field-summary") {
@@ -295,14 +287,7 @@ export async function consumeSnapshot(event) {
         return;
       }
 
-      await processFieldSummaryChunk(
-        installationKey,
-        version,
-        snapshotField,
-        jobToken,
-        startAt,
-        nextPageToken || null
-      );
+      await processFieldSummaryChunk(installationKey, version, snapshotField, jobToken, startAt, nextPageToken || null);
       return;
     }
 
@@ -323,14 +308,7 @@ export async function consumeSnapshot(event) {
         return;
       }
 
-      await processFieldUsageDelta(
-        installationKey,
-        version,
-        snapshotField,
-        jobToken,
-        projectKeys,
-        windowHours
-      );
+      await processFieldUsageDelta(installationKey, version, snapshotField, jobToken, projectKeys, windowHours);
       return;
     }
 
@@ -394,7 +372,7 @@ export async function consumeSnapshot(event) {
     if (jobType === "build-workflow-snapshot") {
       const result = await buildWorkflowSnapshot(installationKey);
       console.log(
-        `build-workflow-snapshot: ${result?.schemeCount ?? 0} schemes, ${result?.statusCount ?? 0} statuses, ${result?.projectCount ?? 0} projects`
+        `build-workflow-snapshot: ${result?.schemeCount ?? 0} schemes, ${result?.statusCount ?? 0} statuses, ${result?.projectCount ?? 0} projects`,
       );
       return;
     }
@@ -409,7 +387,7 @@ export async function consumeSnapshot(event) {
           ? `build-dashboard-snapshot: completed - ${result.processed} items`
           : result?.checkpointed
             ? `build-dashboard-snapshot: checkpointed - ${result.processed} items; requeued`
-            : `build-dashboard-snapshot: ${result?.reason || "no-op"}`
+            : `build-dashboard-snapshot: ${result?.reason || "no-op"}`,
       );
       return;
     }
@@ -427,7 +405,7 @@ export async function consumeSnapshot(event) {
               ? `run-full-scan: handed off to ${result.stage}`
               : result?.advanced
                 ? `run-full-scan: ${result.done}/${result.total} stages done`
-                : `run-full-scan: ${result?.reason || "no-op"}`
+                : `run-full-scan: ${result?.reason || "no-op"}`,
       );
       return;
     }
@@ -445,7 +423,7 @@ export async function consumeSnapshot(event) {
               ? `run-quick-scan: handed off to ${result.stage}`
               : result?.advanced
                 ? `run-quick-scan: ${result.done}/${result.total} stages done`
-                : `run-quick-scan: ${result?.reason || "no-op"}`
+                : `run-quick-scan: ${result?.reason || "no-op"}`,
       );
       return;
     }
@@ -460,7 +438,7 @@ export async function consumeSnapshot(event) {
           ? `build-filter-snapshot: completed - ${result.processed} filters`
           : result?.checkpointed
             ? `build-filter-snapshot: checkpointed - ${result.processed}/${result.totalExpected || "?"} filters; requeued`
-            : `build-filter-snapshot: ${result?.reason || "no-op"}`
+            : `build-filter-snapshot: ${result?.reason || "no-op"}`,
       );
       return;
     }
@@ -471,23 +449,21 @@ export async function consumeSnapshot(event) {
       // that could not read part of the catalog is a different artifact from one that read
       // all of it, and the log is where that gets noticed first.
       console.log(
-        `build-screen-snapshot: ${result?.screens ?? 0} screens, ${result?.fields ?? 0} field placements, ${result?.unresolvedScreens ?? 0} unresolved`
+        `build-screen-snapshot: ${result?.screens ?? 0} screens, ${result?.fields ?? 0} field placements, ${result?.unresolvedScreens ?? 0} unresolved`,
       );
       return;
     }
 
     if (jobType === "build-issue-type-snapshot") {
       const result = await buildIssueTypeSnapshot(installationKey);
-      console.log(
-        `build-issue-type-snapshot: ${result?.issueTypes ?? 0} issue types, ${result?.schemes ?? 0} schemes`
-      );
+      console.log(`build-issue-type-snapshot: ${result?.issueTypes ?? 0} issue types, ${result?.schemes ?? 0} schemes`);
       return;
     }
 
     if (jobType === "build-user-snapshot") {
       const result = await buildUserSnapshot(installationKey);
       console.log(
-        `build-user-snapshot: ${result?.users ?? 0} licensed users across ${result?.groups ?? 0} access groups`
+        `build-user-snapshot: ${result?.users ?? 0} licensed users across ${result?.groups ?? 0} access groups`,
       );
       return;
     }
@@ -497,7 +473,7 @@ export async function consumeSnapshot(event) {
       console.log(
         result?.unavailable
           ? `build-asset-snapshot: Assets not enabled — ${result.reason}`
-          : `build-asset-snapshot: ${result?.schemas ?? 0} schemas, ${result?.objectTypes ?? 0} object types, ${result?.attributes ?? 0} attributes`
+          : `build-asset-snapshot: ${result?.schemas ?? 0} schemas, ${result?.objectTypes ?? 0} object types, ${result?.attributes ?? 0} attributes`,
       );
       return;
     }
@@ -507,7 +483,7 @@ export async function consumeSnapshot(event) {
       console.log(
         result?.queued === false
           ? `build-asset-type-counts: skipped — ${result.reason}`
-          : `build-asset-type-counts: ${result?.measured ?? 0} measured, ${result?.unmeasured ?? 0} unmeasured, of ${result?.total ?? 0} concrete object types`
+          : `build-asset-type-counts: ${result?.measured ?? 0} measured, ${result?.unmeasured ?? 0} unmeasured, of ${result?.total ?? 0} concrete object types`,
       );
       return;
     }
@@ -515,7 +491,7 @@ export async function consumeSnapshot(event) {
     if (jobType === "build-access-snapshot") {
       const result = await buildAccessSnapshot(installationKey);
       console.log(
-        `build-access-snapshot: ${result?.permission ?? 0} permission, ${result?.security ?? 0} security, ${result?.notification ?? 0} notification schemes`
+        `build-access-snapshot: ${result?.permission ?? 0} permission, ${result?.security ?? 0} security, ${result?.notification ?? 0} notification schemes`,
       );
       return;
     }
@@ -523,7 +499,7 @@ export async function consumeSnapshot(event) {
     if (jobType === "build-estate-snapshot") {
       const result = await buildEstateSnapshot(installationKey);
       console.log(
-        `build-estate-snapshot: ${result?.resolutions ?? 0} resolutions, ${result?.priorities ?? 0} priorities`
+        `build-estate-snapshot: ${result?.resolutions ?? 0} resolutions, ${result?.priorities ?? 0} priorities`,
       );
       return;
     }
@@ -531,7 +507,7 @@ export async function consumeSnapshot(event) {
     if (jobType === "build-fieldconfig-snapshot") {
       const result = await buildFieldConfigSnapshot(installationKey);
       console.log(
-        `build-fieldconfig-snapshot: ${result?.source ?? "?"}, ${result?.schemes ?? 0} schemes, ${result?.configs ?? 0} configurations, ${result?.unread ?? 0} unread`
+        `build-fieldconfig-snapshot: ${result?.source ?? "?"}, ${result?.schemes ?? 0} schemes, ${result?.configs ?? 0} configurations, ${result?.unread ?? 0} unread`,
       );
       return;
     }
@@ -547,7 +523,7 @@ export async function consumeSnapshot(event) {
     if (jobType === "build-board-snapshot") {
       const result = await buildBoardSnapshot(installationKey);
       console.log(
-        `build-board-snapshot: ${result?.boards ?? 0} boards, ${result?.columns ?? 0} columns, ${result?.unreadable ?? 0} unreadable`
+        `build-board-snapshot: ${result?.boards ?? 0} boards, ${result?.columns ?? 0} columns, ${result?.unreadable ?? 0} unreadable`,
       );
       return;
     }
@@ -555,7 +531,7 @@ export async function consumeSnapshot(event) {
     if (jobType === "build-drift-snapshot") {
       const result = await buildDriftSnapshot(installationKey);
       console.log(
-        `build-drift-snapshot: ${result?.changes ?? 0} changes recorded${result?.seeded?.length ? `, seeded ${result.seeded.join(", ")}` : ""}`
+        `build-drift-snapshot: ${result?.changes ?? 0} changes recorded${result?.seeded?.length ? `, seeded ${result.seeded.join(", ")}` : ""}`,
       );
       return;
     }
@@ -570,7 +546,11 @@ export async function consumeSnapshot(event) {
     // here regardless, because Forge would retry the message indefinitely.
     if (jobType === "build-field-summary") {
       const fieldId = String(event?.body?.fieldId || "");
-      const existing = fieldId ? await loadFieldSummary(installationKey, fieldId).catch(fallbackOn("consumer.summary_load_failed", null, { fieldId })) : null;
+      const existing = fieldId
+        ? await loadFieldSummary(installationKey, fieldId).catch(
+            fallbackOn("consumer.summary_load_failed", null, { fieldId }),
+          )
+        : null;
       if (existing) {
         const message = String(error?.message || "Unknown error");
         const isRecoverableQueuePressure = isForgeBackpressureError(error);
@@ -597,7 +577,11 @@ export async function consumeSnapshot(event) {
     }
     if (jobType === "build-project-usage-report") {
       const jobId = String(event?.body?.jobId || "");
-      const existing = jobId ? await loadReportJob(installationKey, jobId).catch(fallbackOn("consumer.report_job_load_failed", null, { jobId })) : null;
+      const existing = jobId
+        ? await loadReportJob(installationKey, jobId).catch(
+            fallbackOn("consumer.report_job_load_failed", null, { jobId }),
+          )
+        : null;
       if (existing) {
         const message = String(error?.message || "Unknown error");
         await replaceReportJob(installationKey, jobId, {
@@ -648,12 +632,37 @@ export function routeAgentAction({ search, inspect, impact, impactInput = "name"
   };
 }
 
-export const rovoWorkflowAction = routeAgentAction({ search: rovoWorkflowSearch, inspect: rovoWorkflowInspect, impact: rovoWorkflowImpact });
-export const rovoIssueTypeAction = routeAgentAction({ search: rovoIssueTypeSearch, inspect: rovoIssueTypeInspect, impact: rovoIssueTypeImpact });
-export const rovoAccessAction = routeAgentAction({ search: rovoAccessSearch, inspect: rovoAccessInspect, impact: rovoAccessImpact });
-export const rovoAssetAction = routeAgentAction({ search: rovoAssetSearch, inspect: rovoAssetInspect, impact: rovoAssetImpact });
-export const rovoScreenAction = routeAgentAction({ search: rovoScreenSearch, inspect: rovoScreenInspect, impact: rovoScreenImpact });
-export const rovoFieldConfigAction = routeAgentAction({ search: rovoFieldConfigSearch, inspect: rovoFieldConfigInspect, impact: rovoFieldConfigImpact, impactInput: "field" });
+export const rovoWorkflowAction = routeAgentAction({
+  search: rovoWorkflowSearch,
+  inspect: rovoWorkflowInspect,
+  impact: rovoWorkflowImpact,
+});
+export const rovoIssueTypeAction = routeAgentAction({
+  search: rovoIssueTypeSearch,
+  inspect: rovoIssueTypeInspect,
+  impact: rovoIssueTypeImpact,
+});
+export const rovoAccessAction = routeAgentAction({
+  search: rovoAccessSearch,
+  inspect: rovoAccessInspect,
+  impact: rovoAccessImpact,
+});
+export const rovoAssetAction = routeAgentAction({
+  search: rovoAssetSearch,
+  inspect: rovoAssetInspect,
+  impact: rovoAssetImpact,
+});
+export const rovoScreenAction = routeAgentAction({
+  search: rovoScreenSearch,
+  inspect: rovoScreenInspect,
+  impact: rovoScreenImpact,
+});
+export const rovoFieldConfigAction = routeAgentAction({
+  search: rovoFieldConfigSearch,
+  inspect: rovoFieldConfigInspect,
+  impact: rovoFieldConfigImpact,
+  impactInput: "field",
+});
 
 export { rovoSearchFields, rovoInspectField };
 export { rovoSearchAutomationRules, rovoInspectAutomationRule, rovoAutomationUsage };

@@ -20,10 +20,11 @@ export function attachEstateUsage({ resolutions = [], priorities = [], totals = 
     if (byKind[row?.kind]) byKind[row.kind].set(String(row.valueId ?? ""), row.issueCount);
   }
   const usageMeasured = (totals || []).length > 0;
-  const attach = (rows, kind) => rows.map((v) => ({
-    ...v,
-    issueCount: usageMeasured ? (byKind[kind].get(String(v.id)) ?? 0) : null,
-  }));
+  const attach = (rows, kind) =>
+    rows.map((v) => ({
+      ...v,
+      issueCount: usageMeasured ? (byKind[kind].get(String(v.id)) ?? 0) : null,
+    }));
   return {
     resolutions: attach(resolutions, "resolution"),
     priorities: attach(priorities, "priority"),

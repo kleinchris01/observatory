@@ -39,16 +39,29 @@ vi.mock("../lib/project-store.js", async (importOriginal) => ({
   loadUserGovernanceSummary: vi.fn(),
   loadUserActivity: vi.fn(),
 }));
-vi.mock("../lib/user-ownership.js", async (importOriginal) => ({ ...(await importOriginal()), buildOwnershipIndex: m.buildOwnershipIndex }));
-vi.mock("../lib/store/automation.js", async (importOriginal) => ({ ...(await importOriginal()), readAutomationPart: m.readAutomationPart }));
-vi.mock("../lib/user-engine.js", async (importOriginal) => ({ ...(await importOriginal()), queueUserSnapshotBuild: vi.fn(), isUserBuildStale: vi.fn() }));
+vi.mock("../lib/user-ownership.js", async (importOriginal) => ({
+  ...(await importOriginal()),
+  buildOwnershipIndex: m.buildOwnershipIndex,
+}));
+vi.mock("../lib/store/automation.js", async (importOriginal) => ({
+  ...(await importOriginal()),
+  readAutomationPart: m.readAutomationPart,
+}));
+vi.mock("../lib/user-engine.js", async (importOriginal) => ({
+  ...(await importOriginal()),
+  queueUserSnapshotBuild: vi.fn(),
+  isUserBuildStale: vi.fn(),
+}));
 vi.mock("../lib/jira-api.js", async (importOriginal) => ({
   ...(await importOriginal()),
   incrMetric: m.incrMetric,
   getProjectLeads: m.getProjectLeads,
   countIssues: m.countIssues,
 }));
-vi.mock("./admin-config.js", async (importOriginal) => ({ ...(await importOriginal()), readAdminConfig: vi.fn().mockResolvedValue({}) }));
+vi.mock("./admin-config.js", async (importOriginal) => ({
+  ...(await importOriginal()),
+  readAdminConfig: vi.fn().mockResolvedValue({}),
+}));
 
 import { getHandoverReport } from "./people.js";
 import { logger } from "../lib/logger.js";
@@ -60,7 +73,9 @@ function siteWithOnePerson() {
   m.readUserSnapshotMeta.mockResolvedValue({ version: "u1" });
   m.readSnapshotMeta.mockResolvedValue({ version: "f1" });
   m.readAccessSnapshotMeta.mockResolvedValue(null);
-  m.loadUsers.mockResolvedValue([{ accountId: "acc-1", displayName: "Pat Leaver", active: true, groups: [], applications: [] }]);
+  m.loadUsers.mockResolvedValue([
+    { accountId: "acc-1", displayName: "Pat Leaver", active: true, groups: [], applications: [] },
+  ]);
   m.loadUserFieldAppearances.mockResolvedValue([]);
   m.loadSnapshotFieldNames.mockResolvedValue(new Map());
   m.loadSchemesGrantingHolder.mockResolvedValue([]);
@@ -104,7 +119,9 @@ describe("getHandoverReport", () => {
 
     const report = await getHandoverReport({ payload: { accountId: "acc-1" }, context });
 
-    expect(report.sections.find((s) => s.key === "work").reason).toMatch(/open issues assigned to them, projects they lead/);
+    expect(report.sections.find((s) => s.key === "work").reason).toMatch(
+      /open issues assigned to them, projects they lead/,
+    );
     expect(warn).toHaveBeenCalledWith("handover.leads_failed", expect.any(Object));
     warn.mockRestore();
   });
@@ -117,7 +134,10 @@ describe("getHandoverReport", () => {
 
   test("passes through a site with no roster yet", async () => {
     m.readUserSnapshotMeta.mockResolvedValueOnce(null);
-    expect(await getHandoverReport({ payload: { accountId: "acc-1" }, context })).toMatchObject({ available: false, reason: "no-roster" });
+    expect(await getHandoverReport({ payload: { accountId: "acc-1" }, context })).toMatchObject({
+      available: false,
+      reason: "no-roster",
+    });
     expect(m.getProjectLeads).not.toHaveBeenCalled();
   });
 

@@ -74,8 +74,7 @@ beforeEach(() => vi.clearAllMocks());
 // "ALPHA" appears in the filter bar, the matrix header and the tree, so counting the
 // non-button occurrences is how these tests tell "present in results" from "offered as a
 // filter option".
-const resultOccurrences = (text) =>
-  screen.queryAllByText(text).filter((el) => !el.closest("button")).length;
+const resultOccurrences = (text) => screen.queryAllByText(text).filter((el) => !el.closest("button")).length;
 
 const findRqtSearch = () => screen.getByPlaceholderText("Find RQT value…");
 
@@ -91,7 +90,7 @@ describe("RqtIndexView", () => {
 
   test("settles instead of spinning forever when the index fails to load", async () => {
     invoke.mockImplementation((fn) =>
-      fn === "getRqtIndex" ? Promise.reject(new Error("resolver down")) : Promise.resolve({})
+      fn === "getRqtIndex" ? Promise.reject(new Error("resolver down")) : Promise.resolve({}),
     );
     render(<RqtIndexView siteOrigin={SITE} />);
 

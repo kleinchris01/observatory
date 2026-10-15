@@ -67,7 +67,15 @@ function defaultInvokeImpl(fnName, payload) {
     case "getFilteredFieldIds":
       return Promise.resolve({ fieldIds: [] });
     case "getFieldDetails":
-      return Promise.resolve({ field: null, findings: null, totalIssueCount: 0, activeProjectCount: 0, activeProjects: [], usagePage: 1, usageTotalPages: 1 });
+      return Promise.resolve({
+        field: null,
+        findings: null,
+        totalIssueCount: 0,
+        activeProjectCount: 0,
+        activeProjects: [],
+        usagePage: 1,
+        usageTotalPages: 1,
+      });
     case "getProjectsView":
       return Promise.resolve({ projects: [], fields: [], selectedProject: null, totalPages: 1 });
     case "startProjectUsageReportJob":
@@ -83,7 +91,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
   invoke.mockImplementation(defaultInvokeImpl);
-  view.getContext.mockResolvedValue({ siteUrl: "https://example.atlassian.net", extension: { type: "confluence:globalPage" } });
+  view.getContext.mockResolvedValue({
+    siteUrl: "https://example.atlassian.net",
+    extension: { type: "confluence:globalPage" },
+  });
   rovo.invoke.mockResolvedValue({});
   rovo.isEnabled = vi.fn().mockResolvedValue(false);
 });
@@ -187,17 +198,42 @@ describe("App report generation job-polling lifecycle", () => {
     // so the first two polls both report "queued" to give the test a stable window to
     // observe that state before advancing to "building" and then "completed".
     let pollCount = 0;
-    const queuedJob = { jobId: "job-1", reportName: "Project Usage Report", status: "queued", fieldIds: ["customfield_10001"], processedFields: 0, totalFields: 1, startedAt: null, completedAt: null, lastError: null, progressLog: [], result: { fields: [], projects: [], pendingFields: [], uniqueIssueCount: null } };
+    const queuedJob = {
+      jobId: "job-1",
+      reportName: "Project Usage Report",
+      status: "queued",
+      fieldIds: ["customfield_10001"],
+      processedFields: 0,
+      totalFields: 1,
+      startedAt: null,
+      completedAt: null,
+      lastError: null,
+      progressLog: [],
+      result: { fields: [], projects: [], pendingFields: [], uniqueIssueCount: null },
+    };
     const processingJob = { ...queuedJob, status: "building", startedAt: "2024-01-15T10:00:00Z", processedFields: 0 };
     const completedResult = {
       fields: [
-        { fieldId: "customfield_10001", fieldName: "Test Field", fieldType: "text", projects: [{ projectId: "P1", projectKey: "AA", projectName: "Alpha", issueCount: 7, jql: "cf[10001] is not EMPTY" }] },
+        {
+          fieldId: "customfield_10001",
+          fieldName: "Test Field",
+          fieldType: "text",
+          projects: [
+            { projectId: "P1", projectKey: "AA", projectName: "Alpha", issueCount: 7, jql: "cf[10001] is not EMPTY" },
+          ],
+        },
       ],
       projects: [{ projectId: "P1", projectKey: "AA", projectName: "Alpha" }],
       pendingFields: [],
       uniqueIssueCount: 7,
     };
-    const completedJob = { ...queuedJob, status: "completed", completedAt: "2024-01-15T10:01:00Z", processedFields: 1, result: completedResult };
+    const completedJob = {
+      ...queuedJob,
+      status: "completed",
+      completedAt: "2024-01-15T10:01:00Z",
+      processedFields: 1,
+      result: completedResult,
+    };
 
     invoke.mockImplementation((fnName, payload) => {
       if (fnName === "getFieldInventory") return Promise.resolve(makeFieldInventory());
@@ -248,7 +284,19 @@ describe("App report generation job-polling lifecycle", () => {
   });
 
   it("renders a failed message instead of an infinite spinner when the job fails", async () => {
-    const failedJob = { jobId: "job-2", reportName: "Project Usage Report", status: "failed", fieldIds: ["customfield_10001"], processedFields: 0, totalFields: 1, startedAt: "2024-01-15T10:00:00Z", completedAt: "2024-01-15T10:00:05Z", lastError: "Snapshot version mismatch", progressLog: [], result: { fields: [], projects: [], pendingFields: [], uniqueIssueCount: null } };
+    const failedJob = {
+      jobId: "job-2",
+      reportName: "Project Usage Report",
+      status: "failed",
+      fieldIds: ["customfield_10001"],
+      processedFields: 0,
+      totalFields: 1,
+      startedAt: "2024-01-15T10:00:00Z",
+      completedAt: "2024-01-15T10:00:05Z",
+      lastError: "Snapshot version mismatch",
+      progressLog: [],
+      result: { fields: [], projects: [], pendingFields: [], uniqueIssueCount: null },
+    };
 
     invoke.mockImplementation((fnName, payload) => {
       if (fnName === "getFieldInventory") return Promise.resolve(makeFieldInventory());
@@ -289,9 +337,9 @@ describe("App report generation job-polling lifecycle", () => {
 // broken and raises a bug. Most of what is asserted here is that the page says so.
 describe("macro scope and permission-aware navigation", () => {
   const withAccess = (accessCheck) => {
-    invoke.mockImplementation((name, payload) => (
-      name === "checkMacroAccess" ? Promise.resolve(accessCheck) : defaultInvokeImpl(name, payload)
-    ));
+    invoke.mockImplementation((name, payload) =>
+      name === "checkMacroAccess" ? Promise.resolve(accessCheck) : defaultInvokeImpl(name, payload),
+    );
   };
 
   it("states the scope with a real count, and warns that others will see differently", async () => {
@@ -359,7 +407,17 @@ describe("macro scope and permission-aware navigation", () => {
     await screen.findByText(/scoped to the 4 projects/i);
 
     const nav = document.querySelector(".sub-nav");
-    for (const label of ["Fields", "Projects", "Screens", "Issue types", "Workflows", "Boards", "Filters", "Dashboards", "Report"]) {
+    for (const label of [
+      "Fields",
+      "Projects",
+      "Screens",
+      "Issue types",
+      "Workflows",
+      "Boards",
+      "Filters",
+      "Dashboards",
+      "Report",
+    ]) {
       expect(within(nav).getByText(label)).toBeInTheDocument();
     }
   });

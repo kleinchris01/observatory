@@ -114,8 +114,11 @@ describe("projectFullPassCost", () => {
     // Sized to land between the safe budget and the hard ceiling: a pass that would
     // "fit" against 900s but leaves no room for promotion or a retry.
     const p = projectFullPassCost({
-      totalScreens: 1000, screenListCalls: 10, tabCounts: [3],
-      measuredCalls: 100, measuredMs: 20000,
+      totalScreens: 1000,
+      screenListCalls: 10,
+      tabCounts: [3],
+      measuredCalls: 100,
+      measuredMs: 20000,
     });
     expect(p.projectedMs).toBeGreaterThan(budget);
     expect(p.projectedMs).toBeLessThan(CONSUMER_BUDGET_MS * 2);
@@ -124,15 +127,22 @@ describe("projectFullPassCost", () => {
 
   test("a small site fits comfortably", () => {
     const p = projectFullPassCost({
-      totalScreens: 40, screenListCalls: 1, tabCounts: [1, 1, 2],
-      measuredCalls: 50, measuredMs: 10000,
+      totalScreens: 40,
+      screenListCalls: 1,
+      tabCounts: [1, 1, 2],
+      measuredCalls: 50,
+      measuredMs: 10000,
     });
     expect(p.fitsOneInvocation).toBe(true);
   });
 
   test("does not claim a fit when nothing was measured", () => {
     const p = projectFullPassCost({
-      totalScreens: 0, screenListCalls: 1, tabCounts: [], measuredCalls: 0, measuredMs: 0,
+      totalScreens: 0,
+      screenListCalls: 1,
+      tabCounts: [],
+      measuredCalls: 0,
+      measuredMs: 0,
     });
     expect(p.projectedMs).toBe(0);
     // Zero duration is absence of evidence, not proof of a fast pass.
@@ -185,9 +195,7 @@ describe("measureScreenFetchCost", () => {
   test("a failing tab read does not abort the pass", async () => {
     getAllScreens.mockResolvedValue([{ id: 1 }]);
     getScreenTabs.mockResolvedValue([{ id: 10 }, { id: 11 }]);
-    getScreenTabFields
-      .mockRejectedValueOnce(new Error("500"))
-      .mockResolvedValueOnce([{ id: "a" }]);
+    getScreenTabFields.mockRejectedValueOnce(new Error("500")).mockResolvedValueOnce([{ id: "a" }]);
 
     const result = await measureScreenFetchCost({ sampleSize: 1 });
 
@@ -276,9 +284,7 @@ describe("probeScreenEndpoints", () => {
   // The whole reason the second pass exists. A 401 from a fabricated id is ambiguous; a 401
   // from an id that exists is the scope, and read:screen-field:jira is the pillar.
   test("a rejection against a real id is unambiguous", async () => {
-    probeEndpoint.mockImplementation(async (path) =>
-      path.endsWith("/fields") ? ok(401) : ok(200)
-    );
+    probeEndpoint.mockImplementation(async (path) => (path.endsWith("/fields") ? ok(401) : ok(200)));
 
     const rows = await probeScreenEndpoints();
     const fields = rows.find((r) => r.usedRealIds && !r.asUser && r.path.endsWith("/fields"));

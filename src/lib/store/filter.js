@@ -4,12 +4,7 @@
 // carrying build state. Imports only from core.js, so there is one arrow and no cycle.
 
 import { sql } from "@forge/sql";
-import {
-  chunkArray,
-  ensureProjectStoreReady,
-  toNumber,
-  withSqlRetry,
-} from "./core.js";
+import { chunkArray, ensureProjectStoreReady, toNumber, withSqlRetry } from "./core.js";
 
 // Rows per statement. Filters bind 15 params each, which is the widest row in this codebase,
 // so the batch is correspondingly smaller -- the ceiling that binds is total bound parameters
@@ -20,11 +15,16 @@ const REF_BATCH = 60;
 export async function readFilterSnapshotMeta(scopeKey) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT version, state, started_at, completed_at, refreshed_at, total_filters, last_error,
              building_version, build_token, build_cursor, processed, total_expected, updated_at
       FROM filter_snapshot_meta WHERE scope_key = ?
-    `).bindParams(scopeKey).execute()
+    `,
+      )
+      .bindParams(scopeKey)
+      .execute(),
   );
   const row = result.rows?.[0];
   if (!row) return null;
@@ -53,7 +53,9 @@ export async function writeFilterSnapshotMeta(scopeKey, patch = {}) {
   const next = { ...current, ...patch };
 
   await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       INSERT INTO filter_snapshot_meta
         (scope_key, version, state, started_at, completed_at, refreshed_at, total_filters, last_error,
          building_version, build_token, build_cursor, processed, total_expected, updated_at)
@@ -72,22 +74,25 @@ export async function writeFilterSnapshotMeta(scopeKey, patch = {}) {
         processed = VALUES(processed),
         total_expected = VALUES(total_expected),
         updated_at = VALUES(updated_at)
-    `).bindParams(
-      scopeKey,
-      next.version || null,
-      next.state || "idle",
-      next.startedAt || null,
-      next.completedAt || null,
-      next.refreshedAt || null,
-      Number(next.totalFilters) || 0,
-      next.lastError || null,
-      next.buildingVersion || null,
-      next.buildToken || null,
-      next.buildCursor || null,
-      Number(next.processed) || 0,
-      Number(next.totalExpected) || 0,
-      next.updatedAt || null
-    ).execute()
+    `,
+      )
+      .bindParams(
+        scopeKey,
+        next.version || null,
+        next.state || "idle",
+        next.startedAt || null,
+        next.completedAt || null,
+        next.refreshedAt || null,
+        Number(next.totalFilters) || 0,
+        next.lastError || null,
+        next.buildingVersion || null,
+        next.buildToken || null,
+        next.buildCursor || null,
+        Number(next.processed) || 0,
+        Number(next.totalExpected) || 0,
+        next.updatedAt || null,
+      )
+      .execute(),
   );
   return next;
 }
@@ -107,8 +112,7 @@ export async function clearFilterSnapshotVersion(scopeKey, version) {
 
   for (const table of ["snapshot_filters", "snapshot_filter_refs", "snapshot_filter_shares"]) {
     await withSqlRetry(() =>
-      sql.prepare(`DELETE FROM ${table} WHERE scope_key = ? AND version = ?`)
-        .bindParams(scopeKey, version).execute()
+      sql.prepare(`DELETE FROM ${table} WHERE scope_key = ? AND version = ?`).bindParams(scopeKey, version).execute(),
     );
   }
 }
@@ -125,15 +129,20 @@ export async function appendFilterSnapshot(scopeKey, version, { filters = [], re
     // 16 placeholders for 16 columns. It was 15 for years -- see store-sql-arity.test.js.
     const values = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((f) => [
-      scopeKey, version, String(f.id),
-      f.name ?? null, f.description ?? null, f.jql ?? null,
+      scopeKey,
+      version,
+      String(f.id),
+      f.name ?? null,
+      f.description ?? null,
+      f.jql ?? null,
       // Truncated to what the index column holds. Only used for equality grouping, so a
       // collision between two 512-character searches is a duplicate reported that a human
       // then reads -- not a wrong answer acted on automatically.
       (f.jqlNormalized ?? "").slice(0, 512) || null,
-      f.ownerAccountId ?? null, f.ownerName ?? null,
+      f.ownerAccountId ?? null,
+      f.ownerName ?? null,
       // Tri-state: 1 active, 0 deactivated, NULL when the owner is gone entirely.
-      f.ownerActive === null || f.ownerActive === undefined ? null : (f.ownerActive ? 1 : 0),
+      f.ownerActive === null || f.ownerActive === undefined ? null : f.ownerActive ? 1 : 0,
       Number(f.subscriptionCount) || 0,
       Number(f.favouritedCount) || 0,
       f.sharedWithEveryone ? 1 : 0,
@@ -142,13 +151,18 @@ export async function appendFilterSnapshot(scopeKey, version, { filters = [], re
       f.viewUrl ?? null,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT IGNORE INTO snapshot_filters
           (scope_key, version, filter_id, name, description, jql, jql_normalized,
            owner_account_id, owner_name, owner_active, subscription_count, favourited_count,
            shared_with_everyone, share_count, last_used_at, view_url)
         VALUES ${values}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
@@ -156,25 +170,41 @@ export async function appendFilterSnapshot(scopeKey, version, { filters = [], re
     const values = batch.map(() => "(?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((r) => [scopeKey, version, String(r.filterId), r.kind, String(r.label).slice(0, 191)]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT IGNORE INTO snapshot_filter_refs (scope_key, version, filter_id, kind, label)
         VALUES ${values}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
   for (const batch of chunkArray(shares, REF_BATCH)) {
     const values = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((s) => [
-      scopeKey, version, String(s.filterId), Number(s.index) || 0,
-      s.type ?? "unknown", s.targetId ?? null, s.targetName ?? null, s.roleId ?? null,
+      scopeKey,
+      version,
+      String(s.filterId),
+      Number(s.index) || 0,
+      s.type ?? "unknown",
+      s.targetId ?? null,
+      s.targetName ?? null,
+      s.roleId ?? null,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT IGNORE INTO snapshot_filter_shares
           (scope_key, version, filter_id, share_index, share_type, target_id, target_name, role_id)
         VALUES ${values}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
@@ -198,21 +228,42 @@ export async function loadFilters(scopeKey, version) {
   await ensureProjectStoreReady();
 
   const [filterRows, shareRows, refRows] = await Promise.all([
-    withSqlRetry(() => sql.prepare(`
+    withSqlRetry(() =>
+      sql
+        .prepare(
+          `
       SELECT filter_id, name, description, jql, jql_normalized, owner_account_id, owner_name,
              owner_active, subscription_count, favourited_count, shared_with_everyone,
              share_count, last_used_at, view_url
       FROM snapshot_filters WHERE scope_key = ? AND version = ?
       ORDER BY name ASC
-    `).bindParams(scopeKey, version).execute()),
-    withSqlRetry(() => sql.prepare(`
+    `,
+        )
+        .bindParams(scopeKey, version)
+        .execute(),
+    ),
+    withSqlRetry(() =>
+      sql
+        .prepare(
+          `
       SELECT filter_id, share_type, target_id, target_name, role_id
       FROM snapshot_filter_shares WHERE scope_key = ? AND version = ?
-    `).bindParams(scopeKey, version).execute()),
-    withSqlRetry(() => sql.prepare(`
+    `,
+        )
+        .bindParams(scopeKey, version)
+        .execute(),
+    ),
+    withSqlRetry(() =>
+      sql
+        .prepare(
+          `
       SELECT filter_id, kind, label
       FROM snapshot_filter_refs WHERE scope_key = ? AND version = ?
-    `).bindParams(scopeKey, version).execute()),
+    `,
+        )
+        .bindParams(scopeKey, version)
+        .execute(),
+    ),
   ]);
 
   const sharesByFilter = new Map();
@@ -220,7 +271,10 @@ export async function loadFilters(scopeKey, version) {
     const id = String(row.filter_id);
     if (!sharesByFilter.has(id)) sharesByFilter.set(id, []);
     sharesByFilter.get(id).push({
-      type: row.share_type, targetId: row.target_id, targetName: row.target_name, roleId: row.role_id,
+      type: row.share_type,
+      targetId: row.target_id,
+      targetName: row.target_name,
+      roleId: row.role_id,
     });
   }
 
@@ -246,9 +300,14 @@ export async function loadFilters(scopeKey, version) {
       ownerName: row.owner_name || null,
       // Rebuilt into the shape filter-insights.js reads, so that module needs no knowledge
       // of how a row is stored.
-      owner: row.owner_account_id === null && row.owner_name === null
-        ? null
-        : { accountId: row.owner_account_id, displayName: row.owner_name, active: row.owner_active === null ? true : toNumber(row.owner_active) === 1 },
+      owner:
+        row.owner_account_id === null && row.owner_name === null
+          ? null
+          : {
+              accountId: row.owner_account_id,
+              displayName: row.owner_name,
+              active: row.owner_active === null ? true : toNumber(row.owner_active) === 1,
+            },
       ownerActive: row.owner_active === null ? null : toNumber(row.owner_active) === 1,
       subscriptionCount: toNumber(row.subscription_count),
       favouritedCount: toNumber(row.favourited_count),
@@ -276,7 +335,9 @@ export async function loadFilterReferencesFor(scopeKey, version, kind, label, li
   const cap = Math.max(1, Math.min(1000, Math.trunc(Number(limit)) || 200));
 
   const rows = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT f.filter_id, f.name, f.owner_name, f.owner_active, f.subscription_count, f.last_used_at
       FROM snapshot_filter_refs r
       JOIN snapshot_filters f
@@ -284,14 +345,22 @@ export async function loadFilterReferencesFor(scopeKey, version, kind, label, li
       WHERE r.scope_key = ? AND r.version = ? AND r.kind = ? AND LOWER(r.label) = LOWER(?)
       ORDER BY f.name ASC
       LIMIT ${cap}
-    `).bindParams(scopeKey, version, kind, label).execute()
+    `,
+      )
+      .bindParams(scopeKey, version, kind, label)
+      .execute(),
   );
 
   const counted = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT COUNT(*) AS total FROM snapshot_filter_refs
       WHERE scope_key = ? AND version = ? AND kind = ? AND LOWER(label) = LOWER(?)
-    `).bindParams(scopeKey, version, kind, label).execute()
+    `,
+      )
+      .bindParams(scopeKey, version, kind, label)
+      .execute(),
   );
 
   return {
@@ -321,12 +390,17 @@ export async function loadFilterReferenceCounts(scopeKey, version, kind, labels 
   for (const batch of chunkArray(names, 100)) {
     const placeholders = batch.map(() => "LOWER(?)").join(", ");
     const result = await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         SELECT LOWER(label) AS label, COUNT(DISTINCT filter_id) AS filter_count
         FROM snapshot_filter_refs
         WHERE scope_key = ? AND version = ? AND kind = ? AND LOWER(label) IN (${placeholders})
         GROUP BY LOWER(label)
-      `).bindParams(scopeKey, version, kind, ...batch).execute()
+      `,
+        )
+        .bindParams(scopeKey, version, kind, ...batch)
+        .execute(),
     );
     for (const row of result.rows || []) out[String(row.label)] = toNumber(row.filter_count);
   }
@@ -338,8 +412,10 @@ export async function pruneFilterSnapshots(scopeKey, keepVersion) {
   await ensureProjectStoreReady();
   for (const table of ["snapshot_filters", "snapshot_filter_refs", "snapshot_filter_shares"]) {
     await withSqlRetry(() =>
-      sql.prepare(`DELETE FROM ${table} WHERE scope_key = ? AND version <> ?`)
-        .bindParams(scopeKey, keepVersion).execute()
+      sql
+        .prepare(`DELETE FROM ${table} WHERE scope_key = ? AND version <> ?`)
+        .bindParams(scopeKey, keepVersion)
+        .execute(),
     );
   }
 }
@@ -358,10 +434,15 @@ export async function loadFieldNamesForFilterIds(scopeKey, version, filterIds = 
   for (const batch of chunkArray(ids, 100)) {
     const placeholders = batch.map(() => "?").join(", ");
     const result = await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         SELECT filter_id, label FROM snapshot_filter_refs
         WHERE scope_key = ? AND version = ? AND kind = 'field' AND filter_id IN (${placeholders})
-      `).bindParams(scopeKey, version, ...batch).execute()
+      `,
+        )
+        .bindParams(scopeKey, version, ...batch)
+        .execute(),
     );
     for (const row of result.rows || []) {
       const id = String(row.filter_id);
@@ -386,10 +467,15 @@ export async function loadFilterNamesForIds(scopeKey, version, filterIds = []) {
   for (const batch of chunkArray(ids, 100)) {
     const placeholders = batch.map(() => "?").join(", ");
     const result = await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         SELECT filter_id, name, view_url FROM snapshot_filters
         WHERE scope_key = ? AND version = ? AND filter_id IN (${placeholders})
-      `).bindParams(scopeKey, version, ...batch).execute()
+      `,
+        )
+        .bindParams(scopeKey, version, ...batch)
+        .execute(),
     );
     for (const row of result.rows || []) {
       byId.set(String(row.filter_id), { name: row.name || null, viewUrl: row.view_url || null });
@@ -412,11 +498,16 @@ export async function loadFilterIdsForLabels(scopeKey, version, kind, labels = [
   for (const batch of chunkArray(names, 100)) {
     const placeholders = batch.map(() => "LOWER(?)").join(", ");
     const result = await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         SELECT LOWER(label) AS label, filter_id
         FROM snapshot_filter_refs
         WHERE scope_key = ? AND version = ? AND kind = ? AND LOWER(label) IN (${placeholders})
-      `).bindParams(scopeKey, version, kind, ...batch).execute()
+      `,
+        )
+        .bindParams(scopeKey, version, kind, ...batch)
+        .execute(),
     );
     for (const row of result.rows || []) {
       const label = String(row.label);

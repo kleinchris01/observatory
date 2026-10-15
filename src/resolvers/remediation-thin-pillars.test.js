@@ -5,19 +5,38 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 // "Plan the fix" work for each. The loaders read the same access and estate inventories the
 // tabs do, mocked here at that boundary.
 const m = vi.hoisted(() => ({ getAccessInventory: vi.fn(), getEstateInventory: vi.fn() }));
-vi.mock("./access.js", async (importOriginal) => ({ ...(await importOriginal()), getAccessInventory: m.getAccessInventory }));
-vi.mock("./estate.js", async (importOriginal) => ({ ...(await importOriginal()), getEstateInventory: m.getEstateInventory }));
+vi.mock("./access.js", async (importOriginal) => ({
+  ...(await importOriginal()),
+  getAccessInventory: m.getAccessInventory,
+}));
+vi.mock("./estate.js", async (importOriginal) => ({
+  ...(await importOriginal()),
+  getEstateInventory: m.getEstateInventory,
+}));
 
 import { REMEDIATION_CANDIDATE_LOADERS } from "./remediation.js";
 import { getPlaybook, REMEDIATION_FINDING_INDEX } from "../lib/remediation-playbooks.js";
 import {
-  summarizePermissionInsights, summarizeSecurityInsights, summarizeNotificationInsights, summarizeRoleInsights,
+  summarizePermissionInsights,
+  summarizeSecurityInsights,
+  summarizeNotificationInsights,
+  summarizeRoleInsights,
 } from "../lib/access-insights.js";
 
 const NEW_KEYS = [
-  "permission-public-access", "permission-everyone-sensitive", "permission-direct-grants", "permission-departed-grants",
-  "security-direct-members", "security-departed-members", "notification-external-email", "notification-departed-recipients",
-  "role-group-actors", "role-unused", "priority-usage", "resolution-usage", "estate-defaults",
+  "permission-public-access",
+  "permission-everyone-sensitive",
+  "permission-direct-grants",
+  "permission-departed-grants",
+  "security-direct-members",
+  "security-departed-members",
+  "notification-external-email",
+  "notification-departed-recipients",
+  "role-group-actors",
+  "role-unused",
+  "priority-usage",
+  "resolution-usage",
+  "estate-defaults",
 ];
 const context = {};
 const load = (key) => REMEDIATION_CANDIDATE_LOADERS[key]({ context, installationKey: "k" });
@@ -36,7 +55,9 @@ function accessInventory({ roster = new Set(["acc-1"]) } = {}) {
           { schemeId: "1", context: "EDIT_ISSUES", holderType: "user", holderValue: "acc-1" },
           { schemeId: "1", context: "ASSIGN_ISSUES", holderType: "user", holderValue: "acc-gone" },
         ],
-        schemeProjects, rosterAccountIds: roster, listLimit: Infinity,
+        schemeProjects,
+        rosterAccountIds: roster,
+        listLimit: Infinity,
       }),
     },
     security: {
@@ -47,24 +68,38 @@ function accessInventory({ roster = new Set(["acc-1"]) } = {}) {
           { schemeId: "s1", context: "l1", holderType: "user", holderValue: "acc-1" },
           { schemeId: "s1", context: "l1", holderType: "user", holderValue: "acc-gone" },
         ],
-        schemeProjects: [{ schemeId: "s1", projectId: "10" }], rosterAccountIds: roster, listLimit: Infinity,
+        schemeProjects: [{ schemeId: "s1", projectId: "10" }],
+        rosterAccountIds: roster,
+        listLimit: Infinity,
       }),
     },
     notifications: {
       governance: summarizeNotificationInsights({
         schemes: [{ id: "n1", name: "Prod notifications" }],
         holders: [
-          { schemeId: "n1", context: "1", contextLabel: "Issue Created", holderType: "emailAddress", holderValue: "ext@example.com" },
+          {
+            schemeId: "n1",
+            context: "1",
+            contextLabel: "Issue Created",
+            holderType: "emailAddress",
+            holderValue: "ext@example.com",
+          },
           { schemeId: "n1", context: "2", contextLabel: "Issue Resolved", holderType: "user", holderValue: "acc-gone" },
         ],
-        schemeProjects: [{ schemeId: "n1", projectId: "10" }], rosterAccountIds: roster, listLimit: Infinity,
+        schemeProjects: [{ schemeId: "n1", projectId: "10" }],
+        rosterAccountIds: roster,
+        listLimit: Infinity,
       }),
     },
     roles: {
       governance: summarizeRoleInsights({
-        roles: [{ id: "a", name: "Developers" }, { id: "b", name: "Viewers" }],
+        roles: [
+          { id: "a", name: "Developers" },
+          { id: "b", name: "Viewers" },
+        ],
         holders: [{ schemeId: "a", context: "10", contextLabel: "OPS", holderType: "user", holderValue: "acc-1" }],
-        rosterAccountIds: roster, listLimit: Infinity,
+        rosterAccountIds: roster,
+        listLimit: Infinity,
       }),
     },
   };
@@ -76,8 +111,14 @@ beforeEach(() => {
   m.getEstateInventory.mockResolvedValue({
     neverBuilt: false,
     usageMeasured: true,
-    priorities: [{ id: "1", name: "High", issueCount: 40, isDefault: true }, { id: "2", name: "Trivial", issueCount: 0 }],
-    resolutions: [{ id: "10", name: "Done", issueCount: 9 }, { id: "11", name: "Won't Do", issueCount: 0 }],
+    priorities: [
+      { id: "1", name: "High", issueCount: 40, isDefault: true },
+      { id: "2", name: "Trivial", issueCount: 0 },
+    ],
+    resolutions: [
+      { id: "10", name: "Done", issueCount: 9 },
+      { id: "11", name: "Won't Do", issueCount: 0 },
+    ],
   });
 });
 
@@ -102,18 +143,33 @@ describe("every new check can be remediated", () => {
 
 describe("candidate items", () => {
   test("permission loaders: one item per scheme, with the grants that need changing", async () => {
-    expect((await load("permission-public-access")).items).toEqual([expect.objectContaining({ id: "1", permissions: ["BROWSE_PROJECTS"] })]);
+    expect((await load("permission-public-access")).items).toEqual([
+      expect.objectContaining({ id: "1", permissions: ["BROWSE_PROJECTS"] }),
+    ]);
     expect((await load("permission-everyone-sensitive")).items[0].permissions).toEqual(["DELETE_ISSUES"]);
-    expect((await load("permission-direct-grants")).items[0].grants.map((g) => g.accountId)).toEqual(["acc-1", "acc-gone"]);
+    expect((await load("permission-direct-grants")).items[0].grants.map((g) => g.accountId)).toEqual([
+      "acc-1",
+      "acc-gone",
+    ]);
     // Only the departed grant, not every named one.
-    expect((await load("permission-departed-grants")).items[0].grants).toEqual([{ permission: "ASSIGN_ISSUES", accountId: "acc-gone", departed: true }]);
+    expect((await load("permission-departed-grants")).items[0].grants).toEqual([
+      { permission: "ASSIGN_ISSUES", accountId: "acc-gone", departed: true },
+    ]);
   });
 
   test("security and notification loaders keep only what each task is about", async () => {
     expect((await load("security-direct-members")).items[0].members).toHaveLength(2);
-    expect((await load("security-departed-members")).items[0].members).toEqual([{ levelId: "l1", levelName: "Internal", accountId: "acc-gone", departed: true }]);
-    expect((await load("notification-external-email")).items[0]).toMatchObject({ id: "n1", addresses: ["ext@example.com"], events: 1 });
-    expect((await load("notification-departed-recipients")).items[0].recipients).toEqual([{ event: "Issue Resolved", accountId: "acc-gone", departed: true }]);
+    expect((await load("security-departed-members")).items[0].members).toEqual([
+      { levelId: "l1", levelName: "Internal", accountId: "acc-gone", departed: true },
+    ]);
+    expect((await load("notification-external-email")).items[0]).toMatchObject({
+      id: "n1",
+      addresses: ["ext@example.com"],
+      events: 1,
+    });
+    expect((await load("notification-departed-recipients")).items[0].recipients).toEqual([
+      { event: "Issue Resolved", accountId: "acc-gone", departed: true },
+    ]);
   });
 
   test("roles: individuals bounded by project, and the roles nobody holds", async () => {
@@ -123,8 +179,12 @@ describe("candidate items", () => {
   });
 
   test("estate: unused values, and the list with no default", async () => {
-    expect((await load("priority-usage")).items).toEqual([{ id: "2", kind: "priority", name: "Trivial", isDefault: false }]);
-    expect((await load("resolution-usage")).items).toEqual([{ id: "11", kind: "resolution", name: "Won't Do", isDefault: false }]);
+    expect((await load("priority-usage")).items).toEqual([
+      { id: "2", kind: "priority", name: "Trivial", isDefault: false },
+    ]);
+    expect((await load("resolution-usage")).items).toEqual([
+      { id: "11", kind: "resolution", name: "Won't Do", isDefault: false },
+    ]);
     expect((await load("estate-defaults")).items).toEqual([{ id: "resolution", kind: "resolution", valueCount: 2 }]);
   });
 });
@@ -139,7 +199,11 @@ describe("what the loaders refuse to guess", () => {
   });
 
   test("usage loaders need the issue crawl", async () => {
-    m.getEstateInventory.mockResolvedValueOnce({ neverBuilt: false, usageMeasured: false, priorities: [{ id: "2", name: "Trivial", issueCount: null }] });
+    m.getEstateInventory.mockResolvedValueOnce({
+      neverBuilt: false,
+      usageMeasured: false,
+      priorities: [{ id: "2", name: "Trivial", issueCount: null }],
+    });
     expect(await load("priority-usage")).toEqual({ available: false, reason: "no-usage", items: [] });
   });
 

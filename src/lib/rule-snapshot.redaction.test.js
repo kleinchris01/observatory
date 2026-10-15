@@ -101,9 +101,7 @@ const snapshotExists = fs.existsSync(RULES_DIR);
 // intermittently. A security test that flakes is a security test people learn to ignore,
 // which is worse than not having it.
 describe.skipIf(!snapshotExists)("committed rule snapshot redaction", { timeout: 30000 }, () => {
-  const files = snapshotExists
-    ? fs.readdirSync(RULES_DIR).filter((f) => f.endsWith(".json"))
-    : [];
+  const files = snapshotExists ? fs.readdirSync(RULES_DIR).filter((f) => f.endsWith(".json")) : [];
 
   it("has a snapshot to check", () => {
     expect(files.length).toBeGreaterThan(0);

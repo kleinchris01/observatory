@@ -13,7 +13,9 @@ describe("jiraLinks", () => {
 
   it("builds the classic field admin links from the numeric custom field id only", () => {
     expect(L.field(O, "customfield_10042")).toBe(`${O}/secure/admin/EditCustomField!default.jspa?id=10042`);
-    expect(L.fieldContexts(O, "customfield_10042")).toBe(`${O}/secure/admin/ConfigureCustomField!default.jspa?customFieldId=10042`);
+    expect(L.fieldContexts(O, "customfield_10042")).toBe(
+      `${O}/secure/admin/ConfigureCustomField!default.jspa?customFieldId=10042`,
+    );
     expect(L.field(O, "summary")).toBeNull();
   });
 
@@ -25,7 +27,9 @@ describe("jiraLinks", () => {
 
 describe("workflow links", () => {
   it("opens a live workflow by name and the workflow list", () => {
-    expect(L.workflow("https://a.net", "Build WF")).toBe("https://a.net/secure/admin/workflows/ViewWorkflowSteps.jspa?workflowMode=live&workflowName=Build%20WF");
+    expect(L.workflow("https://a.net", "Build WF")).toBe(
+      "https://a.net/secure/admin/workflows/ViewWorkflowSteps.jspa?workflowMode=live&workflowName=Build%20WF",
+    );
     expect(L.workflow("https://a.net", "")).toBeNull();
     expect(L.workflowsAdmin("https://a.net")).toBe("https://a.net/secure/admin/workflows/ListWorkflows.jspa");
     expect(L.workflowsAdmin(null)).toBeNull();

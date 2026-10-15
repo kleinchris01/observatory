@@ -117,7 +117,11 @@ function declineOnset(months, peakIndex, peakCount) {
 //
 // `now` is injected rather than read, because every rate here is relative to it and a test
 // that cannot fix the clock can only assert that numbers exist.
-export function computeProjectAdoption(project, activity, { now = Date.now(), recentWindowDays = RECENT_WINDOW_DAYS } = {}) {
+export function computeProjectAdoption(
+  project,
+  activity,
+  { now = Date.now(), recentWindowDays = RECENT_WINDOW_DAYS } = {},
+) {
   const months = (activity?.months ?? []).filter((m) => m && m.month);
   const firstIssueCreatedAt = activity?.firstIssueCreatedAt ?? null;
   const lastIssueCreatedAt = activity?.lastIssueCreatedAt ?? null;
@@ -161,7 +165,12 @@ export function computeProjectAdoption(project, activity, { now = Date.now(), re
 
   let peakIndex = -1;
   let peakIssues = 0;
-  months.forEach((m, i) => { if (m.issueCount > peakIssues) { peakIssues = m.issueCount; peakIndex = i; } });
+  months.forEach((m, i) => {
+    if (m.issueCount > peakIssues) {
+      peakIssues = m.issueCount;
+      peakIndex = i;
+    }
+  });
 
   const oldEnough = ageDays >= MIN_AGE_DAYS_TO_JUDGE;
   // Had a real life and lost it. Distinct from never having started: the fix for one is to
@@ -190,9 +199,7 @@ export function computeProjectAdoption(project, activity, { now = Date.now(), re
   // there in the first place.
   const fills = Number(project?.totalIssueCount) || 0;
   const measuredIssues = Number(project?.uniqueIssueCount);
-  const fillsPerIssue = Number.isFinite(measuredIssues) && measuredIssues > 0
-    ? fills / measuredIssues
-    : null;
+  const fillsPerIssue = Number.isFinite(measuredIssues) && measuredIssues > 0 ? fills / measuredIssues : null;
 
   return {
     projectId: project?.projectId ?? null,
@@ -251,9 +258,8 @@ export function scoreAdoption(adoption, sortedRates) {
   const volumePercentile = percentileOf(adoption.issuesPerDay, sortedRates);
   // 1.0x holds steady and scores 70; growth is capped rather than unbounded, because a
   // project that tripled from two issues to six has not earned a 100.
-  const momentumScore = adoption.momentum === null
-    ? null
-    : Math.max(0, Math.min(100, Math.round(adoption.momentum * 70)));
+  const momentumScore =
+    adoption.momentum === null ? null : Math.max(0, Math.min(100, Math.round(adoption.momentum * 70)));
 
   if (volumePercentile === null) return { score: null, volumePercentile, momentumScore };
   if (momentumScore === null) return { score: volumePercentile, volumePercentile, momentumScore };

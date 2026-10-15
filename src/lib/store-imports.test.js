@@ -28,8 +28,15 @@ describe("project-store imports", () => {
     for (const file of sourceFiles(SRC)) {
       const text = fs.readFileSync(file, "latin1");
       for (const match of text.matchAll(/import\s*\{([^}]*)\}\s*from\s*["']([^"']*project-store\.js)["']/g)) {
-        const names = match[1].split(",")
-          .map((part) => part.replace(/\/\/.*$/gm, "").trim().split(/\s+as\s+/)[0].trim())
+        const names = match[1]
+          .split(",")
+          .map((part) =>
+            part
+              .replace(/\/\/.*$/gm, "")
+              .trim()
+              .split(/\s+as\s+/)[0]
+              .trim(),
+          )
           .filter(Boolean);
         for (const name of names) {
           if (!(name in real)) missing.push(`${path.relative(SRC, file)}: ${name}`);
@@ -37,7 +44,7 @@ describe("project-store imports", () => {
       }
     }
     expect(missing).toEqual([]);
-  // Loads the real store module and reads every source file: slow under coverage
-  // instrumentation, so it gets a generous timeout rather than the 5s default.
+    // Loads the real store module and reads every source file: slow under coverage
+    // instrumentation, so it gets a generous timeout rather than the 5s default.
   }, 60000);
 });

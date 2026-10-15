@@ -1,7 +1,5 @@
 import React from "react";
-import {
-  BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer,
-} from "recharts";
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import {
   buildJiraSearchUrl,
   buildProjectUrl,
@@ -18,7 +16,22 @@ import { invoke } from "@forge/bridge";
 import { Icon, useChartPalette } from "./Icons";
 import { SkeletonFieldCard, FindingsStrip, MetricChip } from "./FieldCard";
 import { SubNavLayout } from "./admin/primitives";
-import { Panel, StatRow, StatTile, BarList, PanelGrid, GridSpan, EmptyState, Chip, PageHeader, AskRovo, SortFilterBar, CollapsiblePanels, JiraLink, UsageTriple } from "./ui";
+import {
+  Panel,
+  StatRow,
+  StatTile,
+  BarList,
+  PanelGrid,
+  GridSpan,
+  EmptyState,
+  Chip,
+  PageHeader,
+  AskRovo,
+  SortFilterBar,
+  CollapsiblePanels,
+  JiraLink,
+  UsageTriple,
+} from "./ui";
 import { buildRovoPrompt } from "../utils";
 
 function ChartTooltip({ active, payload }) {
@@ -83,14 +96,19 @@ export function FieldTypeDonut({ fields }) {
   for (const f of customFields) {
     counts[f.fieldType] = (counts[f.fieldType] || 0) + 1;
   }
-  const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 7);
+  const entries = Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 7);
   const segments = entries.map(([type, count]) => ({ name: type, value: count }));
   return (
     <div className="project-chart">
       <div className="chart-title">
         Custom field types on this project
         {systemFieldCount > 0 && (
-          <span className="chart-title__note"> · {systemFieldCount} system field{systemFieldCount === 1 ? "" : "s"} excluded</span>
+          <span className="chart-title__note">
+            {" "}
+            · {systemFieldCount} system field{systemFieldCount === 1 ? "" : "s"} excluded
+          </span>
         )}
       </div>
       <div className="project-chart__donut-layout">
@@ -118,7 +136,9 @@ export function FieldTypeDonut({ fields }) {
           {segments.map((seg, i) => (
             <div className="chart-legend-item" key={seg.name}>
               <span className="chart-legend-dot" style={{ background: palette[i % palette.length] }} />
-              <span className="chart-legend-label" title={seg.name}>{seg.name}</span>
+              <span className="chart-legend-label" title={seg.name}>
+                {seg.name}
+              </span>
               <span className="chart-legend-count">{seg.value}</span>
             </div>
           ))}
@@ -147,9 +167,7 @@ function SchemePeerBars({ scheme, project, allProjects }) {
   if (!scheme || !scheme.siblingProjects?.length) return null;
 
   const byId = new Map(allProjects.map((p) => [String(p.projectId), p]));
-  const peers = scheme.siblingProjects
-    .map((sibling) => byId.get(String(sibling.projectId)))
-    .filter(Boolean);
+  const peers = scheme.siblingProjects.map((sibling) => byId.get(String(sibling.projectId))).filter(Boolean);
 
   if (!peers.length) return null;
 
@@ -185,7 +203,6 @@ function SchemePeerBars({ scheme, project, allProjects }) {
 // Left exported rather than deleted mid-redesign: the donut is general-purpose and may be
 // wanted elsewhere. If neither is picked up, delete both with their tests rather than
 // leaving them to read as live code.
-
 
 // Everything that touches one project, across every pillar.
 //
@@ -228,7 +245,11 @@ export function ActivitySparkbars({ months = [], peakIssues = 0, declineFrom = n
   const peak = Math.max(1, peakIssues || Math.max(...shown.map((m) => m.issueCount)));
 
   return (
-    <div className="adoption-bars" role="img" aria-label={`Issues created per month over the last ${shown.length} months`}>
+    <div
+      className="adoption-bars"
+      role="img"
+      aria-label={`Issues created per month over the last ${shown.length} months`}
+    >
       {shown.map((m) => (
         <span
           key={m.month}
@@ -249,7 +270,8 @@ export function ProjectAdoptionPanel({ adoption, context }) {
             to be indistinguishable: a project with no captured dates would otherwise read as
             created today and never adopted. */}
         <EmptyState inline>
-          {adoption?.reason || "No issue dates have been captured for this project. Run a Universal Scan to measure adoption."}
+          {adoption?.reason ||
+            "No issue dates have been captured for this project. Run a Universal Scan to measure adoption."}
         </EmptyState>
       </Panel>
     );
@@ -261,11 +283,15 @@ export function ProjectAdoptionPanel({ adoption, context }) {
   // short of calling anything a decline.
   const staleData = Boolean(context?.dataStale);
 
-  const trend = staleData || adoption.momentum === null ? null
-    : adoption.momentum >= 1.15 ? "up"
-      : adoption.momentum <= 0.85 ? "down" : "flat";
-  const tone = staleData ? "neutral"
-    : adoption.fellOff ? "critical" : adoption.neverAdopted ? "warning" : "neutral";
+  const trend =
+    staleData || adoption.momentum === null
+      ? null
+      : adoption.momentum >= 1.15
+        ? "up"
+        : adoption.momentum <= 0.85
+          ? "down"
+          : "flat";
+  const tone = staleData ? "neutral" : adoption.fellOff ? "critical" : adoption.neverAdopted ? "warning" : "neutral";
 
   return (
     <Panel
@@ -275,32 +301,39 @@ export function ProjectAdoptionPanel({ adoption, context }) {
     >
       {staleData && (
         <div className="status-banner status-banner--warning">
-          Activity data ends {context.dataThroughMonth || "an old month"}. The last Universal
-          Scan didn't finish, so the recent rate and momentum below understate current work —
-          run a scan from the Scans tab to refresh them.
+          Activity data ends {context.dataThroughMonth || "an old month"}. The last Universal Scan didn't finish, so the
+          recent rate and momentum below understate current work — run a scan from the Scans tab to refresh them.
         </div>
       )}
       <StatRow>
         <StatTile
           label="Adoption score"
           value={adoption.score ?? "—"}
-          hint={adoption.volumePercentile != null ? `busier than ${adoption.volumePercentile}% of projects here` : undefined}
+          hint={
+            adoption.volumePercentile != null ? `busier than ${adoption.volumePercentile}% of projects here` : undefined
+          }
           tone={tone}
           icon="activity"
         />
         <StatTile
           label="Issues per day"
           value={formatRate(adoption.issuesPerDay)}
-          hint={context?.medianIssuesPerDay != null
-            ? `site median ${formatRate(context.medianIssuesPerDay)}`
-            : "since its first issue"}
+          hint={
+            context?.medianIssuesPerDay != null
+              ? `site median ${formatRate(context.medianIssuesPerDay)}`
+              : "since its first issue"
+          }
         />
         <StatTile
           label="Recent rate"
           value={staleData ? "—" : formatRate(adoption.recentIssuesPerDay)}
-          hint={staleData
-            ? `data ends ${context.dataThroughMonth || "—"}`
-            : adoption.momentum === null ? "last 90 days" : `${adoption.momentum.toFixed(2)}× its lifetime rate`}
+          hint={
+            staleData
+              ? `data ends ${context.dataThroughMonth || "—"}`
+              : adoption.momentum === null
+                ? "last 90 days"
+                : `${adoption.momentum.toFixed(2)}× its lifetime rate`
+          }
           tone={staleData ? "warning" : trend === "down" ? "warning" : trend === "up" ? "success" : "neutral"}
         />
         <StatTile
@@ -310,11 +343,7 @@ export function ProjectAdoptionPanel({ adoption, context }) {
         />
       </StatRow>
 
-      <ActivitySparkbars
-        months={adoption.months}
-        peakIssues={adoption.peakIssues}
-        declineFrom={adoption.declineFrom}
-      />
+      <ActivitySparkbars months={adoption.months} peakIssues={adoption.peakIssues} declineFrom={adoption.declineFrom} />
 
       <div className="adoption-story">
         {adoption.peakMonth && (
@@ -331,18 +360,14 @@ export function ProjectAdoptionPanel({ adoption, context }) {
           </span>
         )}
         {!staleData && adoption.fellOff && !adoption.declineFrom && (
-          <span className="adoption-story__decline">
-            Running far below its own historical rate.
-          </span>
+          <span className="adoption-story__decline">Running far below its own historical rate.</span>
         )}
         {!staleData && adoption.neverAdopted && (
           <span className="adoption-story__decline">
             Never picked up: under an issue a month across its whole life.
           </span>
         )}
-        {!adoption.oldEnough && (
-          <span>Too new to judge — adoption is measured from 90 days.</span>
-        )}
+        {!adoption.oldEnough && <span>Too new to judge — adoption is measured from 90 days.</span>}
       </div>
     </Panel>
   );
@@ -360,9 +385,14 @@ export function ProjectHealthPanel({ health }) {
     );
   }
 
-  const bandChip = health.band === "critical" ? <Chip tone="critical">{health.headline}</Chip>
-    : health.band === "warning" ? <Chip tone="warning">{health.headline}</Chip>
-    : <Chip tone="success">{health.headline}</Chip>;
+  const bandChip =
+    health.band === "critical" ? (
+      <Chip tone="critical">{health.headline}</Chip>
+    ) : health.band === "warning" ? (
+      <Chip tone="warning">{health.headline}</Chip>
+    ) : (
+      <Chip tone="success">{health.headline}</Chip>
+    );
 
   return (
     <Panel title="Overall health" icon="activity" description={bandChip}>
@@ -373,7 +403,15 @@ export function ProjectHealthPanel({ health }) {
             label={signal.label}
             value={signal.value}
             hint={signal.detail}
-            tone={signal.tone === "success" ? "success" : signal.tone === "critical" ? "critical" : signal.tone === "warning" ? "warning" : "neutral"}
+            tone={
+              signal.tone === "success"
+                ? "success"
+                : signal.tone === "critical"
+                  ? "critical"
+                  : signal.tone === "warning"
+                    ? "warning"
+                    : "neutral"
+            }
           />
         ))}
       </StatRow>
@@ -428,11 +466,17 @@ export function ProjectFiltersPanel({ filters, siteOrigin }) {
               <span className="project-rules__trigger">
                 {filter.ownerName || "owner unknown"}
                 {filter.ownerActive === false ? " · inactive" : ""}
-                {filter.subscriptionCount > 0 ? ` · ${formatNumber(filter.subscriptionCount)} ${filter.subscriptionCount === 1 ? "subscription" : "subscriptions"}` : ""}
+                {filter.subscriptionCount > 0
+                  ? ` · ${formatNumber(filter.subscriptionCount)} ${filter.subscriptionCount === 1 ? "subscription" : "subscriptions"}`
+                  : ""}
               </span>
-              {filter.lastUsedAt
-                ? <Chip tone="neutral" title={`Last opened ${formatTimestamp(filter.lastUsedAt)}`}>{formatRelativeTime(filter.lastUsedAt)}</Chip>
-                : <Chip tone="neutral">last-opened not tracked</Chip>}
+              {filter.lastUsedAt ? (
+                <Chip tone="neutral" title={`Last opened ${formatTimestamp(filter.lastUsedAt)}`}>
+                  {formatRelativeTime(filter.lastUsedAt)}
+                </Chip>
+              ) : (
+                <Chip tone="neutral">last-opened not tracked</Chip>
+              )}
             </li>
           );
         })}
@@ -453,7 +497,10 @@ export function ProjectScreenReportPanel({ projectId, onBuildFieldReport }) {
   React.useEffect(() => {
     if (!projectId) return undefined;
     let cancelled = false;
-    setLoading(true); setError(""); setData(null); setChecked(new Set());
+    setLoading(true);
+    setError("");
+    setData(null);
+    setChecked(new Set());
     invoke("getProjectScreenReportInputs", { projectId })
       .then((result) => {
         if (cancelled) return;
@@ -461,9 +508,15 @@ export function ProjectScreenReportPanel({ projectId, onBuildFieldReport }) {
         // Default: everything ticked -- the common case is "report on all of it".
         if (result?.schemes?.length) setChecked(new Set(result.schemes.map((s) => s.schemeId)));
       })
-      .catch((err) => { if (!cancelled) setError(err?.message || "Could not load this project's screen schemes."); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+      .catch((err) => {
+        if (!cancelled) setError(err?.message || "Could not load this project's screen schemes.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [projectId]);
 
   const schemes = data?.schemes || [];
@@ -478,7 +531,8 @@ export function ProjectScreenReportPanel({ projectId, onBuildFieldReport }) {
   function toggle(schemeId) {
     setChecked((prev) => {
       const next = new Set(prev);
-      if (next.has(schemeId)) next.delete(schemeId); else next.add(schemeId);
+      if (next.has(schemeId)) next.delete(schemeId);
+      else next.add(schemeId);
       return next;
     });
   }
@@ -506,18 +560,28 @@ export function ProjectScreenReportPanel({ projectId, onBuildFieldReport }) {
       ) : !data?.available ? (
         <EmptyState inline>{data?.reason || "No screen inventory has been built yet."}</EmptyState>
       ) : !schemes.length ? (
-        <EmptyState inline>{data?.reason || "This project's screens could not be resolved through an issue type screen scheme."}</EmptyState>
+        <EmptyState inline>
+          {data?.reason || "This project's screens could not be resolved through an issue type screen scheme."}
+        </EmptyState>
       ) : (
         <>
           <ul className="screen-scheme-picker">
             {schemes.map((scheme) => (
               <li key={scheme.schemeId} className="screen-scheme-picker__row">
                 <label className="screen-scheme-picker__head">
-                  <input type="checkbox" checked={checked.has(scheme.schemeId)} onChange={() => toggle(scheme.schemeId)} />
+                  <input
+                    type="checkbox"
+                    checked={checked.has(scheme.schemeId)}
+                    onChange={() => toggle(scheme.schemeId)}
+                  />
                   <span className="screen-scheme-picker__name">{scheme.schemeName}</span>
                   {scheme.isDefault && <Chip tone="neutral">default</Chip>}
-                  <Chip tone="neutral">{formatNumber(scheme.issueTypeCount)} {scheme.issueTypeCount === 1 ? "issue type" : "issue types"}</Chip>
-                  <Chip tone="neutral">{formatNumber(scheme.fieldIds.length)} {scheme.fieldIds.length === 1 ? "field" : "fields"}</Chip>
+                  <Chip tone="neutral">
+                    {formatNumber(scheme.issueTypeCount)} {scheme.issueTypeCount === 1 ? "issue type" : "issue types"}
+                  </Chip>
+                  <Chip tone="neutral">
+                    {formatNumber(scheme.fieldIds.length)} {scheme.fieldIds.length === 1 ? "field" : "fields"}
+                  </Chip>
                 </label>
                 <span className="screen-scheme-picker__screens">
                   {scheme.screens.map((s) => s.name).join(" · ") || "no screens resolved"}
@@ -533,7 +597,9 @@ export function ProjectScreenReportPanel({ projectId, onBuildFieldReport }) {
               disabled={busy || !selectedFieldIds.length}
             >
               <Icon name="barChart" size={14} />
-              {busy ? "Building…" : `Build report (${selectedFieldIds.length} ${selectedFieldIds.length === 1 ? "field" : "fields"})`}
+              {busy
+                ? "Building…"
+                : `Build report (${selectedFieldIds.length} ${selectedFieldIds.length === 1 ? "field" : "fields"})`}
             </button>
           </div>
         </>
@@ -561,7 +627,11 @@ export function ProjectSchemesPanel({ schemes }) {
   ];
 
   return (
-    <Panel title="Access schemes" icon="shield" description="Who can do what here, who it is secured from, and who gets told.">
+    <Panel
+      title="Access schemes"
+      icon="shield"
+      description="Who can do what here, who it is secured from, and who gets told."
+    >
       <ul className="project-schemes">
         {rows.map(({ label, scheme }) => (
           <li key={label} className="project-schemes__item">
@@ -569,7 +639,11 @@ export function ProjectSchemesPanel({ schemes }) {
             {scheme ? (
               <span className="project-schemes__name">
                 {scheme.schemeName}
-                {scheme.isDefault && <Chip tone="neutral" title="The site-wide default scheme">default</Chip>}
+                {scheme.isDefault && (
+                  <Chip tone="neutral" title="The site-wide default scheme">
+                    default
+                  </Chip>
+                )}
               </span>
             ) : (
               <span className="project-schemes__name project-schemes__name--none">
@@ -607,7 +681,12 @@ function ProjectRoleRow({ role }) {
         {empty ? (
           <Chip tone="warning">empty — nobody in this role</Chip>
         ) : (
-          <button type="button" className="project-role-row__toggle" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+          <button
+            type="button"
+            className="project-role-row__toggle"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+          >
             {users.length ? `${formatNumber(users.length)} ${users.length === 1 ? "user" : "users"}` : null}
             {users.length && groups.length ? " · " : null}
             {groups.length ? `${formatNumber(groups.length)} ${groups.length === 1 ? "group" : "groups"}` : null}
@@ -619,7 +698,8 @@ function ProjectRoleRow({ role }) {
         <div className="project-role-row__actors">
           {shown.map((a) => (
             <Chip key={`${a.type}-${a.value}`} tone={a.type === "user" ? "neutral" : "active"}>
-              {a.type === "user" ? "" : "group: "}{a.label || a.value}
+              {a.type === "user" ? "" : "group: "}
+              {a.label || a.value}
             </Chip>
           ))}
           {hidden > 0 && <span className="project-role-row__more">…and {formatNumber(hidden)} more</span>}
@@ -644,9 +724,11 @@ export function ProjectBoardsPanel({ boards }) {
     <Panel
       title="Boards"
       icon="activity"
-      description={list.length
-        ? `${formatNumber(list.length)} agile board${list.length === 1 ? "" : "s"} in this project.`
-        : "No agile board is scoped to this project."}
+      description={
+        list.length
+          ? `${formatNumber(list.length)} agile board${list.length === 1 ? "" : "s"} in this project.`
+          : "No agile board is scoped to this project."
+      }
     >
       {list.length === 0 ? (
         <EmptyState inline>No agile board is scoped to this project.</EmptyState>
@@ -657,10 +739,21 @@ export function ProjectBoardsPanel({ boards }) {
               <span className="project-schemes__label">{b.name}</span>
               <span className="project-schemes__name">
                 {b.type && <Chip tone="neutral">{b.type}</Chip>}
-                {!b.configReadable && <Chip tone="warning" title="Configuration endpoint returned 404 — columns and backing filter unknown.">config unreadable</Chip>}
+                {!b.configReadable && (
+                  <Chip
+                    tone="warning"
+                    title="Configuration endpoint returned 404 — columns and backing filter unknown."
+                  >
+                    config unreadable
+                  </Chip>
+                )}
                 {b.configReadable && !b.filterId && <Chip tone="warning">no backing filter</Chip>}
                 {b.filterId && <Chip tone="neutral">filter {b.filterId}</Chip>}
-                {b.configReadable && <Chip tone="neutral">{formatNumber(b.columnCount)} {b.columnCount === 1 ? "column" : "columns"}</Chip>}
+                {b.configReadable && (
+                  <Chip tone="neutral">
+                    {formatNumber(b.columnCount)} {b.columnCount === 1 ? "column" : "columns"}
+                  </Chip>
+                )}
               </span>
             </li>
           ))}
@@ -697,14 +790,25 @@ export function ProjectRolesPanel({ roles }) {
         <EmptyState inline>No project roles resolved for this project.</EmptyState>
       ) : (
         <ul className="project-role-list">
-          {ordered.map((r) => <ProjectRoleRow key={r.roleId} role={r} />)}
+          {ordered.map((r) => (
+            <ProjectRoleRow key={r.roleId} role={r} />
+          ))}
         </ul>
       )}
     </Panel>
   );
 }
 
-export function ProjectOverview({ project, overview, loading, fields = [], siteOrigin = "", adoption = null, adoptionContext = null, onBuildFieldReport }) {
+export function ProjectOverview({
+  project,
+  overview,
+  loading,
+  fields = [],
+  siteOrigin = "",
+  adoption = null,
+  adoptionContext = null,
+  onBuildFieldReport,
+}) {
   if (loading) return <EmptyState inline>Loading everything that touches this project…</EmptyState>;
   if (!overview?.available) {
     return <EmptyState inline>{overview?.reason || "This project could not be loaded."}</EmptyState>;
@@ -742,14 +846,21 @@ export function ProjectOverview({ project, overview, loading, fields = [], siteO
             // Never labels field values as issues. On a site with no universe scan the only
             // figure available is fills, and calling it "issues" overstates it by roughly
             // the median field count.
-            hint={hasIssueCounts ? "distinct issues in this project" : "field values — run a universe scan for issue counts"}
+            hint={
+              hasIssueCounts ? "distinct issues in this project" : "field values — run a universe scan for issue counts"
+            }
           />
-          <StatTile label="Fields in use" value={formatNumber(project?.fieldCount ?? 0)} icon="layers" hint="with detected usage here" />
+          <StatTile
+            label="Fields in use"
+            value={formatNumber(project?.fieldCount ?? 0)}
+            icon="layers"
+            hint="with detected usage here"
+          />
           <StatTile
             label="Workflow scheme"
             value={workflow?.available ? (workflow.scheme ? "1" : "0") : "—"}
             icon="activity"
-            hint={workflow?.available ? (workflow.scheme?.name || "none resolved") : "workflow inventory not built"}
+            hint={workflow?.available ? workflow.scheme?.name || "none resolved" : "workflow inventory not built"}
           />
           {/* Em dash, never 0, for a pillar nobody has built. "No forms route here" and "we
               have not looked" are opposite claims and only one is a finding. */}
@@ -764,7 +875,11 @@ export function ProjectOverview({ project, overview, loading, fields = [], siteO
             value={automation?.available ? formatNumber(automation.enabledCount) : "—"}
             icon="refreshCw"
             tone={automation?.enabledCount > 0 ? "warning" : "neutral"}
-            hint={automation?.available ? `${formatNumber(automation.disabledCount)} disabled` : "automation analysis not built"}
+            hint={
+              automation?.available
+                ? `${formatNumber(automation.disabledCount)} disabled`
+                : "automation analysis not built"
+            }
           />
           <StatTile
             label="Fields per issue"
@@ -776,7 +891,11 @@ export function ProjectOverview({ project, overview, loading, fields = [], siteO
       </GridSpan>
 
       <GridSpan>
-        <Panel title="Process" icon="activity" description="The workflow scheme this project runs, and who else runs it.">
+        <Panel
+          title="Process"
+          icon="activity"
+          description="The workflow scheme this project runs, and who else runs it."
+        >
           {!workflow?.available ? (
             <EmptyState inline>{workflow?.reason}</EmptyState>
           ) : !workflow.scheme ? (
@@ -795,7 +914,11 @@ export function ProjectOverview({ project, overview, loading, fields = [], siteO
       </GridSpan>
 
       <GridSpan>
-        <Panel title="Forms" icon="copy" description="Screens this project routes to, through its issue type screen scheme.">
+        <Panel
+          title="Forms"
+          icon="copy"
+          description="Screens this project routes to, through its issue type screen scheme."
+        >
           {!screens?.available ? (
             <EmptyState inline>{screens?.reason}</EmptyState>
           ) : !readableScreens.length ? (
@@ -811,7 +934,8 @@ export function ProjectOverview({ project, overview, loading, fields = [], siteO
               />
               {screens.unresolvedScreens > 0 && (
                 <p className="project-pillar__sub">
-                  {formatNumber(screens.unresolvedScreens)} screens on this site could not be read, so this list may be incomplete.
+                  {formatNumber(screens.unresolvedScreens)} screens on this site could not be read, so this list may be
+                  incomplete.
                 </p>
               )}
             </>
@@ -820,7 +944,11 @@ export function ProjectOverview({ project, overview, loading, fields = [], siteO
       </GridSpan>
 
       <GridSpan>
-        <Panel title="Automation" icon="refreshCw" description="Rules scoped to this project. Site-wide rules are not listed — they apply here the way they apply everywhere.">
+        <Panel
+          title="Automation"
+          icon="refreshCw"
+          description="Rules scoped to this project. Site-wide rules are not listed — they apply here the way they apply everywhere."
+        >
           {!automation?.available ? (
             <EmptyState inline>{automation?.reason}</EmptyState>
           ) : !automation.rules.length ? (
@@ -829,7 +957,10 @@ export function ProjectOverview({ project, overview, loading, fields = [], siteO
             <>
               <ul className="project-rules project-rules--scroll">
                 {automation.rules.map((rule) => (
-                  <li key={rule.ruleId} className={rule.enabled ? "project-rules__item" : "project-rules__item project-rules__item--off"}>
+                  <li
+                    key={rule.ruleId}
+                    className={rule.enabled ? "project-rules__item" : "project-rules__item project-rules__item--off"}
+                  >
                     <span className="project-rules__name">{rule.name}</span>
                     <span className="project-rules__trigger">{rule.triggerType || "—"}</span>
                     {!rule.enabled && <Chip tone="neutral">disabled</Chip>}
@@ -871,16 +1002,16 @@ export function ProjectOverview({ project, overview, loading, fields = [], siteO
                     <span className="project-rules__name">{rule.name}</span>
                     {/* The evidence, so the inference can be judged rather than trusted. */}
                     <span className="project-rules__trigger">
-                      {formatNumber(rule.issuesTouched)} issues · {formatNumber(rule.fieldsTouched)} {rule.fieldsTouched === 1 ? "field" : "fields"}
+                      {formatNumber(rule.issuesTouched)} issues · {formatNumber(rule.fieldsTouched)}{" "}
+                      {rule.fieldsTouched === 1 ? "field" : "fields"}
                     </span>
                   </li>
                 ))}
               </ul>
               <p className="project-pillar__sub">
-                Inferred, not confirmed. Jira exposes no execution log to an app, so this is
-                evidence that something wrote these fields here — not proof it was these rules.
-                Fields are matched by name, so a rule writing a name this site uses twice
-                matches both.
+                Inferred, not confirmed. Jira exposes no execution log to an app, so this is evidence that something
+                wrote these fields here — not proof it was these rules. Fields are matched by name, so a rule writing a
+                name this site uses twice matches both.
               </p>
             </>
           )}
@@ -905,14 +1036,21 @@ export function ProjectOverview({ project, overview, loading, fields = [], siteO
 
       {onBuildFieldReport && (
         <GridSpan wide>
-          <ProjectScreenReportPanel projectId={overview.projectId ?? project?.projectId} onBuildFieldReport={onBuildFieldReport} />
+          <ProjectScreenReportPanel
+            projectId={overview.projectId ?? project?.projectId}
+            onBuildFieldReport={onBuildFieldReport}
+          />
         </GridSpan>
       )}
 
       <GridSpan>
         {/* Was "Form shape": a stacked colour bar with no legend and no explanation of what
             it stacked. It was field TYPE mix, which the label never said. */}
-        <Panel title="Field types in use" icon="layers" description="What the form is made of. A project that is mostly text fields reports differently from one that is mostly select lists.">
+        <Panel
+          title="Field types in use"
+          icon="layers"
+          description="What the form is made of. A project that is mostly text fields reports differently from one that is mostly select lists."
+        >
           <FieldTypeDonut fields={fields} />
         </Panel>
       </GridSpan>
@@ -932,7 +1070,7 @@ export function ProjectOverview({ project, overview, loading, fields = [], siteO
 // produced one; null means unmeasured, and a project nobody has scanned is not a project
 // with no work.
 function measuredVolume(project, hasUniqueCounts) {
-  return hasUniqueCounts ? project.uniqueIssueCount ?? null : project.totalIssueCount ?? null;
+  return hasUniqueCounts ? (project.uniqueIssueCount ?? null) : (project.totalIssueCount ?? null);
 }
 
 const STALE_MS = 180 * 24 * 60 * 60 * 1000;
@@ -991,7 +1129,8 @@ export function buildProjectFilters(projects = []) {
       label: "Fell off",
       hint: "Had a real life and lost it — running far below its own historical rate.",
       measurable: anyAdoption,
-      unmeasuredHint: "Adoption needs issue creation dates, which only a Universal Scan collects. Run one from the Scans tab.",
+      unmeasuredHint:
+        "Adoption needs issue creation dates, which only a Universal Scan collects. Run one from the Scans tab.",
       match: (p) => Boolean(p.adoption?.fellOff),
     },
     {
@@ -1028,7 +1167,8 @@ export const PROJECT_METRICS = [
   { key: "fills", label: "Field values", get: (p) => p.totalIssueCount ?? null },
   { key: "fields", label: "Fields in use", get: (p) => p.fieldCount ?? null },
   {
-    key: "perIssue", label: "Fields per issue",
+    key: "perIssue",
+    label: "Fields per issue",
     get: (p) => {
       const i = Number(p.uniqueIssueCount);
       const f = Number(p.totalIssueCount);
@@ -1039,7 +1179,8 @@ export const PROJECT_METRICS = [
   { key: "perDay", label: "Issues per day", get: (p) => p.adoption?.issuesPerDay ?? null },
   { key: "ageDays", label: "Age (days)", get: (p) => p.adoption?.ageDays ?? null },
   {
-    key: "quietDays", label: "Days since last activity",
+    key: "quietDays",
+    label: "Days since last activity",
     get: (p) => {
       const t = Date.parse(p.latestIssueUpdatedAt || "");
       return Number.isFinite(t) ? Math.floor((Date.now() - t) / 86400000) : null;
@@ -1074,7 +1215,7 @@ export function sortProjectList(list, sortBy) {
     const an = av == null || !Number.isFinite(Number(av));
     const bn = bv == null || !Number.isFinite(Number(bv));
     if (an && bn) return 0;
-    if (an) return 1;   // unmeasured always last, whichever direction
+    if (an) return 1; // unmeasured always last, whichever direction
     if (bn) return -1;
     return (Number(av) - Number(bv)) * dir;
   });
@@ -1104,7 +1245,7 @@ export function filterProjectsByRanges(list, ranges) {
       if (isBound(r.min) && v < Number(r.min)) return false;
       if (isBound(r.max) && v > Number(r.max)) return false;
       return true;
-    })
+    }),
   );
 }
 
@@ -1127,11 +1268,32 @@ export function projectCardFindings(project, floor) {
 // field list. The same shape as FieldCard so Fields and Projects read as one product; the
 // report checkbox FieldCard carries is absent, because a project is inspected, not reported on.
 export function ProjectCard({
-  project, floor, expanded, loading, onToggle,
-  overview, overviewLoading, siteOrigin,
-  selectedAdoption, adoptionContext, workflowScheme, peerProjects, onBuildFieldReport,
-  fields, availableTypes, totalFields, fieldPage, fieldTotalPages, fieldPageSize,
-  fieldQuery, onFieldQueryChange, fieldType, onFieldTypeChange, fieldSort, onFieldSortChange, onChangePage,
+  project,
+  floor,
+  expanded,
+  loading,
+  onToggle,
+  overview,
+  overviewLoading,
+  siteOrigin,
+  selectedAdoption,
+  adoptionContext,
+  workflowScheme,
+  peerProjects,
+  onBuildFieldReport,
+  fields,
+  availableTypes,
+  totalFields,
+  fieldPage,
+  fieldTotalPages,
+  fieldPageSize,
+  fieldQuery,
+  onFieldQueryChange,
+  fieldType,
+  onFieldTypeChange,
+  fieldSort,
+  onFieldSortChange,
+  onChangePage,
   usage = null,
 }) {
   const [view, setView] = React.useState("overview");
@@ -1145,7 +1307,9 @@ export function ProjectCard({
   const findings = { tags: { risky: fellOff, cleanup: noWork || stale, standardize: overConfigured } };
   const severityClass = fellOff
     ? "field-card--has-danger"
-    : (overConfigured || noWork || stale) ? "field-card--has-warn" : "";
+    : overConfigured || noWork || stale
+      ? "field-card--has-warn"
+      : "";
 
   return (
     <article className={`field-card field-card--project ${expanded ? "field-card--open" : ""} ${severityClass}`}>
@@ -1178,7 +1342,10 @@ export function ProjectCard({
             value={project.adoption?.score ?? "—"}
             tone={fellOff ? "danger" : project.adoption ? "success" : "neutral"}
           />
-          <MetricChip label="Issues per day" value={project.adoption ? formatRate(project.adoption.issuesPerDay) : "—"} />
+          <MetricChip
+            label="Issues per day"
+            value={project.adoption ? formatRate(project.adoption.issuesPerDay) : "—"}
+          />
           <MetricChip label="Age" value={project.adoption ? formatAge(project.adoption.ageDays) : "—"} tone="cool" />
           <MetricChip
             label="Last activity"
@@ -1207,7 +1374,8 @@ export function ProjectCard({
                 >
                   {project.projectKey}
                 </JiraLink>
-                {" · "}{project.projectName}
+                {" · "}
+                {project.projectName}
               </div>
             </div>
             <div className="section-heading__actions">
@@ -1270,7 +1438,9 @@ export function ProjectCard({
                     <select value={fieldType} onChange={(event) => onFieldTypeChange(event.target.value)}>
                       <option value="all">All types</option>
                       {availableTypes.map((typeOption) => (
-                        <option key={typeOption} value={typeOption}>{typeOption}</option>
+                        <option key={typeOption} value={typeOption}>
+                          {typeOption}
+                        </option>
                       ))}
                     </select>
                   </label>
@@ -1304,40 +1474,60 @@ export function ProjectCard({
                         <div />
                       </div>
                     ))
-                  ) : fields.length ? fields.map((field) => {
-                    const href = buildJiraSearchUrl(siteOrigin, field.jql);
-                    return (
-                      <article className="project-usage-card" key={`${project.projectId}-${field.fieldId}`}>
-                        <div className="project-usage-card__head">
-                          <div>
-                            <div className="field-card__eyebrow">{field.fieldId}</div>
-                            <h4>{field.fieldName}</h4>
-                            <p>{field.description || "No admin description is set for this field."}</p>
-                          </div>
-                          <div className="project-usage-card__head-actions">
-                            <MetricChip label="Type" value={field.fieldType} tone="cool" />
-                            <MetricChip label="Issues on project" value={formatNumber(field.issueCount)} tone="success" />
-                            <MetricChip label="Active projects" value={formatNumber(field.activeProjectCount)} tone="cool" />
-                          </div>
-                        </div>
-                        <div className="project-usage-card__body">
-                          <div className="section-heading">
-                            <div className="section-heading__actions">
-                              <FindingsStrip findings={field.findings} />
+                  ) : fields.length ? (
+                    fields.map((field) => {
+                      const href = buildJiraSearchUrl(siteOrigin, field.jql);
+                      return (
+                        <article className="project-usage-card" key={`${project.projectId}-${field.fieldId}`}>
+                          <div className="project-usage-card__head">
+                            <div>
+                              <div className="field-card__eyebrow">{field.fieldId}</div>
+                              <h4>{field.fieldName}</h4>
+                              <p>{field.description || "No admin description is set for this field."}</p>
+                            </div>
+                            <div className="project-usage-card__head-actions">
+                              <MetricChip label="Type" value={field.fieldType} tone="cool" />
+                              <MetricChip
+                                label="Issues on project"
+                                value={formatNumber(field.issueCount)}
+                                tone="success"
+                              />
+                              <MetricChip
+                                label="Active projects"
+                                value={formatNumber(field.activeProjectCount)}
+                                tone="cool"
+                              />
                             </div>
                           </div>
-                          {href ? (
-                            <a className="smart-link-card" href={href} target="_blank" rel="noreferrer" onClick={(e) => handleJiraLinkClick(e, href)}>
-                              <span className="smart-link-card__title">Open Jira search for {formatNumber(field.issueCount)} issues</span>
-                              <code>{field.jql}</code>
-                            </a>
-                          ) : (
-                            <div className="empty-state empty-state--inline">No JQL link is available for this field/project pair.</div>
-                          )}
-                        </div>
-                      </article>
-                    );
-                  }) : (
+                          <div className="project-usage-card__body">
+                            <div className="section-heading">
+                              <div className="section-heading__actions">
+                                <FindingsStrip findings={field.findings} />
+                              </div>
+                            </div>
+                            {href ? (
+                              <a
+                                className="smart-link-card"
+                                href={href}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(e) => handleJiraLinkClick(e, href)}
+                              >
+                                <span className="smart-link-card__title">
+                                  Open Jira search for {formatNumber(field.issueCount)} issues
+                                </span>
+                                <code>{field.jql}</code>
+                              </a>
+                            ) : (
+                              <div className="empty-state empty-state--inline">
+                                No JQL link is available for this field/project pair.
+                              </div>
+                            )}
+                          </div>
+                        </article>
+                      );
+                    })
+                  ) : (
                     <div className="empty-state empty-state--inline">
                       No fields matched the current project filters.
                     </div>
@@ -1351,10 +1541,38 @@ export function ProjectCard({
                       : `No field usage rows are cached for ${project.projectKey}`}
                   </span>
                   <div className="pagination-bar__actions">
-                    <button className="secondary-button" type="button" onClick={() => onChangePage(1)} disabled={fieldPage === 1 || !totalFields}>First</button>
-                    <button className="secondary-button" type="button" onClick={() => onChangePage(Math.max(1, fieldPage - 1))} disabled={fieldPage === 1 || !totalFields}>Previous</button>
-                    <button className="secondary-button" type="button" onClick={() => onChangePage(Math.min(fieldTotalPages, fieldPage + 1))} disabled={fieldPage === fieldTotalPages || !totalFields}>Next</button>
-                    <button className="secondary-button" type="button" onClick={() => onChangePage(fieldTotalPages)} disabled={fieldPage === fieldTotalPages || !totalFields}>Last</button>
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={() => onChangePage(1)}
+                      disabled={fieldPage === 1 || !totalFields}
+                    >
+                      First
+                    </button>
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={() => onChangePage(Math.max(1, fieldPage - 1))}
+                      disabled={fieldPage === 1 || !totalFields}
+                    >
+                      Previous
+                    </button>
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={() => onChangePage(Math.min(fieldTotalPages, fieldPage + 1))}
+                      disabled={fieldPage === fieldTotalPages || !totalFields}
+                    >
+                      Next
+                    </button>
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={() => onChangePage(fieldTotalPages)}
+                      disabled={fieldPage === fieldTotalPages || !totalFields}
+                    >
+                      Last
+                    </button>
                   </div>
                 </section>
               </>
@@ -1435,16 +1653,19 @@ export function ProjectsTabView({
   const visible = React.useMemo(() => {
     const matched = allProjects.filter(activeProjectFilter.match);
     const searched = term
-      ? matched.filter((p) =>
-          String(p.projectKey).toLowerCase().includes(term) ||
-          String(p.projectName).toLowerCase().includes(term))
+      ? matched.filter(
+          (p) =>
+            String(p.projectKey).toLowerCase().includes(term) || String(p.projectName).toLowerCase().includes(term),
+        )
       : matched;
     return sortProjectList(filterProjectsByRanges(searched, deferredRanges), projectSort);
   }, [allProjects, activeProjectFilter, term, projectSort, deferredRanges]);
 
   // The result set changed out from under the pager -- go back to page one rather than
   // stranding the reader on a page that no longer exists.
-  React.useEffect(() => { setListPage(1); }, [term, projectFilter, projectSort, deferredRanges, allProjects.length]);
+  React.useEffect(() => {
+    setListPage(1);
+  }, [term, projectFilter, projectSort, deferredRanges, allProjects.length]);
 
   const totalProjects = visible.length;
   const totalListPages = Math.max(1, Math.ceil(totalProjects / PROJECT_LIST_PAGE_SIZE));
@@ -1514,7 +1735,14 @@ export function ProjectsTabView({
           </div>
         </SortFilterBar>
         {rangeKeys.length > 0 && (
-          <button type="button" className="admin-field-browser__clear-filters" onClick={() => { setRanges({}); setDeferredRanges({}); }}>
+          <button
+            type="button"
+            className="admin-field-browser__clear-filters"
+            onClick={() => {
+              setRanges({});
+              setDeferredRanges({});
+            }}
+          >
             Clear ranges
           </button>
         )}
@@ -1528,7 +1756,11 @@ export function ProjectsTabView({
             const lo = isBound(r.min) ? r.min : "0";
             const hi = isBound(r.max) ? r.max : "∞";
             return (
-              <Chip key={key} onRemove={() => setRanges((prev) => ({ ...prev, [key]: {} }))} removeLabel={`Clear ${m.label} range`}>
+              <Chip
+                key={key}
+                onRemove={() => setRanges((prev) => ({ ...prev, [key]: {} }))}
+                removeLabel={`Clear ${m.label} range`}
+              >
                 {`${m.label}: ${lo}–${hi}`}
               </Chip>
             );
@@ -1564,45 +1796,79 @@ export function ProjectsTabView({
         <span className="admin-pagination__info">
           {totalProjects > 0
             ? `Showing ${pageStart + 1}–${Math.min(pageStart + PROJECT_LIST_PAGE_SIZE, totalProjects)} of ${formatNumber(totalProjects)} projects`
-            : loading ? "Loading…" : "No projects match the current filter"}
+            : loading
+              ? "Loading…"
+              : "No projects match the current filter"}
         </span>
         <div className="admin-field-browser__page-nav">
-          <button disabled={pageNum <= 1} className="secondary-button secondary-button--small" type="button" onClick={() => setListPage(1)}>First</button>
-          <button disabled={pageNum <= 1} className="secondary-button secondary-button--small" type="button" onClick={() => setListPage((p) => Math.max(1, p - 1))}>Previous</button>
-          <button disabled={pageNum >= totalListPages} className="secondary-button secondary-button--small" type="button" onClick={() => setListPage((p) => Math.min(totalListPages, p + 1))}>Next</button>
-          <button disabled={pageNum >= totalListPages} className="secondary-button secondary-button--small" type="button" onClick={() => setListPage(totalListPages)}>Last</button>
+          <button
+            disabled={pageNum <= 1}
+            className="secondary-button secondary-button--small"
+            type="button"
+            onClick={() => setListPage(1)}
+          >
+            First
+          </button>
+          <button
+            disabled={pageNum <= 1}
+            className="secondary-button secondary-button--small"
+            type="button"
+            onClick={() => setListPage((p) => Math.max(1, p - 1))}
+          >
+            Previous
+          </button>
+          <button
+            disabled={pageNum >= totalListPages}
+            className="secondary-button secondary-button--small"
+            type="button"
+            onClick={() => setListPage((p) => Math.min(totalListPages, p + 1))}
+          >
+            Next
+          </button>
+          <button
+            disabled={pageNum >= totalListPages}
+            className="secondary-button secondary-button--small"
+            type="button"
+            onClick={() => setListPage(totalListPages)}
+          >
+            Last
+          </button>
         </div>
       </div>
 
       {loading && !allProjects.length ? (
         <div className="admin-field-list">
-          {Array.from({ length: 5 }, (_, i) => <SkeletonFieldCard key={i} />)}
+          {Array.from({ length: 5 }, (_, i) => (
+            <SkeletonFieldCard key={i} />
+          ))}
         </div>
       ) : totalProjects === 0 ? (
         <EmptyState>
-          {loading
-            ? "Loading projects…"
-            : projectFilter !== "all" && allProjects.length > 0
-              ? (activeProjectFilter.measurable
-                  ? `No project matches “${activeProjectFilter.label}”.`
-                  : activeProjectFilter.unmeasuredHint)
-              : term
-                ? `No project matches “${projectQuery}”.`
-                : (
-                  <>
-                    No projects with cached field usage were found.{" "}
-                    {onRestoreProjectUsageCache ? (
-                      <button
-                        className="secondary-button secondary-button--small"
-                        type="button"
-                        onClick={onRestoreProjectUsageCache}
-                        disabled={projectUsageRestoring}
-                      >
-                        {projectUsageRestoring ? "Restoring…" : "Restore from field summaries"}
-                      </button>
-                    ) : null}
-                  </>
-                )}
+          {loading ? (
+            "Loading projects…"
+          ) : projectFilter !== "all" && allProjects.length > 0 ? (
+            activeProjectFilter.measurable ? (
+              `No project matches “${activeProjectFilter.label}”.`
+            ) : (
+              activeProjectFilter.unmeasuredHint
+            )
+          ) : term ? (
+            `No project matches “${projectQuery}”.`
+          ) : (
+            <>
+              No projects with cached field usage were found.{" "}
+              {onRestoreProjectUsageCache ? (
+                <button
+                  className="secondary-button secondary-button--small"
+                  type="button"
+                  onClick={onRestoreProjectUsageCache}
+                  disabled={projectUsageRestoring}
+                >
+                  {projectUsageRestoring ? "Restoring…" : "Restore from field summaries"}
+                </button>
+              ) : null}
+            </>
+          )}
         </EmptyState>
       ) : (
         <div className="admin-field-list">
@@ -1625,7 +1891,7 @@ export function ProjectsTabView({
                 workflowScheme={isOpen ? data?.workflowScheme : null}
                 peerProjects={visible}
                 onBuildFieldReport={onBuildFieldReport}
-                fields={isOpen ? (data?.fields || []) : []}
+                fields={isOpen ? data?.fields || [] : []}
                 availableTypes={data?.availableTypes || []}
                 totalFields={Number(data?.totalFields || 0)}
                 fieldPage={Number(data?.page || 1)}

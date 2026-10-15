@@ -26,12 +26,7 @@ vi.mock("./snapshot-engine.js", () => ({
 
 import { buildProjectUsageReportResult, processProjectUsageReportJob } from "./report-engine.js";
 import { readWorkflowSnapshotMeta, loadProjectWorkflowSchemeMap } from "./project-store.js";
-import {
-  loadSnapshotField,
-  loadAllSnapshotProjectUsage,
-  loadReportJob,
-  replaceReportJob,
-} from "./project-store.js";
+import { loadSnapshotField, loadAllSnapshotProjectUsage, loadReportJob, replaceReportJob } from "./project-store.js";
 import { queueReportBuild } from "./snapshot-engine.js";
 import { getDistinctIssueCountForFields, incrMetric, REPORT_JOB_FIELD_BATCH_SIZE } from "./jira-api.js";
 
@@ -123,12 +118,14 @@ describe("buildProjectUsageReportResult", () => {
     loadAllSnapshotProjectUsage.mockResolvedValue([]);
 
     const { result } = await buildProjectUsageReportResult(SCOPE, VERSION, ["customfield_1"]);
-    expect(result.pendingFields).toEqual([{
-      fieldId: "customfield_1",
-      fieldName: "Field One",
-      summaryStatus: "missing",
-      reason: "project-usage-missing",
-    }]);
+    expect(result.pendingFields).toEqual([
+      {
+        fieldId: "customfield_1",
+        fieldName: "Field One",
+        summaryStatus: "missing",
+        reason: "project-usage-missing",
+      },
+    ]);
   });
 
   test("does not flag a field that genuinely has no issues", async () => {
@@ -301,11 +298,13 @@ describe("processProjectUsageReportJob", () => {
 
   test("preserves the original startedAt across continuations", async () => {
     const fieldIds = Array.from({ length: REPORT_JOB_FIELD_BATCH_SIZE + 5 }, (_, i) => `customfield_${i}`);
-    loadReportJob.mockResolvedValue(job({
-      fieldIds,
-      totalFields: fieldIds.length,
-      startedAt: "2026-01-01T00:00:00.000Z",
-    }));
+    loadReportJob.mockResolvedValue(
+      job({
+        fieldIds,
+        totalFields: fieldIds.length,
+        startedAt: "2026-01-01T00:00:00.000Z",
+      }),
+    );
     loadSnapshotField.mockResolvedValue(snapshotField());
 
     await processProjectUsageReportJob(SCOPE, VERSION, "job-1");
@@ -362,12 +361,18 @@ describe("processProjectUsageReportJob", () => {
 describe("workflow scheme annotation", () => {
   beforeEach(() => {
     readWorkflowSnapshotMeta.mockResolvedValue({ version: "wf-1" });
-    loadProjectWorkflowSchemeMap.mockResolvedValue(new Map([
-      ["100", { schemeId: "s1", name: "ADVEV Standard" }],
-      ["200", { schemeId: "s1", name: "ADVEV Standard" }],
-    ]));
+    loadProjectWorkflowSchemeMap.mockResolvedValue(
+      new Map([
+        ["100", { schemeId: "s1", name: "ADVEV Standard" }],
+        ["200", { schemeId: "s1", name: "ADVEV Standard" }],
+      ]),
+    );
     loadSnapshotField.mockResolvedValue({
-      id: "customfield_1", name: "Field One", type: "text", totalIssueCount: 5, activeProjectCount: 2,
+      id: "customfield_1",
+      name: "Field One",
+      type: "text",
+      totalIssueCount: 5,
+      activeProjectCount: 2,
     });
     loadAllSnapshotProjectUsage.mockResolvedValue([
       { projectId: "100", projectKey: "AAA", projectName: "Project A", issueCount: 3, jql: "x" },
@@ -379,7 +384,10 @@ describe("workflow scheme annotation", () => {
   // The annotation only runs on the final chunk -- the map is identical for every batch,
   // so fetching it per chunk would repeat identical work for no gain.
   test("does not look up schemes on a non-final chunk", async () => {
-    await buildProjectUsageReportResult("scope-1", "v1", ["customfield_1", "customfield_2"], { offset: 0, batchSize: 1 });
+    await buildProjectUsageReportResult("scope-1", "v1", ["customfield_1", "customfield_2"], {
+      offset: 0,
+      batchSize: 1,
+    });
     expect(loadProjectWorkflowSchemeMap).not.toHaveBeenCalled();
   });
 

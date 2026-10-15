@@ -93,8 +93,12 @@ export async function getFirstRunState({ context }) {
     readAdminConfig().catch(fallbackOn("first_run.config_read_failed", null, { installationKey })),
     readSnapshotMeta(installationKey).catch(fallbackOn("first_run.field_meta_read_failed", null, { installationKey })),
     readFullScanMeta(installationKey).catch(fallbackOn("first_run.scan_meta_read_failed", null, { installationKey })),
-    readAutomationAnalysis(installationKey).catch(fallbackOn("first_run.automation_read_failed", null, { installationKey })),
-    readWorkflowSnapshotMeta(installationKey).catch(fallbackOn("first_run.workflow_meta_read_failed", null, { installationKey })),
+    readAutomationAnalysis(installationKey).catch(
+      fallbackOn("first_run.automation_read_failed", null, { installationKey }),
+    ),
+    readWorkflowSnapshotMeta(installationKey).catch(
+      fallbackOn("first_run.workflow_meta_read_failed", null, { installationKey }),
+    ),
   ]);
 
   const acknowledged = new Set(config?.firstRun?.acknowledged || []);
@@ -121,7 +125,8 @@ export async function getFirstRunState({ context }) {
       title: 'Understand "not measured"',
       done: acknowledged.has("evidence-rule"),
       kind: "acknowledged",
-      detail: "Zero is what makes something look safe to delete, so Observatory only shows a zero when a scan actually looked and found none. Anything it has not measured says so instead. Every screen depends on that distinction.",
+      detail:
+        "Zero is what makes something look safe to delete, so Observatory only shows a zero when a scan actually looked and found none. Anything it has not measured says so instead. Every screen depends on that distinction.",
     },
     {
       key: "import-automation",
@@ -148,7 +153,8 @@ export async function getFirstRunState({ context }) {
       title: "Share it with the people who ask you questions",
       done: acknowledged.has("share-macro"),
       kind: "acknowledged",
-      detail: "The Confluence macro gives a read-only view of fields, screens, boards and workflows, filtered to whatever projects each reader can already browse in Jira. It is how this stops being a tool only one person opens.",
+      detail:
+        "The Confluence macro gives a read-only view of fields, screens, boards and workflows, filtered to whatever projects each reader can already browse in Jira. It is how this stops being a tool only one person opens.",
     },
   ];
 
@@ -183,8 +189,9 @@ export async function firstRunArrivals(installationKey, { anySnapshot, meta }) {
   // The only read here that can fail. Losing it costs the counts, not the list: a stage that
   // landed is still reported as landed, and what is unknown is how many -- said by omitting
   // the number rather than by printing a zero.
-  const counts = await readStageProducedCounts(installationKey, "full")
-    .catch(fallbackOn("first_run.stage_counts_read_failed", {}, { installationKey }));
+  const counts = await readStageProducedCounts(installationKey, "full").catch(
+    fallbackOn("first_run.stage_counts_read_failed", {}, { installationKey }),
+  );
 
   const landed = [];
   const pending = [];
@@ -240,13 +247,32 @@ export async function setFirstRunState({ payload, context }) {
 export async function getAdminOverview({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
-  const [meta, summaryCounts, config, legacySummaryCount, workflow, screens, issueTypeOverview, userOverview, assetOverview, accessOverview, estateOverview, boardOverview, driftHealth, filterOverview, dashboardOverview, automationAnalysis, fieldConfigOverview] = await Promise.all([
+  const [
+    meta,
+    summaryCounts,
+    config,
+    legacySummaryCount,
+    workflow,
+    screens,
+    issueTypeOverview,
+    userOverview,
+    assetOverview,
+    accessOverview,
+    estateOverview,
+    boardOverview,
+    driftHealth,
+    filterOverview,
+    dashboardOverview,
+    automationAnalysis,
+    fieldConfigOverview,
+  ] = await Promise.all([
     readSnapshotMeta(installationKey),
     // Counted in SQL rather than loaded. This used to pull up to 5,000 summary rows --
     // including two LONGTEXT columns -- across the wire, and use them for a count grouped by
     // status and a total. Same six integers, one row back.
-    countFieldSummariesByStatus(installationKey)
-      .catch(fallbackOn("overview.summary_counts_failed", () => ({ counts: null, total: 0 }), { installationKey })),
+    countFieldSummariesByStatus(installationKey).catch(
+      fallbackOn("overview.summary_counts_failed", () => ({ counts: null, total: 0 }), { installationKey }),
+    ),
     readAdminConfig(),
     countOldScopeKeyRows(installationKey).catch(fallbackOn("overview.legacy_row_count_failed", 0, { installationKey })),
     buildWorkflowOverview(installationKey),
@@ -267,15 +293,16 @@ export async function getAdminOverview({ context }) {
     // Falls back to null rather than failing the overview. The automation dimensions then
     // report as unavailable, which is the same thing a fresh install shows -- an overview
     // that 500s because one optional input is missing is worse than one missing a section.
-    readAutomationAnalysis(installationKey).catch(fallbackOn("overview.automation_load_failed", () => null, { installationKey })),
+    readAutomationAnalysis(installationKey).catch(
+      fallbackOn("overview.automation_load_failed", () => null, { installationKey }),
+    ),
     buildFieldConfigOverview(installationKey),
   ]);
 
   // The rates are computed at analysis time and stored, so the score never needs the rules.
   const automation = automationAnalysis?.estate?.health ?? { available: false };
 
-  const jobCounts = summaryCounts.counts
-    ?? { queued: 0, building: 0, ready: 0, failed: 0, cancelled: 0, unbuilt: 0 };
+  const jobCounts = summaryCounts.counts ?? { queued: 0, building: 0, ready: 0, failed: 0, cancelled: 0, unbuilt: 0 };
 
   let findingsSummary = { adminAttention: 0, risky: 0, cleanup: 0, standardize: 0 };
   let findingsByCode = {};
@@ -289,7 +316,7 @@ export async function getAdminOverview({ context }) {
       const projects = await attachUniqueIssueCounts(installationKey, rawProjects);
       const dup = buildDuplicateNameCountMap(fields);
       const hydrated = fields.map((f) =>
-        hydrateFieldForGovernance(f, null, dup.get(normalizeFieldName(f.name)) ?? 1, config.governanceThresholds)
+        hydrateFieldForGovernance(f, null, dup.get(normalizeFieldName(f.name)) ?? 1, config.governanceThresholds),
       );
       findingsSummary = summarizeFindings(hydrated);
       // The counts several new Overview cards each need -- "23 fields with a dead-
@@ -303,8 +330,9 @@ export async function getAdminOverview({ context }) {
       // Only the counts and a short worst-first list reach the Overview. The full per-project
       // series is what the Projects tab loads, and shipping 200 projects' worth of monthly
       // history with the landing page would dwarf everything else on it.
-      const activity = await loadProjectActivity(installationKey)
-        .catch(fallbackOn("overview.project_activity_load_failed", () => new Map(), { installationKey }));
+      const activity = await loadProjectActivity(installationKey).catch(
+        fallbackOn("overview.project_activity_load_failed", () => new Map(), { installationKey }),
+      );
       const adoption = summarizeAdoption(projects, activity);
 
       dashboard = {
@@ -325,10 +353,15 @@ export async function getAdminOverview({ context }) {
             .sort((a, b) => String(b.declineFrom || "").localeCompare(String(a.declineFrom || "")))
             .slice(0, 8)
             .map((row) => ({
-              projectKey: row.projectKey, projectName: row.projectName,
-              declineFrom: row.declineFrom, peakMonth: row.peakMonth, peakIssues: row.peakIssues,
-              issuesPerDay: row.issuesPerDay, recentIssuesPerDay: row.recentIssuesPerDay,
-              momentum: row.momentum, score: row.score,
+              projectKey: row.projectKey,
+              projectName: row.projectName,
+              declineFrom: row.declineFrom,
+              peakMonth: row.peakMonth,
+              peakIssues: row.peakIssues,
+              issuesPerDay: row.issuesPerDay,
+              recentIssuesPerDay: row.recentIssuesPerDay,
+              momentum: row.momentum,
+              score: row.score,
             })),
         },
       };
@@ -344,8 +377,9 @@ export async function getAdminOverview({ context }) {
     }
   }
 
-  const priorHealthValues = await loadPriorHealthDimensions(installationKey)
-    .catch(fallbackOn("overview.prior_health_load_failed", () => ({}), { installationKey }));
+  const priorHealthValues = await loadPriorHealthDimensions(installationKey).catch(
+    fallbackOn("overview.prior_health_load_failed", () => ({}), { installationKey }),
+  );
 
   // The stored cross summary, not a fresh cross. Recomputing the widest join in the app on
   // every Overview read would make the heaviest read in the product heavier still; the scan
@@ -401,9 +435,8 @@ export async function getAdminOverview({ context }) {
       completedAt: meta?.completedAt || null,
       totalFields: meta?.totalFields || 0,
       processedFields: meta?.processedFields || 0,
-      percent: meta?.totalFields > 0
-        ? Math.min(100, Math.round(((meta.processedFields || 0) / meta.totalFields) * 100))
-        : 0,
+      percent:
+        meta?.totalFields > 0 ? Math.min(100, Math.round(((meta.processedFields || 0) / meta.totalFields) * 100)) : 0,
       lastError: meta?.lastError || null,
       progressLog: (meta?.progressLog || []).slice(-50),
     },
@@ -464,22 +497,24 @@ export async function getHealthHistory({ payload, context }) {
 
   // Per-dimension movement across the window. Keyed on what the LATEST measurement scored,
   // because a dimension that has since stopped being measured cannot be reported on.
-  const dimensions = Object.entries(latest.dimensions).map(([key, score]) => {
-    const firstScore = first.dimensions?.[key];
-    const known = typeof firstScore === "number";
-    return {
-      key,
-      score,
-      first: known ? firstScore : null,
-      // null, never 0, when the dimension did not exist at the start of the window --
-      // "new measurement" and "no change" are different facts.
-      delta: known ? score - firstScore : null,
-      points: series.map((entry) => ({
-        day: entry.day,
-        score: typeof entry.dimensions?.[key] === "number" ? entry.dimensions[key] : null,
-      })),
-    };
-  }).sort((a, b) => (a.delta ?? 0) - (b.delta ?? 0));
+  const dimensions = Object.entries(latest.dimensions)
+    .map(([key, score]) => {
+      const firstScore = first.dimensions?.[key];
+      const known = typeof firstScore === "number";
+      return {
+        key,
+        score,
+        first: known ? firstScore : null,
+        // null, never 0, when the dimension did not exist at the start of the window --
+        // "new measurement" and "no change" are different facts.
+        delta: known ? score - firstScore : null,
+        points: series.map((entry) => ({
+          day: entry.day,
+          score: typeof entry.dimensions?.[key] === "number" ? entry.dimensions[key] : null,
+        })),
+      };
+    })
+    .sort((a, b) => (a.delta ?? 0) - (b.delta ?? 0));
 
   return {
     available: true,

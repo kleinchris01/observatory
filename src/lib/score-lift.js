@@ -37,7 +37,7 @@ export function scoreLifts(health) {
     const share = pillarWeight(pillar.key) / headlineWeight;
     for (const check of checks) {
       const gap = Math.max(0, 100 - check.score);
-      lifts.set(check.key, (gap * (Number(check.weight) || 0) / checkWeight) * share);
+      lifts.set(check.key, ((gap * (Number(check.weight) || 0)) / checkWeight) * share);
     }
   }
   return lifts;

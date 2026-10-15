@@ -5,7 +5,12 @@ import { describe, test, expect, vi } from "vitest";
 vi.mock("./project-store.js", () => ({}));
 vi.mock("./store/automation.js", () => ({}));
 
-import { activeRosterIds, summarizeOrphanedOwnership, classifyUserActivity, DORMANT_ACCOUNT_DAYS } from "./user-ownership.js";
+import {
+  activeRosterIds,
+  summarizeOrphanedOwnership,
+  classifyUserActivity,
+  DORMANT_ACCOUNT_DAYS,
+} from "./user-ownership.js";
 
 describe("activeRosterIds", () => {
   // The roster now carries deactivated accounts so the People tab and licence hygiene can
@@ -32,7 +37,10 @@ describe("activeRosterIds", () => {
         ["b", { filters: [2, 3], dashboards: [], rules: [] }],
       ]),
     };
-    const roster = activeRosterIds([{ accountId: "a", active: true }, { accountId: "b", active: false }]);
+    const roster = activeRosterIds([
+      { accountId: "a", active: true },
+      { accountId: "b", active: false },
+    ]);
     const result = summarizeOrphanedOwnership(ownership, roster);
     expect(result.orphanedOwners).toBe(1);
     expect(result.orphanedFilters).toBe(2);
@@ -58,7 +66,12 @@ describe("classifyUserActivity", () => {
     const r = classifyUserActivity(users, rows, { now });
     expect(r.byAccount.get("idle")).toEqual({ lastActivityAt: "2025-06-01T00:00:00Z", dormant: true });
     expect(r.byAccount.get("busy").dormant).toBe(false);
-    expect(r).toMatchObject({ measured: true, measuredAccounts: 2, dormantAccounts: 1, dormantAfterDays: DORMANT_ACCOUNT_DAYS });
+    expect(r).toMatchObject({
+      measured: true,
+      measuredAccounts: 2,
+      dormantAccounts: 1,
+      dormantAfterDays: DORMANT_ACCOUNT_DAYS,
+    });
   });
 
   test("a deactivated account and an account the crawl never saw are neither dormant nor counted", () => {

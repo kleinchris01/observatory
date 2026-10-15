@@ -2,7 +2,22 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatNumber, formatRelativeTime, buildScreenUrl } from "../utils";
 import { Icon } from "../components/Icons";
-import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar, PanelGrid, GridSpan, PillarHealthPanel, BarList, StickyActions, AskRovo, JiraLink } from "../components/ui";
+import {
+  StatTile,
+  StatRow,
+  Panel,
+  EmptyState,
+  Chip,
+  PageHeader,
+  SortFilterBar,
+  PanelGrid,
+  GridSpan,
+  PillarHealthPanel,
+  BarList,
+  StickyActions,
+  AskRovo,
+  JiraLink,
+} from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useNavIntent, useVisiblePolling, usePersistentState } from "../hooks";
@@ -49,7 +64,14 @@ const SCREEN_SORT_OPTIONS = [
   { value: "unresolved-first", label: "Unreadable first" },
 ];
 
-export function ScreenRow({ screen, transitions = [], selectable = false, selected = false, onToggleSelect, siteOrigin }) {
+export function ScreenRow({
+  screen,
+  transitions = [],
+  selectable = false,
+  selected = false,
+  onToggleSelect,
+  siteOrigin,
+}) {
   const unresolved = screen.tabsResolved !== "resolved";
 
   return (
@@ -65,7 +87,13 @@ export function ScreenRow({ screen, transitions = [], selectable = false, select
         </label>
       )}
       <div className="screen-row__identity">
-        <JiraLink className="screen-row__name" href={buildScreenUrl(siteOrigin, screen.screenId)} title={`Configure ${screen.name} in Jira`}>{screen.name}</JiraLink>
+        <JiraLink
+          className="screen-row__name"
+          href={buildScreenUrl(siteOrigin, screen.screenId)}
+          title={`Configure ${screen.name} in Jira`}
+        >
+          {screen.name}
+        </JiraLink>
         {screen.description && <span className="screen-row__desc">{screen.description}</span>}
         {/* Named individually rather than counted. "Used by 3 transitions" does not tell
             you whether deleting the screen breaks a workflow you care about; the workflow
@@ -113,9 +141,7 @@ export function SchemeOperations({ scheme, operations }) {
   // A scheme where every operation resolves to the same screen is the common case and is
   // said once rather than four times -- repeating it would bury the schemes that differ,
   // which are the ones worth looking at.
-  const distinct = new Set(
-    OPERATIONS.map((name) => byOperation.get(name)?.screenId).filter((id) => id != null)
-  );
+  const distinct = new Set(OPERATIONS.map((name) => byOperation.get(name)?.screenId).filter((id) => id != null));
   const uniform = distinct.size === 1 && fallback?.screenId != null;
 
   return (
@@ -178,7 +204,11 @@ const SCHEME_FILTERS = [
   { key: "unused", label: "No issue type maps to it", match: (scheme) => (scheme.issueTypeSchemeCount ?? 0) === 0 },
   // Points at a screen the catalog does not contain. Jira falls back silently when one of
   // these resolves, so nobody finds it by using Jira.
-  { key: "dangling", label: "Points at a missing screen", match: (_scheme, operations) => operations.some((op) => op.dangling) },
+  {
+    key: "dangling",
+    label: "Points at a missing screen",
+    match: (_scheme, operations) => operations.some((op) => op.dangling),
+  },
 ];
 
 // The cross-signal view. Two findings neither pillar can produce alone.
@@ -191,9 +221,15 @@ function CrossSignalView() {
   React.useEffect(() => {
     let cancelled = false;
     invoke("getScreenFieldCrossSignal", {})
-      .then((data) => { if (!cancelled) setState({ loading: false, data, error: null }); })
-      .catch((err) => { if (!cancelled) setState({ loading: false, data: null, error: err?.message || "Could not run the cross." }); });
-    return () => { cancelled = true; };
+      .then((data) => {
+        if (!cancelled) setState({ loading: false, data, error: null });
+      })
+      .catch((err) => {
+        if (!cancelled) setState({ loading: false, data: null, error: err?.message || "Could not run the cross." });
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (state.loading) return <EmptyState inline>Crossing the screen inventory against field usage…</EmptyState>;
@@ -218,9 +254,11 @@ function CrossSignalView() {
         <StatTile
           label="Form clutter"
           value={d.clutterAvailable === false ? "Not measured" : formatNumber(c.clutterPlacements)}
-          hint={d.clutterAvailable === false
-            ? "field usage could not be read in full"
-            : `across ${formatNumber(c.clutterFields)} field${c.clutterFields === 1 ? "" : "s"} on create screens`}
+          hint={
+            d.clutterAvailable === false
+              ? "field usage could not be read in full"
+              : `across ${formatNumber(c.clutterFields)} field${c.clutterFields === 1 ? "" : "s"} on create screens`
+          }
           icon="copy"
           tone={d.clutterAvailable === false ? "neutral" : c.clutterPlacements > 0 ? "warning" : "success"}
         />
@@ -243,11 +281,13 @@ function CrossSignalView() {
       {/* Both halves refresh independently, so a verdict here is only as current as the
           older one. Said plainly rather than left for the reader to work out. */}
       <p className="screen-cross__freshness">
-        Screens read {d.screenRefreshedAt ? formatRelativeTime(d.screenRefreshedAt) : "at an unknown time"};
-        field usage {d.fieldRefreshedAt ? formatRelativeTime(d.fieldRefreshedAt) : "at an unknown time"}.
-        {d.projectsResolved < d.projectsTotal && " Projects whose screens could not be fully read are excluded from both findings — neither claim can be made from a chain that was only partly read."}
+        Screens read {d.screenRefreshedAt ? formatRelativeTime(d.screenRefreshedAt) : "at an unknown time"}; field usage{" "}
+        {d.fieldRefreshedAt ? formatRelativeTime(d.fieldRefreshedAt) : "at an unknown time"}.
+        {d.projectsResolved < d.projectsTotal &&
+          " Projects whose screens could not be fully read are excluded from both findings — neither claim can be made from a chain that was only partly read."}
         {d.usageTruncated && " The invisible-data read was capped, so that finding can only understate."}
-        {d.clutterAvailable === false && " Field usage could not be read in full, so form clutter is withheld rather than guessed."}
+        {d.clutterAvailable === false &&
+          " Field usage could not be read in full, so form clutter is withheld rather than guessed."}
       </p>
 
       <Panel
@@ -264,7 +304,10 @@ function CrossSignalView() {
                 <div className="screen-row__identity">
                   <span className="screen-row__name">{f.fieldName}</span>
                   <span className="screen-row__desc">
-                    {f.projects.slice(0, 4).map((p) => `${p.projectKey} (${formatNumber(p.issueCount)})`).join(", ")}
+                    {f.projects
+                      .slice(0, 4)
+                      .map((p) => `${p.projectKey} (${formatNumber(p.issueCount)})`)
+                      .join(", ")}
                     {f.projects.length > 4 ? ` +${f.projects.length - 4} more` : ""}
                   </span>
                 </div>
@@ -284,8 +327,8 @@ function CrossSignalView() {
       >
         {d.clutterAvailable === false ? (
           <EmptyState inline>
-            Not measured. Field usage could not be read in full, and a field missing from a partial
-            read would look never filled. Run a full scan, then check again.
+            Not measured. Field usage could not be read in full, and a field missing from a partial read would look
+            never filled. Run a full scan, then check again.
           </EmptyState>
         ) : !d.formClutter.length ? (
           <EmptyState inline>Every field on a create screen is filled in by somebody in that project.</EmptyState>
@@ -319,7 +362,8 @@ export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
   const toggleScreenSelect = React.useCallback((screenId) => {
     setSelectedScreenIds((prev) => {
       const next = new Set(prev);
-      if (next.has(screenId)) next.delete(screenId); else next.add(screenId);
+      if (next.has(screenId)) next.delete(screenId);
+      else next.add(screenId);
       return next;
     });
   }, []);
@@ -340,7 +384,9 @@ export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
         return;
       }
       if (result.unresolvedScreens?.length) {
-        setNotice(`${result.unresolvedScreens.length} of the selected screens could not be read, so the report's field list may be incomplete.`);
+        setNotice(
+          `${result.unresolvedScreens.length} of the selected screens could not be read, so the report's field list may be incomplete.`,
+        );
       }
       onBuildFieldReport(result.fieldIds, result.projectIds);
     } catch (err) {
@@ -385,7 +431,13 @@ export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
 
   const load = React.useCallback(async () => {
     try {
-      const result = await invoke("getScreenInventory", { page, pageSize: PAGE_SIZE, search: debouncedSearch, sort, filter: screenFilter });
+      const result = await invoke("getScreenInventory", {
+        page,
+        pageSize: PAGE_SIZE,
+        search: debouncedSearch,
+        sort,
+        filter: screenFilter,
+      });
       setData(result);
       setError("");
     } catch (err) {
@@ -397,7 +449,9 @@ export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
     }
   }, [page, debouncedSearch, sort, screenFilter]);
 
-  React.useEffect(() => { load(); }, [load]);
+  React.useEffect(() => {
+    load();
+  }, [load]);
 
   // The screens pillar of the site health score. Already computed the moment anything scores
   // the site, and previously only ever rendered on the Overview tab -- the governance number
@@ -406,15 +460,25 @@ export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
   React.useEffect(() => {
     let cancelled = false;
     invoke("getPillarHealth", { pillar: "screens" })
-      .then((result) => { if (!cancelled) setPillar(result?.pillar || null); })
-      .catch(() => { if (!cancelled) setPillar(null); });
-    return () => { cancelled = true; };
+      .then((result) => {
+        if (!cancelled) setPillar(result?.pillar || null);
+      })
+      .catch(() => {
+        if (!cancelled) setPillar(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [data?.refreshedAt]);
 
   const visibleSchemes = React.useMemo(() => {
     const option = SCHEME_FILTERS.find((f) => f.key === schemeFilter) ?? SCHEME_FILTERS[0];
     return (data?.screenSchemes || []).filter((scheme) =>
-      option.match(scheme, (data?.schemeOperations || []).filter((op) => op.schemeId === scheme.schemeId)));
+      option.match(
+        scheme,
+        (data?.schemeOperations || []).filter((op) => op.schemeId === scheme.schemeId),
+      ),
+    );
   }, [data?.screenSchemes, data?.schemeOperations, schemeFilter]);
 
   // Transitions grouped by the screen they open. Done here rather than server-side so an
@@ -473,14 +537,19 @@ export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
         buildPrompt={() =>
           buildRovoPrompt({
             task: "Give me an overview of the screen catalogue and its schemes on this site and what to look at first.",
-            facts: [["Snapshot built", data?.refreshedAt || "unknown"], ["Screens", data?.totalScreens ?? null], ["Screen schemes", data?.totalSchemes ?? null], ["Screens whose tabs could not be read", data?.unresolvedScreens ?? null]],
+            facts: [
+              ["Snapshot built", data?.refreshedAt || "unknown"],
+              ["Screens", data?.totalScreens ?? null],
+              ["Screen schemes", data?.totalSchemes ?? null],
+              ["Screens whose tabs could not be read", data?.unresolvedScreens ?? null],
+            ],
           })
         }
       />
       <button type="button" className="secondary-button" onClick={startBuild} disabled={building || isBuilding}>
         <Icon name="refreshCw" size={13} />
-      {isBuilding ? "Building…" : data?.neverBuilt ? "Build inventory" : "Rebuild"}
-    </button>
+        {isBuilding ? "Building…" : data?.neverBuilt ? "Build inventory" : "Rebuild"}
+      </button>
     </>
   );
 
@@ -500,35 +569,39 @@ export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
           description="Which fields each form actually contains, and which schemes route projects to it."
           actions={buildAction}
         />
-        {error && <div className="danger-zone__error" role="alert">{error}</div>}
-        {notice && !error && <p className="admin-config-row__hint" role="status">{notice}</p>}
+        {error && (
+          <div className="danger-zone__error" role="alert">
+            {error}
+          </div>
+        )}
+        {notice && !error && (
+          <p className="admin-config-row__hint" role="status">
+            {notice}
+          </p>
+        )}
 
         {data?.lastError && !isBuilding && (
-          <div className="danger-zone__error" role="alert">Last build failed: {data.lastError}</div>
+          <div className="danger-zone__error" role="alert">
+            Last build failed: {data.lastError}
+          </div>
         )}
 
         {data?.staleBuild && (
-          <p className="admin-config-row__hint">
-            A build was started but is no longer running. Rebuild to recover it.
-          </p>
+          <p className="admin-config-row__hint">A build was started but is no longer running. Rebuild to recover it.</p>
         )}
 
         {isBuilding ? (
           <Panel title="Building the first inventory" icon="refreshCw">
             <p>
-              Walking every screen, its tabs and its fields, plus both scheme layers above
-              them. On a site of ~760 screens that is roughly five minutes. This page
-              refreshes itself — you can leave it.
+              Walking every screen, its tabs and its fields, plus both scheme layers above them. On a site of ~760
+              screens that is roughly five minutes. This page refreshes itself — you can leave it.
             </p>
-            {data?.startedAt && (
-              <p className="admin-config-row__hint">Started {formatRelativeTime(data.startedAt)}.</p>
-            )}
+            {data?.startedAt && <p className="admin-config-row__hint">Started {formatRelativeTime(data.startedAt)}.</p>}
           </Panel>
         ) : (
           <EmptyState action={buildAction}>
-            No screen inventory has been built yet. Building one walks every screen, its tabs
-            and its fields, plus both scheme layers above them — on a site of ~760 screens that
-            is a few minutes of background work.
+            No screen inventory has been built yet. Building one walks every screen, its tabs and its fields, plus both
+            scheme layers above them — on a site of ~760 screens that is a few minutes of background work.
           </EmptyState>
         )}
       </div>
@@ -539,8 +612,18 @@ export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
     { key: "overview", label: "Overview", icon: "barChart" },
     { key: "screens", label: "Screens", icon: "copy", badge: formatNumber(data?.totalScreens ?? 0) },
     { key: "schemes", label: "Screen schemes", icon: "layers", badge: formatNumber(data?.screenSchemes?.length ?? 0) },
-    { key: "transitions", label: "Transitions", icon: "activity", badge: data?.transitionsAvailable ? formatNumber(data?.transitionScreens?.length ?? 0) : "?" },
-    { key: "assignments", label: "Assignments", icon: "folder", badge: formatNumber(data?.issueTypeScreenSchemes?.length ?? 0) },
+    {
+      key: "transitions",
+      label: "Transitions",
+      icon: "activity",
+      badge: data?.transitionsAvailable ? formatNumber(data?.transitionScreens?.length ?? 0) : "?",
+    },
+    {
+      key: "assignments",
+      label: "Assignments",
+      icon: "folder",
+      badge: formatNumber(data?.issueTypeScreenSchemes?.length ?? 0),
+    },
     // Last, because it is the only view that is not about the inventory itself -- it is what
     // the inventory is FOR.
     { key: "cross", label: "Field cross-signal", icon: "alertTriangle" },
@@ -560,21 +643,27 @@ export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
         actions={buildAction}
       />
 
-      {error && <div className="danger-zone__error" role="alert">{error}</div>}
-      {notice && !error && <p className="admin-config-row__hint" role="status">{notice}</p>}
-
-      {isBuilding && (
-        <p className="admin-config-row__hint">Building the inventory… this page refreshes itself.</p>
+      {error && (
+        <div className="danger-zone__error" role="alert">
+          {error}
+        </div>
       )}
-
-      {data?.staleBuild && (
-        <p className="admin-config-row__hint">
-          A build was started but is no longer running. Rebuild to recover it.
+      {notice && !error && (
+        <p className="admin-config-row__hint" role="status">
+          {notice}
         </p>
       )}
 
+      {isBuilding && <p className="admin-config-row__hint">Building the inventory… this page refreshes itself.</p>}
+
+      {data?.staleBuild && (
+        <p className="admin-config-row__hint">A build was started but is no longer running. Rebuild to recover it.</p>
+      )}
+
       {data?.lastError && !isBuilding && (
-        <div className="danger-zone__error" role="alert">Last build failed: {data.lastError}</div>
+        <div className="danger-zone__error" role="alert">
+          Last build failed: {data.lastError}
+        </div>
       )}
 
       <StatRow>
@@ -614,11 +703,10 @@ export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
       {isStale && (
         <Panel title="This inventory is stale" icon="alertTriangle">
           <p>
-            It was built {Math.floor(buildAgeDays)} days ago, and nothing refreshes it
-            automatically. <strong>The Universe Scan does not update screens</strong> — that scan
-            walks issues, while screens are configuration read from a different set of
-            endpoints. A screen added or re-arranged since the last build is not reflected
-            above.
+            It was built {Math.floor(buildAgeDays)} days ago, and nothing refreshes it automatically.{" "}
+            <strong>The Universe Scan does not update screens</strong> — that scan walks issues, while screens are
+            configuration read from a different set of endpoints. A screen added or re-arranged since the last build is
+            not reflected above.
           </p>
         </Panel>
       )}
@@ -631,26 +719,67 @@ export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
             </GridSpan>
 
             <GridSpan>
-              <Panel title="Form size" icon="barChart" description="How big the site's forms actually are. A 60-field form is one nobody fills in completely.">
-                <BarList items={data?.distributions?.sizeBuckets} labelKey="bucket" valueKey="screens" formatValue={formatNumber} emptyMessage="No screens measured yet" />
+              <Panel
+                title="Form size"
+                icon="barChart"
+                description="How big the site's forms actually are. A 60-field form is one nobody fills in completely."
+              >
+                <BarList
+                  items={data?.distributions?.sizeBuckets}
+                  labelKey="bucket"
+                  valueKey="screens"
+                  formatValue={formatNumber}
+                  emptyMessage="No screens measured yet"
+                />
               </Panel>
             </GridSpan>
 
             <GridSpan>
-              <Panel title="Largest screens" icon="copy" description="The longest forms first — the ones people meet most of.">
-                <BarList items={data?.distributions?.largestScreens} labelKey="name" valueKey="fieldCount" formatValue={formatNumber} tone="warn" emptyMessage="No screens measured yet" />
+              <Panel
+                title="Largest screens"
+                icon="copy"
+                description="The longest forms first — the ones people meet most of."
+              >
+                <BarList
+                  items={data?.distributions?.largestScreens}
+                  labelKey="name"
+                  valueKey="fieldCount"
+                  formatValue={formatNumber}
+                  tone="warn"
+                  emptyMessage="No screens measured yet"
+                />
               </Panel>
             </GridSpan>
 
             <GridSpan>
-              <Panel title="Most reused fields" icon="layers" description="Where a field change is felt. A field on 200 forms is not a local edit.">
-                <BarList items={data?.distributions?.mostSharedFields} labelKey="name" valueKey="screens" formatValue={formatNumber} emptyMessage="No field data yet" />
+              <Panel
+                title="Most reused fields"
+                icon="layers"
+                description="Where a field change is felt. A field on 200 forms is not a local edit."
+              >
+                <BarList
+                  items={data?.distributions?.mostSharedFields}
+                  labelKey="name"
+                  valueKey="screens"
+                  formatValue={formatNumber}
+                  emptyMessage="No field data yet"
+                />
               </Panel>
             </GridSpan>
 
             <GridSpan>
-              <Panel title="Scheme operations" icon="activity" description="Which operations schemes actually map. Most estates set default and inherit the rest.">
-                <BarList items={data?.distributions?.operationMix} labelKey="operation" valueKey="mappings" formatValue={formatNumber} emptyMessage="No schemes yet" />
+              <Panel
+                title="Scheme operations"
+                icon="activity"
+                description="Which operations schemes actually map. Most estates set default and inherit the rest."
+              >
+                <BarList
+                  items={data?.distributions?.operationMix}
+                  labelKey="operation"
+                  valueKey="mappings"
+                  formatValue={formatNumber}
+                  emptyMessage="No schemes yet"
+                />
               </Panel>
             </GridSpan>
 
@@ -660,7 +789,9 @@ export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
                   <StatTile
                     label="Contents unknown"
                     value={formatNumber(data?.unresolvedScreens ?? 0)}
-                    hint={(data?.unresolvedScreens ?? 0) > 0 ? "Excluded from every figure above" : "Every screen was read"}
+                    hint={
+                      (data?.unresolvedScreens ?? 0) > 0 ? "Excluded from every figure above" : "Every screen was read"
+                    }
                     tone={(data?.unresolvedScreens ?? 0) > 0 ? "warning" : "success"}
                   />
                   <StatTile
@@ -695,11 +826,19 @@ export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
               searchLabel="Search screens"
               searchPlaceholder="Search screens by name or id…"
               sort={sort}
-              onSortChange={(value) => { setSort(value); setPage(1); }}
+              onSortChange={(value) => {
+                setSort(value);
+                setPage(1);
+              }}
               sortOptions={SCREEN_SORT_OPTIONS}
               resultCount={data?.screens?.total ?? 0}
               totalCount={data?.totalScreens ?? 0}
-              onClear={() => { setSearch(""); setSort(DEFAULT_SCREEN_SORT); setScreenFilter(null); setPage(1); }}
+              onClear={() => {
+                setSearch("");
+                setSort(DEFAULT_SCREEN_SORT);
+                setScreenFilter(null);
+                setPage(1);
+              }}
             />
 
             {/* Why this is a subset. Arriving from "252 screens nothing reaches" and seeing
@@ -707,7 +846,13 @@ export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
                 that had shrunk. */}
             {data?.screens?.filter && (
               <div className="admin-field-browser__active-filters">
-                <Chip onRemove={() => { setScreenFilter(null); setPage(1); }} removeLabel="Show every screen">
+                <Chip
+                  onRemove={() => {
+                    setScreenFilter(null);
+                    setPage(1);
+                  }}
+                  removeLabel="Show every screen"
+                >
                   {data.screens.filterLabel}
                 </Chip>
               </div>
@@ -720,9 +865,8 @@ export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
               <p className="ui-note">
                 <Icon name="info" size={13} />
                 <span>
-                  That finding filters on which screens a workflow transition opens, and no
-                  workflow inventory has been built — so every screen is shown instead. Build
-                  it from the Workflows tab.
+                  That finding filters on which screens a workflow transition opens, and no workflow inventory has been
+                  built — so every screen is shown instead. Build it from the Workflows tab.
                 </span>
               </p>
             )}
@@ -753,13 +897,23 @@ export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
 
             {totalPages > 1 && (
               <div className="pagination-bar">
-                <button type="button" className="secondary-button secondary-button--small"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
+                <button
+                  type="button"
+                  className="secondary-button secondary-button--small"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                >
                   Previous
                 </button>
-                <span>Page {page} of {totalPages}</span>
-                <button type="button" className="secondary-button secondary-button--small"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
+                <span>
+                  Page {page} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  className="secondary-button secondary-button--small"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                >
                   Next
                 </button>
               </div>
@@ -802,8 +956,14 @@ export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
                   >
                     <span>{option.label}</span>
                     <strong>
-                      {formatNumber(data.screenSchemes.filter((scheme) =>
-                        option.match(scheme, (data.schemeOperations || []).filter((op) => op.schemeId === scheme.schemeId))).length)}
+                      {formatNumber(
+                        data.screenSchemes.filter((scheme) =>
+                          option.match(
+                            scheme,
+                            (data.schemeOperations || []).filter((op) => op.schemeId === scheme.schemeId),
+                          ),
+                        ).length,
+                      )}
                     </strong>
                   </button>
                 ))}
@@ -839,13 +999,13 @@ export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
               // all" from "an inventory that predates transition capture" -- both are
               // unknown, but only the second is fixed by rebuilding.
               <EmptyState inline>
-                {data?.transitionsReason
-                  || "No workflow inventory has been built, so transition screens are unknown. Build it from the Workflows tab to see which screens transitions open."}
+                {data?.transitionsReason ||
+                  "No workflow inventory has been built, so transition screens are unknown. Build it from the Workflows tab to see which screens transitions open."}
               </EmptyState>
             ) : !data?.transitionScreens?.length ? (
               <EmptyState inline>
-                No workflow transition on this site opens a screen. Every screen reaches users
-                through the scheme chain alone.
+                No workflow transition on this site opens a screen. Every screen reaches users through the scheme chain
+                alone.
               </EmptyState>
             ) : (
               <div className="screen-transition-list">

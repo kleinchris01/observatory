@@ -54,8 +54,11 @@ beforeEach(() => vi.clearAllMocks());
 
 describe("normalizeIssueType", () => {
   test("keeps a sub-task's -1 hierarchy level rather than zeroing it", () => {
-    expect(normalizeIssueType({ id: 5, name: "Sub-task", subtask: true, hierarchyLevel: -1 }))
-      .toMatchObject({ id: "5", subtask: true, hierarchyLevel: -1 });
+    expect(normalizeIssueType({ id: 5, name: "Sub-task", subtask: true, hierarchyLevel: -1 })).toMatchObject({
+      id: "5",
+      subtask: true,
+      hierarchyLevel: -1,
+    });
   });
 
   test("defaults an absent or unparseable level to 0", () => {
@@ -65,8 +68,9 @@ describe("normalizeIssueType", () => {
 
   test("reads the owning project off a team-managed type's scope, and null for a global one", () => {
     expect(normalizeIssueType({ id: 1, name: "Global" }).scopeProjectId).toBeNull();
-    expect(normalizeIssueType({ id: 2, name: "Team", scope: { type: "PROJECT", project: { id: "10000" } } }).scopeProjectId)
-      .toBe("10000");
+    expect(
+      normalizeIssueType({ id: 2, name: "Team", scope: { type: "PROJECT", project: { id: "10000" } } }).scopeProjectId,
+    ).toBe("10000");
   });
 });
 
@@ -81,8 +85,15 @@ describe("isIssueTypeBuildStale", () => {
 
   test("a building row is stale only once it is older than the ceiling", () => {
     const now = 1_000_000_000;
-    expect(isIssueTypeBuildStale({ state: "building", startedAt: new Date(now - 1000).toISOString() }, now)).toBe(false);
-    expect(isIssueTypeBuildStale({ state: "building", startedAt: new Date(now - ISSUE_TYPE_BUILD_STALE_MS - 1).toISOString() }, now)).toBe(true);
+    expect(isIssueTypeBuildStale({ state: "building", startedAt: new Date(now - 1000).toISOString() }, now)).toBe(
+      false,
+    );
+    expect(
+      isIssueTypeBuildStale(
+        { state: "building", startedAt: new Date(now - ISSUE_TYPE_BUILD_STALE_MS - 1).toISOString() },
+        now,
+      ),
+    ).toBe(true);
   });
 });
 
@@ -92,13 +103,18 @@ describe("queueIssueTypeSnapshotBuild", () => {
 
     expect(writeIssueTypeSnapshotMeta).toHaveBeenCalledWith("inst", expect.objectContaining({ state: "building" }));
     expect(inventorySnapshotQueue.push).toHaveBeenCalledWith(
-      expect.objectContaining({ body: expect.objectContaining({ jobType: "build-issue-type-snapshot", installationKey: "inst" }) })
+      expect.objectContaining({
+        body: expect.objectContaining({ jobType: "build-issue-type-snapshot", installationKey: "inst" }),
+      }),
     );
   });
 });
 
 describe("buildIssueTypeSnapshot", () => {
-  const projects = [{ id: "10000", key: "OBS", name: "Observatory" }, { id: "10001", key: "PT", name: "Platform" }];
+  const projects = [
+    { id: "10000", key: "OBS", name: "Observatory" },
+    { id: "10001", key: "PT", name: "Platform" },
+  ];
 
   function wireHappyPath() {
     getAllJiraProjects.mockResolvedValue(projects);
@@ -152,7 +168,7 @@ describe("buildIssueTypeSnapshot", () => {
     const [, , payload] = replaceIssueTypeSnapshot.mock.calls[0];
     expect(payload.schemes.find((s) => s.id === "5")).toMatchObject({ projectCount: 1 });
     expect(payload.schemeProjects).toContainEqual(
-      expect.objectContaining({ schemeId: "5", projectId: "10000", projectKey: "OBS", projectName: "Observatory" })
+      expect.objectContaining({ schemeId: "5", projectId: "10000", projectKey: "OBS", projectName: "Observatory" }),
     );
   });
 
@@ -163,7 +179,7 @@ describe("buildIssueTypeSnapshot", () => {
     await buildIssueTypeSnapshot("inst");
     const [, , payload] = replaceIssueTypeSnapshot.mock.calls[0];
     expect(payload.schemeProjects).toContainEqual(
-      expect.objectContaining({ projectId: "99999", projectKey: "UNKNOWN" })
+      expect.objectContaining({ projectId: "99999", projectKey: "UNKNOWN" }),
     );
   });
 
@@ -171,9 +187,14 @@ describe("buildIssueTypeSnapshot", () => {
     wireHappyPath();
     await buildIssueTypeSnapshot("inst");
 
-    expect(writeIssueTypeSnapshotMeta).toHaveBeenLastCalledWith("inst", expect.objectContaining({
-      state: "ready", totalTypes: 3, totalSchemes: 2,
-    }));
+    expect(writeIssueTypeSnapshotMeta).toHaveBeenLastCalledWith(
+      "inst",
+      expect.objectContaining({
+        state: "ready",
+        totalTypes: 3,
+        totalSchemes: 2,
+      }),
+    );
   });
 
   test("marks the row failed and rethrows when a dependency call throws", async () => {
@@ -181,9 +202,13 @@ describe("buildIssueTypeSnapshot", () => {
     getAllIssueTypes.mockRejectedValueOnce(new Error("403 Forbidden"));
 
     await expect(buildIssueTypeSnapshot("inst")).rejects.toThrow("403 Forbidden");
-    expect(writeIssueTypeSnapshotMeta).toHaveBeenLastCalledWith("inst", expect.objectContaining({
-      state: "failed", lastError: expect.stringContaining("403"),
-    }));
+    expect(writeIssueTypeSnapshotMeta).toHaveBeenLastCalledWith(
+      "inst",
+      expect.objectContaining({
+        state: "failed",
+        lastError: expect.stringContaining("403"),
+      }),
+    );
     expect(replaceIssueTypeSnapshot).not.toHaveBeenCalled();
   });
 });

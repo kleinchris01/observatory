@@ -11,7 +11,7 @@ export const DEFAULT_THRESHOLDS = {
   missingDescriptionMinProjects: 5,
   missingDescriptionMinIssues: 500,
   configuredActiveGapMinProjects: 5,
-  configuredActiveGapMaxRatio: 0.70,
+  configuredActiveGapMaxRatio: 0.7,
   globalContextMaxIssues: 50,
   contextSprawlMinContexts: 8,
   staleFieldMaxAgeDays: 365,

@@ -29,19 +29,37 @@ const currentWorkflow = {
   ],
   transitions: [
     {
-      id: "1", name: "Create", type: "INITIAL", toStatusReference: "ref-open", links: [],
+      id: "1",
+      name: "Create",
+      type: "INITIAL",
+      toStatusReference: "ref-open",
+      links: [],
       actions: [{ ruleKey: "system:create-issue", parameters: {} }],
     },
     {
-      id: "21", name: "Approve", type: "DIRECTED", toStatusReference: "ref-approved",
+      id: "21",
+      name: "Approve",
+      type: "DIRECTED",
+      toStatusReference: "ref-approved",
       links: [{ fromStatusReference: "ref-review", fromPort: 0, toPort: 1 }],
-      validators: [{
-        ruleKey: "system:validate-field-value",
-        parameters: { ruleType: "fieldRequired", fieldsRequired: "customfield_15731,customfield_12574", errorMessage: "Fill in the cost" },
-      }],
+      validators: [
+        {
+          ruleKey: "system:validate-field-value",
+          parameters: {
+            ruleType: "fieldRequired",
+            fieldsRequired: "customfield_15731,customfield_12574",
+            errorMessage: "Fill in the cost",
+          },
+        },
+      ],
       conditions: {
         operation: "ALL",
-        conditions: [{ ruleKey: "system:restrict-issue-transition", parameters: { groupIds: GROUP_ID, roleIds: "10002", permissionKeys: "" } }],
+        conditions: [
+          {
+            ruleKey: "system:restrict-issue-transition",
+            parameters: { groupIds: GROUP_ID, roleIds: "10002", permissionKeys: "" },
+          },
+        ],
         conditionGroups: [],
       },
       actions: [
@@ -51,28 +69,53 @@ const currentWorkflow = {
       properties: { "opsbar-sequence": "20" },
     },
     {
-      id: "31", name: "Reopen", type: "GLOBAL", toStatusReference: "ref-open", links: [],
-      validators: [{ ruleKey: "ari:cloud:ecosystem::extension/scriptrunner-validator", parameters: { config: "issue.customfield_18445 != null && token == 'abc'" } }],
+      id: "31",
+      name: "Reopen",
+      type: "GLOBAL",
+      toStatusReference: "ref-open",
+      links: [],
+      validators: [
+        {
+          ruleKey: "ari:cloud:ecosystem::extension/scriptrunner-validator",
+          parameters: { config: "issue.customfield_18445 != null && token == 'abc'" },
+        },
+      ],
     },
   ],
 };
-const idByReference = new Map([["ref-review", "3"], ["ref-approved", "4"], ["ref-open", "1"]]);
+const idByReference = new Map([
+  ["ref-review", "3"],
+  ["ref-approved", "4"],
+  ["ref-open", "1"],
+]);
 
 // The deprecated endpoint's shape with transitions.rules and statuses.properties expanded.
 const legacyWorkflow = {
   id: { name: "Legacy WF", entityId: "x" },
   statuses: [{ id: "3", properties: { "jira.permission.comment.group": "jira-administrators" } }],
-  transitions: [{
-    id: "11", name: "Submit", from: ["1"], to: "3", type: "directed",
-    rules: {
-      conditionsTree: {
-        nodeType: "compound", operator: "AND",
-        conditions: [{ nodeType: "simple", type: "UserInGroupCondition", configuration: { groups: ["jira-software-users"] } }],
+  transitions: [
+    {
+      id: "11",
+      name: "Submit",
+      from: ["1"],
+      to: "3",
+      type: "directed",
+      rules: {
+        conditionsTree: {
+          nodeType: "compound",
+          operator: "AND",
+          conditions: [
+            { nodeType: "simple", type: "UserInGroupCondition", configuration: { groups: ["jira-software-users"] } },
+          ],
+        },
+        validators: [{ type: "FieldRequiredValidator", configuration: { fields: [{ id: "customfield_100" }] } }],
+        postFunctions: [
+          { type: "UpdateIssueStatusFunction" },
+          { type: "UpdateIssueFieldFunction", configuration: { fieldId: "assignee" } },
+        ],
       },
-      validators: [{ type: "FieldRequiredValidator", configuration: { fields: [{ id: "customfield_100" }] } }],
-      postFunctions: [{ type: "UpdateIssueStatusFunction" }, { type: "UpdateIssueFieldFunction", configuration: { fieldId: "assignee" } }],
     },
-  }],
+  ],
 };
 
 describe("extractReferences", () => {
@@ -84,8 +127,9 @@ describe("extractReferences", () => {
   });
 
   test("finds a custom field id inside free text, which is how app validators name fields", () => {
-    expect(extractReferences({ config: "issue.customfield_18445 != null" }))
-      .toEqual([{ refType: "field", refId: "customfield_18445" }]);
+    expect(extractReferences({ config: "issue.customfield_18445 != null" })).toEqual([
+      { refType: "field", refId: "customfield_18445" },
+    ]);
   });
 
   test("treats a system field id under a field key as a field, but not an expression", () => {
@@ -102,12 +146,15 @@ describe("extractReferences", () => {
   });
 
   test("carries the parent key into nested { id } objects from the deprecated shape", () => {
-    expect(extractReferences({ fields: [{ id: "customfield_100" }] }))
-      .toEqual([{ refType: "field", refId: "customfield_100" }]);
+    expect(extractReferences({ fields: [{ id: "customfield_100" }] })).toEqual([
+      { refType: "field", refId: "customfield_100" },
+    ]);
   });
 
   test("reads roles, permissions and statuses, and ignores empty values", () => {
-    expect(extractReferences({ roleIds: "10002,10003", permissionKeys: "EDIT_ISSUES", previousStatusIds: "3" })).toEqual([
+    expect(
+      extractReferences({ roleIds: "10002,10003", permissionKeys: "EDIT_ISSUES", previousStatusIds: "3" }),
+    ).toEqual([
       { refType: "role", refId: "10002" },
       { refType: "role", refId: "10003" },
       { refType: "permission", refId: "EDIT_ISSUES" },
@@ -124,7 +171,11 @@ describe("extractReferences", () => {
 
 describe("summarizeRule", () => {
   test("echoes only safe keys -- never the error message or an expression", () => {
-    const summary = summarizeRule({ ruleType: "fieldRequired", errorMessage: "secret plan", expression: "token == 'abc'" });
+    const summary = summarizeRule({
+      ruleType: "fieldRequired",
+      errorMessage: "secret plan",
+      expression: "token == 'abc'",
+    });
     expect(summary).toBe("fieldRequired");
     expect(summary).not.toMatch(/secret|token/);
   });
@@ -138,13 +189,23 @@ describe("summarizeRule", () => {
 describe("parseWorkflowProperty", () => {
   test("reads a group edit lock", () => {
     expect(parseWorkflowProperty("jira.permission.edit.group", GROUP_ID)).toMatchObject({
-      effect: "restrict-permission", permission: "edit", holderType: "group", holder: GROUP_ID,
+      effect: "restrict-permission",
+      permission: "edit",
+      holderType: "group",
+      holder: GROUP_ID,
     });
   });
 
   test("reads numbered, sub-task and denied variants", () => {
-    expect(parseWorkflowProperty("jira.permission.comment.group.1", "jira-admins")).toMatchObject({ permission: "comment", holderType: "group" });
-    expect(parseWorkflowProperty("jira.permission.subtasks.create.projectrole", "10002")).toMatchObject({ permission: "create", subtasks: true, holderType: "projectrole" });
+    expect(parseWorkflowProperty("jira.permission.comment.group.1", "jira-admins")).toMatchObject({
+      permission: "comment",
+      holderType: "group",
+    });
+    expect(parseWorkflowProperty("jira.permission.subtasks.create.projectrole", "10002")).toMatchObject({
+      permission: "create",
+      subtasks: true,
+      holderType: "projectrole",
+    });
     expect(parseWorkflowProperty("jira.permission.delete.denied", "").description).toMatch(/nobody/);
   });
 
@@ -159,9 +220,15 @@ describe("parseWorkflowProperty", () => {
   });
 
   test("propertyReferences names what a restriction points at", () => {
-    expect(propertyReferences(parseWorkflowProperty("jira.permission.edit.group", GROUP_ID))).toEqual([{ refType: "group", refId: GROUP_ID }]);
-    expect(propertyReferences(parseWorkflowProperty("jira.permission.edit.groupCF", "customfield_5"))).toEqual([{ refType: "field", refId: "customfield_5" }]);
-    expect(propertyReferences(parseWorkflowProperty("approval.field.id", "customfield_7"))).toEqual([{ refType: "field", refId: "customfield_7" }]);
+    expect(propertyReferences(parseWorkflowProperty("jira.permission.edit.group", GROUP_ID))).toEqual([
+      { refType: "group", refId: GROUP_ID },
+    ]);
+    expect(propertyReferences(parseWorkflowProperty("jira.permission.edit.groupCF", "customfield_5"))).toEqual([
+      { refType: "field", refId: "customfield_5" },
+    ]);
+    expect(propertyReferences(parseWorkflowProperty("approval.field.id", "customfield_7"))).toEqual([
+      { refType: "field", refId: "customfield_7" },
+    ]);
     expect(propertyReferences(null)).toEqual([]);
   });
 });
@@ -226,12 +293,21 @@ describe("extractWorkflowRules — deprecated endpoint", () => {
   });
 
   test("accepts properties as a key/value array too", () => {
-    const out = extractWorkflowRules({ statuses: [{ id: "9", properties: [{ key: "jira.issue.editable", value: "false" }] }] });
+    const out = extractWorkflowRules({
+      statuses: [{ id: "9", properties: [{ key: "jira.issue.editable", value: "false" }] }],
+    });
     expect(out.statusProperties).toEqual([{ statusId: "9", key: "jira.issue.editable", value: "false" }]);
   });
 
   test("redacts a property value that looks like a credential", () => {
-    const out = extractWorkflowRules({ statuses: [{ id: "9", properties: { "webhook.url": "https://hooks.slack.com/services/T000/B000/XXXXXXXXXXXXXXXXXXXXXXXX" } }] });
+    const out = extractWorkflowRules({
+      statuses: [
+        {
+          id: "9",
+          properties: { "webhook.url": "https://hooks.slack.com/services/T000/B000/XXXXXXXXXXXXXXXXXXXXXXXX" },
+        },
+      ],
+    });
     expect(out.statusProperties[0].value).toBe("[redacted]");
   });
 
@@ -241,24 +317,39 @@ describe("extractWorkflowRules — deprecated endpoint", () => {
 });
 
 describe("buildWorkflowRuleRows", () => {
-  const workflows = [{
-    name: currentWorkflow.name,
-    id: currentWorkflow.id,
-    scopeType: "GLOBAL",
-    statusIds: ["1", "3", "4"],
-    rules: extractWorkflowRules(currentWorkflow, idByReference),
-  }];
+  const workflows = [
+    {
+      name: currentWorkflow.name,
+      id: currentWorkflow.id,
+      scopeType: "GLOBAL",
+      statusIds: ["1", "3", "4"],
+      rules: extractWorkflowRules(currentWorkflow, idByReference),
+    },
+  ];
   const rows = buildWorkflowRuleRows(workflows, new Map([[currentWorkflow.name, 2]]));
 
   test("emits one inventory row per workflow with its counts", () => {
-    expect(rows.workflows).toEqual([expect.objectContaining({
-      workflowName: "Build Deviation WF", scopeType: "GLOBAL", statusCount: 3, transitionCount: 3, ruleCount: 4, schemeCount: 2,
-    })]);
+    expect(rows.workflows).toEqual([
+      expect.objectContaining({
+        workflowName: "Build Deviation WF",
+        scopeType: "GLOBAL",
+        statusCount: 3,
+        transitionCount: 3,
+        ruleCount: 4,
+        schemeCount: 2,
+      }),
+    ]);
   });
 
   test("gives every reference the context it needs to render without a join", () => {
     const fieldRef = rows.refs.find((r) => r.refId === "customfield_15731");
-    expect(fieldRef).toMatchObject({ workflowName: "Build Deviation WF", source: "rule", ownerKind: "transition", ownerId: "21", ruleSeq: 1 });
+    expect(fieldRef).toMatchObject({
+      workflowName: "Build Deviation WF",
+      source: "rule",
+      ownerKind: "transition",
+      ownerId: "21",
+      ruleSeq: 1,
+    });
     const groupLock = rows.refs.find((r) => r.source === "property" && r.refType === "group");
     expect(groupLock).toMatchObject({ ownerKind: "status", ownerId: "3", propKey: "jira.permission.edit.group" });
   });
@@ -286,8 +377,15 @@ describe("labelReferences", () => {
 
   test("labels what exists and marks what is gone", () => {
     const out = labelReferences(refs, {
-      fieldsById: new Map([["customfield_1", { name: "Cost" }], ["resolution", { name: "Resolution" }]]),
-      groups: { byId: new Map([["g-live", "Plant Engineers"]]), missing: new Set(["g-gone"]), failed: new Set(["g-unknown"]) },
+      fieldsById: new Map([
+        ["customfield_1", { name: "Cost" }],
+        ["resolution", { name: "Resolution" }],
+      ]),
+      groups: {
+        byId: new Map([["g-live", "Plant Engineers"]]),
+        missing: new Set(["g-gone"]),
+        failed: new Set(["g-unknown"]),
+      },
       rolesById: new Map([["10002", "Administrators"]]),
     });
     expect(out.map((r) => [r.refId, r.refLabel, r.refMissing])).toEqual([
@@ -314,8 +412,9 @@ describe("findBrokenReferences", () => {
       { refType: "field", refId: "customfield_2" },
       { refType: "group", refId: "g1" },
     ];
-    expect(findBrokenReferences(refs, { knownFieldIds: new Set(["customfield_1"]), knownGroupIds: new Set() }))
-      .toEqual([refs[1], refs[2]]);
+    expect(findBrokenReferences(refs, { knownFieldIds: new Set(["customfield_1"]), knownGroupIds: new Set() })).toEqual(
+      [refs[1], refs[2]],
+    );
     expect(findBrokenReferences(refs)).toEqual([]);
   });
 });

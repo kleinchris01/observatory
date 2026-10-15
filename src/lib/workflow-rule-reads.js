@@ -82,25 +82,30 @@ function describeUsage(row, names) {
     workflowName: row.workflowName,
     source: row.source,
     transition: onTransition
-      ? describeTransition({
-          transitionId: row.ownerId,
-          transitionName: row.transitionName,
-          transitionType: row.transitionType,
-          fromStatusIds: row.fromStatusIds,
-          toStatusId: row.toStatusId,
-        }, names)
+      ? describeTransition(
+          {
+            transitionId: row.ownerId,
+            transitionName: row.transitionName,
+            transitionType: row.transitionType,
+            fromStatusIds: row.fromStatusIds,
+            toStatusId: row.toStatusId,
+          },
+          names,
+        )
       : null,
     status: onTransition ? null : statusRef(row.ownerId, names),
-    rule: row.source === "rule"
-      ? { kind: row.ruleKind, key: row.ruleKey, label: ruleLabel(row.ruleKey), summary: row.summary }
-      : null,
-    property: row.source === "property"
-      ? {
-          key: row.propKey,
-          value: row.propValue,
-          meaning: parseWorkflowProperty(row.propKey, row.propValue)?.description ?? null,
-        }
-      : null,
+    rule:
+      row.source === "rule"
+        ? { kind: row.ruleKind, key: row.ruleKey, label: ruleLabel(row.ruleKey), summary: row.summary }
+        : null,
+    property:
+      row.source === "property"
+        ? {
+            key: row.propKey,
+            value: row.propValue,
+            meaning: parseWorkflowProperty(row.propKey, row.propValue)?.description ?? null,
+          }
+        : null,
   };
 }
 
@@ -188,13 +193,23 @@ export async function getWorkflowRules({ payload, context }) {
 // The holder a parsed property names, labelled from the reference rows the build resolved.
 function holderOf(parsed, labels) {
   if (!parsed?.holder) return null;
-  const type = parsed.holderType === "group"
-    ? (/^[0-9a-f-]{36}$/i.test(parsed.holder) ? "group" : "group-name")
-    : (parsed.holderType === "groupCF" || parsed.holderType === "userCF" || parsed.holderType === "field")
-      ? "field"
-      : (parsed.holderType === "projectrole" || parsed.holderType === "inProjectRole") ? "role" : parsed.holderType;
+  const type =
+    parsed.holderType === "group"
+      ? /^[0-9a-f-]{36}$/i.test(parsed.holder)
+        ? "group"
+        : "group-name"
+      : parsed.holderType === "groupCF" || parsed.holderType === "userCF" || parsed.holderType === "field"
+        ? "field"
+        : parsed.holderType === "projectrole" || parsed.holderType === "inProjectRole"
+          ? "role"
+          : parsed.holderType;
   const hit = labels.get(`${type}\u0000${parsed.holder}`);
-  return { type, id: parsed.holder, label: hit?.label ?? (type === "group-name" ? parsed.holder : null), missing: hit?.missing ?? null };
+  return {
+    type,
+    id: parsed.holder,
+    label: hit?.label ?? (type === "group-name" ? parsed.holder : null),
+    missing: hit?.missing ?? null,
+  };
 }
 
 // What each workflow restricts, and to whom: every jira.permission.* and jira.issue.editable
@@ -211,12 +226,15 @@ export async function getWorkflowRestrictions({ payload, context }) {
   const [names, props, refs] = await Promise.all([
     statusNameMap(installationKey, meta.version),
     statusId
-      ? loadStatusWorkflowProperties(installationKey, meta.version, statusId)
-          .then((rows) => rows.map((r) => ({ ...r, ownerKind: "status", ownerId: statusId })))
+      ? loadStatusWorkflowProperties(installationKey, meta.version, statusId).then((rows) =>
+          rows.map((r) => ({ ...r, ownerKind: "status", ownerId: statusId })),
+        )
       : loadRestrictingProperties(installationKey, meta.version),
     loadWorkflowRefsByType(installationKey, meta.version, ["group", "group-name", "role", "field"]),
   ]);
-  const labels = new Map(refs.map((r) => [`${r.refType}\u0000${r.refId}`, { label: r.refLabel, missing: r.refMissing }]));
+  const labels = new Map(
+    refs.map((r) => [`${r.refType}\u0000${r.refId}`, { label: r.refLabel, missing: r.refMissing }]),
+  );
 
   const restrictions = [];
   for (const prop of props) {
@@ -237,7 +255,9 @@ export async function getWorkflowRestrictions({ payload, context }) {
     });
   }
 
-  const editLocks = restrictions.filter((r) => r.ownerKind === "status" && (r.effect === "not-editable" || r.permission === "edit"));
+  const editLocks = restrictions.filter(
+    (r) => r.ownerKind === "status" && (r.effect === "not-editable" || r.permission === "edit"),
+  );
   return {
     available: true,
     refreshedAt: meta.refreshedAt || null,
@@ -281,7 +301,9 @@ export async function loadFieldWorkflowEvidence(installationKey, fieldIds = []) 
     statusNameMap(installationKey, meta.version),
     loadWorkflowRefsFor(installationKey, meta.version, "field", fieldIds),
   ]);
-  const out = new Map(fieldIds.map((id) => [String(id), { available: true, count: 0, workflowCount: 0, examples: [] }]));
+  const out = new Map(
+    fieldIds.map((id) => [String(id), { available: true, count: 0, workflowCount: 0, examples: [] }]),
+  );
   const workflowsByField = new Map();
   for (const row of rows) {
     const entry = out.get(String(row.refId));
@@ -298,7 +320,10 @@ export async function loadFieldWorkflowEvidence(installationKey, fieldIds = []) 
 // "Approve (In Review -> Approved) in Build WF" / "In Review status in Build WF".
 function exampleOf(usage) {
   if (usage.transition) {
-    const from = usage.transition.from.map((s) => s?.name).filter(Boolean).join(", ");
+    const from = usage.transition.from
+      .map((s) => s?.name)
+      .filter(Boolean)
+      .join(", ");
     const to = usage.transition.to?.name || "?";
     return `${usage.rule?.label || usage.property?.key || "Rule"} on ${usage.transition.name} (${from} -> ${to}) in ${usage.workflowName}`;
   }
