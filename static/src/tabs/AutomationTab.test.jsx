@@ -1,8 +1,7 @@
-import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { invoke, router } from "@forge/bridge";
+import { invoke } from "@forge/bridge";
 import {
   AutomationTab,
   DIRECTIONS,

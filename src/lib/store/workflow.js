@@ -1078,7 +1078,7 @@ export async function loadTransitionsTouchingStatus(scopeKey, version, statusId)
       LIMIT 2000
     `,
       )
-      .bindParams(scopeKey, version, id, `%"${id.replace(/[\%_"]/g, "")}"%`)
+      .bindParams(scopeKey, version, id, `%"${id.replace(/[%_"]/g, "")}"%`)
       .execute(),
   );
   return (

@@ -5,12 +5,7 @@
 import { logger } from "./logger.js";
 import { inventorySnapshotQueue } from "./queues.js";
 import { incrMetric, METRIC_NAMES, getAllResolutions, getAllPriorities } from "./jira-api.js";
-import {
-  ensureProjectStoreReady,
-  writeEstateSnapshotMeta,
-  readEstateSnapshotMeta,
-  replaceEstateSnapshot,
-} from "./project-store.js";
+import { ensureProjectStoreReady, writeEstateSnapshotMeta, replaceEstateSnapshot } from "./project-store.js";
 
 export const ESTATE_BUILD_STALE_MS = 16 * 60 * 1000;
 

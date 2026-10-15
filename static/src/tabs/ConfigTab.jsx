@@ -1,6 +1,6 @@
 import React from "react";
 import { AuditLogPanel } from "../components/admin/AuditLogPanel";
-import { invoke, view } from "@forge/bridge";
+import { invoke } from "@forge/bridge";
 import { Icon } from "../components/Icons";
 import {
   DEFAULT_THRESHOLDS,

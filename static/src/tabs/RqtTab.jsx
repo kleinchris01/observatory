@@ -1,7 +1,7 @@
 import React from "react";
 import { invoke, router } from "@forge/bridge";
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList } from "recharts";
-import { toDisplayName, buildValueJql } from "../utils";
+import { toDisplayName } from "../utils";
 import { formatTimestamp, formatNumber } from "../utils";
 import { useChartPalette } from "../components/Icons";
 import { StatTile, StatRow } from "../components/ui";

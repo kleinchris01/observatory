@@ -26,12 +26,7 @@ import {
   getAllJiraProjects,
   mapWithConcurrency,
 } from "./jira-api.js";
-import {
-  ensureProjectStoreReady,
-  writeScreenSnapshotMeta,
-  readScreenSnapshotMeta,
-  replaceScreenSnapshot,
-} from "./project-store.js";
+import { ensureProjectStoreReady, writeScreenSnapshotMeta, replaceScreenSnapshot } from "./project-store.js";
 
 // Matches WORKFLOW_BUILD_STALE_MS and for the same reason: the consumer ceiling is 900s,
 // plus a minute so a build finishing right at the limit is never declared stale out from

@@ -9,7 +9,6 @@ import {
   isUserPickerField,
   isUsageAvailable,
   mergeFieldMetrics,
-  toDisplayName,
   formatTimestamp,
   formatNumber,
   copyToClipboard,

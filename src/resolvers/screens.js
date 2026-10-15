@@ -239,7 +239,7 @@ export async function buildScreenInventory({ context }) {
 // without asking the site. Building the fetcher first and discovering the number afterwards
 // means building it twice. Read-only, admin-only, and it never throws -- like the
 // automation probe, a diagnostic that can fail the page it runs on is worse than none.
-export async function probeScreenFetchCost({ payload, context }) {
+export async function probeScreenFetchCost({ payload }) {
   incrMetric(METRIC_NAMES.resolver);
   const requested = Math.trunc(Number(payload?.sampleSize)) || DEFAULT_SAMPLE_SIZE;
   // Bounded: below 5 the tail is invisible, and above 100 the probe becomes the expense it

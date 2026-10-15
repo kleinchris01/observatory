@@ -1,51 +1,12 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { createPortal } from "react-dom";
 import { invoke, view } from "@forge/bridge";
 import "./styles.css";
-import {
-  formatTimestamp,
-  formatNumber,
-  toDisplayName,
-  buildValueJql,
-  formatShortTime,
-  formatRelativeTime,
-  formatLogTime,
-  formatContextList,
-  normalizeSiteOrigin,
-  buildJiraSearchUrl,
-  handleJiraLinkClick,
-  escapeCsvCell,
-  downloadCsv,
-  slugifyFilenamePart,
-  normalizeReportData,
-  groupReportFieldsByType,
-  summarizeReportData,
-  isUsageAvailable,
-  isSelectType,
-  mergeFieldMetrics,
-  openFieldExpertRovo,
-  buildInventoryRovoPrompt,
-  buildFieldRovoPrompt,
-  buildProjectRovoPrompt,
-  buildReportRovoPrompt,
-  pillarNavStatus,
-  readStored,
-  writeStored,
-} from "./utils";
-import { Icon, useLiveDuration } from "./components/Icons";
+import { normalizeSiteOrigin, pillarNavStatus, readStored, writeStored } from "./utils";
+import { Icon } from "./components/Icons";
 import { Starfield } from "./components/Starfield";
 import { DaySky } from "./components/DaySky";
-import { ReportErrorBoundary, SavedReportsPanel, ProjectUsageReportView } from "./components/ReportView";
-import {
-  MetricChip,
-  FindingBadge,
-  FindingsStrip,
-  SkeletonFieldCard,
-  SkeletonProjectItem,
-  InlineOptionsContext,
-  FieldCard,
-} from "./components/FieldCard";
+
 import { useRefreshOnVisible } from "./hooks";
 
 // Lazy: both pull in recharts (+122KB gzip measured on the macro bundle) and

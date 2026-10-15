@@ -133,10 +133,10 @@ export async function getFirstRunState({ context }) {
       title: "Import your automation rules",
       done: Boolean(automation),
       kind: "derived",
-      detail: Boolean(automation)
+      detail: automation
         ? "Automation references are in play, so findings about fields and statuses account for them."
         : "Jira publishes no API that lets an app read automation rules, so this one is exported rather than scanned. Until you import it, Observatory will not claim a field or status is unreferenced — it will say unknown.",
-      cta: Boolean(automation) ? null : { label: "Go to Automation", tab: "automation" },
+      cta: automation ? null : { label: "Go to Automation", tab: "automation" },
     },
     {
       key: "scan-schedule",
@@ -222,7 +222,7 @@ export async function firstRunArrivals(installationKey, { anySnapshot, meta }) {
 
 // Ticking an acknowledgement, or putting the panel away. The only first-run state that is
 // written rather than derived.
-export async function setFirstRunState({ payload, context }) {
+export async function setFirstRunState({ payload }) {
   incrMetric(METRIC_NAMES.resolver);
   const config = await readAdminConfig();
   const current = config.firstRun || DEFAULT_FIRST_RUN;

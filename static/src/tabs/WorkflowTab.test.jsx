@@ -1,4 +1,3 @@
-import React from "react";
 import { describe, it, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -329,7 +328,6 @@ describe("WorkflowTab — status catalog", () => {
   // The catalog is now grouped by category, so there is one grid per group -- a helper
   // that looked at only the first would quietly answer a different question.
   const grids = () => [...document.querySelectorAll(".wf-status-grid")];
-  const inGrid = () => grids()[0];
   const gridHas = (name) => grids().some((g) => within(g).queryAllByText(name).length > 0);
   const gridText = (text) => grids().flatMap((g) => within(g).queryAllByText(text));
 

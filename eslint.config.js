@@ -24,7 +24,7 @@ export default [
     languageOptions: { ecmaVersion: 2023, sourceType: "module", globals: { ...globals.node } },
     rules: {
       "no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrors: "none" }],
-      "no-console": ["warn", { allow: ["warn", "error", "log"] }],
+      "no-console": ["warn", { allow: ["warn", "error", "log", "info"] }],
       eqeqeq: ["error", "smart"],
     },
   },

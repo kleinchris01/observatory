@@ -105,13 +105,11 @@ export async function rovoAssetInspect(payload, context) {
         schemaId: type.objectSchemaId ?? type.schemaId ?? null,
         parentId: type.parentObjectTypeId ?? type.parentId ?? null,
       },
-      attributes: attrs
-        .slice(0, 100)
-        .map((a) => ({
-          name: a.name,
-          type: a.type || a.dataType || null,
-          referenceType: a.referenceObjectTypeName || null,
-        })),
+      attributes: attrs.slice(0, 100).map((a) => ({
+        name: a.name,
+        type: a.type || a.dataType || null,
+        referenceType: a.referenceObjectTypeName || null,
+      })),
       attributeCount: attrs.length,
       childTypes: children.map((c) => ({ id: c.id, name: c.name })),
       referencedByAttributeCount: referencedBy.length,

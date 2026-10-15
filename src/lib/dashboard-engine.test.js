@@ -204,6 +204,21 @@ describe("dashboardBuildSpec.runChunk — phase-aware progress", () => {
     expect(r.cursor).toMatchObject({ phase: "gadgets", listTotal: 613 });
   });
 
+  // A cursor without listTotal (a site with no dashboards lists a total of 0, which is falsy)
+  // used to fall through to an undeclared `meta` and throw a ReferenceError.
+  test("the gadget phase falls back to the build meta's total when the cursor has none", async () => {
+    store.loadDashboardIdsNeedingGadgets.mockResolvedValue(["1"]);
+    jira.getDashboardGadgets.mockResolvedValue([]);
+    const r = await spec.runChunk({
+      installationKey: "i",
+      version: "v",
+      cursor: { phase: "gadgets", listTotal: 0 },
+      meta: { totalExpected: 40 },
+    });
+    expect(r.totalExpected).toBe(80);
+    expect(r.cursor).toMatchObject({ phase: "gadgets", listTotal: 40 });
+  });
+
   test("entering the config phase adds the real gadget count to the denominator", async () => {
     store.loadDashboardIdsNeedingGadgets.mockResolvedValue([]);
     store.countGadgetConfigCoverage.mockResolvedValue({ total: 4000, walked: 0 });

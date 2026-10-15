@@ -1,4 +1,3 @@
-import React from "react";
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import {
@@ -43,16 +42,14 @@ function fakeCtx() {
 }
 
 let getContextSpy;
-let rafSpy;
-let cafSpy;
 let reduced;
 
 beforeEach(() => {
   reduced = false;
   getContextSpy = vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => fakeCtx());
   // A hand-driven rAF: returns an id, never auto-fires, so a test controls the frames.
-  rafSpy = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 1);
-  cafSpy = vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
+  vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 1);
+  vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
   vi.stubGlobal("matchMedia", (q) => ({
     matches: q.includes("reduced-motion") ? reduced : false,
     media: q,

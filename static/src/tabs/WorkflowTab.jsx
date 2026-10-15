@@ -1,7 +1,6 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
 import {
-  formatTimestamp,
   formatRelativeTime,
   formatNumber,
   buildWorkflowSchemeUrl,

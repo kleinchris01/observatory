@@ -11,12 +11,7 @@
 import { logger } from "./logger.js";
 import { inventorySnapshotQueue } from "./queues.js";
 import { incrMetric, METRIC_NAMES, getBoardPage, getBoardConfiguration, mapWithConcurrency } from "./jira-api.js";
-import {
-  ensureProjectStoreReady,
-  writeBoardSnapshotMeta,
-  readBoardSnapshotMeta,
-  replaceBoardSnapshot,
-} from "./project-store.js";
+import { ensureProjectStoreReady, writeBoardSnapshotMeta, replaceBoardSnapshot } from "./project-store.js";
 
 // Matches the other structural builds: the consumer ceiling is 900s, plus a minute so a
 // build finishing right at the limit is never declared stale out from under itself.

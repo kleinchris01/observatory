@@ -1,4 +1,3 @@
-import React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -250,7 +249,7 @@ function makeFieldInventory(overrides = {}) {
 
 // Default mock implementation covering every resolver call AdminApp's tabs make
 // on mount / first visit, returning empty-but-valid shapes.
-function defaultInvokeImpl(fnName, payload) {
+function defaultInvokeImpl(fnName, _payload) {
   switch (fnName) {
     case "getAdminOverview":
       return Promise.resolve(makeOverview());

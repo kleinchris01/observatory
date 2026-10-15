@@ -186,7 +186,7 @@ export const dashboardBuildSpec = {
       body: { jobType: "build-dashboard-snapshot", installationKey, buildToken },
     }),
 
-  async runChunk({ installationKey, version, cursor }) {
+  async runChunk({ installationKey, version, cursor, meta }) {
     await ensureProjectStoreReady();
     const phase = cursor?.phase || "list";
     const chunkErrors = Number(cursor?.chunkErrors) || 0;

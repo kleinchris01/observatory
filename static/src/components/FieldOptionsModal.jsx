@@ -1,8 +1,7 @@
 import React from "react";
 import { createPortal } from "react-dom";
 import { invoke } from "@forge/bridge";
-import { isSelectType, formatNumber } from "../utils";
-import { Icon } from "./Icons";
+import { formatNumber } from "../utils";
 
 export function FieldOptionsModal({ fieldId, fieldName, fieldType, projectKeys, onClose }) {
   const [data, setData] = React.useState(null);

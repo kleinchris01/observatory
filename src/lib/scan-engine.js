@@ -3,14 +3,11 @@ import { logger, fallbackOn, ignoreWith } from "./logger.js";
 import {
   jiraRequest,
   sleep,
-  incrMetric,
-  METRIC_NAMES,
   makeJobToken,
   getAllJiraProjectKeys,
   loadFieldOptionsFromJira,
   getScanTelemetry,
   resetScanTelemetry,
-  mapWithConcurrency,
   withTimeout,
   ISSUE_SCAN_PAGE_SIZE,
   ISSUE_SCAN_WORKERS,
@@ -72,7 +69,6 @@ import {
   isFieldValueNonEmpty,
   collectIssueRqtValues,
   isSelectFieldType,
-  getRetryDelayMs,
 } from "./analysis.js";
 import { syncFieldCatalog, refreshGovernanceFindingsForFields } from "./snapshot-engine.js";
 import { route } from "@forge/api";

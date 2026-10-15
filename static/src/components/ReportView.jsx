@@ -1,23 +1,17 @@
 import React from "react";
-import { createPortal } from "react-dom";
-import { invoke } from "@forge/bridge";
 import {
   buildJiraSearchUrl,
   handleJiraLinkClick,
-  downloadCsv,
-  slugifyFilenamePart,
   normalizeReportData,
   groupReportFieldsByType,
   summarizeReportData,
-  buildReportRovoPrompt,
-  openFieldExpertRovo,
   isSelectType,
   formatTimestamp,
   formatNumber,
   formatShortTime,
   toDisplayName,
 } from "../utils";
-import { Icon, CHART_PALETTE } from "./Icons";
+import { CHART_PALETTE } from "./Icons";
 import { AskRovo } from "./ui";
 import { FieldOptionsModal } from "./FieldOptionsModal";
 

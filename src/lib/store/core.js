@@ -6,7 +6,6 @@
 // about, because there is only one arrow.
 
 import { sql, migrationRunner } from "@forge/sql";
-import { fallbackOn } from "../logger.js";
 
 export const CREATE_SNAPSHOT_FIELDS_TABLE = `
   CREATE TABLE IF NOT EXISTS snapshot_fields (

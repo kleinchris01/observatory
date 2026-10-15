@@ -1,4 +1,4 @@
-import { vi, describe, test, expect, beforeEach, afterEach } from "vitest";
+import { vi, describe, test, expect, afterEach } from "vitest";
 
 vi.mock("@forge/sql", () => {
   const runner = { enqueue: () => runner, run: vi.fn().mockResolvedValue(undefined) };

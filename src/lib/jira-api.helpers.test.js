@@ -62,9 +62,6 @@ import {
 
 // Not exported by the module; mirrored here so the timer mock can recognise it.
 const ISSUE_COUNT_TIMEOUT_MS = 8000;
-// Same reason: getEverInStatusCounts wraps each WAS query in this budget, and firing it
-// would make every request look like a timeout.
-const STATUS_HISTORY_TIMEOUT_MS = 15000;
 
 function jiraResponse({ ok = true, status = 200, body = {}, text = "" } = {}) {
   return {

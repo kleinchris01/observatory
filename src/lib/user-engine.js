@@ -13,12 +13,7 @@
 import { logger } from "./logger.js";
 import { inventorySnapshotQueue } from "./queues.js";
 import { incrMetric, METRIC_NAMES, getApplicationRoles, getGroupMembers, mapWithConcurrency } from "./jira-api.js";
-import {
-  ensureProjectStoreReady,
-  writeUserSnapshotMeta,
-  readUserSnapshotMeta,
-  replaceUserSnapshot,
-} from "./project-store.js";
+import { ensureProjectStoreReady, writeUserSnapshotMeta, replaceUserSnapshot } from "./project-store.js";
 
 // Matches ISSUE_TYPE_BUILD_STALE_MS and for the same reason: the consumer ceiling is 900s,
 // plus a minute so a build finishing right at the limit is never declared stale out from

@@ -1,5 +1,5 @@
 import React from "react";
-import { invoke, view } from "@forge/bridge";
+import { invoke } from "@forge/bridge";
 import { formatTimestamp, formatShortTime, formatRelativeTime, formatNumber } from "../utils";
 import { Icon, useLiveDuration, useLiveElapsedMs } from "../components/Icons";
 import { SubNavLayout, Toggle, ConfigSection, ConfigRow } from "../components/admin/primitives";

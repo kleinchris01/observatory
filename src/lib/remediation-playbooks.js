@@ -1769,7 +1769,7 @@ Object.assign(REMEDIATION_PLAYBOOKS, {
 
 const fieldCfNumber = (id) => (String(id || "").match(/^customfield_(\d+)$/) || [])[1] || null;
 
-function fieldPlaybook({ key, finding, label, epicSummary, why, strategy, steps }) {
+function fieldPlaybook({ finding, label, epicSummary, why, strategy, steps }) {
   return definePlaybook({
     pillar: "fields",
     label,
@@ -2211,7 +2211,7 @@ Object.assign(REMEDIATION_PLAYBOOKS, {
 
 // ── Projects ────────────────────────────────────────────────────────────────
 
-function projectPlaybook({ key, findings, label, epicSummary, why, strategy, facts, steps }) {
+function projectPlaybook({ findings, label, epicSummary, why, strategy, facts, steps }) {
   return definePlaybook({
     pillar: "projects",
     label,

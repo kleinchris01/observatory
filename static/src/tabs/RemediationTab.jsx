@@ -1,7 +1,6 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
 import { buildIssueUrl, buildJiraSearchUrl, handleJiraLinkClick, formatRelativeTime } from "../utils";
-import { Icon } from "../components/Icons";
 import {
   PageHeader,
   Panel,

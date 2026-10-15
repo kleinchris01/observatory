@@ -1,13 +1,7 @@
 import api, { route } from "@forge/api";
 import { fallbackOn } from "./logger.js";
 import { internalMetrics } from "@forge/metrics";
-import {
-  buildFieldJql,
-  buildOverallFieldJql,
-  buildProjectUsageRecord,
-  getFieldNumericId,
-  summarizeContexts,
-} from "./transform.js";
+import { buildFieldJql, buildOverallFieldJql, buildProjectUsageRecord, summarizeContexts } from "./transform.js";
 import { isSelectFieldType } from "./analysis.js";
 import { extractWorkflowRules } from "./workflow-rules.js";
 

@@ -107,8 +107,6 @@ import {
   searchIssuesPage,
   getIssuesStatus,
   getGadgetFilterId,
-  extractFilterId,
-  BASE_JIRA_REQUEST_INTERVAL_MS,
   MAX_JIRA_REQUEST_INTERVAL_MS,
   BASE_JIRA_CONCURRENCY,
   MAX_RETRY_ATTEMPTS,

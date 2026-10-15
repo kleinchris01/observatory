@@ -1,6 +1,6 @@
 import React from "react";
 import { invoke, view } from "@forge/bridge";
-import { openFieldExpertRovo, buildFieldRovoPrompt, buildProjectRovoPrompt, buildReportRovoPrompt } from "../utils";
+import { openFieldExpertRovo, buildFieldRovoPrompt, buildProjectRovoPrompt } from "../utils";
 import { Icon } from "../components/Icons";
 import { Chip, EmptyState, SortFilterBar } from "../components/ui";
 import { useNavIntent, usePillarUsage } from "../hooks";

@@ -280,14 +280,12 @@ export async function getFieldBehaviour({ payload, context }) {
   for (const m of mappings) {
     if (!routes.has(m.configId)) routes.set(m.configId, []);
     const scheme = schemeById.get(m.schemeId);
-    routes
-      .get(m.configId)
-      .push({
-        schemeName: scheme?.name || m.schemeId,
-        workTypeName: names.workType(m.workTypeId),
-        projectKeys: (projectKeys.get(m.schemeId) || []).slice(0, 12),
-        projectCount: scheme?.projectCount || 0,
-      });
+    routes.get(m.configId).push({
+      schemeName: scheme?.name || m.schemeId,
+      workTypeName: names.workType(m.workTypeId),
+      projectKeys: (projectKeys.get(m.schemeId) || []).slice(0, 12),
+      projectCount: scheme?.projectCount || 0,
+    });
   }
   const rows = configs
     .filter((c) => c.used || itemByConfig.has(c.id))

@@ -1,4 +1,3 @@
-import React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -56,7 +55,7 @@ function emptyFieldInventory() {
   };
 }
 
-function defaultInvokeImpl(fnName, payload) {
+function defaultInvokeImpl(fnName, _payload) {
   switch (fnName) {
     case "checkMacroAccess":
       return Promise.resolve({ allowed: true });

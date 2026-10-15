@@ -1,5 +1,4 @@
 import React from "react";
-import { view } from "@forge/bridge";
 import { handleJiraLinkClick } from "../utils";
 import { Icon } from "../components/Icons";
 import { Panel, EmptyState } from "../components/ui";

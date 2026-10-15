@@ -23,7 +23,6 @@
 // app has been missing -- a field no automation rule writes and forty filters search on is
 // not unused.
 
-import { logger } from "./logger.js";
 import { incrMetric, METRIC_NAMES, getFilterPage } from "./jira-api.js";
 import { inventorySnapshotQueue } from "./queues.js";
 import { isBuildStale, startResumableBuild, runBuildChunk } from "./resumable-build.js";

@@ -1,4 +1,3 @@
-import React from "react";
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -191,14 +190,12 @@ describe("WorkflowRestrictionsView", () => {
   test("an estate with no restrictions says so in words", async () => {
     render(
       <WorkflowRestrictionsView
-        load={vi
-          .fn()
-          .mockResolvedValue({
-            ...restrictions,
-            total: 0,
-            restrictions: [],
-            summary: { editLockedStatuses: 0, workflows: 0, missingHolders: 0 },
-          })}
+        load={vi.fn().mockResolvedValue({
+          ...restrictions,
+          total: 0,
+          restrictions: [],
+          summary: { editLockedStatuses: 0, workflows: 0, missingHolders: 0 },
+        })}
       />,
     );
     expect(await screen.findByText(/No workflow restricts editing/)).toBeInTheDocument();

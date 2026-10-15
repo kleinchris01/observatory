@@ -180,14 +180,12 @@ export async function loadArchivedFieldUsage(scopeKey, fieldIds = null) {
     for (const r of rows || []) {
       const id = String(r.field_id);
       if (!out.has(id)) out.set(id, []);
-      out
-        .get(id)
-        .push({
-          projectId: String(r.project_id),
-          projectKey: r.project_key || String(r.project_id),
-          issueCount: toNumber(r.issue_count),
-          lastSeenAt: r.last_seen_at || null,
-        });
+      out.get(id).push({
+        projectId: String(r.project_id),
+        projectKey: r.project_key || String(r.project_id),
+        issueCount: toNumber(r.issue_count),
+        lastSeenAt: r.last_seen_at || null,
+      });
     }
   };
   if (fieldIds) {

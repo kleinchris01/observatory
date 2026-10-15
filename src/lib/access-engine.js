@@ -24,12 +24,7 @@ import {
   getAllProjectRoles,
   getProjectRolesForProject,
 } from "./jira-api.js";
-import {
-  ensureProjectStoreReady,
-  writeAccessSnapshotMeta,
-  readAccessSnapshotMeta,
-  replaceAccessSnapshot,
-} from "./project-store.js";
+import { ensureProjectStoreReady, writeAccessSnapshotMeta, replaceAccessSnapshot } from "./project-store.js";
 
 export const ACCESS_BUILD_STALE_MS = 16 * 60 * 1000;
 

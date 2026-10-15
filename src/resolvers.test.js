@@ -743,7 +743,6 @@ import {
   rovoBoardImpact,
   migrateNamespaceKeys,
   CLEAR_SNAPSHOT_CONFIRMATION,
-  __RAW_ADMIN_ONLY_FUNCTIONS,
   __resetAdminCheckCache,
   AdminPermissionError,
   isScanStuck,
@@ -876,18 +875,6 @@ function snapshotField(overrides = {}) {
     activeProjectCount: 2,
     totalIssueCount: 150,
     fieldJql: null,
-    ...overrides,
-  };
-}
-
-function adminConfig(overrides = {}) {
-  return {
-    readOnlyMode: false,
-    apiConcurrency: 4,
-    autoSnapshotEnabled: false,
-    autoSnapshotFrequency: "weekly",
-    governanceThresholds: {},
-    macroAccess: { restrictAccess: false, allowedGroups: [] },
     ...overrides,
   };
 }
@@ -12170,7 +12157,7 @@ describe("rovo agents: edge branches", () => {
   test("project inspect: a project the caller cannot browse is not-authorised", async () => {
     mocks.readSnapshotMeta.mockResolvedValue({ version: "fv", state: "ready" });
     mocks.listSnapshotProjects.mockResolvedValue([{ projectId: "10", projectKey: "ABC", projectName: "A" }]);
-    mocks.getBrowsableProjectIds.mockImplementation(async (_a, ids) => new Set()); // nothing browsable
+    mocks.getBrowsableProjectIds.mockImplementation(async () => new Set()); // nothing browsable
     const r = await rovoProjectInspect({ projectId: "10" }, ctx());
     expect(r.status).toBe("not-authorised");
   });
@@ -13462,7 +13449,7 @@ describe("getRemediationCandidates -- filters, dashboards, people, issue types, 
         shares: [{ type: "authenticated" }],
       },
     ];
-    for (const key of ["filters-zombie-subscriptions", "filters-shared-everyone"]) {
+    for (const _key of ["filters-zombie-subscriptions", "filters-shared-everyone"]) {
       mocks.readFilterSnapshotMeta.mockResolvedValueOnce({ version: "f1" });
       mocks.loadFilters.mockResolvedValueOnce(filters);
       mocks.readSnapshotMeta.mockResolvedValueOnce(null);

@@ -205,7 +205,6 @@ import {
 import { syncRemediationTickets, queueRemediationSync } from "./lib/remediation-sync.js";
 import {
   readSnapshotMeta,
-  writeSnapshotMeta,
   ensureProjectStoreReady,
   pruneOldSnapshotVersions,
   pruneStaleReportJobs,
