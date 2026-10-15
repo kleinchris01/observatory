@@ -414,7 +414,8 @@ describe("AdminApp Scans tab -> Full Scan -- stalled snapshot build recovery", (
   it("shows no recovery button for a build that only just started", async () => {
     const user = userEvent.setup();
     invoke.mockImplementation((fnName, payload) => {
-      if (fnName === "getAdminOverview") {
+      // The Scans tab reads build status from the light resolver; the shell still loads the Overview.
+      if (fnName === "getAdminOverview" || fnName === "getSnapshotStatus") {
         return Promise.resolve(
           makeOverview({
             snapshot: {
@@ -444,7 +445,8 @@ describe("AdminApp Scans tab -> Full Scan -- stalled snapshot build recovery", (
   it("enables a 'Force resume (stalled)' button once a build has been running past the stale threshold, and it re-triggers the build via forceRefresh", async () => {
     const user = userEvent.setup();
     invoke.mockImplementation((fnName, payload) => {
-      if (fnName === "getAdminOverview") {
+      // The Scans tab reads build status from the light resolver; the shell still loads the Overview.
+      if (fnName === "getAdminOverview" || fnName === "getSnapshotStatus") {
         return Promise.resolve(
           makeOverview({
             snapshot: {
@@ -468,6 +470,8 @@ describe("AdminApp Scans tab -> Full Scan -- stalled snapshot build recovery", (
     await openScansFullScanPanel(user);
 
     const button = await screen.findByRole("button", { name: "Force resume (stalled)" });
+    // The 8-second build poll must not be the whole-site Overview.
+    expect(invoke).toHaveBeenCalledWith("getSnapshotStatus");
     expect(button).not.toBeDisabled();
 
     await user.click(button);

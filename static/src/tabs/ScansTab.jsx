@@ -1756,7 +1756,9 @@ export function ScansTab({ initialSection }) {
 
   const fetchSnapshotStatus = React.useCallback(async () => {
     try {
-      const data = await invoke("getAdminOverview");
+      // The status row alone. This polls every 8s during a build; the Overview it used to
+      // call recomputed the whole site each time.
+      const data = await invoke("getSnapshotStatus");
       setSnapshotStatus(data?.snapshot || null);
     } catch (err) {
       setError(err.message || "Failed to load snapshot status.");
