@@ -1631,7 +1631,7 @@ export async function updateJiraIssue(issueKey, fields, { asUser = false } = {})
 // verification: reopening a task whose fix did not hold, or closing one whose item is fixed.
 // As the caller when asked, so Jira shows the admin who pressed the button.
 //
-// `target` is "done", or "reopen" (any transition into To Do, else In Progress). The move
+// `target` is "done", "withdraw" (Done as Won't Do), or "reopen" (any transition into To Do, else In Progress). The move
 // comes first and the comment only after it succeeds: a "Reopened by Observatory" comment on
 // a ticket that did not move would say something untrue. No matching transition is reported,
 // not thrown -- a workflow without a way back from Done is a normal answer.
@@ -1650,13 +1650,24 @@ export async function transitionIssueWithComment(issueKey, { target, commentBody
     return response.status === 204 ? null : response.json().catch(() => null);
   };
 
-  const { transitions = [] } = (await call(route`/rest/api/3/issue/${issueKey}/transitions`)) || {};
+  const { transitions = [] } = (await call(route`/rest/api/3/issue/${issueKey}/transitions?expand=transitions.fields`)) || {};
   const into = (key) => transitions.find((t) => t?.to?.statusCategory?.key === key);
-  const chosen = target === "done" ? into("done") : (into("new") || into("indeterminate"));
+  // "withdraw" closes like "done", but as Won't Do: a transition of that name if the workflow
+  // has one, and the Won't Do resolution if the transition's screen offers it. A workflow with
+  // neither still closes the task; the comment is what says it was withdrawn.
+  const closing = target === "done" || target === "withdraw";
+  const wontDo = (s) => /won.?t do/i.test(String(s || ""));
+  const chosen = target === "withdraw"
+    ? transitions.find((t) => t?.to?.statusCategory?.key === "done" && (wontDo(t.name) || wontDo(t.to?.name))) || into("done")
+    : target === "done" ? into("done") : (into("new") || into("indeterminate"));
   if (!chosen) {
-    return { issueKey, transitioned: false, commented: false, reason: `No transition from its current status leads to ${target === "done" ? "Done" : "an open status"}.` };
+    return { issueKey, transitioned: false, commented: false, reason: `No transition from its current status leads to ${closing ? "Done" : "an open status"}.` };
   }
-  await call(route`/rest/api/3/issue/${issueKey}/transitions`, { method: "POST", body: JSON.stringify({ transition: { id: chosen.id } }) });
+  const resolution = target === "withdraw"
+    ? (chosen.fields?.resolution?.allowedValues || []).find((v) => wontDo(v?.name)) || null
+    : null;
+  const body = { transition: { id: chosen.id }, ...(resolution ? { fields: { resolution: { id: resolution.id } } } : {}) };
+  await call(route`/rest/api/3/issue/${issueKey}/transitions`, { method: "POST", body: JSON.stringify(body) });
   let commented = false;
   if (commentBody) {
     try {
@@ -1666,7 +1677,7 @@ export async function transitionIssueWithComment(issueKey, { target, commentBody
       commented = false;
     }
   }
-  return { issueKey, transitioned: true, commented, toStatus: chosen.to?.name || null, reason: null };
+  return { issueKey, transitioned: true, commented, toStatus: chosen.to?.name || null, resolution: resolution?.name || null, reason: null };
 }
 
 // One page of issues matching a JQL query, with only the requested fields. For small lookups

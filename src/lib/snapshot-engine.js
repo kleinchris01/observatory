@@ -125,6 +125,10 @@ export function hydrateFieldForGovernance(field, summary, duplicateNameCount = 1
       contextCount,
       hasGlobalContext,
       lastFieldChangeAt: latestChangeAcrossProjects(summary?.activeProjects),
+      // Loaded with the field (loadSnapshotFields). Without it every re-hydration -- Overview,
+      // health, reports, remediation -- undid the archived-projects fix and flagged fields
+      // whose only data is in archived projects as unused.
+      archivedIssueCount: field?.archivedIssueCount ?? 0,
     }, thresholds),
   };
 }

@@ -6,6 +6,9 @@
 //   held        closed, and the item is no longer flagged: the fix is proven
 //   regressed   closed, but the item is still (or again) flagged
 //   fixed-open  still open, but the item is no longer flagged: it can be closed
+//   withdrawn   still open and no longer flagged, but the item is still there with evidence
+//               that the advice was wrong (a field "with no data" that holds data in archived
+//               projects): it closes as Won't Do with a "do not act" comment, never as fixed
 //   open        still open and still flagged: work in progress, nothing to say
 //   superseded  an older task for an item a later quarter's task already covers
 //   unverified  the finding's current items could not be read, so nothing can be claimed
@@ -16,12 +19,14 @@
 // Acting on a verdict -- reopening a regressed task, closing a fixed one -- is a separate,
 // explicit admin action. Nothing here or in the resolver changes a Jira ticket on its own.
 
-export const VERDICTS = ["regressed", "fixed-open", "held", "open", "superseded", "unverified"];
+export const VERDICTS = ["regressed", "fixed-open", "withdrawn", "held", "open", "superseded", "unverified"];
 
 const isDone = (t) => t.lastStatusCategory === "done";
 
 // tickets: remediation_tickets_v2 rows (store/remediation.js mapRow).
-// current: Map findingKey -> { available: boolean, ids: Set<string>, reason? }.
+// current: Map findingKey -> { available: boolean, ids: Set<string>, reason?, withdrawn? }.
+// `withdrawn` (optional) maps item id -> evidence for items that still exist and contradict
+// the finding; only findings whose fix removes the item supply it.
 export function verifyTickets({ tickets = [], current = new Map() } = {}) {
   const tasks = tickets.filter((t) => !t.isEpic);
 
@@ -54,6 +59,8 @@ export function verifyTickets({ tickets = [], current = new Map() } = {}) {
       return { ...base, verdict: "unverified", reason: finding?.reason || "The finding's current items could not be read." };
     }
     const flagged = finding.ids.has(String(t.itemId));
+    const evidence = !flagged && !isDone(t) ? finding.withdrawn?.get(String(t.itemId)) : null;
+    if (evidence) return { ...base, verdict: "withdrawn", evidence };
     const verdict = isDone(t) ? (flagged ? "regressed" : "held") : (flagged ? "open" : "fixed-open");
     return { ...base, verdict };
   });
@@ -92,12 +99,23 @@ export function verificationComment(row, { checkedAt, findingLabel = null } = {}
       "If the work is not actually finished, reopen this task; the next scan will check again.",
     ].join("\n");
   }
+  if (row.verdict === "withdrawn") {
+    return [
+      `Withdrawn by Observatory: do not act on this task.`,
+      "",
+      `The scan checked${when} no longer flags this item under ${what} (item ${row.itemId}), and the item is still there: ${row.evidence}.`,
+      "",
+      "The advice in this task was based on incomplete data. Nothing was fixed and nothing needs doing. If you have already started, stop, and check the item before changing anything.",
+    ].join("\n");
+  }
   return null;
 }
 
 // Which status category an action moves a task to, by verdict. Null: no action applies.
+// "withdraw" lands in Done like "done", but as Won't Do where the workflow offers it.
 export function targetCategory(verdict) {
   if (verdict === "regressed") return "reopen";
   if (verdict === "fixed-open") return "done";
+  if (verdict === "withdrawn") return "withdraw";
   return null;
 }

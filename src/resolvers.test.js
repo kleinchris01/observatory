@@ -7308,6 +7308,70 @@ describe("remediation verification", () => {
     expect(r.applied).toBe(1);
   });
 
+  // The archived-projects case (14 Oct 2026): "delete this field, no issue uses it" for a field
+  // whose data is in an archived project. Re-hydration must count that data (so the field is no
+  // longer a candidate), and the open task is withdrawn with the evidence -- not closed as fixed.
+  describe("withdrawn field-cleanup advice", () => {
+    const fieldTickets = [
+      { findingKey: "field-cleanup", pillar: "fields", period: "2026-Q3", isEpic: false, itemId: "customfield_500", issueKey: "ADMIN-50", lastStatusCategory: "new" },
+      { findingKey: "field-cleanup", pillar: "fields", period: "2026-Q3", isEpic: false, itemId: "customfield_501", issueKey: "ADMIN-51", lastStatusCategory: "new" },
+      { findingKey: "field-cleanup", pillar: "fields", period: "2026-Q3", isEpic: false, itemId: "customfield_502", issueKey: "ADMIN-52", lastStatusCategory: "new" },
+    ];
+    beforeEach(() => {
+      mocks.loadRemediationTickets.mockResolvedValue([...tickets, ...fieldTickets]);
+      mocks.readSnapshotMeta.mockResolvedValue({ version: "s1" });
+      mocks.loadSnapshotFields.mockResolvedValue([
+        // Data only in archived Talent Tracker: no longer a candidate, still there -> withdrawn.
+        { id: "customfield_500", name: "Hiring Manager", type: "user", configuredProjectCount: 3, activeProjectCount: 0, totalIssueCount: 0, archivedIssueCount: 2340, findings: null },
+        // Still unused anywhere: still flagged -> open.
+        { id: "customfield_501", name: "Old Field", type: "text", configuredProjectCount: 0, activeProjectCount: 0, totalIssueCount: 0, findings: null },
+        // customfield_502 is gone: deleted, so really fixed.
+      ]);
+      mocks.loadArchivedFieldUsage.mockResolvedValue(new Map([["customfield_500", [{ projectId: "20001", projectKey: "TT", issueCount: 2340, lastSeenAt: "2026-05-30" }]]]));
+    });
+    afterEach(() => {
+      mocks.loadArchivedFieldUsage.mockImplementation(async () => new Map());
+    });
+
+    test("is withdrawn with the archived evidence; a deleted field is fixed; an unused one stays open", async () => {
+      const r = await getRemediationVerification({ payload: { findingKey: "field-cleanup" }, context: ctxWithAccount() });
+      const row = (key) => r.rows.find((x) => x.issueKey === key);
+      expect(row("ADMIN-50")).toMatchObject({ verdict: "withdrawn" });
+      expect(row("ADMIN-50").evidence).toContain("2,340 issues in archived projects (TT)");
+      expect(row("ADMIN-50").evidence).toContain("Deleting it would destroy that data");
+      expect(row("ADMIN-51").verdict).toBe("open");
+      expect(row("ADMIN-52").verdict).toBe("fixed-open");
+      // Narrowed to the one finding: the filter tasks are not checked at all.
+      expect(r.rows.every((x) => x.findingKey === "field-cleanup")).toBe(true);
+      expect(mocks.loadFilters).not.toHaveBeenCalled();
+    });
+
+    test("names active-project usage too", async () => {
+      mocks.loadSnapshotFields.mockResolvedValue([
+        { id: "customfield_500", name: "Hiring Manager", type: "user", configuredProjectCount: 1, activeProjectCount: 1, totalIssueCount: 1, findings: null },
+      ]);
+      const r = await getRemediationVerification({ payload: { findingKey: "field-cleanup" }, context: ctxWithAccount() });
+      expect(r.rows.find((x) => x.issueKey === "ADMIN-50").evidence).toContain("1 issue in active projects");
+    });
+
+    test("withdrawing closes as Won't Do with a do-not-act comment", async () => {
+      const r = await applyRemediationVerification({ payload: { issueKeys: ["ADMIN-50", "ADMIN-52"], findingKey: "field-cleanup" }, context: ctxWithAccount() });
+      expect(r.applied).toBe(2);
+      const calls = mocks.transitionIssueWithComment.mock.calls;
+      expect(calls.map(([key, opts]) => [key, opts.target])).toEqual([["ADMIN-50", "withdraw"], ["ADMIN-52", "done"]]);
+      expect(JSON.stringify(calls[0][1].commentBody)).toContain("do not act on this task");
+      expect(JSON.stringify(calls[1][1].commentBody)).toContain("the item is fixed");
+    });
+
+    // If the evidence cannot be read, nothing is withdrawn on a guess: the task is only
+    // "no longer flagged", as before.
+    test("an unreadable evidence source leaves the task fixed-open", async () => {
+      mocks.loadArchivedFieldUsage.mockRejectedValueOnce(new Error("sql down"));
+      const r = await getRemediationVerification({ payload: { findingKey: "field-cleanup" }, context: ctxWithAccount() });
+      expect(r.rows.find((x) => x.issueKey === "ADMIN-50").verdict).toBe("fixed-open");
+    });
+  });
+
   test("requires a list of issue keys", async () => {
     await expect(applyRemediationVerification({ payload: {}, context: ctxWithAccount() })).rejects.toThrow(/issueKeys/);
   });

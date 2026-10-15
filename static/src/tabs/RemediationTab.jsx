@@ -2,7 +2,7 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { buildIssueUrl, buildJiraSearchUrl, handleJiraLinkClick, formatRelativeTime } from "../utils";
 import { Icon } from "../components/Icons";
-import { PageHeader, Panel, StatRow, StatTile, EmptyState, RemediationStatus, SortFilterBar, Chip } from "../components/ui";
+import { PageHeader, Panel, StatRow, StatTile, EmptyState, RemediationStatus, SortFilterBar, Chip, LinkButton } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useNavIntent, usePersistentState } from "../hooks";
 import { RemediationVerification } from "./RemediationVerification";
@@ -148,7 +148,7 @@ function TicketChip({ ticketing, checking }) {
   return <Chip title="This finding's items could not be read. Open it for the reason.">no data</Chip>;
 }
 
-function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, progress, error, focused = false, taskQuery = "", candidates, ticketing, checking, onLoadCandidates }) {
+function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, progress, error, focused = false, taskQuery = "", candidates, ticketing, checking, onLoadCandidates, onReview }) {
   const [expanded, setExpanded] = React.useState(focused);
   const [confirming, setConfirming] = React.useState(false);
   const cardRef = React.useRef(null);
@@ -218,6 +218,7 @@ function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, pro
               <strong>{staleTasks.length} open task{staleTasks.length === 1 ? " is" : "s are"} for items this finding no longer flags</strong>
               {" "}— fixed since, or the finding no longer applies. Check {staleTasks.length === 1 ? "it" : "them"} before anyone acts on stale advice.
               {staleUrl && <>{" "}<a href={staleUrl} target="_blank" rel="noreferrer" onClick={(e) => handleJiraLinkClick(e, staleUrl)}>Open {staleTasks.length === 1 ? "it" : `all ${staleTasks.length}`} in Jira</a></>}
+              {onReview && <>{" "}<LinkButton onClick={() => onReview(entry.key, entry.label)}>Review and close</LinkButton></>}
             </p>
           )}
           {allTasks > 0 && (
@@ -411,6 +412,8 @@ const VIEWS = [
 export function RemediationTab({ siteOrigin, intent = null }) {
   // Which finding the reader arrived for, from an Overview "Start remediation" / "Manage".
   const [focusKey, setFocusKey] = React.useState(null);
+  // "Review and close" on a finding card: Did it hold?, narrowed to that finding.
+  const [verifyFinding, setVerifyFinding] = React.useState(null); // { key, label }
   // Progress first; a deep link to a finding lands on Findings instead.
   const [view, setView] = usePersistentState("observatory.section.remediation", "progress", intent?.finding ? "findings" : null);
   useNavIntent(intent, (nav) => {
@@ -763,11 +766,16 @@ export function RemediationTab({ siteOrigin, intent = null }) {
       )}
       {organiseResult?.error && <div className="danger-zone__error" role="alert">{organiseResult.error}</div>}
 
-      <SubNavLayout items={VIEWS} activeKey={view} onSelect={setView}>
+      <SubNavLayout items={VIEWS} activeKey={view} onSelect={(key) => { setVerifyFinding(null); setView(key); }}>
         {view === "progress" ? (
           <RemediationProgress />
         ) : view === "verify" ? (
-          <RemediationVerification siteOrigin={siteOrigin} />
+          <RemediationVerification
+            siteOrigin={siteOrigin}
+            findingKey={verifyFinding?.key || null}
+            findingLabel={verifyFinding?.label || null}
+            onClearFinding={() => setVerifyFinding(null)}
+          />
         ) : loading ? (
           <EmptyState inline>Loading…</EmptyState>
         ) : (
@@ -851,6 +859,7 @@ export function RemediationTab({ siteOrigin, intent = null }) {
                     ticketing={ticketingByKey.get(entry.key) || null}
                     checking={checkingKeys.has(entry.key)}
                     onLoadCandidates={loadCandidates}
+                    onReview={(key, label) => { setVerifyFinding({ key, label }); setView("verify"); }}
                   />
                 ))}
               </section>

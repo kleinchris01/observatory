@@ -50,6 +50,7 @@ import {
   loadHierarchyNodes,
   recordHierarchyNode,
   currentPeriod,
+  loadArchivedFieldUsage,
 } from "../lib/project-store.js";
 import {
   getPlaybook,
@@ -196,18 +197,49 @@ export async function getRemediationTickets({ payload, context }) {
 // longer flagged (held), closed but still flagged (regressed), open but already fixed, or still
 // open. Candidates come from the same loaders that created the tasks, so item ids match.
 // Admin read; it changes nothing in Jira.
-export async function getRemediationVerification({ context }) {
+// For findings whose fix REMOVES the item: why an item that is no longer flagged but still
+// exists was never a candidate after all. A task for it is withdrawn ("do not act"), not
+// closed as fixed. Map item id -> evidence; an item absent from the map was really fixed.
+// Field cleanup is the case that matters: "delete this field, nobody uses it" for a field
+// whose data is in archived projects (or newly populated) would destroy data.
+export const WITHDRAWAL_EVIDENCE = {
+  "field-cleanup": async (installationKey) => {
+    const fields = await hydratedFields(installationKey);
+    if (!fields) return null;
+    const holding = fields.filter((f) => (f.totalIssueCount || 0) > 0 || (f.archivedIssueCount || 0) > 0);
+    const archived = holding.some((f) => f.archivedIssueCount > 0)
+      ? await loadArchivedFieldUsage(installationKey, holding.filter((f) => f.archivedIssueCount > 0).map((f) => f.id))
+      : new Map();
+    const n = (v) => Number(v).toLocaleString("en-US");
+    return new Map(holding.map((f) => {
+      const parts = [];
+      if (f.totalIssueCount > 0) parts.push(`it holds values on ${n(f.totalIssueCount)} issue${f.totalIssueCount === 1 ? "" : "s"} in active projects`);
+      if (f.archivedIssueCount > 0) {
+        const keys = (archived.get(String(f.id)) || []).map((r) => r.projectKey).filter(Boolean);
+        parts.push(`it holds values on ${n(f.archivedIssueCount)} issue${f.archivedIssueCount === 1 ? "" : "s"} in archived projects${keys.length ? ` (${keys.slice(0, 5).join(", ")}${keys.length > 5 ? ", …" : ""})` : ""}, which Jira's search cannot see`);
+      }
+      return [String(f.id), `${parts.join("; ")}. Deleting it would destroy that data`];
+    }));
+  },
+};
+
+// `payload.findingKey` narrows it to one finding: the finding card's "Review and close".
+export async function getRemediationVerification({ payload, context }) {
   incrMetric(METRIC_NAMES.resolver);
   const installationKey = getInstallationKey(context);
-  const tickets = await loadRemediationTickets(installationKey);
+  const only = payload?.findingKey ? String(payload.findingKey) : null;
+  const tickets = (await loadRemediationTickets(installationKey)).filter((t) => !only || t.findingKey === only);
   const findingKeys = [...new Set(tickets.filter((t) => !t.isEpic).map((t) => t.findingKey))];
   const current = new Map();
   await mapWithConcurrency(findingKeys, 3, async (findingKey) => {
     try {
       const result = await loadRemediationCandidates({ payload: { findingKey }, context });
+      const withdrawn = result?.available !== false && WITHDRAWAL_EVIDENCE[findingKey]
+        ? await WITHDRAWAL_EVIDENCE[findingKey](installationKey).catch(fallbackOn("remediation.withdrawal_evidence_failed", () => null, { installationKey, findingKey }))
+        : null;
       current.set(findingKey, result?.available === false
         ? { available: false, ids: new Set(), reason: result.reason || "unavailable" }
-        : { available: true, ids: new Set((result?.items || []).map((it) => String(it.id ?? it.name))) });
+        : { available: true, ids: new Set((result?.items || []).map((it) => String(it.id ?? it.name))), withdrawn });
     } catch (error) {
       logger.warn("remediation.verify_candidates_failed", { installationKey, findingKey, error: String(error?.message || error) });
       current.set(findingKey, { available: false, ids: new Set(), reason: "error" });
@@ -230,7 +262,7 @@ export async function applyRemediationVerification({ payload, context }) {
   requireArray(payload?.issueKeys, "issueKeys");
   const issueKeys = [...new Set(payload.issueKeys.map(String))].slice(0, MAX_VERIFICATION_APPLY);
 
-  const verification = await getRemediationVerification({ context });
+  const verification = await getRemediationVerification({ payload: { findingKey: payload.findingKey || null }, context });
   const byKey = new Map(verification.rows.map((r) => [r.issueKey, r]));
   const results = [];
   for (const issueKey of issueKeys) {

@@ -53,6 +53,28 @@ describe("verifyTickets", () => {
     expect(verifyTickets().rows).toEqual([]);
   });
 
+  // A field "with no data" that turns out to hold data in archived projects: the advice was
+  // wrong, so its open task is withdrawn with the evidence, never closed as fixed.
+  test("an open task for an item that still exists with contrary evidence is withdrawn", () => {
+    const result = verifyTickets({
+      tickets: [
+        task({ issueKey: "W-1", itemId: "customfield_1" }),
+        task({ issueKey: "W-2", itemId: "customfield_2" }),
+        task({ issueKey: "W-3", itemId: "customfield_1", findingKey: "x", period: "2026-Q4", lastStatusCategory: "done" }),
+      ],
+      current: new Map([
+        ["filter-ownership", { available: true, ids: new Set(), withdrawn: new Map([["customfield_1", "it holds values on 3 issues in archived projects (HR)"]]) }],
+        ["x", { available: true, ids: new Set(), withdrawn: new Map([["customfield_1", "evidence"]]) }],
+      ]),
+    });
+    expect(result.rows.find((r) => r.issueKey === "W-1")).toMatchObject({ verdict: "withdrawn", evidence: "it holds values on 3 issues in archived projects (HR)" });
+    // Deleted, so really fixed.
+    expect(verdictOf(result, "W-2")).toBe("fixed-open");
+    // A closed task is history: it held.
+    expect(verdictOf(result, "W-3")).toBe("held");
+    expect(result.counts.withdrawn).toBe(1);
+  });
+
   test("matches item ids as strings", () => {
     const result = verifyTickets({ tickets: [task({ issueKey: "R-1", itemId: 10, lastStatusCategory: "done" })], current: current(["10"]) });
     expect(result.rows[0].verdict).toBe("regressed");
@@ -70,6 +92,14 @@ describe("verificationComment and targetCategory", () => {
 
   test("explains a close", () => {
     expect(verificationComment({ ...row, verdict: "fixed-open" }, {})).toContain("Closed by Observatory: the item is fixed.");
+  });
+
+  test("a withdrawal says not to act, and why", () => {
+    const text = verificationComment({ ...row, verdict: "withdrawn", evidence: "it holds values on 3 issues in archived projects (HR)" }, { checkedAt: "2026-10-14T09:00:00Z" });
+    expect(text).toContain("Withdrawn by Observatory: do not act on this task.");
+    expect(text).toContain("the item is still there: it holds values on 3 issues in archived projects (HR).");
+    expect(text).not.toMatch(/fixed\./);
+    expect(targetCategory("withdrawn")).toBe("withdraw");
   });
 
   test("offers an action only where one applies", () => {

@@ -348,6 +348,20 @@ describe("snapshot reads", () => {
     expect(field.usageCount).toBe(12);
   });
 
+  // Archived-project usage rides along with every field row, so each re-hydration keeps a field
+  // whose data is only in archived projects from reading as unused (14 Oct 2026).
+  test("loadSnapshotFields and loadSnapshotField carry the archived issue count", async () => {
+    mockSqlQueries([[
+      { field_id: "customfield_500", name: "Hiring Manager", archived_issue_count: "2340" },
+      { field_id: "customfield_501", name: "Never archived", archived_issue_count: null },
+    ]]);
+    const fields = await loadSnapshotFields("scope", "v1");
+    expect(fields.map((f) => f.archivedIssueCount)).toEqual([2340, 0]);
+
+    mockSqlQueries([[{ field_id: "customfield_500", name: "Hiring Manager", archived_issue_count: "7" }]]);
+    expect((await loadSnapshotField("scope", "v1", "customfield_500")).archivedIssueCount).toBe(7);
+  });
+
   test("loadSnapshotField returns null for a missing field", async () => {
     mockSqlQueries([[]]);
     expect(await loadSnapshotField("scope", "v1", "customfield_missing")).toBeNull();
