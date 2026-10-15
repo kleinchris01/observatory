@@ -473,7 +473,7 @@ describe("ConfigTab — copy describes the rule it controls", () => {
     });
 
     test("the frontend default matches the backend's", async () => {
-      // Two literals in two bundles. They only stay equal because this asserts it.
+      // Imported now rather than copied; this guards against anyone reintroducing a literal.
       const { DEFAULT_ANALYSIS_STALE_AFTER_DAYS } = await import("../../../src/lib/automation-analysis.js");
       expect(DEFAULT_AUTOMATION_STALE_AFTER_DAYS).toBe(DEFAULT_ANALYSIS_STALE_AFTER_DAYS);
     });
@@ -589,5 +589,51 @@ describe("ConfigTab — remediation hierarchy", () => {
     expect(screen.getByText("Top-level issue type")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Product")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Initiative")).toBeInTheDocument();
+  });
+});
+
+describe("ConfigTab — governance rule defaults", () => {
+  // A site that has never saved tolerances: every rule must show the scorer's default.
+  const blank = () => ({
+    readOnlyMode: false,
+    apiConcurrency: 4,
+    autoSnapshotEnabled: false,
+    autoSnapshotFrequency: "weekly",
+    governanceThresholds: { ...DEFAULT_THRESHOLDS },
+    macroAccess: { ...DEFAULT_MACRO_ACCESS },
+  });
+
+  test("no rule input is blank or NaN when nothing has been saved", async () => {
+    render(<ConfigTab config={blank()} onSave={vi.fn()} saving={false} />);
+    await userEvent.click(screen.getByRole("button", { name: /Governance rules/ }));
+    const inputs = [...document.querySelectorAll(".admin-threshold-rule input")];
+    expect(inputs.length).toBeGreaterThan(40);
+    const bad = inputs.filter((i) => i.value === "" || i.value === "NaN");
+    expect(bad).toEqual([]);
+    // The filter rules were among the ones the old hand-kept copy was missing.
+    const orphaned = screen
+      .getByText(/Orphaned filters/)
+      .closest(".admin-threshold-rule")
+      .querySelector("input");
+    expect(orphaned).toHaveValue(5);
+  });
+
+  test("saves target bands without the scorer-only blast weighting", async () => {
+    const onSave = vi.fn();
+    render(<ConfigTab config={blank()} onSave={onSave} saving={false} />);
+    await userEvent.click(screen.getByRole("button", { name: /Governance rules/ }));
+    const orphaned = screen
+      .getByText(/Orphaned filters/)
+      .closest(".admin-threshold-rule")
+      .querySelector("input");
+    fireEvent.change(orphaned, { target: { value: "7" } });
+    await userEvent.click(screen.getByRole("button", { name: /^Save/ }));
+
+    const saved = onSave.mock.calls[0][0];
+    expect(saved.healthTolerances.orphanedFilters).toBe(0.07);
+    expect(saved.healthTolerances).not.toHaveProperty("unusedFields");
+    for (const band of Object.values(saved.healthTargets)) {
+      expect(Object.keys(band).sort()).toEqual(["direction", "floor", "target"]);
+    }
   });
 });
