@@ -1,5 +1,5 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
-import { logger, fallbackOn, ignoreWith } from "./logger.js";
+import { logger, fallbackOn, ignoreWith, errorContext } from "./logger.js";
 
 // logger.js had no tests, which is a poor place for a blind spot: it is now the mechanism
 // that decides whether a failure anywhere in the app leaves a trace. fallbackOn and
@@ -101,5 +101,24 @@ describe("ignoreWith", () => {
 
   test("works as a drop-in catch handler without changing the resolved value", async () => {
     await expect(Promise.reject(new Error("nope")).catch(ignoreWith("x.ignored"))).resolves.toBeUndefined();
+  });
+});
+
+describe("errorContext", () => {
+  test("carries the message and the stack, alongside any extra context", () => {
+    const err = new Error("sql down");
+    const ctx = errorContext(err, { fieldId: "customfield_1" });
+    expect(ctx).toMatchObject({ fieldId: "customfield_1", error: "sql down" });
+    expect(ctx.stack).toContain("sql down");
+  });
+
+  test("handles thrown strings and objects without a stack", () => {
+    expect(errorContext("boom")).toEqual({ error: "boom" });
+    expect(errorContext({ message: "no stack" })).toEqual({ error: "no stack" });
+    expect(errorContext(undefined)).toEqual({ error: "undefined" });
+  });
+
+  test("the error fields win over a same-named extra", () => {
+    expect(errorContext(new Error("real"), { error: "stale" }).error).toBe("real");
   });
 });

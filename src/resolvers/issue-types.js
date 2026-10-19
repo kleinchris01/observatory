@@ -20,6 +20,7 @@ import {
 import { queueIssueTypeSnapshotBuild, isIssueTypeBuildStale } from "../lib/issuetype-engine.js";
 import { summarizeIssueTypeInsights } from "../lib/issuetype-insights.js";
 import { readAdminConfig } from "./admin-config.js";
+import { logger, errorContext } from "../lib/logger.js";
 
 // Labels for Jira's issue-type hierarchy levels. Only -1, 0 and 1 are standard; a site with
 // custom hierarchy above Epic has levels 2+, which the caller labels "Level N" rather than
@@ -147,7 +148,7 @@ export async function getIssueTypeInventory({ context }) {
     }
   } catch (error) {
     // A screen-snapshot read failing must not take the issue-type tab down with it.
-    console.error("getIssueTypeInventory: screen-scheme layer unavailable:", error?.message || error);
+    logger.error("getIssueTypeInventory.screen_scheme_layer_unavailable", errorContext(error));
   }
 
   // Per-type issue counts from the crawl, and the tri-state that makes them safe to read.
@@ -178,7 +179,7 @@ export async function getIssueTypeInventory({ context }) {
       };
     } catch (error) {
       // A counting failure is not a count of zero -- the distinction CONNECT-4091 exists for.
-      console.error("getIssueTypeInventory: usage unavailable:", error?.message || error);
+      logger.error("getIssueTypeInventory.usage_unavailable", errorContext(error));
       return { measurement: "measurement-failed", byType: new Map(), measuredAt: null };
     }
   })();

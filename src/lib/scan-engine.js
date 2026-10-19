@@ -1,5 +1,5 @@
 import { inventorySnapshotQueue } from "./queues.js";
-import { logger, fallbackOn, ignoreWith } from "./logger.js";
+import { logger, fallbackOn, ignoreWith, errorContext } from "./logger.js";
 import {
   jiraRequest,
   sleep,
@@ -328,7 +328,7 @@ export async function refreshArchivedProjects(installationKey, snapshotVersion) 
 
 export async function completeIssueScanFinalization(installationKey, tag, workerError = null) {
   try {
-    console.log(`${tag}: finalizing scan...`);
+    logger.info("completeIssueScanFinalization.finalizing_scan", { tag });
     await finalizeIssueScan(installationKey);
 
     // Promote the month histogram from its buffer, per project. Best-effort: a failure here
@@ -338,9 +338,11 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
     const activityPromoted = await promoteIssueScanActivity(installationKey).catch(
       fallbackOn("scan.activity_promote_failed", { projectsPromoted: 0, rowsInserted: 0 }, { installationKey }),
     );
-    console.log(
-      `${tag}: promoted activity for ${activityPromoted.projectsPromoted} projects (${activityPromoted.rowsInserted} rows)`,
-    );
+    logger.info("completeIssueScanFinalization.promoted_activity", {
+      projectsPromoted: activityPromoted.projectsPromoted,
+      rowsInserted: activityPromoted.rowsInserted,
+      tag,
+    });
 
     // Read every worker's final state once, up front: it decides both whether the crawl's
     // totals can be trusted as authoritative AND whether this run carries a coverage caveat.
@@ -369,9 +371,11 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
     const usagePromoted = await promoteUsageTally(installationKey, { coverageComplete: scanCoverageComplete }).catch(
       fallbackOn("scan.usage_promote_failed", { promoted: false, entities: 0 }, { installationKey }),
     );
-    console.log(
-      `${tag}: usage ${usagePromoted.promoted ? `promoted for ${usagePromoted.entities} items` : "kept from the last complete crawl"}`,
-    );
+    logger.info("completeIssueScanFinalization.usage", {
+      promoted: Boolean(usagePromoted.promoted),
+      entities: usagePromoted.entities,
+      tag,
+    });
 
     const snapshotMeta = await readSnapshotMeta(installationKey);
 
@@ -380,9 +384,13 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
     // lives only in an archived project keeps its evidence. A refused read is recorded as such
     // and changes nothing else -- it must never be taken for "nothing is archived".
     const archived = await refreshArchivedProjects(installationKey, snapshotMeta?.version || null);
-    console.log(
-      `${tag}: archived projects ${archived.available ? `${archived.count} listed, ${archived.copied} field counts kept` : `not readable (${archived.error})`}`,
-    );
+    logger.info("completeIssueScanFinalization.archived_projects", {
+      available: Boolean(archived.available),
+      count: archived.count,
+      copied: archived.copied,
+      error: archived.error,
+      tag,
+    });
 
     if (snapshotMeta?.version) {
       // Only trust the crawl's totals as authoritative (and zero out fields it never saw)
@@ -392,9 +400,12 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
       const promoted = await promoteIssueScanToSnapshotProjectUsage(installationKey, snapshotMeta.version, {
         syncTotalIssueCount: scanCoverageComplete,
       });
-      console.log(
-        `${tag}: promoted ${promoted.fieldsPromoted} fields (${promoted.rowsInserted} rows)${scanCoverageComplete ? ", totals synced" : ""}`,
-      );
+      logger.info("completeIssueScanFinalization.promoted_fields", {
+        fieldsPromoted: promoted.fieldsPromoted,
+        rowsInserted: promoted.rowsInserted,
+        totalsSynced: Boolean(scanCoverageComplete),
+        tag,
+      });
 
       // The field x issue-type axis, promoted the same way and gated the same way: a field
       // absent from a partial crawl's buffer is "not yet crawled", not "used on no type".
@@ -403,9 +414,11 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
       }).catch(
         fallbackOn("scan.field_type_promote_failed", { fieldsPromoted: 0, rowsInserted: 0 }, { installationKey }),
       );
-      console.log(
-        `${tag}: promoted issue-type usage for ${typePromoted.fieldsPromoted} fields (${typePromoted.rowsInserted} rows)`,
-      );
+      logger.info("completeIssueScanFinalization.promoted_issue_type_usage", {
+        fieldsPromoted: typePromoted.fieldsPromoted,
+        rowsInserted: typePromoted.rowsInserted,
+        tag,
+      });
 
       // The field x user axis: which people a user-picker field references. Same gating.
       const userPromoted = await promoteIssueScanFieldUserUsage(installationKey, snapshotMeta.version, {
@@ -413,9 +426,11 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
       }).catch(
         fallbackOn("scan.field_user_promote_failed", { fieldsPromoted: 0, rowsInserted: 0 }, { installationKey }),
       );
-      console.log(
-        `${tag}: promoted user-picker usage for ${userPromoted.fieldsPromoted} fields (${userPromoted.rowsInserted} rows)`,
-      );
+      logger.info("completeIssueScanFinalization.promoted_user_picker_usage", {
+        fieldsPromoted: userPromoted.fieldsPromoted,
+        rowsInserted: userPromoted.rowsInserted,
+        tag,
+      });
 
       // Fields holding archived data are refreshed too: they may be in no crawl buffer at all,
       // and their findings must stop calling them unused.
@@ -429,10 +444,10 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
           snapshotMeta.version,
           refreshIds,
         ).catch((err) => {
-          console.warn(`${tag}: refreshGovernanceFindingsForFields failed:`, err?.message || err);
+          logger.warn("completeIssueScanFinalization.findings_refresh_failed", errorContext(err, { tag }));
           return { updatedCount: 0 };
         });
-        console.log(`${tag}: refreshed findings for ${refreshed.updatedCount} fields`);
+        logger.info("completeIssueScanFinalization.findings_refreshed", { updatedCount: refreshed.updatedCount, tag });
       }
     }
 
@@ -465,12 +480,12 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
         },
       ],
     });
-    console.log(`${tag}: scan finalized and marked ready`);
+    logger.info("completeIssueScanFinalization.ready", { tag });
     logger.info("scan.finalized", { installationKey, processedIssues: finalMeta?.processedIssues || 0 });
   } catch (error) {
     const message = error?.message || String(error);
     logger.error("scan.finalization_failed", { installationKey, error: message });
-    console.error(`${tag}: finalization failed:`, message);
+    logger.error("completeIssueScanFinalization.finalization_failed", { tag, error: message });
     const finalMeta = await readIssueScanMeta(installationKey).catch(
       fallbackOn("scan.final_meta_read_failed", null, { installationKey }),
     );
@@ -494,12 +509,12 @@ export async function runIssueScanCoordinator(installationKey) {
 
     const existing = await readIssueScanMeta(installationKey);
     if (existing?.state !== "queued") {
-      console.log("runIssueScanCoordinator: not in queued state, skipping");
+      logger.info("runIssueScanCoordinator.not_queued_skipping");
       return;
     }
 
     logger.info("scan.coordinator.start", { installationKey });
-    const log = (msg) => console.log(`runIssueScanCoordinator: ${msg}`);
+    const log = (msg) => logger.info("runIssueScanCoordinator.progress", { msg });
 
     log("Fetching all project keys...");
     const allProjectKeys = await getAllJiraProjectKeys();
@@ -670,9 +685,9 @@ export async function runIssueScanCoordinator(installationKey) {
         try {
           await queueFieldOptionsCache(installationKey, field.id);
         } catch (pushError) {
-          console.warn(
-            `runIssueScanCoordinator: failed to queue option cache for ${field.id}:`,
-            pushError?.message || pushError,
+          logger.warn(
+            "runIssueScanCoordinator.failed_to_queue_option_cache",
+            errorContext(pushError, { fieldId: field.id }),
           );
         }
       }
@@ -732,7 +747,7 @@ export async function runIssueScanCoordinator(installationKey) {
     logger.info("scan.coordinator.workers_queued", { installationKey, workers: ISSUE_SCAN_WORKERS });
   } catch (error) {
     logger.error("scan.coordinator.failed", { installationKey, error: error?.message });
-    console.error("runIssueScanCoordinator failed:", error?.message || error);
+    logger.error("runIssueScanCoordinator.failed", errorContext(error));
     await writeIssueScanMeta(installationKey, {
       state: "failed",
       completedAt: new Date().toISOString(),
@@ -974,26 +989,26 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
 
     const meta = await readIssueScanMeta(installationKey);
     if (meta?.state !== "building") {
-      console.log(`${tag}: scan state is ${meta?.state || "missing"}, skipping`);
+      logger.info("runIssueScanWorkerV2.not_running_skipping", { state: meta?.state || "missing", tag });
       return;
     }
 
     let worker = await readIssueScanWorker(installationKey, workerId);
     if (!worker) throw new Error(`Missing worker checkpoint for worker ${workerId}`);
     if (worker.status === "done") {
-      console.log(`${tag}: already done`);
+      logger.info("runIssueScanWorkerV2.already_done", { tag });
       return;
     }
     if (worker.status === "building" && worker.updatedAt) {
       const ageMs = Date.now() - new Date(worker.updatedAt).getTime();
       if (Number.isFinite(ageMs) && ageMs < 2 * 60 * 1000) {
-        console.log(`${tag}: worker already active, skipping duplicate event`);
+        logger.info("runIssueScanWorkerV2.duplicate_skipping", { tag });
         return;
       }
     }
 
     if (!worker.jqlFilter) {
-      console.log(`${tag}: no projects assigned, marking done`);
+      logger.info("runIssueScanWorkerV2.no_projects_done", { tag });
       await updateIssueScanWorker(installationKey, workerId, { status: "done", nextPageToken: null, lastError: null });
       const updatedMeta = await atomicAccumulateIssueScanProgress(installationKey, 1, 0).catch(
         fallbackOn("scan.progress_accumulate_failed", null, { installationKey }),
@@ -1145,7 +1160,7 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
         if (page > 0 && page % ISSUE_SCAN_CANCEL_CHECK_EVERY_PAGES === 0) {
           const cancelCheck = await readIssueScanMeta(installationKey);
           if (cancelCheck?.state === "cancelled") {
-            console.log(`${tag}: scan cancelled`);
+            logger.info("runSlice.scan_cancelled", { tag });
             cancelled = true;
             return;
           }
@@ -1508,11 +1523,11 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
       await queueIssueScanWorker(installationKey, workerId, {
         delaySeconds: 2 + workerId * 2 + Math.floor(Math.random() * 6),
       });
-      console.log(`${tag}: checkpointed - ${processedIssues} issues, ${processedPages} pages; requeued`);
+      logger.info("runIssueScanWorkerV2.checkpointed", { processedIssues, processedPages, tag });
       return;
     }
 
-    console.log(`${tag}: done - ${processedIssues} issues, ${processedPages} pages`);
+    logger.info("runIssueScanWorkerV2.done", { processedIssues, processedPages, tag });
     if ((updatedMeta?.processedPages ?? 0) >= (updatedMeta?.totalPages ?? 0) && (updatedMeta?.totalPages ?? 0) > 0) {
       const claimToken = makeJobToken();
       const claimed = await tryClaimIssueScanFinalization(installationKey, claimToken);
@@ -1530,7 +1545,7 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
     // slot reports in. Without that, four healthy workers would sit at "building" forever
     // waiting on a fifth that is never coming back.
     const errMsg = error?.message || String(error);
-    console.error(`${tag} failed:`, errMsg);
+    logger.error("runIssueScanWorkerV2.failed", { tag, error: errMsg });
 
     // A Forge queue limit that outlasted every re-queue retry is a PAUSE, not a failure.
     // The worker's slices and cursors are already checkpointed, so leave its slot OPEN --

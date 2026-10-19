@@ -9,6 +9,7 @@ import {
 } from "./project-store.js";
 import { queueReportBuild } from "./snapshot-engine.js";
 import { buildOverallFieldJql } from "./transform.js";
+import { logger, errorContext } from "./logger.js";
 
 export async function buildProjectUsageReportResult(
   installationKey,
@@ -86,7 +87,7 @@ export async function buildProjectUsageReportResult(
         });
       }
     } catch (error) {
-      console.warn("buildProjectUsageReportResult: workflow scheme annotation failed:", error?.message || error);
+      logger.warn("buildProjectUsageReportResult.workflow_scheme_annotation_failed", errorContext(error));
     }
   }
 

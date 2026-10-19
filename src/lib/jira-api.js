@@ -1,5 +1,5 @@
 import api, { route } from "@forge/api";
-import { fallbackOn } from "./logger.js";
+import { fallbackOn, logger, errorContext } from "./logger.js";
 import { internalMetrics } from "@forge/metrics";
 import { buildFieldJql, buildOverallFieldJql, buildProjectUsageRecord, summarizeContexts } from "./transform.js";
 import { isSelectFieldType } from "./analysis.js";
@@ -422,7 +422,7 @@ export async function callerHasJiraAdmin(accountId) {
     const granted = data?.globalPermissions;
     return Array.isArray(granted) && granted.includes("ADMINISTER");
   } catch (error) {
-    console.error("callerHasJiraAdmin: permission check failed", error?.message || error);
+    logger.error("callerHasJiraAdmin.permission_check_failed", errorContext(error));
     return false;
   }
 }
@@ -1954,9 +1954,9 @@ export async function getAllWorkflowsWithStatuses() {
     if (workflows.length > 0) return workflows;
     // A successful call returning nothing is worth saying out loud: it means the shape
     // changed again, not that the site has no workflows.
-    console.warn("getAllWorkflowsWithStatuses: search endpoint returned no usable workflows");
+    logger.warn("getAllWorkflowsWithStatuses.no_usable_workflows");
   } catch (error) {
-    console.warn("getAllWorkflowsWithStatuses: bulk endpoint failed, trying legacy:", error?.message || error);
+    logger.warn("getAllWorkflowsWithStatuses.bulk_endpoint_failed_trying_legacy", errorContext(error));
   }
 
   const legacy = await paginate(
@@ -2169,7 +2169,7 @@ export async function findFieldIdsByOptionValue(fields, optionQuery, startIndex 
         }
       }
     } catch (error) {
-      console.warn(`findFieldIdsByOptionValue: option lookup failed for ${field.id}:`, error?.message || error);
+      logger.warn("findFieldIdsByOptionValue.option_lookup_failed", errorContext(error, { fieldId: field.id }));
     }
   });
 
@@ -2203,10 +2203,7 @@ export async function loadFieldOptionsFromJira(fieldId) {
           })),
         };
       } catch (optError) {
-        console.error(
-          `loadFieldOptionsFromJira: context ${ctx.id} options fetch failed:`,
-          optError?.message || optError,
-        );
+        logger.error("loadFieldOptionsFromJira.context_options_failed", errorContext(optError, { contextId: ctx.id }));
         return {
           contextId: String(ctx.id),
           contextName: String(ctx.name || "Default context"),

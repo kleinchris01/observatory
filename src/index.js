@@ -1,5 +1,5 @@
 import { makeResolver } from "@forge/resolver";
-import { logger, fallbackOn, ignoreWith } from "./lib/logger.js";
+import { logger, fallbackOn, ignoreWith, errorContext } from "./lib/logger.js";
 import { incrMetric, METRIC_NAMES, getInstallationKey, sanitizeCacheKeyPart } from "./lib/jira-api.js";
 import {
   runIssueScanCoordinator,
@@ -92,27 +92,28 @@ export async function runRetentionCleanup(_event, context) {
   if (activeVersion) {
     snapshotPruned = await pruneOldSnapshotVersions(installationKey, activeVersion);
     if (snapshotPruned.fieldsDeleted > 0 || snapshotPruned.usageRowsDeleted > 0) {
-      console.log(
-        `runRetentionCleanup: pruned old snapshot data — ${snapshotPruned.fieldsDeleted} fields, ${snapshotPruned.usageRowsDeleted} usage rows`,
-      );
+      logger.info("runRetentionCleanup.pruned_snapshot_data", {
+        fieldsDeleted: snapshotPruned.fieldsDeleted,
+        usageRowsDeleted: snapshotPruned.usageRowsDeleted,
+      });
     }
   } else {
-    console.log("runRetentionCleanup: no active snapshot version found, skipping snapshot prune");
+    logger.info("runRetentionCleanup.no_active_snapshot");
   }
 
   const reportPruned = await pruneStaleReportJobs(installationKey);
   if (reportPruned.jobsDeleted > 0) {
-    console.log(`runRetentionCleanup: pruned ${reportPruned.jobsDeleted} stale report jobs`);
+    logger.info("runRetentionCleanup.pruned_report_jobs", { jobsDeleted: reportPruned.jobsDeleted });
   }
 
   const auditPruned = await pruneOldAuditEvents(installationKey);
   if (auditPruned.eventsDeleted > 0) {
-    console.log(`runRetentionCleanup: pruned ${auditPruned.eventsDeleted} audit events older than 180 days`);
+    logger.info("runRetentionCleanup.pruned_audit_events", { eventsDeleted: auditPruned.eventsDeleted });
   }
 
   const changesPruned = await pruneOldConfigChanges(installationKey);
   if (changesPruned.changesDeleted > 0) {
-    console.log(`runRetentionCleanup: pruned ${changesPruned.changesDeleted} config-change rows older than 400 days`);
+    logger.info("runRetentionCleanup.pruned_config_changes", { changesDeleted: changesPruned.changesDeleted });
   }
 
   // Unconditional, unlike the per-prune lines above, which only fire when something was
@@ -127,11 +128,7 @@ export async function runRetentionCleanup(_event, context) {
     auditEventsDeleted: auditPruned.eventsDeleted,
     configChangesDeleted: changesPruned.changesDeleted,
   };
-  console.log(
-    `runRetentionCleanup: complete — ${summary.snapshotFieldsDeleted} fields, ` +
-      `${summary.snapshotUsageRowsDeleted} usage rows, ${summary.reportJobsDeleted} report jobs, ` +
-      `${summary.auditEventsDeleted} audit events, ${summary.configChangesDeleted} config-change rows`,
-  );
+  logger.info("runRetentionCleanup.complete", summary);
 
   return summary;
 }
@@ -264,6 +261,16 @@ export async function runProjectStorageMigrations() {
   return { ok: true };
 }
 
+// Where a resumable queue step ended up, as one searchable word.
+function stepOutcome(result) {
+  if (result?.completed) return "completed";
+  if (result?.checkpointed) return "checkpointed";
+  if (result?.waiting) return "waiting";
+  if (result?.handedOff) return "handed-off";
+  if (result?.advanced) return "advanced";
+  return result?.reason || "no-op";
+}
+
 export async function consumeSnapshot(event) {
   incrMetric(METRIC_NAMES.snapshotConsumer);
   const installationKey = sanitizeCacheKeyPart(event?.body?.installationKey || event?.installationKey || "global");
@@ -276,13 +283,13 @@ export async function consumeSnapshot(event) {
       const startAt = Math.max(0, Number(event?.body?.startAt) || 0);
       const nextPageToken = String(event?.body?.nextPageToken || "");
       if (!version || !fieldId) {
-        console.warn("consumeSnapshot: missing version or fieldId for build-field-summary job");
+        logger.warn("consumeSnapshot.job_missing_input", { job: "build-field-summary" });
         return;
       }
 
       const snapshotField = await loadSnapshotField(installationKey, version, fieldId);
       if (!snapshotField) {
-        console.warn(`consumeSnapshot: snapshot field not found for summary build: ${fieldId}`);
+        logger.warn("consumeSnapshot.field_not_found", { job: "build-field-summary", fieldId });
         return;
       }
 
@@ -297,13 +304,13 @@ export async function consumeSnapshot(event) {
       const projectKeys = Array.isArray(event?.body?.projectKeys) ? event.body.projectKeys : [];
       const windowHours = Number(event?.body?.windowHours || 24);
       if (!version || !fieldId || !jobToken) {
-        console.warn("consumeSnapshot: missing version or fieldId for refresh-field-project-delta job");
+        logger.warn("consumeSnapshot.job_missing_input", { job: "refresh-field-project-delta" });
         return;
       }
 
       const snapshotField = await loadSnapshotField(installationKey, version, fieldId);
       if (!snapshotField) {
-        console.warn(`consumeSnapshot: snapshot field not found for incremental refresh: ${fieldId}`);
+        logger.warn("consumeSnapshot.field_not_found", { job: "refresh-field-project-delta", fieldId });
         return;
       }
 
@@ -315,7 +322,7 @@ export async function consumeSnapshot(event) {
       const version = String(event?.body?.version || "");
       const jobId = String(event?.body?.jobId || "");
       if (!version || !jobId) {
-        console.warn("consumeSnapshot: missing version or jobId for build-project-usage-report job");
+        logger.warn("consumeSnapshot.job_missing_input", { job: "build-project-usage-report" });
         return;
       }
 
@@ -337,22 +344,25 @@ export async function consumeSnapshot(event) {
     if (jobType === "cache-field-options") {
       const fieldId = String(event?.body?.fieldId || "");
       if (!fieldId) {
-        console.warn("consumeSnapshot: missing fieldId for cache-field-options job");
+        logger.warn("consumeSnapshot.job_missing_input", { job: "cache-field-options" });
         return;
       }
       const result = await cacheFieldOptionsForField(installationKey, fieldId);
-      console.log(`cache-field-options: cached ${result.optionCount || 0} options for ${fieldId}`);
+      logger.info("cache-field-options.done", { optionCount: result.optionCount || 0, fieldId });
       return;
     }
 
     if (jobType === "restore-project-usage") {
       const version = String(event?.body?.version || "");
       if (!version) {
-        console.warn("consumeSnapshot: missing version for restore-project-usage job");
+        logger.warn("consumeSnapshot.job_missing_input", { job: "restore-project-usage" });
         return;
       }
       const result = await restoreSnapshotProjectUsageFromSummaries(installationKey, version);
-      console.log(`restore-project-usage: restored ${result.fieldsRestored} fields, ${result.rowsInserted} rows`);
+      logger.info("restore-project-usage.done", {
+        fieldsRestored: result.fieldsRestored,
+        rowsInserted: result.rowsInserted,
+      });
       return;
     }
 
@@ -364,15 +374,17 @@ export async function consumeSnapshot(event) {
 
     if (jobType === "build-status-history") {
       const result = await buildStatusHistorySnapshot(installationKey);
-      console.log(`build-status-history: measured ${result?.measured ?? 0} statuses, ${result?.failed ?? 0} failed`);
+      logger.info("build-status-history.done", { measured: result?.measured ?? 0, failed: result?.failed ?? 0 });
       return;
     }
 
     if (jobType === "build-workflow-snapshot") {
       const result = await buildWorkflowSnapshot(installationKey);
-      console.log(
-        `build-workflow-snapshot: ${result?.schemeCount ?? 0} schemes, ${result?.statusCount ?? 0} statuses, ${result?.projectCount ?? 0} projects`,
-      );
+      logger.info("build-workflow-snapshot.done", {
+        schemeCount: result?.schemeCount ?? 0,
+        statusCount: result?.statusCount ?? 0,
+        projectCount: result?.projectCount ?? 0,
+      });
       return;
     }
 
@@ -381,13 +393,7 @@ export async function consumeSnapshot(event) {
       // The walked count is logged alongside the totals, not only when it falls short. A pass
       // that could not read every gadget list is a different artifact from one that did, and
       // the log is where that gets noticed first.
-      console.log(
-        result?.completed
-          ? `build-dashboard-snapshot: completed - ${result.processed} items`
-          : result?.checkpointed
-            ? `build-dashboard-snapshot: checkpointed - ${result.processed} items; requeued`
-            : `build-dashboard-snapshot: ${result?.reason || "no-op"}`,
-      );
+      logger.info("build-dashboard-snapshot.step", { outcome: stepOutcome(result), processed: result?.processed });
       return;
     }
 
@@ -395,17 +401,15 @@ export async function consumeSnapshot(event) {
     // 900s budget rather than the remainder of the previous stage's.
     if (jobType === "run-full-scan") {
       const result = await runFullScanStep(installationKey, event?.body || {});
-      console.log(
-        result?.completed
-          ? `run-full-scan: complete - ${result.done}/${result.total} stages, ${result.failed} failed, ${result.skipped} skipped`
-          : result?.waiting
-            ? `run-full-scan: waiting on ${result.stage} (poll ${result.polls})`
-            : result?.handedOff
-              ? `run-full-scan: handed off to ${result.stage}`
-              : result?.advanced
-                ? `run-full-scan: ${result.done}/${result.total} stages done`
-                : `run-full-scan: ${result?.reason || "no-op"}`,
-      );
+      logger.info("run-full-scan.step", {
+        outcome: stepOutcome(result),
+        stage: result?.stage,
+        done: result?.done,
+        total: result?.total,
+        failed: result?.failed,
+        skipped: result?.skipped,
+        polls: result?.polls,
+      });
       return;
     }
 
@@ -413,17 +417,15 @@ export async function consumeSnapshot(event) {
     // see full-scan-runner.js for why the two must never be allowed to run concurrently.
     if (jobType === "run-quick-scan") {
       const result = await runQuickScanStep(installationKey, event?.body || {});
-      console.log(
-        result?.completed
-          ? `run-quick-scan: complete - ${result.done}/${result.total} stages, ${result.failed} failed, ${result.skipped} skipped`
-          : result?.waiting
-            ? `run-quick-scan: waiting on ${result.stage} (poll ${result.polls})`
-            : result?.handedOff
-              ? `run-quick-scan: handed off to ${result.stage}`
-              : result?.advanced
-                ? `run-quick-scan: ${result.done}/${result.total} stages done`
-                : `run-quick-scan: ${result?.reason || "no-op"}`,
-      );
+      logger.info("run-quick-scan.step", {
+        outcome: stepOutcome(result),
+        stage: result?.stage,
+        done: result?.done,
+        total: result?.total,
+        failed: result?.failed,
+        skipped: result?.skipped,
+        polls: result?.polls,
+      });
       return;
     }
 
@@ -432,13 +434,11 @@ export async function consumeSnapshot(event) {
       // re-queues itself with a token, and the chunk needs that token to tell its own
       // continuation apart from a second person clicking Rebuild.
       const result = await buildFilterSnapshot(installationKey, event?.body || {});
-      console.log(
-        result?.completed
-          ? `build-filter-snapshot: completed - ${result.processed} filters`
-          : result?.checkpointed
-            ? `build-filter-snapshot: checkpointed - ${result.processed}/${result.totalExpected || "?"} filters; requeued`
-            : `build-filter-snapshot: ${result?.reason || "no-op"}`,
-      );
+      logger.info("build-filter-snapshot.step", {
+        outcome: stepOutcome(result),
+        processed: result?.processed,
+        totalExpected: result?.totalExpected,
+      });
       return;
     }
 
@@ -447,67 +447,82 @@ export async function consumeSnapshot(event) {
       // Unresolved screens are logged alongside the totals, not only when non-zero. A pass
       // that could not read part of the catalog is a different artifact from one that read
       // all of it, and the log is where that gets noticed first.
-      console.log(
-        `build-screen-snapshot: ${result?.screens ?? 0} screens, ${result?.fields ?? 0} field placements, ${result?.unresolvedScreens ?? 0} unresolved`,
-      );
+      logger.info("build-screen-snapshot.done", {
+        screens: result?.screens ?? 0,
+        fields: result?.fields ?? 0,
+        unresolvedScreens: result?.unresolvedScreens ?? 0,
+      });
       return;
     }
 
     if (jobType === "build-issue-type-snapshot") {
       const result = await buildIssueTypeSnapshot(installationKey);
-      console.log(`build-issue-type-snapshot: ${result?.issueTypes ?? 0} issue types, ${result?.schemes ?? 0} schemes`);
+      logger.info("build-issue-type-snapshot.done", {
+        issueTypes: result?.issueTypes ?? 0,
+        schemes: result?.schemes ?? 0,
+      });
       return;
     }
 
     if (jobType === "build-user-snapshot") {
       const result = await buildUserSnapshot(installationKey);
-      console.log(
-        `build-user-snapshot: ${result?.users ?? 0} licensed users across ${result?.groups ?? 0} access groups`,
-      );
+      logger.info("build-user-snapshot.done", { users: result?.users ?? 0, groups: result?.groups ?? 0 });
       return;
     }
 
     if (jobType === "build-asset-snapshot") {
       const result = await buildAssetSnapshot(installationKey);
-      console.log(
-        result?.unavailable
-          ? `build-asset-snapshot: Assets not enabled — ${result.reason}`
-          : `build-asset-snapshot: ${result?.schemas ?? 0} schemas, ${result?.objectTypes ?? 0} object types, ${result?.attributes ?? 0} attributes`,
-      );
+      if (result?.unavailable) logger.info("build-asset-snapshot.unavailable", { reason: result.reason });
+      else {
+        logger.info("build-asset-snapshot.done", {
+          schemas: result?.schemas ?? 0,
+          objectTypes: result?.objectTypes ?? 0,
+          attributes: result?.attributes ?? 0,
+        });
+      }
       return;
     }
 
     if (jobType === "build-asset-type-counts") {
       const result = await buildAssetTypeCounts(installationKey);
-      console.log(
-        result?.queued === false
-          ? `build-asset-type-counts: skipped — ${result.reason}`
-          : `build-asset-type-counts: ${result?.measured ?? 0} measured, ${result?.unmeasured ?? 0} unmeasured, of ${result?.total ?? 0} concrete object types`,
-      );
+      if (result?.queued === false) logger.info("build-asset-type-counts.skipped", { reason: result.reason });
+      else {
+        logger.info("build-asset-type-counts.done", {
+          measured: result?.measured ?? 0,
+          unmeasured: result?.unmeasured ?? 0,
+          total: result?.total ?? 0,
+        });
+      }
       return;
     }
 
     if (jobType === "build-access-snapshot") {
       const result = await buildAccessSnapshot(installationKey);
-      console.log(
-        `build-access-snapshot: ${result?.permission ?? 0} permission, ${result?.security ?? 0} security, ${result?.notification ?? 0} notification schemes`,
-      );
+      logger.info("build-access-snapshot.done", {
+        permission: result?.permission ?? 0,
+        security: result?.security ?? 0,
+        notification: result?.notification ?? 0,
+      });
       return;
     }
 
     if (jobType === "build-estate-snapshot") {
       const result = await buildEstateSnapshot(installationKey);
-      console.log(
-        `build-estate-snapshot: ${result?.resolutions ?? 0} resolutions, ${result?.priorities ?? 0} priorities`,
-      );
+      logger.info("build-estate-snapshot.done", {
+        resolutions: result?.resolutions ?? 0,
+        priorities: result?.priorities ?? 0,
+      });
       return;
     }
 
     if (jobType === "build-fieldconfig-snapshot") {
       const result = await buildFieldConfigSnapshot(installationKey);
-      console.log(
-        `build-fieldconfig-snapshot: ${result?.source ?? "?"}, ${result?.schemes ?? 0} schemes, ${result?.configs ?? 0} configurations, ${result?.unread ?? 0} unread`,
-      );
+      logger.info("build-fieldconfig-snapshot.done", {
+        source: result?.source ?? "?",
+        schemes: result?.schemes ?? 0,
+        configs: result?.configs ?? 0,
+        unread: result?.unread ?? 0,
+      });
       return;
     }
 
@@ -515,23 +530,23 @@ export async function consumeSnapshot(event) {
     // has seconds, and a few thousand tickets need minutes.
     if (jobType === "sync-remediation") {
       const result = await syncRemediationTickets(installationKey);
-      console.log(`sync-remediation: ${result?.updated ?? 0} of ${result?.checked ?? 0} tickets updated`);
+      logger.info("sync-remediation.done", { updated: result?.updated ?? 0, checked: result?.checked ?? 0 });
       return;
     }
 
     if (jobType === "build-board-snapshot") {
       const result = await buildBoardSnapshot(installationKey);
-      console.log(
-        `build-board-snapshot: ${result?.boards ?? 0} boards, ${result?.columns ?? 0} columns, ${result?.unreadable ?? 0} unreadable`,
-      );
+      logger.info("build-board-snapshot.done", {
+        boards: result?.boards ?? 0,
+        columns: result?.columns ?? 0,
+        unreadable: result?.unreadable ?? 0,
+      });
       return;
     }
 
     if (jobType === "build-drift-snapshot") {
       const result = await buildDriftSnapshot(installationKey);
-      console.log(
-        `build-drift-snapshot: ${result?.changes ?? 0} changes recorded${result?.seeded?.length ? `, seeded ${result.seeded.join(", ")}` : ""}`,
-      );
+      logger.info("build-drift-snapshot.done", { changes: result?.changes ?? 0, seeded: result?.seeded ?? [] });
       return;
     }
 
@@ -597,7 +612,7 @@ export async function consumeSnapshot(event) {
         incrMetric(METRIC_NAMES.reportJobFailed);
       }
     }
-    console.error("consumeSnapshot unhandled error:", error?.message || error);
+    logger.error("consumeSnapshot.unhandled_error", errorContext(error));
   }
 }
 

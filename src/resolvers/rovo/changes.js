@@ -5,6 +5,7 @@
 import { incrMetric, METRIC_NAMES, getInstallationKey } from "../../lib/jira-api.js";
 import { pillarUnavailable, agentOk, agentNotFound, clampResults } from "../../lib/rovo-agents.js";
 import { ensureProjectStoreReady, readDriftSnapshotMeta, loadConfigChanges } from "../../lib/project-store.js";
+import { logger, errorContext } from "../../lib/logger.js";
 
 // ── Rovo: configuration change expert ──────────────────────────────────────
 //
@@ -58,7 +59,7 @@ export async function rovoChangeSearch(payload, context) {
     });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("rovoChangeSearch failed:", error);
+    logger.error("rovoChangeSearch.failed", errorContext(error));
     throw error;
   }
 }
@@ -94,7 +95,7 @@ export async function rovoChangeInspect(payload, context) {
     });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("rovoChangeInspect failed:", error);
+    logger.error("rovoChangeInspect.failed", errorContext(error));
     throw error;
   }
 }

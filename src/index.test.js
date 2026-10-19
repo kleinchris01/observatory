@@ -252,6 +252,19 @@ import {
   SHARED_RESOLVER_FUNCTIONS,
 } from "./resolvers.js";
 
+// The structured logger writes one JSON line per event through console. Parse them so tests
+// assert on fields (event, outcome, counts), not on the wording of a message.
+const logged = (spy) =>
+  spy.mock.calls
+    .map(([line]) => {
+      try {
+        return JSON.parse(line);
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
+
 const CONTEXT = { installContext: "ari:cloud:jira::site/UUID" };
 
 beforeEach(() => {
@@ -321,7 +334,7 @@ describe("runRetentionCleanup", () => {
 
     await runRetentionCleanup({}, CONTEXT);
 
-    expect(console.log).toHaveBeenCalledWith(expect.stringContaining("runRetentionCleanup: complete"));
+    expect(logged(console.log)).toContainEqual(expect.objectContaining({ event: "runRetentionCleanup.complete" }));
   });
 });
 
@@ -857,19 +870,21 @@ describe("consumeSnapshot job routing", () => {
       "scope-1",
       expect.objectContaining({ jobType: "run-full-scan", jobToken: "t" }),
     );
-    expect(log).toHaveBeenCalledWith(expect.stringContaining("2/8 stages done"));
+    expect(logged(log)).toContainEqual(
+      expect.objectContaining({ event: "run-full-scan.step", outcome: "advanced", done: 2, total: 8 }),
+    );
 
     runFullScanStep.mockResolvedValueOnce({ waiting: true, stage: "issues", polls: 12 });
     await consumeSnapshot(event({ jobType: "run-full-scan" }));
-    expect(log).toHaveBeenCalledWith(expect.stringContaining("waiting on issues (poll 12)"));
+    expect(logged(log)).toContainEqual(expect.objectContaining({ outcome: "waiting", stage: "issues", polls: 12 }));
 
     runFullScanStep.mockResolvedValueOnce({ handedOff: true, stage: "filters" });
     await consumeSnapshot(event({ jobType: "run-full-scan" }));
-    expect(log).toHaveBeenCalledWith(expect.stringContaining("handed off to filters"));
+    expect(logged(log)).toContainEqual(expect.objectContaining({ outcome: "handed-off", stage: "filters" }));
 
     runFullScanStep.mockResolvedValueOnce({ completed: true, done: 7, total: 8, failed: 1, skipped: 0 });
     await consumeSnapshot(event({ jobType: "run-full-scan" }));
-    expect(log).toHaveBeenCalledWith(expect.stringContaining("complete - 7/8 stages, 1 failed"));
+    expect(logged(log)).toContainEqual(expect.objectContaining({ outcome: "completed", done: 7, total: 8, failed: 1 }));
 
     log.mockRestore();
   });
@@ -905,11 +920,20 @@ describe("consumeSnapshot job routing", () => {
       expect.objectContaining({ jobType: "run-quick-scan", jobToken: "t" }),
     );
     expect(runFullScanStep).not.toHaveBeenCalled();
-    expect(log).toHaveBeenCalledWith(expect.stringContaining("run-quick-scan"));
+    expect(logged(log)).toContainEqual(expect.objectContaining({ event: "run-quick-scan.step" }));
 
     runQuickScanStep.mockResolvedValueOnce({ completed: true, done: 5, total: 6, failed: 0, skipped: 1 });
     await consumeSnapshot(event({ jobType: "run-quick-scan" }));
-    expect(log).toHaveBeenCalledWith(expect.stringContaining("complete - 5/6 stages, 0 failed"));
+    expect(logged(log)).toContainEqual(
+      expect.objectContaining({
+        event: "run-quick-scan.step",
+        outcome: "completed",
+        done: 5,
+        total: 6,
+        failed: 0,
+        skipped: 1,
+      }),
+    );
 
     log.mockRestore();
   });
@@ -956,11 +980,13 @@ describe("consumeSnapshot job routing", () => {
 
     buildDashboardSnapshot.mockResolvedValueOnce({ checkpointed: true, processed: 60 });
     await consumeSnapshot(event({ jobType: "build-dashboard-snapshot" }));
-    expect(log).toHaveBeenCalledWith(expect.stringContaining("checkpointed - 60 items"));
+    expect(logged(log)).toContainEqual(
+      expect.objectContaining({ event: "build-dashboard-snapshot.step", outcome: "checkpointed", processed: 60 }),
+    );
 
     buildDashboardSnapshot.mockResolvedValueOnce({ completed: true, processed: 1224 });
     await consumeSnapshot(event({ jobType: "build-dashboard-snapshot" }));
-    expect(log).toHaveBeenCalledWith(expect.stringContaining("completed - 1224 items"));
+    expect(logged(log)).toContainEqual(expect.objectContaining({ outcome: "completed", processed: 1224 }));
 
     buildDashboardSnapshot.mockResolvedValueOnce(undefined);
     await consumeSnapshot(event({ jobType: "build-dashboard-snapshot" }));
@@ -982,11 +1008,18 @@ describe("consumeSnapshot job routing", () => {
 
     buildFilterSnapshot.mockResolvedValueOnce({ checkpointed: true, processed: 500, totalExpected: 4000 });
     await consumeSnapshot(event({ jobType: "build-filter-snapshot" }));
-    expect(log).toHaveBeenCalledWith(expect.stringContaining("checkpointed - 500/4000"));
+    expect(logged(log)).toContainEqual(
+      expect.objectContaining({
+        event: "build-filter-snapshot.step",
+        outcome: "checkpointed",
+        processed: 500,
+        totalExpected: 4000,
+      }),
+    );
 
     buildFilterSnapshot.mockResolvedValueOnce({ completed: true, processed: 4000 });
     await consumeSnapshot(event({ jobType: "build-filter-snapshot" }));
-    expect(log).toHaveBeenCalledWith(expect.stringContaining("completed - 4000 filters"));
+    expect(logged(log)).toContainEqual(expect.objectContaining({ outcome: "completed", processed: 4000 }));
 
     log.mockRestore();
   });
@@ -1015,8 +1048,9 @@ describe("consumeSnapshot job routing", () => {
 
     await consumeSnapshot(event({ jobType: "build-screen-snapshot" }));
 
-    expect(log).toHaveBeenCalledWith(expect.stringContaining("0 screens"));
-    expect(log).toHaveBeenCalledWith(expect.stringContaining("0 unresolved"));
+    expect(logged(log)).toContainEqual(
+      expect.objectContaining({ event: "build-screen-snapshot.done", screens: 0, unresolvedScreens: 0 }),
+    );
     log.mockRestore();
   });
 

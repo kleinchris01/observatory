@@ -207,6 +207,16 @@ New migrations must be appended to the `projectStoreMigrations` chain in `src/li
 
 ## Section 6: Common Error Patterns
 
+### Reading the Forge logs
+
+Every backend log line is one JSON object with an `event` field named `<function or job>.<what happened>`, plus fields for the values involved. Search by event rather than by message text:
+
+- `forge logs -e <env> | grep '"event":"runSnapshot.failed"'`
+- Every resolver failure ends in `.failed` (`getFieldInventory.failed`, `rovoPeopleSearch.failed`) and carries `error` and `stack`.
+- Queue steps log `<job>.step` with an `outcome` of `completed`, `checkpointed`, `waiting`, `handed-off`, `advanced`, or the reason they did nothing. Builds without steps log `<job>.done` with their counts.
+
+Backend code may not call `console.*` directly; ESLint fails the build. Use `logger` and `errorContext` from `src/lib/logger.js`.
+
 ### `Queue backpressure hit` in scan log
 
 Forge's internal queue rejected a push due to load. The scan or field summary job will retry automatically. No action required unless this persists for more than 30 minutes.
