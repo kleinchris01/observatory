@@ -244,6 +244,35 @@ export async function setFirstRunState({ payload }) {
   return { ok: true, firstRun: next };
 }
 
+// The field snapshot's build status, as the Overview and the Scans tab both show it.
+export function snapshotStatus(meta) {
+  return {
+    state: meta?.state || "idle",
+    refreshedAt: meta?.refreshedAt || null,
+    startedAt: meta?.startedAt || null,
+    completedAt: meta?.completedAt || null,
+    totalFields: meta?.totalFields || 0,
+    processedFields: meta?.processedFields || 0,
+    percent:
+      meta?.totalFields > 0 ? Math.min(100, Math.round(((meta.processedFields || 0) / meta.totalFields) * 100)) : 0,
+    lastError: meta?.lastError || null,
+    progressLog: (meta?.progressLog || []).slice(-50),
+  };
+}
+
+// Just the snapshot's build status: one meta row.
+//
+// The Scans tab polls this every 8 seconds while a build runs. It used to call
+// getAdminOverview for the same block, which meant thirteen pillar builds, every snapshot
+// field, a full score recompute and a health-history write -- every 8 seconds, against the
+// database the build itself was busy writing to.
+export async function getSnapshotStatus({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const meta = await readSnapshotMeta(getInstallationKey(context));
+  return { snapshot: snapshotStatus(meta) };
+}
+
 export async function getAdminOverview({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
@@ -428,18 +457,7 @@ export async function getAdminOverview({ context }) {
 
   return {
     config,
-    snapshot: {
-      state: meta?.state || "idle",
-      refreshedAt: meta?.refreshedAt || null,
-      startedAt: meta?.startedAt || null,
-      completedAt: meta?.completedAt || null,
-      totalFields: meta?.totalFields || 0,
-      processedFields: meta?.processedFields || 0,
-      percent:
-        meta?.totalFields > 0 ? Math.min(100, Math.round(((meta.processedFields || 0) / meta.totalFields) * 100)) : 0,
-      lastError: meta?.lastError || null,
-      progressLog: (meta?.progressLog || []).slice(-50),
-    },
+    snapshot: snapshotStatus(meta),
     jobCounts,
     findingsSummary,
     findingsByCode,

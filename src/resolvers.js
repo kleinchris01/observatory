@@ -121,7 +121,13 @@ import {
   createRemediationEpic,
   getRemediationCandidates,
 } from "./resolvers/remediation.js";
-import { getFirstRunState, setFirstRunState, getAdminOverview, getHealthHistory } from "./resolvers/overview.js";
+import {
+  getFirstRunState,
+  setFirstRunState,
+  getAdminOverview,
+  getSnapshotStatus,
+  getHealthHistory,
+} from "./resolvers/overview.js";
 import { getPillarUsage, getPillarHealth, getPillarReport, runOqlQuery } from "./resolvers/reports.js";
 import { getProjectOverview } from "./resolvers/project-overview.js";
 import { getAuditLog, migrateNamespaceKeys } from "./resolvers/admin-tools.js";
@@ -143,7 +149,7 @@ export { rovoWorkflowSearch, rovoWorkflowInspect, rovoWorkflowImpact } from "./r
 export { rovoSearchFields, rovoInspectField } from "./resolvers/rovo/fields.js";
 export { migrateNamespaceKeys } from "./resolvers/admin-tools.js";
 export { OQL_RESULT_LIMIT } from "./resolvers/reports.js";
-export { getFirstRunState, setFirstRunState, getAdminOverview } from "./resolvers/overview.js";
+export { getFirstRunState, setFirstRunState, getAdminOverview, getSnapshotStatus } from "./resolvers/overview.js";
 export {
   CLEAR_SNAPSHOT_CONFIRMATION,
   captureSiteHealthForScan,
@@ -357,6 +363,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getAdminConfig: getAdminConfigResolver, // Admin read: returns full admin config
   saveAdminConfig: saveAdminConfigResolver, // Mutating: rewrites thresholds and access control
   getAdminOverview, // Admin read: dashboard aggregate
+  getSnapshotStatus, // Admin read: the field snapshot's build status, for the Scans tab poll
   probeAutomationApi, // Admin read: reports which Jira endpoints answer, for diagnosis
   probeAssetsApi, // Admin read: confirms the JSM Assets API and workspace on this site
   probeServiceManagementApi, // Admin read: what the JSM API answers, per JSM pillar and build stage

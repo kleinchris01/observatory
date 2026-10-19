@@ -707,6 +707,7 @@ import {
   getAdminConfigResolver,
   saveAdminConfigResolver,
   getAdminOverview,
+  getSnapshotStatus,
   __RAW_ADMIN_ONLY_FUNCTIONS,
   runDeltaIssueScanJob,
   rovoSearchFields,
@@ -2020,6 +2021,36 @@ describe("getProjectsView", () => {
 
     expect(result.selectedProject?.projectId).not.toBe("20");
     expect(result.selectedProject?.projectId).toBe("10");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getSnapshotStatus
+// ---------------------------------------------------------------------------
+describe("getSnapshotStatus", () => {
+  // Polled every 8 seconds by the Scans tab during a build. It must stay one meta read: the
+  // Overview it replaced loaded every pillar and wrote a health-history row on each call.
+  test("returns the build status from the meta row alone", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({
+      state: "building",
+      startedAt: "2026-10-15T10:00:00Z",
+      totalFields: 200,
+      processedFields: 50,
+      progressLog: Array.from({ length: 60 }, (_, i) => ({ msg: `step ${i}` })),
+    });
+
+    const result = await getSnapshotStatus({ context: {} });
+
+    expect(result.snapshot).toMatchObject({ state: "building", totalFields: 200, processedFields: 50, percent: 25 });
+    expect(result.snapshot.progressLog).toHaveLength(50);
+    expect(mocks.loadSnapshotFields).not.toHaveBeenCalled();
+    expect(mocks.countFieldSummariesByStatus).not.toHaveBeenCalled();
+  });
+
+  test("reports idle with no snapshot yet", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    const result = await getSnapshotStatus({ context: {} });
+    expect(result.snapshot).toMatchObject({ state: "idle", percent: 0, lastError: null, progressLog: [] });
   });
 });
 
