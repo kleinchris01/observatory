@@ -4,6 +4,7 @@
 
 import { sql } from "@forge/sql";
 import { ensureProjectStoreReady, toNumber, withSqlRetry } from "./core.js";
+import { logger, errorContext } from "../logger.js";
 
 // Write one audit row. Never throws: an audit failure must not become the reason a
 // legitimate admin action fails, and must not become a way to block one either. Failures
@@ -31,7 +32,7 @@ export async function recordAuditEvent(scopeKey, { actorId, action, outcome, det
     );
     return { recorded: true };
   } catch (error) {
-    console.error("recordAuditEvent: failed to write audit row", error?.message || error);
+    logger.error("recordAuditEvent.failed_to_write_audit_row", errorContext(error));
     return { recorded: false };
   }
 }

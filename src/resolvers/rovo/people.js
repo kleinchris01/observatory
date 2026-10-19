@@ -5,6 +5,7 @@
 import { incrMetric, METRIC_NAMES } from "../../lib/jira-api.js";
 import { pillarUnavailable, agentOk, rankMatches, clampResults } from "../../lib/rovo-agents.js";
 import { getUserInventory, getUserDetails } from "../people.js";
+import { logger, errorContext } from "../../lib/logger.js";
 
 // ── Rovo: people expert ─────────────────────────────────────────────────────
 //
@@ -45,7 +46,7 @@ export async function rovoPeopleSearch(payload, context) {
     });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("rovoPeopleSearch failed:", error);
+    logger.error("rovoPeopleSearch.failed", errorContext(error));
     throw error;
   }
 }
@@ -85,7 +86,7 @@ export async function rovoPeopleInspect(payload, context) {
     });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("rovoPeopleInspect failed:", error);
+    logger.error("rovoPeopleInspect.failed", errorContext(error));
     throw error;
   }
 }
@@ -146,7 +147,7 @@ export async function rovoPeopleImpact(payload, context) {
     });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("rovoPeopleImpact failed:", error);
+    logger.error("rovoPeopleImpact.failed", errorContext(error));
     throw error;
   }
 }

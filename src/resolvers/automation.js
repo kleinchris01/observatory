@@ -35,7 +35,7 @@ import {
   MAX_STORED_CASCADES,
   MAX_STORED_CROSS_RULE,
 } from "../lib/store/automation.js";
-import { logger, fallbackOn } from "../lib/logger.js";
+import { logger, fallbackOn, errorContext } from "../lib/logger.js";
 import { readAdminConfig } from "./admin-config.js";
 
 // Governance findings over the site's automation rules.
@@ -95,7 +95,7 @@ export async function getAutomationInsights({ context }) {
     };
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("getAutomationInsights failed:", error);
+    logger.error("getAutomationInsights.failed", errorContext(error));
     throw error;
   }
 }
@@ -226,7 +226,7 @@ export async function saveAutomationAnalysis({ payload, context }) {
     return { saved: true, refreshedAt: stored.refreshedAt };
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("saveAutomationAnalysis failed:", error);
+    logger.error("saveAutomationAnalysis.failed", errorContext(error));
     throw error;
   }
 }
@@ -306,7 +306,7 @@ export async function saveAutomationIndex({ payload, context }) {
     return { saved: true, part, rowsWritten };
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("saveAutomationIndex failed:", error);
+    logger.error("saveAutomationIndex.failed", errorContext(error));
     throw error;
   }
 }
@@ -362,7 +362,7 @@ export async function getAutomationCascades({ payload, context }) {
     };
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("getAutomationCascades failed:", error);
+    logger.error("getAutomationCascades.failed", errorContext(error));
     throw error;
   }
 }
@@ -421,7 +421,7 @@ export async function getCascadeGraph({ payload, context }) {
     };
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("getCascadeGraph failed:", error);
+    logger.error("getCascadeGraph.failed", errorContext(error));
     throw error;
   }
 }
@@ -450,7 +450,7 @@ export async function getAutomationBlast({ payload, context }) {
     return { available: total > 0 || page > 1, rules, total, page, pageSize };
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("getAutomationBlast failed:", error);
+    logger.error("getAutomationBlast.failed", errorContext(error));
     throw error;
   }
 }
@@ -503,7 +503,7 @@ export async function getStatusAutomationUsage({ payload, context }) {
     };
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("getStatusAutomationUsage failed:", error);
+    logger.error("getStatusAutomationUsage.failed", errorContext(error));
     throw error;
   }
 }
@@ -598,7 +598,7 @@ export async function getAutomationIndex({ payload, context }) {
     };
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("getAutomationIndex failed:", error);
+    logger.error("getAutomationIndex.failed", errorContext(error));
     throw error;
   }
 }
@@ -702,7 +702,7 @@ export async function getAutomationFieldUsage({ payload, context }) {
     };
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("getAutomationFieldUsage failed:", error);
+    logger.error("getAutomationFieldUsage.failed", errorContext(error));
     throw error;
   }
 }
@@ -753,7 +753,7 @@ export async function getAutomationFieldCounts({ payload, context }) {
     return { available: true, counts };
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("getAutomationFieldCounts failed:", error);
+    logger.error("getAutomationFieldCounts.failed", errorContext(error));
     throw error;
   }
 }

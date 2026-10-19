@@ -9,6 +9,7 @@
 
 import { sql } from "@forge/sql";
 import { ensureProjectStoreReady, safeParseJson, toNumber, withSqlRetry } from "./core.js";
+import { logger, errorContext } from "../logger.js";
 
 // The UTC day a measurement belongs to.
 //
@@ -82,7 +83,7 @@ export async function recordHealthSnapshot(scopeKey, health, at = Date.now()) {
     );
     return { recorded: true };
   } catch (error) {
-    console.warn("recordHealthSnapshot: failed to write history row", error?.message || error);
+    logger.warn("recordHealthSnapshot.failed_to_write_history_row", errorContext(error));
     return { recorded: false };
   }
 }
@@ -355,7 +356,7 @@ export async function recordFullScanRun(scopeKey, run = {}) {
     await pruneFullScanRuns(scopeKey);
     return { recorded: true };
   } catch (error) {
-    console.warn("recordFullScanRun: failed to write run row", error?.message || error);
+    logger.warn("recordFullScanRun.failed_to_write_run_row", errorContext(error));
     return { recorded: false };
   }
 }

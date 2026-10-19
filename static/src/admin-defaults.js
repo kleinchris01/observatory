@@ -1,3 +1,5 @@
+import { DEFAULT_ANALYSIS_STALE_AFTER_DAYS } from "../../src/lib/automation-analysis";
+
 // Default admin configuration, extracted from admin.jsx so ConfigTab and AdminApp
 // can each import it without one depending on the other.
 
@@ -32,10 +34,8 @@ export const DEFAULT_REMEDIATION = {
   initiativeIssueType: "Initiative",
 };
 
-// Mirrors DEFAULT_ANALYSIS_STALE_AFTER_DAYS in src/lib/automation-analysis.js. Kept as a
-// literal rather than imported so this module stays free of backend imports, the way the
-// rest of the defaults here are; the ConfigTab test asserts the two agree.
-export const DEFAULT_AUTOMATION_STALE_AFTER_DAYS = 7;
+// The analyser's own default, imported so the page can never show a different one.
+export const DEFAULT_AUTOMATION_STALE_AFTER_DAYS = DEFAULT_ANALYSIS_STALE_AFTER_DAYS;
 
 export const DEFAULT_CONFIG = {
   readOnlyMode: false,

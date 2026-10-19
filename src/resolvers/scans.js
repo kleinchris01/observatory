@@ -62,7 +62,7 @@ import {
 } from "../lib/analysis.js";
 import { buildFieldJql, getFieldNumericId } from "../lib/transform.js";
 import { inventorySnapshotQueue } from "../lib/queues.js";
-import { logger, fallbackOn, ignoreWith } from "../lib/logger.js";
+import { logger, fallbackOn, ignoreWith, errorContext } from "../lib/logger.js";
 import { ADMIN_CONFIG_KEY, readAdminConfig } from "./admin-config.js";
 import { computeAndStoreScreenCross } from "./screens.js";
 
@@ -116,9 +116,10 @@ export async function clearSnapshot({ payload, context }) {
   });
 
   const result = await clearAllSnapshotData(installationKey);
-  console.log(
-    `clearSnapshot: deleted ${result.totalRowsDeleted} rows across ${Object.keys(result.deleted).length} tables`,
-  );
+  logger.info("clearSnapshot.done", {
+    totalRowsDeleted: result.totalRowsDeleted,
+    tableCount: Object.keys(result.deleted).length,
+  });
 
   return { cleared: true, ...result };
 }
@@ -613,7 +614,7 @@ export async function runDeltaIssueScanJob(installationKey, windowHours = DELTA_
   function logEntry(msg) {
     progressLog.push({ t: new Date().toISOString(), msg });
     if (progressLog.length > 100) progressLog.shift();
-    console.log(`runDeltaIssueScanJob: ${msg}`);
+    logger.info("runDeltaIssueScanJob.progress", { msg });
   }
 
   try {
@@ -623,7 +624,7 @@ export async function runDeltaIssueScanJob(installationKey, windowHours = DELTA_
     if (existing?.state === "building") {
       const startedMs = existing.startedAt ? new Date(existing.startedAt).getTime() : 0;
       if (startedMs && Date.now() - startedMs < 10 * 60 * 1000) {
-        console.log("runDeltaIssueScanJob: already in progress, skipping");
+        logger.info("runDeltaIssueScanJob.already_in_progress_skipping");
         return;
       }
     }
@@ -762,24 +763,24 @@ export async function runDeltaIssueScanJob(installationKey, windowHours = DELTA_
 
     if (rqtFieldHits.size > 0) {
       await upsertRqtFieldHits(installationKey, rqtFieldHits).catch((e) => {
-        console.error("runDeltaIssueScanJob: RQT flush error", e?.message || e);
+        logger.error("runDeltaIssueScanJob.rqt_flush_error", errorContext(e));
       });
       logEntry(`RQT index updated â€” ${rqtFieldHits.size} field(s) with RQT values`);
     }
     if (rqtIssueBuffer.length > 0) {
       await upsertRqtIssueKeys(installationKey, rqtIssueBuffer).catch((e) => {
-        console.error("runDeltaIssueScanJob: RQT issue key flush error", e?.message || e);
+        logger.error("runDeltaIssueScanJob.rqt_issue_key_flush_error", errorContext(e));
       });
       logEntry(`RQT issue keys updated â€” ${rqtIssueBuffer.length} issue(s)`);
     }
     if (rqtValueBuffer.length > 0) {
       await upsertRqtValueIssueKeys(installationKey, rqtValueBuffer).catch((e) => {
-        console.error("runDeltaIssueScanJob: RQT value index flush error", e?.message || e);
+        logger.error("runDeltaIssueScanJob.rqt_value_index_flush_error", errorContext(e));
       });
     }
     if (rqtFieldIssueBuffer.length > 0) {
       await upsertRqtFieldIssueKeys(installationKey, rqtFieldIssueBuffer).catch((e) => {
-        console.error(`RQT field issue index flush error`, e?.message || e);
+        logger.error("runDeltaIssueScanJob.rqt_field_issue_index_flush_error", errorContext(e));
       });
     }
 
@@ -895,7 +896,7 @@ export async function runDeltaIssueScanJob(installationKey, windowHours = DELTA_
         { t: new Date().toISOString(), msg: `Delta scan failed: ${error?.message || error}` },
       ],
     }).catch(ignoreWith("delta.failure_write_failed", { installationKey }));
-    console.error("runDeltaIssueScanJob failed:", error?.message || error);
+    logger.error("runDeltaIssueScanJob.failed", errorContext(error));
   }
 }
 

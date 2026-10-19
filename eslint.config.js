@@ -56,6 +56,13 @@ export default [
     ],
     languageOptions: { globals: { ...globals.vitest } },
   },
+  {
+    // Backend logs go through the structured logger (src/lib/logger.js) so every line is
+    // JSON with an event name. logger.js is the one place allowed to touch console.
+    files: ["src/**/*.js"],
+    ignores: ["src/**/*.test.js", "src/lib/logger.js"],
+    rules: { "no-console": "error" },
+  },
   // Last, so formatting is Prettier's job alone.
   prettier,
 ];

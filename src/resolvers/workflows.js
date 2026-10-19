@@ -32,7 +32,7 @@ import {
 } from "../lib/workflow-insights.js";
 import { assessStatusDeletion } from "../lib/deletion-safety.js";
 import { loadStatusAutomationReferences } from "../lib/store/automation.js";
-import { logger, fallbackOn } from "../lib/logger.js";
+import { logger, fallbackOn, errorContext } from "../lib/logger.js";
 import { requireNonEmptyString, requirePositiveInt, requireBoundedInt, optionalString } from "../lib/validate.js";
 import { getFilterUsage } from "./filters-dashboards.js";
 
@@ -187,7 +187,7 @@ export async function getWorkflowInventory({ payload, context }) {
     };
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("getWorkflowInventory failed:", error);
+    logger.error("getWorkflowInventory.failed", errorContext(error));
     throw error;
   }
 }
@@ -396,7 +396,7 @@ export async function getWorkflowInsights({ context }) {
     };
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("getWorkflowInsights failed:", error);
+    logger.error("getWorkflowInsights.failed", errorContext(error));
     throw error;
   }
 }

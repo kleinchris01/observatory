@@ -53,7 +53,7 @@ import {
   summarizeFindings,
 } from "../lib/analysis.js";
 import { buildFieldJql, buildOverallFieldJql, getFieldNumericId } from "../lib/transform.js";
-import { fallbackOn } from "../lib/logger.js";
+import { fallbackOn, logger, errorContext } from "../lib/logger.js";
 import { requireNonEmptyString, requirePositiveInt, requireBoundedInt, optionalString } from "../lib/validate.js";
 import { readAdminConfig } from "./admin-config.js";
 
@@ -270,7 +270,7 @@ export async function getFieldInventory({ payload, context }) {
     };
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("getFieldInventory failed:", error);
+    logger.error("getFieldInventory.failed", errorContext(error));
     throw error;
   }
 }
@@ -411,7 +411,7 @@ export async function getFieldDetails({ payload, context }) {
           });
         }
       } catch (contextError) {
-        console.warn(`getFieldDetails: context load failed for ${fieldId}: ${contextError?.message || contextError}`);
+        logger.warn("getFieldDetails.context_load_failed", { fieldId, error: contextError?.message || contextError });
       }
     }
 
@@ -475,7 +475,7 @@ export async function getFieldDetails({ payload, context }) {
       lastError: fieldSummary?.lastError || null,
     };
   } catch (error) {
-    console.error("getFieldDetails failed:", error);
+    logger.error("getFieldDetails.failed", errorContext(error));
     throw error;
   }
 }
@@ -656,7 +656,7 @@ export async function getFieldOptions({ payload, context }) {
 
     return { fieldId, optionsByContext, refreshedAt };
   } catch (error) {
-    console.error("getFieldOptions failed:", error);
+    logger.error("getFieldOptions.failed", errorContext(error));
     throw error;
   }
 }

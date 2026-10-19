@@ -5,6 +5,7 @@
 import { incrMetric, METRIC_NAMES } from "../../lib/jira-api.js";
 import { pillarUnavailable, agentOk, rankMatches, clampResults } from "../../lib/rovo-agents.js";
 import { getEstateInventory } from "../estate.js";
+import { logger, errorContext } from "../../lib/logger.js";
 
 // ── Rovo: priorities & resolutions expert ───────────────────────────────────
 //
@@ -46,7 +47,7 @@ export async function rovoEstateSearch(payload, context) {
     });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("rovoEstateSearch failed:", error);
+    logger.error("rovoEstateSearch.failed", errorContext(error));
     throw error;
   }
 }
@@ -75,7 +76,7 @@ export async function rovoEstateInspect(payload, context) {
     return out;
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("rovoEstateInspect failed:", error);
+    logger.error("rovoEstateInspect.failed", errorContext(error));
     throw error;
   }
 }
