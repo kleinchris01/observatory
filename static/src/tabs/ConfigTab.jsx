@@ -12,6 +12,7 @@ import {
 import { Toggle, ConfigSection, ConfigRow, InlineThresholdInput, SubNavLayout } from "../components/admin/primitives";
 import { PageHeader, StickyActions, Chip } from "../components/ui";
 import { usePersistentState } from "../hooks";
+import { DEFAULT_HEALTH_TOLERANCES, DEFAULT_HEALTH_TARGETS } from "../../../src/lib/health-score";
 
 // Governance thresholds, macro access and snapshot scheduling.
 
@@ -377,70 +378,21 @@ export function ServiceManagementProbePanel() {
   );
 }
 
+// The defaults the scorer uses, imported rather than copied. A hand-kept copy here had
+// drifted: 18 tolerances were missing (every filter and dashboard rule among them), so a site
+// with no saved values showed "NaN" in those inputs. Stored as rates; shown as percentages.
+const DEFAULT_TOLERANCES = DEFAULT_HEALTH_TOLERANCES;
+
+// Scoring model v2 target bands. The page edits and stores only the band; `blast` is the
+// scorer's own weighting and is not something an admin saves into config.
+const DEFAULT_TARGETS = Object.fromEntries(
+  Object.entries(DEFAULT_HEALTH_TARGETS).map(([key, { target, floor, direction }]) => [
+    key,
+    { target, floor, direction },
+  ]),
+);
+
 export function ConfigTab({ config, onSave, saving }) {
-  // Mirrors DEFAULT_HEALTH_TOLERANCES in src/lib/health-score.js. Stored as rates; shown as
-  // percentages, because "flag once 15% of statuses are duplicates" is how an admin thinks
-  // about an estate and 0.15 is not.
-  const DEFAULT_TOLERANCES = {
-    duplicateFieldNames: 0.1,
-    fieldFindings: 0.25,
-    unusedFields: 0.35,
-    duplicateStatuses: 0.15,
-    unreachableStatuses: 0.2,
-    brokenWorkflowRefs: 0.02,
-    inactiveWorkflows: 0.25,
-    unusedFieldConfigs: 0.3,
-    requiredHiddenConfigs: 0.02,
-    duplicateFieldConfigs: 0.2,
-    flaggedSchemes: 0.4,
-    irregularProjects: 0.25,
-    credentialRules: 0.02,
-    publicShares: 0.02,
-    brokenGadgets: 0.05,
-    selfTriggeringRules: 0.1,
-    disabledRules: 0.5,
-    externalHttpRules: 0.15,
-    estateWideRules: 0.06,
-    orphanIssueTypes: 0.12,
-    unusedTypeSchemes: 0.4,
-    duplicateIssueTypeNames: 0.15,
-    brokenTypeHierarchy: 0.25,
-    deactivatedLicenceHolders: 0.05,
-    orphanedOwnership: 0.1,
-    deadAssetSchemas: 0.2,
-    bareAssetTypes: 0.3,
-    brokenAssetReferences: 0.1,
-    emptyAssetTypes: 0.3,
-    unusedAccessSchemes: 0.35,
-    fragileNotificationSchemes: 0.3,
-    offRosterRoleActors: 0.05,
-    duplicateResolutions: 0.15,
-    duplicatePriorities: 0.2,
-    publicPermissionSchemes: 0.02,
-    everyoneSensitiveSchemes: 0.1,
-    directUserGrants: 0.1,
-    departedAccounts: 0.02,
-    directSecurityMembers: 0.25,
-    externalEmailRecipients: 0.02,
-    directRoleActors: 0.6,
-    unusedRoles: 0.3,
-    unusedEstateValues: 0.3,
-    boardsColumnHygiene: 0.25,
-    configChurn: 0.2,
-  };
-
-  // Scoring model v2: dimensions with a definable good state, tuned as a { target, floor }
-  // band of rates rather than a single bottom-out point. Mirrors DEFAULT_HEALTH_TARGETS in
-  // src/lib/health-score.js; the parity test keeps the two in step.
-  const DEFAULT_TARGETS = {
-    leastPrivilegeConformance: { target: 0.9, floor: 0.5, direction: "up" },
-    boardBackingIntegrity: { target: 0.98, floor: 0.75, direction: "up" },
-    schemeReuse: { target: 0.5, floor: 0.0, direction: "up" },
-    securityLevelIntegrity: { target: 0.95, floor: 0.7, direction: "up" },
-    adminRoleCoverage: { target: 0.95, floor: 0.6, direction: "up" },
-    screenReachability: { target: 0.95, floor: 0.6, direction: "up" },
-  };
-
   // Deep-merge a stored { key: { target, floor } } map over the defaults, so a config that
   // only tuned one band keeps the shipped values for the rest.
   function mergeTargets(stored) {

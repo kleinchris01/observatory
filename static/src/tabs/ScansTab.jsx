@@ -1,4 +1,5 @@
 import React from "react";
+import { FULL_SCAN_STALL_MS } from "../../../src/lib/scan-timing.js";
 import { invoke } from "@forge/bridge";
 import { formatTimestamp, formatShortTime, formatRelativeTime, formatNumber } from "../utils";
 import { Icon, useLiveDuration, useLiveElapsedMs } from "../components/Icons";
@@ -960,11 +961,9 @@ function SnapshotRecoveryNotice({ snapshot, onForceResume, forceResuming }) {
   );
 }
 
-// The orchestrator writes updatedAt on every step, so a run that has gone silent for this
-// long is one whose loop stopped -- a lost queue message, a consumer killed mid-stage.
-// Mirrors FULL_SCAN_STALL_MS in src/lib/full-scan.js; the hourly trigger recovers it on its
-// own, this is the "don't make me wait for the top of the hour" path.
-const SCAN_STALL_MS = 20 * 60 * 1000;
+// Same threshold as the orchestrator. The hourly trigger recovers a stalled run on its own;
+// this is the "don't make me wait for the top of the hour" path.
+const SCAN_STALL_MS = FULL_SCAN_STALL_MS;
 
 function ScanStallRecoveryNotice({ status, onResume, onAbandon, resuming, abandoning }) {
   if (status?.state !== "running" || !status?.updatedAt) return null;

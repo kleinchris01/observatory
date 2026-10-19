@@ -507,7 +507,7 @@ describe("AdminApp Overview tab -- Developer Console links", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 2c. Overview tab -- Recharts dashboard (Phase 2)
+// 2c. Overview tab -- dashboard (Phase 2)
 // ---------------------------------------------------------------------------
 
 describe("AdminApp Overview tab -- dashboard", () => {

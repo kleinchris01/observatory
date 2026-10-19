@@ -10,6 +10,7 @@ import {
   Chip,
   EmptyState,
   BarList,
+  Donut,
   FindingRow,
   LinkButton,
   PageHeader,
@@ -809,5 +810,53 @@ describe("SegmentedToggle", () => {
     expect(onChange).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "By priority" }));
     expect(onChange).toHaveBeenCalledWith("priority");
+  });
+});
+
+describe("Donut", () => {
+  const segs = (n) => Array.from({ length: n }, (_, i) => ({ label: `Type ${i + 1}`, value: 10 - i }));
+
+  test("shows the total in the centre and one legend row per segment", () => {
+    const { container } = render(<Donut segments={segs(3)} centerLabel="fields" label="Field types" />);
+    expect(container.querySelector(".ui-donut__value")).toHaveTextContent("27");
+    expect(screen.getByText("fields")).toBeInTheDocument();
+    expect(container.querySelectorAll(".ui-donut__segment")).toHaveLength(3);
+    expect(screen.getByRole("img")).toHaveAttribute("aria-label", "Field types: Type 1 10, Type 2 9, Type 3 8");
+  });
+
+  test("hovering a legend row puts that segment in the centre", async () => {
+    const { container } = render(<Donut segments={segs(3)} />);
+    const row = screen.getByText("Type 2");
+    await userEvent.hover(row);
+    expect(container.querySelector(".ui-donut__value")).toHaveTextContent("9");
+    expect(container.querySelector(".ui-donut__label")).toHaveTextContent("Type 2");
+    await userEvent.unhover(row);
+    expect(container.querySelector(".ui-donut__value")).toHaveTextContent("27");
+  });
+
+  test("hovering a segment does the same", async () => {
+    const { container } = render(<Donut segments={segs(2)} />);
+    await userEvent.hover(container.querySelectorAll(".ui-donut__segment")[1]);
+    expect(container.querySelector(".ui-donut__label")).toHaveTextContent("Type 2");
+  });
+
+  // Colours are assigned by slot and never cycled, so past the palette the tail folds.
+  test("folds segments beyond the palette into Other", () => {
+    render(<Donut segments={segs(10)} />);
+    expect(screen.getByText("Other")).toBeInTheDocument();
+    expect(screen.queryByText("Type 8")).not.toBeInTheDocument();
+    // Types 8, 9 and 10 have values 3, 2 and 1.
+    const other = screen.getByText("Other").closest(".chart-legend-item");
+    expect(other).toHaveTextContent("6");
+  });
+
+  test("ignores zero segments and shows the empty message when nothing is left", () => {
+    render(<Donut segments={[{ label: "None", value: 0 }]} emptyMessage="No types yet" />);
+    expect(screen.getByText("No types yet")).toBeInTheDocument();
+  });
+
+  test("a single segment draws a full ring with no gap", () => {
+    const { container } = render(<Donut segments={[{ label: "Only", value: 4 }]} />);
+    expect(container.querySelectorAll(".ui-donut__segment")).toHaveLength(1);
   });
 });

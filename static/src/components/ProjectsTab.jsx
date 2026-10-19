@@ -1,5 +1,4 @@
 import React from "react";
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import {
   buildJiraSearchUrl,
   buildProjectUrl,
@@ -10,7 +9,7 @@ import {
   isCustomField,
 } from "../utils";
 import { invoke } from "@forge/bridge";
-import { Icon, useChartPalette } from "./Icons";
+import { Icon } from "./Icons";
 import { SkeletonFieldCard, FindingsStrip, MetricChip } from "./FieldCard";
 import { SubNavLayout } from "./admin/primitives";
 import {
@@ -18,6 +17,7 @@ import {
   StatRow,
   StatTile,
   BarList,
+  Donut,
   PanelGrid,
   GridSpan,
   EmptyState,
@@ -31,56 +31,7 @@ import {
 } from "./ui";
 import { buildRovoPrompt } from "../utils";
 
-function ChartTooltip({ active, payload }) {
-  if (!active || !payload?.length) return null;
-  const { name, value } = payload[0];
-  return (
-    <div className="chart-tooltip">
-      <span className="chart-tooltip__label">{name}</span>
-      <span className="chart-tooltip__value">{formatNumber(value)}</span>
-    </div>
-  );
-}
-
-export function TopFieldsChart({ fields }) {
-  const palette = useChartPalette();
-  const top = [...fields]
-    .filter((f) => String(f.fieldId || "").startsWith("customfield_") && !f.isJiraBuiltin)
-    .sort((a, b) => b.issueCount - a.issueCount)
-    .slice(0, 8)
-    .map((field) => ({ name: field.fieldName, value: field.issueCount, fieldId: field.fieldId }));
-  if (!top.length) return null;
-  const chartHeight = Math.max(160, top.length * 34);
-  return (
-    <div className="project-chart">
-      <div className="chart-title">Top fields by issue count</div>
-      <div style={{ width: "100%", height: chartHeight }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={top} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 4 }}>
-            <XAxis type="number" hide />
-            <YAxis
-              type="category"
-              dataKey="name"
-              width={140}
-              tick={{ fontSize: 12, fill: "var(--muted)" }}
-              tickLine={false}
-              axisLine={false}
-            />
-            <Tooltip content={<ChartTooltip />} cursor={{ fill: "var(--stroke)" }} />
-            <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={18}>
-              {top.map((entry, i) => (
-                <Cell key={entry.fieldId} fill={palette[i % palette.length]} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
-  );
-}
-
 export function FieldTypeDonut({ fields }) {
-  const palette = useChartPalette();
   // System fields are excluded: they appear on every issue in every project, so counting
   // them describes Jira rather than this project. They also distort the chart badly --
   // each contributes its own name as a one-count "type", so a project with 12 custom
@@ -93,10 +44,8 @@ export function FieldTypeDonut({ fields }) {
   for (const f of customFields) {
     counts[f.fieldType] = (counts[f.fieldType] || 0) + 1;
   }
-  const entries = Object.entries(counts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 7);
-  const segments = entries.map(([type, count]) => ({ name: type, value: count }));
+  const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const segments = entries.map(([type, count]) => ({ label: type, value: count }));
   return (
     <div className="project-chart">
       <div className="chart-title">
@@ -108,39 +57,7 @@ export function FieldTypeDonut({ fields }) {
           </span>
         )}
       </div>
-      <div className="project-chart__donut-layout">
-        <div style={{ width: 120, height: 120, flexShrink: 0 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={segments}
-                dataKey="value"
-                nameKey="name"
-                innerRadius={32}
-                outerRadius={54}
-                paddingAngle={2}
-                stroke="none"
-              >
-                {segments.map((seg, i) => (
-                  <Cell key={seg.name} fill={palette[i % palette.length]} />
-                ))}
-              </Pie>
-              <Tooltip content={<ChartTooltip />} />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="chart-legend">
-          {segments.map((seg, i) => (
-            <div className="chart-legend-item" key={seg.name}>
-              <span className="chart-legend-dot" style={{ background: palette[i % palette.length] }} />
-              <span className="chart-legend-label" title={seg.name}>
-                {seg.name}
-              </span>
-              <span className="chart-legend-count">{seg.value}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      <Donut segments={segments} centerLabel="custom fields" label="Custom field types" />
     </div>
   );
 }
@@ -191,15 +108,6 @@ function SchemePeerBars({ scheme, project, allProjects }) {
     </Panel>
   );
 }
-
-// NOTE: TopFieldsChart and FieldTypeDonut are still exported and tested, but the Projects
-// tab no longer renders either. TopFieldsChart plotted one visible bar on this site --
-// fields present on every issue and on most issues differ by less than a pixel at 59k --
-// and the donut's information now lives in the connection map's inline type strip.
-//
-// Left exported rather than deleted mid-redesign: the donut is general-purpose and may be
-// wanted elsewhere. If neither is picked up, delete both with their tests rather than
-// leaving them to read as live code.
 
 // Everything that touches one project, across every pillar.
 //

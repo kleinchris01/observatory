@@ -10,7 +10,6 @@ vi.mock("@forge/bridge", () => ({
 
 import { invoke } from "@forge/bridge";
 import {
-  TopFieldsChart,
   FieldTypeDonut,
   ProjectsTabView,
   ProjectOverview,
@@ -29,57 +28,6 @@ import {
   PROJECT_METRICS,
   PROJECT_SORT_OPTIONS,
 } from "./ProjectsTab";
-
-// ---------------------------------------------------------------------------
-// TopFieldsChart
-// ---------------------------------------------------------------------------
-describe("TopFieldsChart", () => {
-  it("renders nothing (returns null) when no customfield_ entries", () => {
-    // TopFieldsChart only shows fields starting with "customfield_"
-    const { container } = render(<TopFieldsChart fields={[]} />);
-    expect(container.firstChild).toBeNull();
-  });
-
-  it("renders nothing when all fields lack the customfield_ prefix", () => {
-    const fields = [{ fieldId: "summary", fieldName: "Summary", issueCount: 5 }];
-    const { container } = render(<TopFieldsChart fields={fields} />);
-    expect(container.firstChild).toBeNull();
-  });
-
-  it("renders the chart title when valid customfield_ entries exist", () => {
-    const fields = [
-      { fieldId: "customfield_1", fieldName: "Epic Link", issueCount: 200 },
-      { fieldId: "customfield_2", fieldName: "Story Points", issueCount: 100 },
-    ];
-    render(<TopFieldsChart fields={fields} />);
-    expect(screen.getByText("Top fields by issue count")).toBeInTheDocument();
-  });
-
-  it("renders a bar for each qualifying field", () => {
-    const fields = [
-      { fieldId: "customfield_1", fieldName: "Epic Link", issueCount: 200 },
-      { fieldId: "customfield_2", fieldName: "Story Points", issueCount: 100 },
-    ];
-    const { container } = render(<TopFieldsChart fields={fields} />);
-    // Recharts' YAxis tick-collision avoidance depends on real text-measurement
-    // APIs jsdom doesn't implement, so it unpredictably drops some tick labels
-    // under test -- not something this component controls. Assert on the mark
-    // count instead, which renders reliably regardless of label collision logic.
-    expect(container.querySelectorAll(".recharts-bar-rectangle").length).toBe(2);
-  });
-
-  it("limits display to top 8 fields", () => {
-    const fields = Array.from({ length: 12 }, (_, i) => ({
-      fieldId: `customfield_${i + 1}`,
-      fieldName: `Field ${i + 1}`,
-      issueCount: 100 - i,
-    }));
-    const { container } = render(<TopFieldsChart fields={fields} />);
-    const bars = container.querySelectorAll(".recharts-bar-rectangle");
-    expect(bars.length).toBeLessThanOrEqual(8);
-    expect(bars.length).toBeGreaterThan(0);
-  });
-});
 
 // ---------------------------------------------------------------------------
 // FieldTypeDonut

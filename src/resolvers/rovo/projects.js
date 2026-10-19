@@ -6,6 +6,7 @@ import { incrMetric, METRIC_NAMES, getInstallationKey } from "../../lib/jira-api
 import { pillarUnavailable, agentOk, agentNotFound, rankMatches, clampResults } from "../../lib/rovo-agents.js";
 import { viewerProjects } from "../viewer.js";
 import { getProjectOverview } from "../project-overview.js";
+import { logger, errorContext } from "../../lib/logger.js";
 
 // ── Rovo: project expert ───────────────────────────────────────────────────
 //
@@ -31,7 +32,7 @@ export async function rovoProjectSearch(payload, context) {
     });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("rovoProjectSearch failed:", error);
+    logger.error("rovoProjectSearch.failed", errorContext(error));
     throw error;
   }
 }
@@ -74,7 +75,7 @@ export async function rovoProjectInspect(payload, context) {
     });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("rovoProjectInspect failed:", error);
+    logger.error("rovoProjectInspect.failed", errorContext(error));
     throw error;
   }
 }

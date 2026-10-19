@@ -5,6 +5,7 @@
 import { incrMetric, METRIC_NAMES } from "../../lib/jira-api.js";
 import { pillarUnavailable, agentOk, agentNotFound, rankMatches, clampResults } from "../../lib/rovo-agents.js";
 import { getScreenInventory } from "../screens.js";
+import { logger, errorContext } from "../../lib/logger.js";
 
 // ── Rovo: screen expert ────────────────────────────────────────────────────
 //
@@ -44,7 +45,7 @@ export async function rovoScreenSearch(payload, context) {
     });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("rovoScreenSearch failed:", error);
+    logger.error("rovoScreenSearch.failed", errorContext(error));
     throw error;
   }
 }
@@ -99,7 +100,7 @@ export async function rovoScreenInspect(payload, context) {
     });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("rovoScreenInspect failed:", error);
+    logger.error("rovoScreenInspect.failed", errorContext(error));
     throw error;
   }
 }
@@ -134,7 +135,7 @@ export async function rovoScreenImpact(payload, context) {
     });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
-    console.error("rovoScreenImpact failed:", error);
+    logger.error("rovoScreenImpact.failed", errorContext(error));
     throw error;
   }
 }

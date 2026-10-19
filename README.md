@@ -502,7 +502,7 @@ successful build.
 | AI | Atlassian Rovo agents + actions |
 | Tests | Vitest (Node + jsdom projects), `@vitest/coverage-v8` |
 | CSS | Custom design system with CSS variables — no component library |
-| Charts | Recharts |
+| Charts | In-house SVG: `Donut`, `BarList`, `Sparkline` in `ui.jsx`; the remediation charts in `RemediationProgress.jsx` |
 | Icons | Phosphor Icons |
 
 ---

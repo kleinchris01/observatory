@@ -1,5 +1,5 @@
 import { inventorySnapshotQueue } from "./queues.js";
-import { logger, fallbackOn, ignoreWith } from "./logger.js";
+import { logger, fallbackOn, ignoreWith, errorContext } from "./logger.js";
 import {
   incrMetric,
   METRIC_NAMES,
@@ -831,13 +831,13 @@ export async function refreshGovernanceFindingsForFields(installationKey, versio
   // Best-effort: if the rollup query fails, findings still recompute without the
   // staleness signal rather than losing the whole refresh.
   const lastChangeMap = await loadFieldLastChangeMap(installationKey, version, fieldIds).catch((err) => {
-    console.warn("refreshGovernanceFindingsForFields: last-change rollup failed:", err?.message || err);
+    logger.warn("refreshGovernanceFindingsForFields.last_change_rollup_failed", errorContext(err));
     return new Map();
   });
   // Values counted in projects since archived: data the crawl cannot see, so a field holding
   // them is never flagged as unused. Best-effort like the rollup above.
   const archivedUsage = await loadArchivedFieldUsage(installationKey, fieldIds).catch((err) => {
-    console.warn("refreshGovernanceFindingsForFields: archived usage read failed:", err?.message || err);
+    logger.warn("refreshGovernanceFindingsForFields.archived_usage_read_failed", errorContext(err));
     return new Map();
   });
 
@@ -902,7 +902,7 @@ export async function runSnapshot(installationKey, { continuationToken = null } 
     const entry = { t: new Date().toISOString(), msg };
     progressLog.push(entry);
     if (progressLog.length > 200) progressLog.shift();
-    console.log(`runSnapshot: ${msg}`);
+    logger.info("runSnapshot.progress", { msg });
   }
   setSnapshotLogger(logEntry);
 
@@ -946,16 +946,16 @@ export async function runSnapshot(installationKey, { continuationToken = null } 
         continuationToken && existingMeta.jobToken && continuationToken === existingMeta.jobToken,
       );
       if (!isOwnContinuation && !isSnapshotBuildStale(existingMeta)) {
-        console.log("runSnapshot: build already in progress, skipping duplicate");
+        logger.info("runSnapshot.duplicate_skipping");
         return;
       }
       if (existingMeta.buildingVersion) {
         version = existingMeta.buildingVersion;
         buildToken = existingMeta.jobToken || makeJobToken();
         resuming = true;
-        console.log(`runSnapshot: resuming ${isOwnContinuation ? "in-flight" : "stale"} build (version ${version})`);
+        logger.info("runSnapshot.resuming_build", { mode: isOwnContinuation ? "in-flight" : "stale", version });
       } else {
-        console.log("runSnapshot: existing build had no version, starting fresh");
+        logger.info("runSnapshot.build_without_version_restarting");
       }
     } else if (existingMeta?.state === "queued" && existingMeta.buildingVersion) {
       // Re-queued from a stale/stuck build (see requeueStaleSnapshotBuild) — state was
@@ -965,7 +965,7 @@ export async function runSnapshot(installationKey, { continuationToken = null } 
       version = existingMeta.buildingVersion;
       buildToken = existingMeta.jobToken || makeJobToken();
       resuming = true;
-      console.log(`runSnapshot: resuming re-queued build (version ${version})`);
+      logger.info("runSnapshot.resuming_requeued_build", { version });
     }
 
     if (!version) {
@@ -997,7 +997,7 @@ export async function runSnapshot(installationKey, { continuationToken = null } 
     // of buildingVersion proceeds. Others detect the mismatch and exit cleanly.
     const raceCheck = await readSnapshotMeta(installationKey);
     if (raceCheck?.buildingVersion !== version) {
-      console.log(`runSnapshot: lost startup race (our=${version} winner=${raceCheck?.buildingVersion}) — exiting`);
+      logger.info("runSnapshot.lost_startup_race", { version, buildingVersion: raceCheck?.buildingVersion });
       return;
     }
 
@@ -1089,7 +1089,7 @@ export async function runSnapshot(installationKey, { continuationToken = null } 
       } catch (usageErr) {
         const elapsed = Date.now() - t0;
         logEntry(`✗ ${fieldTag} — ERROR: ${usageErr?.message} (${elapsed}ms)`);
-        console.warn(`runSnapshot: usage stats failed for ${field.id}: ${usageErr?.message}`);
+        logger.warn("runSnapshot.usage_stats_failed", { fieldId: field.id, error: usageErr?.message });
       }
 
       // A timed-out/-1 count is unknown, not zero — store 0 so the record shape stays
@@ -1223,7 +1223,7 @@ export async function runSnapshot(installationKey, { continuationToken = null } 
         logEntry(`Pruned old snapshot data: ${pruned.fieldsDeleted} fields, ${pruned.usageRowsDeleted} usage rows`);
       }
     } catch (pruneErr) {
-      console.warn("pruneOldSnapshotVersions failed (non-fatal):", pruneErr?.message);
+      logger.warn("pruneOldSnapshotVersions.failed", errorContext(pruneErr));
     }
 
     logger.info("snapshot.complete", { installationKey, version, processedFields: totalCount, skipped: skipCount });
@@ -1275,7 +1275,7 @@ export async function runSnapshot(installationKey, { continuationToken = null } 
       }
     } else {
       logger.error("snapshot.failed", { installationKey, version, error: err?.message });
-      console.error("runSnapshot failed:", err?.message || err);
+      logger.error("runSnapshot.failed", errorContext(err));
       if (stillOwner) {
         // Keep state as "building" (not "failed") so stale-build detection can resume
         await writeSnapshotMeta(installationKey, {

@@ -18,7 +18,7 @@ import {
   findOrphanedStatuses,
   summarizeWorkflowInsights,
 } from "./workflow-insights.js";
-import { fallbackOn } from "./logger.js";
+import { fallbackOn, logger, errorContext } from "./logger.js";
 import { summarizeRuleInsights } from "./workflow-rules.js";
 import { summarizeFieldConfigHealth, SOURCE_LABEL as FIELD_BEHAVIOUR_SOURCE_LABEL } from "./fieldconfig-insights.js";
 import {
@@ -420,7 +420,7 @@ export async function buildWorkflowOverview(installationKey) {
       ...summarizeWorkflowInsights({ duplicateGroups, orphans, balance }),
     };
   } catch (error) {
-    console.warn("buildWorkflowOverview failed:", error?.message || error);
+    logger.warn("buildWorkflowOverview.failed", errorContext(error));
     return { available: false, state: "error" };
   }
 }
@@ -465,7 +465,7 @@ export async function buildFilterOverview(installationKey, { projectKeys = null,
       health: summarizeFilterHealth(summary),
     };
   } catch (error) {
-    console.warn("buildFilterOverview failed:", error?.message || error);
+    logger.warn("buildFilterOverview.failed", errorContext(error));
     return { available: false, state: "error" };
   }
 }
@@ -504,7 +504,7 @@ export async function buildDashboardOverview(installationKey) {
       health: summarizeDashboardHealth(summary),
     };
   } catch (error) {
-    console.warn("buildDashboardOverview failed:", error?.message || error);
+    logger.warn("buildDashboardOverview.failed", errorContext(error));
     return { available: false, state: "error" };
   }
 }
@@ -536,7 +536,7 @@ export async function buildScreenOverview(installationKey) {
       })),
     };
   } catch (error) {
-    console.warn("buildScreenOverview failed:", error?.message || error);
+    logger.warn("buildScreenOverview.failed", errorContext(error));
     return { available: false, state: "error" };
   }
 }
@@ -575,7 +575,7 @@ export async function buildIssueTypeOverview(installationKey) {
       health: summarizeIssueTypeHealth(summary),
     };
   } catch (error) {
-    console.warn("buildIssueTypeOverview failed:", error?.message || error);
+    logger.warn("buildIssueTypeOverview.failed", errorContext(error));
     return { available: false, state: "error" };
   }
 }
@@ -652,7 +652,7 @@ export async function buildUserOverview(installationKey) {
       },
     };
   } catch (error) {
-    console.warn("buildUserOverview failed:", error?.message || error);
+    logger.warn("buildUserOverview.failed", errorContext(error));
     return { available: false, state: "error" };
   }
 }
@@ -713,7 +713,7 @@ export async function buildAssetOverview(installationKey) {
       },
     };
   } catch (error) {
-    console.warn("buildAssetOverview failed:", error?.message || error);
+    logger.warn("buildAssetOverview.failed", errorContext(error));
     return { available: false, state: "error" };
   }
 }
@@ -801,7 +801,7 @@ export async function buildAccessOverview(installationKey) {
       roles: { ...roles, health: summarizeRoleHealth(roles) },
     };
   } catch (error) {
-    console.warn("buildAccessOverview failed:", error?.message || error);
+    logger.warn("buildAccessOverview.failed", errorContext(error));
     return { available: false, state: "error" };
   }
 }
@@ -843,7 +843,7 @@ export async function buildEstateOverview(installationKey) {
       health: { ...summarizeEstateHealth(summary), ...summarizeEstateUsage(usage) },
     };
   } catch (error) {
-    console.warn("buildEstateOverview failed:", error?.message || error);
+    logger.warn("buildEstateOverview.failed", errorContext(error));
     return { available: false, state: "error" };
   }
 }
@@ -866,7 +866,7 @@ export async function buildFieldConfigOverview(installationKey) {
       health: summarizeFieldConfigHealth(meta, meta.summary),
     };
   } catch (error) {
-    console.warn("buildFieldConfigOverview failed:", error?.message || error);
+    logger.warn("buildFieldConfigOverview.failed", errorContext(error));
     return { available: false, state: "error" };
   }
 }
@@ -903,7 +903,7 @@ export async function buildDriftHealthOverview(installationKey) {
       lastError: meta.lastError || null,
     };
   } catch (error) {
-    console.warn("buildDriftHealthOverview failed:", error?.message || error);
+    logger.warn("buildDriftHealthOverview.failed", errorContext(error));
     return { available: false, state: "error" };
   }
 }
@@ -946,7 +946,7 @@ export async function buildBoardOverview(installationKey) {
       health: summarizeBoardHealth(summary),
     };
   } catch (error) {
-    console.warn("buildBoardOverview failed:", error?.message || error);
+    logger.warn("buildBoardOverview.failed", errorContext(error));
     return { available: false, state: "error" };
   }
 }
@@ -1103,7 +1103,7 @@ export async function captureSiteHealth(installationKey, deps) {
     await recordHealthSnapshot(installationKey, health);
     return { captured: true, score: health.score };
   } catch (error) {
-    console.warn("captureSiteHealth: failed", error?.message || error);
+    logger.warn("captureSiteHealth.failed", errorContext(error));
     return { captured: false };
   }
 }
