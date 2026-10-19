@@ -285,6 +285,11 @@ export async function applyRemediationVerification({ payload, context }) {
   incrMetric(METRIC_NAMES.resolver);
   const installationKey = getInstallationKey(context);
   requireArray(payload?.issueKeys, "issueKeys");
+  // Read-only mode is the kill switch for every Jira write; this one used to miss it and would
+  // still reopen, close and comment on tasks.
+  const adminConfig = await readAdminConfig();
+  if (adminConfig.readOnlyMode)
+    return { error: "Read-only mode is enabled. Disable it before changing remediation tickets." };
   const issueKeys = [...new Set(payload.issueKeys.map(String))].slice(0, MAX_VERIFICATION_APPLY);
 
   const verification = await getRemediationVerification({

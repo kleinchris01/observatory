@@ -197,6 +197,17 @@ export const AUDITED_ADMIN_ACTIONS = new Set([
   "createRemediationEpic",
   "syncRemediationNow",
   "applyRemediationVerification",
+  "organiseRemediationHierarchy",
+]);
+
+// Every admin action that writes to Jira. Each must be audited, and each must refuse in
+// read-only mode before it writes anything; src/resolvers.test.js ("Jira write actions")
+// holds every member to both, and fails if any other module starts calling a Jira write
+// helper without being listed here.
+export const JIRA_WRITE_ACTIONS = new Set([
+  "createRemediationEpic",
+  "applyRemediationVerification",
+  "organiseRemediationHierarchy",
 ]);
 
 export function withAuditTrail(functions) {

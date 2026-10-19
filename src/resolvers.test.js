@@ -755,7 +755,12 @@ import {
   getFirstRunState,
   setFirstRunState,
 } from "./resolvers.js";
-import { AUDITED_ADMIN_ACTIONS, DENIAL_BURST_THRESHOLD, __resetDenialBurstState } from "./resolvers/admin-guard.js";
+import {
+  AUDITED_ADMIN_ACTIONS,
+  DENIAL_BURST_THRESHOLD,
+  JIRA_WRITE_ACTIONS,
+  __resetDenialBurstState,
+} from "./resolvers/admin-guard.js";
 import { logger } from "./lib/logger.js";
 
 const {
@@ -4039,6 +4044,77 @@ describe("denial-burst alerting", () => {
       mocks.callerHasJiraAdmin.mockResolvedValue(false);
       await expect(ADMIN_ONLY_FUNCTIONS.getSecuritySignals(ADMIN)).rejects.toThrow(AdminPermissionError);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Jira write actions
+// ---------------------------------------------------------------------------
+describe("Jira write actions", () => {
+  const ADMIN = { context: { accountId: "acct-admin" } };
+  const WRITE_HELPERS = ["createJiraIssue", "updateJiraIssue", "transitionIssueWithComment"];
+
+  beforeEach(() => {
+    __resetAdminCheckCache();
+    mocks.callerHasJiraAdmin.mockResolvedValue(true);
+  });
+
+  test("every Jira-writing action is audited and admin-only", () => {
+    expect(JIRA_WRITE_ACTIONS.size).toBeGreaterThan(0);
+    for (const name of JIRA_WRITE_ACTIONS) {
+      expect(AUDITED_ADMIN_ACTIONS.has(name), `${name} is not audited`).toBe(true);
+      expect(__RAW_ADMIN_ONLY_FUNCTIONS[name], `${name} is not in the admin registry`).toBeDefined();
+    }
+  });
+
+  // The list above is only as good as its completeness. Today every Jira write goes through
+  // the remediation module (and the hierarchy helper it hands the write functions to). A new
+  // caller anywhere else fails here until its action is added to JIRA_WRITE_ACTIONS.
+  test("no module outside remediation calls a Jira write helper", async () => {
+    const { readdirSync, readFileSync, statSync } = await import("node:fs");
+    const { join, relative } = await import("node:path");
+    const root = join(process.cwd(), "src");
+    const files = [];
+    const walk = (dir) => {
+      for (const name of readdirSync(dir)) {
+        const full = join(dir, name);
+        if (statSync(full).isDirectory()) walk(full);
+        else if (name.endsWith(".js") && !name.includes(".test.")) files.push(full);
+      }
+    };
+    walk(root);
+    const callers = files
+      .filter((f) => {
+        const text = readFileSync(f, "utf8");
+        return WRITE_HELPERS.some((h) => new RegExp(`\\b${h}\\s*\\(`).test(text));
+      })
+      .map((f) => relative(root, f).replace(/\\/g, "/"))
+      .sort();
+    expect(callers).toEqual(["lib/jira-api.js", "lib/remediation-hierarchy.js", "resolvers/remediation.js"]);
+  });
+
+  test.each([...JIRA_WRITE_ACTIONS])("%s refuses in read-only mode before writing anything", async (name) => {
+    mocks.kvsGet.mockResolvedValue({
+      readOnlyMode: true,
+      remediation: { projectKey: "OPS", hierarchyEnabled: true },
+    });
+
+    const result = await ADMIN_ONLY_FUNCTIONS[name]({
+      ...ADMIN,
+      payload: { findingKey: "filter-ownership", issueKeys: ["OPS-1"] },
+    });
+
+    expect(result.error).toMatch(/Read-only mode is enabled/);
+    for (const helper of WRITE_HELPERS) expect(mocks[helper], helper).not.toHaveBeenCalled();
+  });
+
+  test("organiseRemediationHierarchy is recorded in the audit log", async () => {
+    mocks.kvsGet.mockResolvedValue({ readOnlyMode: true });
+    await ADMIN_ONLY_FUNCTIONS.organiseRemediationHierarchy(ADMIN);
+    expect(mocks.recordAuditEvent).toHaveBeenCalledWith(
+      "test-install",
+      expect.objectContaining({ action: "organiseRemediationHierarchy", actorId: "acct-admin" }),
+    );
   });
 });
 
