@@ -1,5 +1,5 @@
 import { describe, test, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { OverviewDashboard } from "./OverviewDashboard";
 
@@ -236,7 +236,7 @@ describe("every finding carries the filter that isolates what it counted", () =>
     container.remove();
   });
 
-  test("no finding routes without one", async () => {
+  test("no finding routes without one", () => {
     const onNavigate = vi.fn();
     const { container } = renderAll(onNavigate);
 
@@ -246,7 +246,10 @@ describe("every finding carries the filter that isolates what it counted", () =>
     ];
     expect(controls.length).toBeGreaterThan(0);
 
-    for (const control of controls) await userEvent.click(control);
+    // fireEvent, not userEvent: this clicks every control on the dashboard, and simulated pointer
+    // sequences for dozens of them outran the 5-second timeout under the parallel coverage run.
+    // The assertion is about the intent each click produces, not pointer behaviour.
+    for (const control of controls) fireEvent.click(control);
 
     // Landing on a tab with no filter is the behaviour this replaced.
     for (const call of onNavigate.mock.calls) {
