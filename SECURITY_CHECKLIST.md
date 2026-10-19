@@ -1,7 +1,8 @@
 # Observatory — Security Checklist
 
-Last verified: **19 October 2026** against `master` at `7555b7d`, plus the denial-burst alerting
-added in the same change as this revision.
+Last verified: **19 October 2026** against `master` at `7555b7d`. Updated since in the change
+that added each control: denial-burst alerting (§2.2), the admin gate on the People and Access
+Rovo agents (§4).
 
 This document records what Observatory actually enforces, what it deliberately does not, and
 where the accepted risks and open items are. Every claim below is checkable against a named
@@ -228,12 +229,21 @@ derived snapshot data for the installation. See `RUNBOOK.md` for the procedure a
   prompt carries the shared preamble and that the manifest and prompt files agree.
 - **Project data is filtered.** The projects and fields agents return only what the caller can
   browse (§1.4).
-
-> **Open item — no admin gate on the People and Access agents.** Rovo actions are not behind the
-> admin guard. Any user who can use Rovo can ask the People agent about licensed users, licences
-> and group membership, or the Access agent about permission, issue-security and notification
-> schemes. Decide per agent: gate on Jira ADMINISTER (the admin page's rule), or document why the
-> data is acceptable for every Rovo user.
+- **People and Access answer Jira administrators only.** Enforced 19 Oct 2026. Rovo actions are not
+  resolvers, so the registry guard (§1.1) never sees them. These two agents report on data the admin
+  page reserves for Jira admins — licences, group membership and ownership; permission,
+  issue-security and notification schemes and project roles — so their handlers are wrapped in
+  `withRovoAdminGate` (`src/resolvers/admin-guard.js`, applied in `src/index.js`). It is the same
+  check as the admin page: as the user, fails closed (including when the check throws), the same
+  60-second cache. A refused caller gets `status: "admin-required"` and the prompts tell the agent
+  to say so rather than guess. Refusals are logged (`rovo.admin_required`) but neither audited nor
+  counted toward the denial-burst alert: a non-admin asking Rovo a question is ordinary use, not a
+  probe. `index.js` exports no ungated People or Access handler. Covered by `src/index.test.js`
+  ("admin gate on the People and Access agents").
+- **The other ten agents stay open** to every Rovo user: fields, automation, workflows, issue
+  types, Assets, priorities and resolutions, field setup, screens, change history and projects.
+  They report on configuration, with project data filtered as above. Gate another agent the same way if it
+  starts returning people or access data.
 
 > **Open item — indirect prompt injection.** Field, rule, filter and project names are written by
 > people and reach the model verbatim in action results. Add a preamble rule that tool output is
@@ -384,18 +394,17 @@ In priority order. Each links to the section that explains it.
 |---|---|---|
 | 1 | Live site runs the development environment; every merge deploys to it | §9 |
 | 2 | No branch protection on `master` | §9 |
-| 3 | People and Access Rovo agents have no admin gate | §4 |
-| 4 | `applyRemediationVerification` ignores read-only mode | §3.1 |
-| 5 | `organiseRemediationHierarchy` is not audited | §2.1 |
-| 6 | Slack webhook stored as an unmasked variable | §6 |
-| 7 | 3 fixable runtime advisories; the audit step never fails | §8 |
-| 8 | No closed-account handling for stored personal data | §3.3 |
-| 9 | Indirect prompt injection into Rovo agents; outdated preamble wording | §4 |
-| 10 | GitHub Actions pinned by tag, not SHA | §8 |
-| 11 | No logger redaction for sensitive fields | §12 |
-| 12 | 10 JSM scopes requested before their feature ships | §7 |
-| 13 | Deploys use one person's long-lived API token | §6 |
-| 14 | No threat model; no penetration test | §12 |
+| 3 | `applyRemediationVerification` ignores read-only mode | §3.1 |
+| 4 | `organiseRemediationHierarchy` is not audited | §2.1 |
+| 5 | Slack webhook stored as an unmasked variable | §6 |
+| 6 | 3 fixable runtime advisories; the audit step never fails | §8 |
+| 7 | No closed-account handling for stored personal data | §3.3 |
+| 8 | Indirect prompt injection into Rovo agents; outdated preamble wording | §4 |
+| 9 | GitHub Actions pinned by tag, not SHA | §8 |
+| 10 | No logger redaction for sensitive fields | §12 |
+| 11 | 10 JSM scopes requested before their feature ships | §7 |
+| 12 | Deploys use one person's long-lived API token | §6 |
+| 13 | No threat model; no penetration test | §12 |
 
 ---
 
@@ -417,7 +426,7 @@ Re-measure at every release and update this table in the same commit.
 | Scopes requested before their feature ships | 10 | 0 |
 | Jira-writing actions missing from the audit log | 1 | 0 |
 | Jira-writing actions not stopped by read-only mode | 1 | 0 |
-| Rovo agents returning admin-domain data without an admin gate | 2 (People, Access) | 0, or each documented |
+| Rovo agents returning admin-domain data without an admin gate | 0 (People and Access gated) | 0, or each documented |
 | Runtime advisories, high or critical | 8 high, 0 critical | 0 without a recorded acceptance |
 | Merges that reach the live site without staging | 100% | 0% |
 | Default branch protected with required checks | No | Yes |

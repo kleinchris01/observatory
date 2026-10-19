@@ -63,9 +63,9 @@ import {
   rovoAccessSearch,
   rovoAccessInspect,
   rovoAccessImpact,
-  rovoPeopleSearch,
-  rovoPeopleInspect,
-  rovoPeopleImpact,
+  rovoPeopleSearch as rawRovoPeopleSearch,
+  rovoPeopleInspect as rawRovoPeopleInspect,
+  rovoPeopleImpact as rawRovoPeopleImpact,
   rovoAssetSearch,
   rovoAssetInspect,
   rovoAssetImpact,
@@ -82,6 +82,7 @@ import {
   withMacroAccessGuard,
   ADMIN_ONLY_FUNCTIONS,
 } from "./resolvers.js";
+import { withRovoAdminGate } from "./resolvers/admin-guard.js";
 
 export async function runRetentionCleanup(_event, context) {
   const installationKey = getInstallationKey(context);
@@ -656,11 +657,18 @@ export const rovoIssueTypeAction = routeAgentAction({
   inspect: rovoIssueTypeInspect,
   impact: rovoIssueTypeImpact,
 });
-export const rovoAccessAction = routeAgentAction({
-  search: rovoAccessSearch,
-  inspect: rovoAccessInspect,
-  impact: rovoAccessImpact,
-});
+// People and Access answer Jira administrators only (withRovoAdminGate, admin-guard.js).
+export const rovoAccessAction = withRovoAdminGate(
+  "Access",
+  routeAgentAction({
+    search: rovoAccessSearch,
+    inspect: rovoAccessInspect,
+    impact: rovoAccessImpact,
+  }),
+);
+export const rovoPeopleSearch = withRovoAdminGate("People", rawRovoPeopleSearch);
+export const rovoPeopleInspect = withRovoAdminGate("People", rawRovoPeopleInspect);
+export const rovoPeopleImpact = withRovoAdminGate("People", rawRovoPeopleImpact);
 export const rovoAssetAction = routeAgentAction({
   search: rovoAssetSearch,
   inspect: rovoAssetInspect,
@@ -682,8 +690,6 @@ export { rovoSearchFields, rovoInspectField };
 export { rovoSearchAutomationRules, rovoInspectAutomationRule, rovoAutomationUsage };
 export { rovoWorkflowSearch, rovoWorkflowInspect, rovoWorkflowImpact };
 export { rovoIssueTypeSearch, rovoIssueTypeInspect, rovoIssueTypeImpact };
-export { rovoAccessSearch, rovoAccessInspect, rovoAccessImpact };
-export { rovoPeopleSearch, rovoPeopleInspect, rovoPeopleImpact };
 export { rovoAssetSearch, rovoAssetInspect, rovoAssetImpact };
 export { rovoEstateSearch, rovoEstateInspect };
 import { rovoFieldConfigSearch, rovoFieldConfigInspect, rovoFieldConfigImpact } from "./lib/fieldconfig-reads.js";
