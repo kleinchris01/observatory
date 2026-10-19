@@ -12,6 +12,7 @@
 
 import { inventorySnapshotQueue } from "./queues.js";
 import { logger } from "./logger.js";
+import { FULL_SCAN_STALL_MS } from "./scan-timing.js";
 
 // Order matters, and it is not the dependency order alone.
 //
@@ -247,7 +248,7 @@ export const FULL_SCAN_STAGE_STALE_MS = 16 * 60 * 1000;
 // Nothing inside runScanStep can detect that, because runScanStep is what stopped being
 // called. 20 minutes clears the 900s consumer ceiling plus the 30s poll delay with room to
 // spare, and sits well inside the hourly cadence of the trigger that runs the watchdog.
-export const FULL_SCAN_STALL_MS = 20 * 60 * 1000;
+export { FULL_SCAN_STALL_MS };
 
 // How many times the watchdog will re-kick a stalled run before giving up on it.
 //
