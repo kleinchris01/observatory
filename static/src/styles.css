@@ -11429,3 +11429,40 @@ a.dash-row__name:hover {
 .verify-confirm p {
   margin: 0 0 0.6rem;
 }
+
+/* ── Security alert (admin Overview) ─────────────────────────────────────────── */
+.admin-security-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--tone-critical) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tone-critical) 45%, transparent);
+  color: var(--tone-critical-text);
+  flex-wrap: wrap;
+}
+.admin-security-banner__body {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex: 1;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.admin-security-banner__body strong {
+  font-weight: 600;
+}
+.admin-security-banner__when {
+  color: var(--muted);
+}
+.admin-security-banner--unavailable {
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 9px 14px;
+  font-size: 12px;
+  color: var(--muted);
+  background: none;
+  border-color: var(--stroke);
+}

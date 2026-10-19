@@ -3,7 +3,7 @@
 // Moved verbatim from src/resolvers.js; see docs/resolvers-refactor.md.
 
 import { getInstallationKey, callerHasJiraAdmin } from "../lib/jira-api.js";
-import { recordAuditEvent } from "../lib/project-store.js";
+import { recordAuditEvent, summarizeRecentDenials } from "../lib/project-store.js";
 import { logger } from "../lib/logger.js";
 
 // â”€â”€ Admin authorization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -52,6 +52,50 @@ export async function safeAudit(scopeKey, event) {
   }
 }
 
+// ── Denial-burst alert ──────────────────────────────────────────────────────────────
+//
+// One denial is usually someone opening a link they shouldn't have. More than
+// DENIAL_BURST_THRESHOLD in an hour is the pattern of someone invoking admin resolvers
+// directly, which is the probe this guard exists to stop. The guard already refuses them;
+// this makes sure a person hears about it, through a structured `security.denial_burst`
+// event a log drain can alert on, and the banner the Overview shows (getSecuritySignals).
+//
+// The cooldown is per warm container and per installation. It bounds the alert to one event
+// per 10 minutes while a burst lasts, and skips the count query entirely in that window, so a
+// flood of denials costs one audit insert each and nothing more.
+export const DENIAL_BURST_THRESHOLD = 5;
+export const DENIAL_BURST_WINDOW_MS = 60 * 60 * 1000;
+export const DENIAL_BURST_COOLDOWN_MS = 10 * 60 * 1000;
+
+const denialBurstAlertedAt = new Map();
+
+export function __resetDenialBurstState() {
+  denialBurstAlertedAt.clear();
+}
+
+// Never throws and never changes the guard's answer: the alert is best-effort, the refusal is not.
+export async function checkDenialBurst(installationKey, action) {
+  const last = denialBurstAlertedAt.get(installationKey);
+  if (last && Date.now() - last < DENIAL_BURST_COOLDOWN_MS) return false;
+  try {
+    const summary = await summarizeRecentDenials(installationKey, DENIAL_BURST_WINDOW_MS);
+    if (summary.denials <= DENIAL_BURST_THRESHOLD) return false;
+    denialBurstAlertedAt.set(installationKey, Date.now());
+    logger.error("security.denial_burst", {
+      installationKey,
+      denials: summary.denials,
+      actors: summary.actors,
+      windowMinutes: DENIAL_BURST_WINDOW_MS / 60000,
+      threshold: DENIAL_BURST_THRESHOLD,
+      latestAction: action,
+    });
+    return true;
+  } catch (error) {
+    logger.warn("security.denial_burst_check_failed", { error: error?.message || String(error) });
+    return false;
+  }
+}
+
 export class AdminPermissionError extends Error {
   constructor() {
     super("This action requires Jira administrator permission.");
@@ -76,6 +120,7 @@ export function withAdminGuard(functions) {
             detail: "Caller does not hold Jira ADMINISTER permission",
           });
           logger.warn("auth.denied", { action: name, actorId: accountId });
+          await checkDenialBurst(installationKey, name);
           throw new AdminPermissionError();
         }
         return fn(req);

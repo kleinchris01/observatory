@@ -392,6 +392,32 @@ describe("ConfigTab — areas", () => {
     expect(screen.queryByRole("button", { name: /Save configuration/i })).not.toBeInTheDocument();
   });
 
+  // The Overview's security banner deep-links here.
+  test("an intent opens Diagnostics with the audit log filtered to denials", async () => {
+    vi.mocked(invoke).mockImplementation(async (name) =>
+      name === "getAuditLog"
+        ? {
+            events: [
+              { at: "2026-10-19T12:00:00Z", actorId: "acct-a", action: "saveAdminConfig", outcome: "allowed" },
+              { at: "2026-10-19T12:01:00Z", actorId: "acct-b", action: "clearSnapshot", outcome: "denied" },
+            ],
+          }
+        : {},
+    );
+    render(
+      <ConfigTab
+        config={cfg()}
+        onSave={vi.fn()}
+        saving={false}
+        intent={{ area: "diagnostics", auditOutcome: "denied" }}
+      />,
+    );
+
+    expect(await screen.findByText("clearSnapshot")).toBeInTheDocument();
+    expect(screen.queryByText("saveAdminConfig")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Denied" })).toHaveClass("audit-filter--active");
+  });
+
   test("reports saved state until something is edited", async () => {
     render(<ConfigTab config={cfg()} onSave={vi.fn()} saving={false} />);
     expect(screen.getByText("All changes saved")).toBeInTheDocument();

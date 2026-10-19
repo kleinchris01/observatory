@@ -6,11 +6,11 @@ import { formatTimestamp } from "../../utils";
 // Append-only record of privileged actions. Its own module because ConfigTab renders it
 // and admin.jsx imports ConfigTab -- keeping it here avoids the cycle.
 
-export function AuditLogPanel() {
+export function AuditLogPanel({ initialOutcome = "all" } = {}) {
   const [events, setEvents] = React.useState(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState(null);
-  const [outcomeFilter, setOutcomeFilter] = React.useState("all");
+  const [outcomeFilter, setOutcomeFilter] = React.useState(initialOutcome);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -24,6 +24,12 @@ export function AuditLogPanel() {
       setLoading(false);
     }
   }, []);
+
+  // Opened from a link that names a filter (the Overview's security banner): the reader came
+  // for these rows, so load them rather than making them press the button first.
+  React.useEffect(() => {
+    if (initialOutcome !== "all") load();
+  }, [initialOutcome, load]);
 
   const visible = React.useMemo(() => {
     if (!events) return [];

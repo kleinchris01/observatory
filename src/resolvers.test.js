@@ -42,6 +42,7 @@ const mocks = vi.hoisted(() => ({
   clearAllSnapshotData: vi.fn().mockResolvedValue({ deleted: {}, totalRowsDeleted: 0 }),
   recordAuditEvent: vi.fn().mockResolvedValue({ recorded: true }),
   listAuditEvents: vi.fn().mockResolvedValue([]),
+  summarizeRecentDenials: vi.fn().mockResolvedValue({ denials: 0, actors: 0, latestAt: null }),
   loadSnapshotFields: vi.fn(),
   loadSnapshotField: vi.fn(),
   loadSnapshotProjectUsage: vi.fn(),
@@ -386,6 +387,7 @@ vi.mock("./lib/project-store.js", () => ({
   clearAllSnapshotData: mocks.clearAllSnapshotData,
   recordAuditEvent: mocks.recordAuditEvent,
   listAuditEvents: mocks.listAuditEvents,
+  summarizeRecentDenials: mocks.summarizeRecentDenials,
   loadSnapshotFields: mocks.loadSnapshotFields,
   loadSnapshotField: mocks.loadSnapshotField,
   loadSnapshotProjectUsage: mocks.loadSnapshotProjectUsage,
@@ -753,7 +755,8 @@ import {
   getFirstRunState,
   setFirstRunState,
 } from "./resolvers.js";
-import { AUDITED_ADMIN_ACTIONS } from "./resolvers/admin-guard.js";
+import { AUDITED_ADMIN_ACTIONS, DENIAL_BURST_THRESHOLD, __resetDenialBurstState } from "./resolvers/admin-guard.js";
+import { logger } from "./lib/logger.js";
 
 const {
   saveReportDefinition,
@@ -3925,6 +3928,116 @@ describe("admin authorization guard", () => {
     await expect(
       ADMIN_ONLY_FUNCTIONS.getIssueScanStatus({ context: { accountId: "acct-other" }, payload: {} }),
     ).rejects.toThrow(AdminPermissionError);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Denial-burst alerting
+// ---------------------------------------------------------------------------
+describe("denial-burst alerting", () => {
+  const CTX = { context: { accountId: "acct-probe" }, payload: {} };
+  const burstEvents = (spy) => spy.mock.calls.filter(([event]) => event === "security.denial_burst");
+
+  beforeEach(() => {
+    __resetAdminCheckCache();
+    __resetDenialBurstState();
+    mocks.callerHasJiraAdmin.mockResolvedValue(false);
+    mocks.summarizeRecentDenials.mockResolvedValue({ denials: 1, actors: 1, latestAt: "2026-10-19T12:00:00Z" });
+  });
+
+  test("a denial at or under the threshold raises no alert", async () => {
+    mocks.summarizeRecentDenials.mockResolvedValueOnce({ denials: DENIAL_BURST_THRESHOLD, actors: 1, latestAt: null });
+    const spy = vi.spyOn(logger, "error");
+
+    await expect(ADMIN_ONLY_FUNCTIONS.clearSnapshot(CTX)).rejects.toThrow(AdminPermissionError);
+
+    expect(mocks.summarizeRecentDenials).toHaveBeenCalledWith("test-install", 60 * 60 * 1000);
+    expect(burstEvents(spy)).toHaveLength(0);
+    spy.mockRestore();
+  });
+
+  test("crossing the threshold logs security.denial_burst with the counts", async () => {
+    mocks.summarizeRecentDenials.mockResolvedValueOnce({ denials: 6, actors: 2, latestAt: null });
+    const spy = vi.spyOn(logger, "error");
+
+    await expect(ADMIN_ONLY_FUNCTIONS.saveAdminConfig(CTX)).rejects.toThrow(AdminPermissionError);
+
+    expect(burstEvents(spy)).toEqual([
+      [
+        "security.denial_burst",
+        expect.objectContaining({ denials: 6, actors: 2, threshold: 5, latestAction: "saveAdminConfig" }),
+      ],
+    ]);
+    spy.mockRestore();
+  });
+
+  // A flood must cost one audit insert per denial and nothing more: no repeat alerts, and no
+  // count query, until the cooldown has passed.
+  test("alerts once per cooldown and stops counting while it lasts", async () => {
+    mocks.summarizeRecentDenials.mockResolvedValue({ denials: 40, actors: 1, latestAt: null });
+    const spy = vi.spyOn(logger, "error");
+
+    for (let i = 0; i < 4; i++) {
+      await expect(ADMIN_ONLY_FUNCTIONS.clearSnapshot(CTX)).rejects.toThrow(AdminPermissionError);
+    }
+
+    expect(burstEvents(spy)).toHaveLength(1);
+    expect(mocks.summarizeRecentDenials).toHaveBeenCalledTimes(1);
+    expect(mocks.recordAuditEvent).toHaveBeenCalledTimes(4);
+    spy.mockRestore();
+  });
+
+  test("a failing count never changes the refusal", async () => {
+    mocks.summarizeRecentDenials.mockRejectedValueOnce(new Error("sql down"));
+
+    await expect(ADMIN_ONLY_FUNCTIONS.clearSnapshot(CTX)).rejects.toThrow(AdminPermissionError);
+    expect(mocks.clearAllSnapshotData).not.toHaveBeenCalled();
+  });
+
+  test("an allowed admin call never runs the burst check", async () => {
+    mocks.callerHasJiraAdmin.mockResolvedValue(true);
+    await ADMIN_ONLY_FUNCTIONS.getIssueScanStatus({ context: { accountId: "acct-admin" }, payload: {} });
+    expect(mocks.summarizeRecentDenials).not.toHaveBeenCalled();
+  });
+
+  describe("getSecuritySignals", () => {
+    const ADMIN = { context: { accountId: "acct-admin" }, payload: {} };
+    beforeEach(() => mocks.callerHasJiraAdmin.mockResolvedValue(true));
+
+    test("reports a burst by the same rule the guard alerts on", async () => {
+      mocks.summarizeRecentDenials.mockResolvedValueOnce({ denials: 9, actors: 3, latestAt: "2026-10-19T12:00:00Z" });
+      expect(await ADMIN_ONLY_FUNCTIONS.getSecuritySignals(ADMIN)).toEqual({
+        ok: true,
+        denials: {
+          denials: 9,
+          actors: 3,
+          latestAt: "2026-10-19T12:00:00Z",
+          windowMinutes: 60,
+          threshold: 5,
+          burst: true,
+        },
+      });
+    });
+
+    test("a quiet hour is not a burst", async () => {
+      mocks.summarizeRecentDenials.mockResolvedValueOnce({ denials: 2, actors: 1, latestAt: null });
+      const res = await ADMIN_ONLY_FUNCTIONS.getSecuritySignals(ADMIN);
+      expect(res.denials.burst).toBe(false);
+    });
+
+    // Silence is not all-clear: a failed read must say so rather than report zero denials.
+    test("a failed read is unavailable, not zero", async () => {
+      mocks.summarizeRecentDenials.mockRejectedValueOnce(new Error("sql down"));
+      expect(await ADMIN_ONLY_FUNCTIONS.getSecuritySignals(ADMIN)).toEqual({
+        ok: false,
+        unavailable: expect.stringContaining("could not be read"),
+      });
+    });
+
+    test("is admin-only", async () => {
+      mocks.callerHasJiraAdmin.mockResolvedValue(false);
+      await expect(ADMIN_ONLY_FUNCTIONS.getSecuritySignals(ADMIN)).rejects.toThrow(AdminPermissionError);
+    });
   });
 });
 

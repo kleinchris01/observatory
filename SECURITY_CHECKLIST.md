@@ -1,11 +1,17 @@
 # Observatory — Security Checklist
 
-Last verified: **31 July 2026** against `master`.
+Last verified: **19 October 2026** against `master` at `7555b7d`, plus the denial-burst alerting
+added in the same change as this revision.
 
-This document records what Observatory actually enforces, what it deliberately does
-not, and where the accepted risks are. Every claim below is checkable against a named
-file. If you change a control, change this file in the same commit — a checklist that
-drifts from the code is worse than no checklist, because people quote it.
+This document records what Observatory actually enforces, what it deliberately does not, and
+where the accepted risks and open items are. Every claim below is checkable against a named
+file. If you change a control, change this file in the same commit — a checklist that drifts
+from the code is worse than no checklist, because people quote it.
+
+> **Why this revision exists.** The 31 July version had drifted by October. It still said
+> Observatory never writes to Jira and requests 23 scopes; by then it requested 60, including
+> `write:jira-work`, and created, commented on and transitioned remediation issues. Section
+> 11 lists every item that is open today, so nobody reads a missing section as assurance.
 
 ---
 
@@ -13,28 +19,24 @@ drifts from the code is worse than no checklist, because people quote it.
 
 ### 1.1 Admin functions require Jira ADMINISTER
 
-**Enforced.** Every function in `ADMIN_ONLY_FUNCTIONS` verifies the *calling user* holds
-the Jira `ADMINISTER` global permission before running (`src/resolvers.js`,
-`withAdminGuard`).
+**Enforced.** Every function in the admin registry verifies the *calling user* holds the Jira
+`ADMINISTER` global permission before it runs (`withAdminGuard`, `src/resolvers/admin-guard.js`,
+applied to `RAW_ADMIN_ONLY_FUNCTIONS` in `src/resolvers.js`).
 
-The check is applied by wrapping the whole registry at export, not by calling a helper
-inside each function. A function added to the registry is guarded by construction —
-there is no step anyone can forget.
+The guard wraps the whole registry at export rather than being called inside each function. A
+function added to the registry is guarded by construction — there is no step anyone can forget.
 
-- Permission is checked via `POST /rest/api/3/permissions/check` **as the user**, not as
-  the app (`callerHasJiraAdmin`, `src/lib/jira-api.js`). Checking as the app would report
-  the app's own permissions and answer nothing useful.
-- Fails closed. A missing `accountId`, an API error, or an unparseable response all
-  resolve to "not an admin".
-- Denials are audited and logged at `warn` (`auth.denied`).
+- Permission is checked via `POST /rest/api/3/permissions/check` **as the user**
+  (`callerHasJiraAdmin`, `src/lib/jira-api.js`). Checking as the app would report the app's own
+  permissions and answer nothing useful.
+- Fails closed. A missing `accountId`, an API error, or an unparseable response all resolve to
+  "not an admin". An anonymous caller is refused without a Jira round trip.
+- Denials are audited, logged at `warn` (`auth.denied`), and counted for the burst alert (§2.2).
 
-> **Why this exists.** The `jira:adminPage` module controls who can *see* the admin page.
-> It does not control who can reach its resolver — an `invoke()` is an authenticated app
-> endpoint, and module placement is a UI affordance, not an authorization boundary. Before
-> 31 July 2026 there were **no permission checks anywhere in `resolvers.js`**, which meant
-> `clearSnapshot`, `saveAdminConfig` and `migrateNamespaceKeys` were reachable by any
-> authenticated user able to craft an invoke. This was the finding that prompted this
-> document.
+> **Why this exists.** The `jira:adminPage` module controls who can *see* the admin page. It does
+> not control who can reach its resolver — an `invoke()` is an authenticated app endpoint, and
+> module placement is a UI affordance, not an authorization boundary. Before 31 July 2026 there
+> were no permission checks anywhere in the resolvers.
 
 ### 1.2 The macro resolver cannot reach admin functions
 
@@ -42,317 +44,406 @@ there is no step anyone can forget.
 
 | Handler | Registers | Module |
 |---|---|---|
-| `handler` | `SHARED_RESOLVER_FUNCTIONS` only | Confluence macro |
-| `adminHandler` | shared + `ADMIN_ONLY_FUNCTIONS` | `jira:adminPage` |
+| `handler` | `SHARED_RESOLVER_FUNCTIONS` only, behind the macro group gate | Confluence macro |
+| `adminHandler` | shared + the guarded admin registry | `jira:adminPage` |
 
-A function absent from the shared set is not merely hidden from the macro UI — it is not
-registered on that resolver, so an invoke from the macro iframe fails to resolve rather
-than executing.
-
-`src/index.test.js` asserts that `adminHandler` registers **nothing** beyond those two
-registries. Anything spread in directly would bypass the guard, and that test fails if
-someone tries.
+A function absent from the shared set is not registered on the macro's resolver, so an invoke
+from the macro iframe fails to resolve rather than executing. `src/index.test.js` ("resolver
+handler registries") asserts that `adminHandler` registers nothing beyond those two registries.
 
 ### 1.3 Macro viewer access is group-gated
 
 **Enforced on every macro read, fails open.** When `macroAccess.restrictAccess` is on,
-`withMacroAccessGuard` (`src/resolvers.js`, applied to the macro handler in `src/index.js`)
-checks the caller's Jira groups before every shared resolver runs. `checkMacroAccess`, which
-the page asks first so it can explain a denial, uses the same decision.
+`withMacroAccessGuard` (`src/resolvers/macro-access.js`) checks the caller's Jira groups before
+every shared resolver runs. The answer is cached per account for 60 seconds
+(`MACRO_ACCESS_TTL_MS`); a failed lookup is not cached.
 
-> **Fixed 1 Oct 2026.** Until then only `checkMacroAccess` read the group list. The page hid
-> itself for a viewer outside the groups, but `getMacroFields` and every other macro read
-> answered a direct `invoke()` regardless. Data was still filtered to the projects the caller
-> can browse, so the exposure was "the restriction does nothing", not "everything leaks".
-> `src/index.test.js` now asserts the macro registry goes through the guard.
-
-The group answer is cached per account for 60 seconds (`MACRO_ACCESS_TTL_MS`), the same
-window and the same accepted risk as the admin check in 1.5. A failed lookup is not cached.
-
-> **Accepted risk.** If the Jira group-lookup API call fails, access is **granted**
-> (`src/resolvers.js`, "fail open — don't block on API error"). Rationale: the macro is
-> read-only and shows no governance findings, so the cost of an unrelated Jira API blip
-> blacking out a Confluence page for everyone was judged higher than the cost of briefly
-> over-granting read access to a field catalog. An attacker who can reliably fail that
-> specific API call could view the field inventory. **This is a deliberate choice, not an
-> oversight.** If Observatory is ever extended to show sensitive data in the macro, this
-> must be revisited first.
+> **Accepted risk.** If the Jira group-lookup call fails, access is **granted**
+> (`src/resolvers/macro-access.js`, "fail open"). The macro is read-only and shows the field
+> catalogue, and blanking a Confluence page for everyone over an unrelated API blip was judged
+> worse than briefly over-granting a field list. **This must be revisited before the macro shows
+> anything more sensitive** — findings, people, access or licence data.
 
 ### 1.4 Project data respects the viewer's own permissions
 
-**Enforced.** Reads returning per-project data intersect results against the projects the
-*calling user* can browse (`getBrowsableProjectIds`, `src/lib/jira-api.js`, called as the
-user). Two people looking at the same snapshot see different project lists if their
-permissions differ.
+**Enforced.** Reads returning per-project data intersect results with the projects the *calling
+user* can browse (`getBrowsableProjectIds`, `src/lib/jira-api.js`, called as the user). This
+includes the macro, `getProjectOverview` and the projects Rovo agent.
 
 ### 1.5 Admin permission caching
 
-**Accepted risk.** The result of the ADMINISTER check is cached in-memory per `accountId`
-for **60 seconds** (`ADMIN_CHECK_TTL_MS`). Forge reuses warm invocations, so this spares a
-Jira round trip on polled admin reads — `getIssueScanStatus` is polled every 15s for the
-duration of a scan.
+**Accepted risk.** The ADMINISTER answer is cached in memory per `accountId` for **60 seconds**
+(`ADMIN_CHECK_TTL_MS`). Forge reuses warm invocations, so this spares a Jira round trip on polled
+admin reads. **An admin whose permission is revoked keeps access for up to 60 seconds.** The cache
+is keyed per account (covered by test) and does not survive a cold start.
 
-Consequence: **an admin whose permission is revoked retains access for up to 60 seconds.**
-Cache is keyed per account, so one admin's result never authorises another user
-(covered by test). Cache does not survive a cold start.
+### 1.6 Writes to Jira act as the person
+
+**Enforced.** Every Jira write runs `asUser()` (§3.1), so Jira's own permission checks and issue
+history apply to the admin who pressed the button, not to the app.
+
+### 1.7 Tenant isolation
+
+**Enforced.** Every table is keyed by `scope_key`, derived from the Forge installation context, so
+one site's data is never readable from another's. Forge's own tenancy is Atlassian's boundary and
+is trusted rather than verified here.
 
 ---
 
-## 2. Audit logging
+## 2. Audit logging and alerting
 
-**Enforced.** Privileged actions are recorded to the `audit_log` table
-(`recordAuditEvent`, `src/lib/project-store.js`).
+### 2.1 The audit log
 
-Recorded per event: timestamp, actor `accountId`, action name, outcome
+**Enforced.** Privileged actions are recorded to the `audit_log` table (`recordAuditEvent`,
+`src/lib/store/audit.js`): timestamp, actor `accountId`, action, outcome
 (`allowed` / `denied` / `failed`), and a detail string.
 
 **What is audited**
-- Every **denial** by the admin guard — a burst of these is the signal that someone is
-  probing the resolver directly.
-- Every **mutating** admin action: scan start/resume/cancel, snapshot cancel and clear,
-  project-usage job control, report definition writes and deletes, `saveAdminConfig`,
-  `migrateNamespaceKeys` (`AUDITED_ADMIN_ACTIONS`).
+- Every **denial** by the admin guard.
+- The **31 mutating admin actions** in `AUDITED_ADMIN_ACTIONS` (`src/resolvers/admin-guard.js`):
+  scan control, snapshot cancel and clear, project-usage job control, inventory builds, report
+  definition writes, `saveAdminConfig`, `migrateNamespaceKeys`, and the remediation actions
+  `createRemediationEpic`, `applyRemediationVerification` and `syncRemediationNow`.
+
+> **Open item.** `organiseRemediationHierarchy` creates Jira issues and re-parents epics but is
+> **not** in `AUDITED_ADMIN_ACTIONS`. Add it, plus a test that fails when any resolver that
+> writes to Jira is missing from the set.
 
 **What is not audited, and why**
-- **Admin reads** (`getIssueScanStatus`, `getAdminOverview`, `getRqtIndex`, …). They are
-  polled every 15 seconds during a scan; recording them would bury the handful of events
-  anyone actually wants to find, and would add SQL writes to the app's most constrained
-  quota. Reads expose no data the caller could not already obtain.
-- **Macro reads.** Same reasoning; they are permission-filtered and read-only.
+- **Admin reads** and **macro reads.** They are polled every 15 seconds during a scan; recording
+  them would bury the events worth finding and spend the app's scarcest SQL quota.
+- **Reads of the audit log itself.** That loop would bury the events worth finding.
 
 **Properties**
-- Audit writes **never block the action** (`safeAudit`, `src/resolvers.js`). A broken audit
-  table must not become an outage of every admin function, nor a denial-of-service that
-  anyone able to break the table could trigger. Failures surface as `audit.write_failed`
-  in the structured log.
-- The audit log is **not** wiped by `clearAllSnapshotData`. An audit trail that a
-  privileged action can erase is not an audit trail.
+- Audit writes **never block the action** (`safeAudit`). A broken audit table must not become an
+  outage of every admin function, nor a denial-of-service anyone able to break the table could
+  trigger. Failures surface as `audit.write_failed`.
+- The audit log is **not** wiped by clearing a snapshot. An audit trail a privileged action can
+  erase is not an audit trail.
 - Retention: **180 days**, pruned by the weekly retention trigger (`pruneOldAuditEvents`).
-  Deliberately far longer than the 7 days kept for report jobs — "who cleared the snapshot
-  in March" is usually asked long after March.
+- Viewer: Admin page → Configuration → Diagnostics → Audit log. The most recent 200 events,
+  filterable by outcome, with denials called out above the table.
 
-**Reading the audit log.** Admin page → Configuration → Audit log. Shows the most recent
-200 events, filterable by outcome, with permission denials called out above the table —
-a denial means an admin resolver was reached by a caller without admin permission, and
-that should not require scanning a table to notice.
+### 2.2 Denial-burst alerting
 
-The viewer is admin-guarded like every other admin function, and reading it is
-deliberately **not** itself audited: that loop would bury the events worth finding, and it
-exposes nothing an admin could not already query directly.
+**Enforced, added 19 Oct 2026.** One denial is usually someone opening a link they shouldn't
+have. **More than 5 denials in an hour** (`DENIAL_BURST_THRESHOLD`, `DENIAL_BURST_WINDOW_MS`,
+`src/resolvers/admin-guard.js`) is the pattern of someone invoking admin resolvers directly.
+
+- **Log event.** After each denial the guard counts the installation's denials in the trailing
+  hour (`summarizeRecentDenials`, an index range read on `idx_audit_log_scope_at`). Past the
+  threshold it logs **`security.denial_burst`** at `error`, with the denial count, the number of
+  distinct accounts and the latest action. Point a Forge log drain alert at that event name.
+- **Overview banner.** `getSecuritySignals` (admin-only, `src/resolvers/admin-tools.js`) applies
+  the same rule, and `SecurityAlertBanner` shows a critical alert at the top of the Overview,
+  polled every 5 minutes while visible. "Review denials" opens the audit log filtered to denials.
+- **Bounded cost.** The alert fires at most once per 10 minutes per warm container per
+  installation (`DENIAL_BURST_COOLDOWN_MS`), and the count query is skipped during that window. A
+  flood of denials costs one audit insert each and nothing more.
+- **Best-effort, never decisive.** A failed count never changes the guard's answer. A failed
+  signals read shows "could not be checked" on the Overview rather than nothing — silence is not
+  all-clear.
+
+Covered by `src/resolvers.test.js` ("denial-burst alerting"), `src/lib/project-store.crud.test.js`
+("audit log") and `SecurityAlertBanner.test.jsx`.
 
 ---
 
 ## 3. Data handling
 
-### 3.1 Observatory does not write to Jira
+### 3.1 Observatory writes to Jira through three admin actions
 
-**Verified 31 July 2026.** Every Jira call is a read. The `POST` requests in the codebase
-target only `/rest/api/3/search`, `/rest/api/3/search/jql`,
-`/rest/api/3/search/approximate-count` and `/rest/api/3/permissions/check` — endpoints
-that use POST for the request body, not to mutate. All writes go to the app's own
-Forge SQL store.
+**Verified 19 Oct 2026.** Every other Jira call is a read; the remaining `POST` requests are
+search, bulk-fetch, approximate-count and permission-check endpoints that use POST for the
+request body.
 
-Re-verify with:
+| Action | What it changes in Jira | Runs as | Blocked by read-only mode | Audited |
+|---|---|---|---|---|
+| `createRemediationEpic` | Creates an epic and its tasks for a finding | Admin (`asUser`) | Yes | Yes |
+| `applyRemediationVerification` | Reopens regressed tasks, closes fixed ones, withdraws stale ones as Won't Do, with a comment | Admin (`asUser`) | **No** | Yes |
+| `organiseRemediationHierarchy` | Creates quarterly initiatives and puts epics under them | Admin (`asUser`) | Yes | **No** |
+
+Each is an explicit, confirmed admin action; nothing changes Jira on a schedule. Any future
+automatic mode (auto-close after a scan) must be an opt-in Config setting, off by default and
+capped per run.
+
+> **Open item.** `applyRemediationVerification` does not check `readOnlyMode`, so read-only mode
+> does not stop it transitioning and commenting on issues. Add the same check the other two use.
+
+Re-verify the write paths with:
 
 ```bash
-grep -rn "method: \"POST\"" src/ | grep -v '\.test\.'
+grep -rnE 'method: "(POST|PUT|DELETE)"' src/ | grep -v '\.test\.'
+grep -rn "asUser: true" src/resolvers/ src/lib/ | grep -v '\.test\.'
 ```
 
 ### 3.2 What is stored
 
-Field metadata, per-project issue **counts**, JQL strings, timestamps, governance
-findings, and RQT reference tokens. **Issue field values are not stored**, with one
-deliberate exception: RQT reference tokens matching `RQT-<n>-<n>`, which are indexed to
-make them queryable.
+| Data | Stored where | Personal | Kept for |
+|---|---|---|---|
+| Configuration inventory: fields, workflows, screens, schemes, rules, boards, filters, dashboards, Assets, estate values | Forge SQL | No | Until the next snapshot replaces it |
+| Usage and issue **counts** per field and project; JQL strings | Forge SQL | No | 90-day usage window |
+| Licensed users: `account_id`, display name, avatar URL, active flag, account type | Forge SQL `snapshot_users` | **Yes** | Until the next people snapshot |
+| Licences per user and the access group that grants them | Forge SQL | **Yes** | Until the next people snapshot |
+| Filter and dashboard owners; automation actors; user-picker field values | Forge SQL | **Yes** (account ids, some names) | Until the next snapshot |
+| JSM customers and organisations | Counts and ids only, by design (the API returns PII) | Minimal | Pillar not built yet |
+| Audit log | Forge SQL `audit_log` | Account id only | 180 days |
+| Report jobs | Forge SQL | No | 7 days |
+| Admin configuration | Forge KV, written only through the guarded, audited `saveAdminConfig` | No | Until changed |
+| Issue summaries, descriptions, comments, attachments | **Never stored** | — | — |
 
-Issue *keys* are stored in the RQT index. No issue summaries, descriptions, comments,
-or attachments are read into storage.
+Raw workflow-rule parameters are never stored either — scripts can contain secrets — only
+references and a safe summary.
 
 ### 3.3 Personal data
 
-- **`accountId` only.** The audit log stores the actor's Atlassian `accountId` and nothing
-  else — no display names, no email addresses. The `accountId` is the durable identifier;
-  resolving it to a person is a deliberate step someone takes in Jira.
-- Group membership is queried live for access checks and never persisted.
-- All tables are namespaced by `scope_key`, derived from the Forge installation context,
-  so one site's data is never readable from another's.
+- **No email addresses.** Jira Cloud runs in GDPR strict mode; `accountId` is the identifier
+  everything joins on. Display names and avatar URLs are kept so the People tab renders without a
+  per-row lookup.
+- **Licence group membership is persisted** for the People pillar. (The 31 July version said group
+  membership was never persisted; that predates the People pillar.) Macro-gate group lookups are
+  still live and uncached beyond 60 seconds.
+
+> **Open item — closed accounts.** Atlassian expects apps that store personal data to report the
+> account ids they hold and erase closed accounts, through its personal data reporting API.
+> Observatory does neither. A closed account's name and avatar remain until the next people
+> snapshot overwrites them, and in any older snapshot versions still retained.
 
 ### 3.4 Data deletion
 
-`clearSnapshot` (admin-only, type-to-confirm, blocked in read-only mode) deletes all
-derived snapshot data for the installation. See `RUNBOOK.md` for the full procedure and
-the list of what survives.
+`clearSnapshot` (admin-only, type-to-confirm, blocked in read-only mode, audited) deletes all
+derived snapshot data for the installation. See `RUNBOOK.md` for the procedure and what survives.
 
 ---
 
-## 3A. Rovo agents
+## 4. Rovo agents
 
-**Added 3 Sep 2026.** Observatory declares **eleven Rovo agents**, one per governance
-pillar (`observatory-<pillar>-expert`), each with a `search` / `inspect` / `impact` action
-set. See `resource/agent/prompts/` and `ROVO_AGENTS` in `static/src/utils.js`.
+**12 agents, 32 actions** (`manifest.yml`), one agent per pillar keyed
+`observatory-<pillar>-expert`. Prompts live in `resource/agent/prompts/`.
 
-- **Read-only.** Every agent action is a resolver that reads the app's own snapshot store
-  and returns structured data. No agent action writes to Jira or to the store. There is no
-  `write:*` scope; the only Rovo-related scope is `read:chat:rovo`, which was already
-  declared before this change — **adding the agents added no scope and no consent screen.**
-- **Permission-scoped.** The project agent (`inspect-project`) filters to the caller's
-  browsable projects via `getBrowsableProjectIds`, exactly as `getProjectOverview` does.
-  Other agents read structural configuration, which is admin-domain data the snapshot
-  already holds.
-- **No new personal data.** The people agent returns display names that are already in the
-  user snapshot and resolved at render time elsewhere; it persists nothing.
+- **Read-only.** Every action reads Observatory's own snapshot store and returns structured data.
+  No action writes to Jira or to the store.
 - **Honesty contract.** Every action returns the snapshot `refreshedAt` and an explicit
-  `*-unavailable` status rather than an empty result, and the shared prompt preamble
-  (`resource/agent/prompts/_preamble.md`) forbids inferring "nothing uses this" from
-  missing data. `agent-prompts.test.js` asserts every prompt file carries the preamble and
-  that the manifest and the prompt files agree on the agent set.
+  `*-unavailable` status rather than an empty result. `agent-prompts.test.js` asserts every
+  prompt carries the shared preamble and that the manifest and prompt files agree.
+- **Project data is filtered.** The projects and fields agents return only what the caller can
+  browse (§1.4).
 
-## 4. Input validation
+> **Open item — no admin gate on the People and Access agents.** Rovo actions are not behind the
+> admin guard. Any user who can use Rovo can ask the People agent about licensed users, licences
+> and group membership, or the Access agent about permission, issue-security and notification
+> schemes. Decide per agent: gate on Jira ADMINISTER (the admin page's rule), or document why the
+> data is acceptable for every Rovo user.
 
-**Enforced.** Resolver payloads are validated through `src/lib/validate.js` —
-`requireNonEmptyString`, `requireBoundedInt`, `requireArray`, `optionalEnum`, and
-related helpers with explicit bounds.
+> **Open item — indirect prompt injection.** Field, rule, filter and project names are written by
+> people and reach the model verbatim in action results. Add a preamble rule that tool output is
+> data, never instructions, and mark user-authored strings in action output.
 
-All SQL uses **parameterised statements** via `sql.prepare(...).bindParams(...)`. No
-user input is concatenated into SQL.
-
-> **Note on JQL.** JQL strings are constructed from project keys and field IDs that come
-> from the Jira API, not from user input. Project keys are quote-escaped when interpolated
-> (`promoteIssueScanToSnapshotProjectUsage`). JQL is not SQL — a malformed string produces
-> a Jira 400, not data exposure — but the escaping is there because a broken JQL string
-> silently produces *wrong counts*, which is worse than an error.
+> **Open item — preamble wording.** `_preamble.md` opens "Observatory is a read-only Jira
+> governance app". The agents are read-only; the app is not (§3.1).
 
 ---
 
-## 5. Secrets and configuration
+## 5. Input validation and output encoding
 
-- **No secrets in the repository.** Verified by `gitleaks` on every CI run
-  (`.github/workflows/ci.yml`).
-- Observatory holds no API keys or tokens. All Jira access uses Forge's `asApp()` /
-  `asUser()` authentication, brokered by the platform.
-- Admin configuration is stored in Forge KV, writable only through `saveAdminConfig` —
-  which is admin-guarded and audited.
-- **Read-only mode** (`readOnlyMode`) blocks mutating operations including
-  `clearSnapshot`, independent of the permission check.
+**Enforced.**
 
----
+- Resolver payloads are validated through `src/lib/validate.js` — required strings, bounded
+  integers, arrays and enums with explicit limits. Check new resolvers use it in review.
+- All SQL is **parameterised** (`sql.prepare(...).bindParams(...)`). The one interpolated value,
+  the audit `LIMIT`, is clamped to an integer between 1 and 1000 first.
+- **OQL** is parsed against a fixed catalogue and evaluated in memory over the snapshot. It never
+  reaches Jira or SQL. Input is capped at 2,000 characters.
+- **JQL** is built from keys and ids Jira returned, with values quote-escaped (`jqlQuote`,
+  `jqlString`). A malformed string produces a 400 or wrong counts, not data exposure.
+- **No raw-HTML sinks.** There is no `dangerouslySetInnerHTML`, `innerHTML`, `eval` or
+  `new Function` in `src/` or `static/src/`. Custom UI runs under Forge's default Content Security
+  Policy; the manifest declares no relaxations.
+- **CSV exports** neutralise formula injection (`neutralizeFormula`, `static/src/utils.js`):
+  cells starting `=` `+` `-` `@`, tab or carriage return are prefixed.
+- **Rich text sent to Jira** is ADF built from Observatory's own templates (`renderADF`).
 
-## 6. Permission scopes
+Re-verify the HTML sinks with:
 
-The app requests 23 OAuth scopes, all read-only against Jira. See `README.md` for the
-full table and per-scope justification.
-
-**`manage:jira-configuration` deserves specific attention on any install review.** It is
-the broadest scope requested and it sounds like a write scope. Forge requires it to
-surface a `jira:adminPage` module; Observatory exercises no configuration-write capability
-under it. This is verifiable via §3.1.
-
-**Closed 4 Aug 2026.** The three workflow scopes (`read:workflow:jira`,
-`read:workflow-scheme:jira`, `read:status:jira`) were previously flagged here as supporting
-a backend with no user interface — users granting permissions for a feature they could not
-see. The Workflows tab now ships, so the consent screen and the product agree.
-
-> **Open item — five new screen scopes, added 4 Aug 2026, feature not yet shipped.**
->
-> `read:screen:jira`, `read:screen-tab:jira`, `read:screen-field:jira`,
-> `read:screen-scheme:jira`, `read:issue-type-screen-scheme:jira`.
->
-> These support the screen and field presentation inventory, which is at the first story of
-> its initiative. Until a Screens tab ships, this is the same consent-screen debt the
-> workflow scopes just cleared: five permissions requested for something a user cannot see.
-> All five names verified with `forge lint` on 4 Aug — they are correct, not merely
-> plausible.
->
-> The five are not substitutable. Each hop of the chain (project → issue type screen scheme
-> → screen scheme → screen → tab → field) is gated by a different scope, so dropping one
-> breaks the traversal rather than narrowing it. The choice is all five or none.
->
-> Revisit if the initiative stalls. Carrying five unused read scopes indefinitely is worse
-> than deferring the fetch work.
-
-> **Amended 11 Aug 2026 — three more scopes, and the reason the first five were not enough.**
->
-> `read:avatar:jira`, `read:project-category:jira`, `read:screenable-field:jira`.
->
-> A live probe found `GET /rest/api/3/screens` and the tab-fields endpoint returning 401
-> "scope does not match" on an install that already carried all five screen scopes and had
-> accepted their consent screen. Two rounds of diagnosis blamed the install, then the
-> platform. Both were wrong, and the note above was part of why: it recorded that the five
-> names were *correct*, which was true and is not the same as *sufficient*.
->
-> **Granular scopes are conjunctive.** An endpoint requires every scope in its documented
-> list. `GET /rest/api/3/screens` lists four — `read:project:jira`, `read:screen:jira`,
-> `read:avatar:jira`, `read:project-category:jira` — and the app declared two. Neither
-> missing scope has "screen" in its name, which is precisely why they were not guessed.
->
-> Separately, the tab-fields endpoint is authorized by `read:screenable-field:jira`, not by
-> the `read:screen-field:jira` that was declared. Both scopes exist; only one applies.
->
-> **`forge lint` cannot catch either mistake.** It validates that a scope exists, never that
-> it is the right one for the endpoints the app calls. Any future scope addition must be
-> read off each endpoint's own documentation, in full, and confirmed by probe against a real
-> install — not by lint, and not by inference from the scope's name.
->
-> Consent cost: this is a major version bump. Every install must be upgraded and an
-> administrator must accept the three new permissions before the app updates.
+```bash
+grep -rnE "dangerouslySetInnerHTML|innerHTML|eval\(|new Function" src static/src | grep -v '\.test\.'
+```
 
 ---
 
-## 7. Dependencies and supply chain
+## 6. Secrets and configuration
 
-- `npm audit` runs on every CI build (`.github/workflows/ci.yml`).
-- Dependabot is enabled.
-**Triaged 31 July 2026.** `npm audit` went from 17 advisories (2 critical, 8 high) to 5
-(0 critical, 4 high, 1 moderate). Both criticals and four highs cleared by upgrading
-Vitest to v4.
+- **No secrets in the repository.** `gitleaks` runs on every CI build (`.github/workflows/ci.yml`).
+  GitHub secret scanning and push protection are not enabled on this private repository.
+- **The app holds no API keys or tokens.** All Jira and Confluence access is brokered by Forge.
+- **No egress.** The manifest declares no `external.fetch` domains; every call goes through
+  `requestJira` / `requestConfluence`. Adding one needs a security review and a line here.
+- Admin configuration is in Forge KV, writable only through `saveAdminConfig`, which is
+  admin-guarded and audited.
+- **Read-only mode** (`readOnlyMode`) blocks scans, builds, `clearSnapshot`,
+  `createRemediationEpic` and `organiseRemediationHierarchy`, independent of the permission
+  check. It does **not** yet block `applyRemediationVerification` (§3.1).
 
-The five that remain have **no safe fix**, and each is accepted for a stated reason:
+**CI secrets** (`.github/SECRETS.md`):
 
-| Package | Sev | Why it stays |
+| Name | Kind | Note |
 |---|---|---|
-| `linkify-it` <=5.0.1 | high | Reached only via `@forge/bridge` -> `@atlaskit/adf-schema`. **No fixed version of `@forge/bridge` exists** — npm's suggested "fix" is a *downgrade* to 5.8.0, eight minor versions back. Bridge 6.1.1 still pulls the same vulnerable `linkify-it@2.2.0`. |
-| `@atlaskit/adf-schema` | high | Same chain, same root cause. |
-| `@forge/bridge` | high | Same chain. Vendor package; no fixed release available. |
-| `vite` <=5.x | high | Fix requires Vite 8, which **breaks the admin build**: the `renameAdminHtml` plugin's `generateBundle` hook does not fire under rolldown, so `static/dist-admin/` is emitted with no `index.html`. Verified 31 Jul. |
-| `esbuild` <=0.24.2 | moderate | Transitive under `vite`; same blocker. |
-
-**Impact assessment.** All five are development- or client-side-only:
-
-- The `linkify-it` advisories are quadratic-complexity DoS in a markdown link parser.
-  Observatory does not render user-authored ADF or markdown — it renders its own field
-  catalog — and any such parse would run in the viewer's own sandboxed browser iframe.
-- The `vite` and `esbuild` advisories (path traversal in optimized-deps `.map` handling,
-  `server.fs.deny` bypass on Windows, launch-editor UNC hash disclosure) all require a
-  **running Vite dev server**. Vite is a build tool; it is never present in the deployed
-  Forge artifact, which is a static bundle.
-
-**Re-check trigger.** Revisit when a fixed `@forge/bridge` ships, or as part of a
-dedicated Vite 8 migration (which needs `renameAdminHtml` rewritten against rolldown's
-bundle API and the two-bundle output verified by hand).
+| `FORGE_API_TOKEN`, `FORGE_EMAIL` | Secret | A personal Atlassian API token for one developer account. **Open item:** move to a dedicated deploy account, rotate every 90 days, record each rotation. |
+| `CODECOV_TOKEN` | Secret | Coverage upload only |
+| `SLACK_WEBHOOK_URL` | **Variable** | **Open item:** variables are not masked in logs. Move it to a secret and rotate the webhook. |
 
 ---
 
-## 8. What this checklist does not cover
+## 7. Permission scopes
 
-Stated plainly so nobody reads absence as assurance:
+The app requests **60 scopes** (`manifest.yml` is the authoritative list). Two allow changes:
+
+- **`write:jira-work`** — remediation: creating epics and tasks, commenting, transitioning (§3.1).
+- **`manage:jira-configuration`** — the broadest scope requested. Forge requires it to surface a
+  `jira:adminPage` module; Observatory writes no configuration under it. Explain this on any
+  install review.
+
+The rest are reads, plus `storage:app`, `read:chat:rovo` and `read:confluence-content.summary`.
+
+> **Open item — scopes ahead of their feature.** The 10 JSM scopes added 13 Oct 2026 (queues, SLAs,
+> requests, request types, customers, organisations) serve the JSM probe and the planned JSM
+> pillar. Until stage 1 ships, users grant permissions for a feature they cannot see. Ship it, or
+> remove them.
+
+**Closed.** The screen scopes flagged on 4 Aug are used by the Screens tab, which has shipped.
+
+**Lessons that still apply** (from 11 Aug): granular scopes are **conjunctive** — an endpoint
+needs every scope in its documented list, including ones whose names don't mention the feature.
+`forge lint` checks that a scope exists, never that it is the right one. Read each endpoint's
+documentation in full and confirm by probe against a real install. Adding a scope is a major
+version: every install must be upgraded and an admin must accept it.
+
+---
+
+## 8. Dependencies and supply chain
+
+- `npm audit --audit-level=high --omit=dev` runs on every CI build, but with
+  `continue-on-error: true`: **it never fails a build.**
+- Dependabot opens weekly grouped npm and GitHub Actions updates; majors of `@forge/*` are ignored.
+- GitHub Actions are pinned by major tag (`@v7`), **not** by commit SHA.
+
+**Runtime advisories, 19 Oct 2026: 9 (8 high, 1 moderate), 0 critical.** Up from 5 on 31 July.
+
+| Package | Sev | Path | State |
+|---|---|---|---|
+| `undici` | high | `@forge/api` → `@forge/manifest` → `cheerio` | **Fixable** with `npm audit fix` (non-breaking) |
+| `fast-uri` | high | `@forge/api` → `@forge/manifest` → `ajv` | **Fixable** with `npm audit fix` (non-breaking) |
+| `brace-expansion` | high | `@forge/api` → `@forge/manifest` → `glob` | **Fixable** with `npm audit fix` (non-breaking) |
+| `linkify-it`, `markdown-it`, `@atlaskit/adf-schema`, `@atlaskit/editor-prosemirror`, `prosemirror-view`, `@forge/bridge` | high / moderate | `@forge/bridge` → `@atlaskit/adf-schema` | No vendor fix. Client-side only; Observatory renders no user-authored ADF or markdown. Accepted. |
+
+Development-only advisories (`vite`, `esbuild`) need a running dev server and never ship in the
+Forge artifact; they clear with the Vite 8 migration, which needs `renameAdminHtml` rewritten
+against rolldown's bundle API.
+
+> **Open item.** Apply the three fixable updates, record an acceptance for each remaining
+> advisory, and make the audit step fail on any new high advisory without one.
+
+---
+
+## 9. Delivery
+
+| Control | State on 19 Oct 2026 |
+|---|---|
+| CI on every PR | Unit tests with coverage floors, ESLint + Prettier, Forge lint, frontend build, `npm audit`, gitleaks, behind one CI Gate job |
+| Branch protection on `master` | **Not available.** The repository is private on a free GitHub plan. Required checks and CODEOWNERS review are advisory. |
+| Deploy path | Push to `master` runs `forge deploy` to **development**. |
+| Where the live site runs | **The live site (ford-advev, Jira and Confluence) is installed on the development environment** (v27), alongside the sandbox. Every merge to `master` reaches it with no staging step and no approval. |
+| Staging and production | Staging: one sandbox install, v5. Production: no installs. GitHub has only a `development` environment, with no protection rules. |
+
+> **Open items, highest priority on this list.** Install the live site from the **production**
+> environment and promote deliberately (dev → staging → production). Move to a GitHub plan with
+> branch protection: protect `master`, require the CI Gate, and require approval on the production
+> environment.
+
+---
+
+## 10. Availability
+
+- Crawls run at a concurrency of 3, widen their interval on 429 responses, and report the 429
+  count in scan telemetry.
+- Snapshots run on a Forge queue consumer (900-second timeout), sliced and resumable.
+- New scan output is buffered and promoted only when complete; a partial scan never replaces the
+  last good snapshot.
+- Every pillar and Rovo action carries `refreshedAt`; an unbuilt pillar reads "not measured",
+  never zero or healthy.
+- **Not protected against:** an admin repeatedly starting scans, which spends Jira rate limit and
+  Forge quota. The audit log records who did it.
+
+---
+
+## 11. Open items
+
+In priority order. Each links to the section that explains it.
+
+| # | Item | Section |
+|---|---|---|
+| 1 | Live site runs the development environment; every merge deploys to it | §9 |
+| 2 | No branch protection on `master` | §9 |
+| 3 | People and Access Rovo agents have no admin gate | §4 |
+| 4 | `applyRemediationVerification` ignores read-only mode | §3.1 |
+| 5 | `organiseRemediationHierarchy` is not audited | §2.1 |
+| 6 | Slack webhook stored as an unmasked variable | §6 |
+| 7 | 3 fixable runtime advisories; the audit step never fails | §8 |
+| 8 | No closed-account handling for stored personal data | §3.3 |
+| 9 | Indirect prompt injection into Rovo agents; outdated preamble wording | §4 |
+| 10 | GitHub Actions pinned by tag, not SHA | §8 |
+| 11 | No logger redaction for sensitive fields | §12 |
+| 12 | 10 JSM scopes requested before their feature ships | §7 |
+| 13 | Deploys use one person's long-lived API token | §6 |
+| 14 | No threat model; no penetration test | §12 |
+
+---
+
+## 12. Measurements
+
+Re-measure at every release and update this table in the same commit.
+
+| Measure | 19 Oct 2026 | Target |
+|---|---|---|
+| Admin resolvers outside the guard | 0 | 0 |
+| Unparameterised SQL statements | 0 | 0 |
+| Raw-HTML sinks in the UI | 0 | 0 |
+| External egress domains | 0 | 0 |
+| CSP relaxations | 0 | 0 |
+| Time for an admin revocation to take effect | ≤ 60 s | ≤ 60 s |
+| Audit log retention | 180 days | ≥ 180 days |
+| Alert on a burst of guard denials | Yes (§2.2) | Yes |
+| Write-level scopes | 2 of 60 | ≤ 2, each justified |
+| Scopes requested before their feature ships | 10 | 0 |
+| Jira-writing actions missing from the audit log | 1 | 0 |
+| Jira-writing actions not stopped by read-only mode | 1 | 0 |
+| Rovo agents returning admin-domain data without an admin gate | 2 (People, Access) | 0, or each documented |
+| Runtime advisories, high or critical | 8 high, 0 critical | 0 without a recorded acceptance |
+| Merges that reach the live site without staging | 100% | 0% |
+| Default branch protected with required checks | No | Yes |
+| GitHub Actions pinned to a commit SHA | 0% | 100% |
+| Closed-account erasure for stored personal data | None | Polled weekly |
+| Bare `console.*` calls in backend code | 3 | 0 |
+
+**What this checklist does not cover**, stated plainly so nobody reads absence as assurance:
 
 - **No penetration test** has been performed.
 - **No threat model** document exists.
-- **No formal review** of the Forge platform's own tenancy isolation — that is Atlassian's
-  boundary, and is trusted rather than verified here.
+- **No logger redaction.** The structured logger has no sensitive-field filter. Today the code
+  logs ids and error context, not payloads; nothing stops a future call logging a JQL string or a
+  display name.
 - **Accessibility** is not a security control and is tracked separately (CONNECT-3865).
-- **Rate limiting** protects Jira and the app's own quota, not against a malicious
-  authenticated admin. An admin can start scans repeatedly; the audit log records who did.
 
 ---
 
 ## Verification
 
-The controls in §1 and §2 are covered by tests in `src/resolvers.test.js`
-("admin authorization guard", "audit trail") and `src/index.test.js`
-("resolver registration"). Those tests assert the boundary itself — that the guard is
-applied to the entire registry, that anonymous callers are rejected without a Jira round
-trip, that denials are audited, and that `adminHandler` registers nothing unguarded.
+The controls in §1 and §2 are covered by tests in `src/resolvers.test.js` ("admin authorization
+guard", "denial-burst alerting", "audit trail"), `src/index.test.js` ("resolver handler
+registries") and `src/lib/project-store.crud.test.js` ("audit log"). They assert the boundary
+itself: the guard covers the entire registry, anonymous callers are rejected without a Jira round
+trip, denials are audited and counted, the burst alert fires once per cooldown and never changes
+the refusal, and `adminHandler` registers nothing unguarded.
 
 ```bash
 npm test                 # full suite

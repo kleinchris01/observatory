@@ -11,7 +11,7 @@ import {
 } from "../admin-defaults";
 import { Toggle, ConfigSection, ConfigRow, InlineThresholdInput, SubNavLayout } from "../components/admin/primitives";
 import { PageHeader, StickyActions, Chip } from "../components/ui";
-import { usePersistentState } from "../hooks";
+import { usePersistentState, useNavIntent } from "../hooks";
 import { DEFAULT_HEALTH_TOLERANCES, DEFAULT_HEALTH_TARGETS } from "../../../src/lib/health-score";
 
 // Governance thresholds, macro access and snapshot scheduling.
@@ -392,7 +392,7 @@ const DEFAULT_TARGETS = Object.fromEntries(
   ]),
 );
 
-export function ConfigTab({ config, onSave, saving }) {
+export function ConfigTab({ config, onSave, saving, intent = null }) {
   // Deep-merge a stored { key: { target, floor } } map over the defaults, so a config that
   // only tuned one band keeps the shipped values for the rest.
   function mergeTargets(stored) {
@@ -502,6 +502,12 @@ export function ConfigTab({ config, onSave, saving }) {
   // button they came here to press, and gave settings, records and diagnostics the same
   // visual weight -- so nothing signalled which of them could change the app's behaviour.
   const [area, setArea] = usePersistentState("observatory.section.config", "access");
+  // The Overview's security banner lands here: Diagnostics, audit log filtered to denials.
+  const [auditOutcome, setAuditOutcome] = React.useState("all");
+  useNavIntent(intent, (nav) => {
+    if (CONFIG_AREAS.some((a) => a.key === nav.area)) setArea(nav.area);
+    if (nav.auditOutcome) setAuditOutcome(nav.auditOutcome);
+  });
 
   // SubNavLayout, not a bespoke rail. It already existed in admin/primitives.jsx and the
   // Scans tab already used it; building a second one here is precisely how this app came
@@ -520,6 +526,7 @@ export function ConfigTab({ config, onSave, saving }) {
         setTolerancePercent={setTolerancePercent}
         targetPct={targetPct}
         setTarget={setTarget}
+        auditOutcome={auditOutcome}
       />
 
       {/* Diagnostics change nothing, so the save bar would be noise there. */}
@@ -556,6 +563,7 @@ function ConfigAreas({
   setTolerancePercent,
   targetPct,
   setTarget,
+  auditOutcome = "all",
 }) {
   if (area === "access") {
     return (
@@ -617,7 +625,7 @@ function ConfigAreas({
       <AssetsProbePanel />
       <ServiceManagementProbePanel />
       <GlobalPermissionsProbePanel />
-      <AuditLogPanel />
+      <AuditLogPanel key={auditOutcome} initialOutcome={auditOutcome} />
     </>
   );
 }
