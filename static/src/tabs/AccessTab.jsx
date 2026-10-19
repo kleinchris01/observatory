@@ -612,7 +612,7 @@ export function AccessTab({ intent, siteOrigin }) {
 
   useNavIntent(intent, (nav) => {
     if (nav.view) setView(nav.view);
-    setSearch("");
+    setSearch(nav.search ?? "");
   });
 
   const load = React.useCallback(async () => {

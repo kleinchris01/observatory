@@ -8,6 +8,7 @@ import { Starfield } from "./components/Starfield";
 import { DaySky } from "./components/DaySky";
 
 import { useRefreshOnVisible } from "./hooks";
+import { CommandPalette, paletteShortcutLabel } from "./components/admin/CommandPalette";
 
 const WorkflowTab = React.lazy(() => import("./tabs/WorkflowTab").then((m) => ({ default: m.WorkflowTab })));
 // Every tab is loaded on demand.
@@ -184,6 +185,19 @@ export function AdminApp() {
     writeStored(STORAGE_SIDEBAR, sidebarCollapsed ? "1" : "0");
   }, [sidebarCollapsed]);
 
+  // Ctrl+K / Cmd+K opens the jump-to palette from anywhere, inputs included -- as in Jira.
+  const [paletteOpen, setPaletteOpen] = React.useState(false);
+  React.useEffect(() => {
+    function onShortcut(event) {
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && String(event.key).toLowerCase() === "k") {
+        event.preventDefault();
+        setPaletteOpen((isOpen) => !isOpen);
+      }
+    }
+    window.addEventListener("keydown", onShortcut);
+    return () => window.removeEventListener("keydown", onShortcut);
+  }, []);
+
   React.useEffect(() => {
     writeStored(STORAGE_TAB, activeTab);
   }, [activeTab]);
@@ -286,6 +300,17 @@ export function AdminApp() {
             </div>
 
             <nav className="admin-nav" aria-label="Admin navigation">
+              <button
+                className="admin-nav__item admin-nav__jump"
+                type="button"
+                onClick={() => setPaletteOpen(true)}
+                aria-keyshortcuts="Control+K Meta+K"
+                title={sidebarCollapsed ? `Jump to… (${paletteShortcutLabel()})` : undefined}
+              >
+                <Icon name="search" size={15} />
+                {!sidebarCollapsed && <span>Jump to…</span>}
+                {!sidebarCollapsed && <kbd className="admin-nav__kbd">{paletteShortcutLabel()}</kbd>}
+              </button>
               {ADMIN_NAV_TABS.map(({ key, label, icon, group }, index) => {
                 // A dot only when there is something to say: unmeasured, or scoring in the
                 // warning band. A healthy pillar stays quiet, or the dots stop meaning anything.
@@ -442,7 +467,7 @@ export function AdminApp() {
               ) : activeTab === "automation" ? (
                 <AutomationTab siteOrigin={siteOrigin} intent={navIntent} />
               ) : activeTab === "search" ? (
-                <SearchTab onNavigate={navigate} />
+                <SearchTab onNavigate={navigate} intent={navIntent} />
               ) : activeTab === "remediation" ? (
                 <RemediationTab siteOrigin={siteOrigin} intent={navIntent} />
               ) : activeTab === "reports" ? (
@@ -470,6 +495,12 @@ export function AdminApp() {
           </div>
         </div>
       </div>
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        tabs={ADMIN_NAV_TABS}
+        onNavigate={navigate}
+      />
     </>
   );
 }

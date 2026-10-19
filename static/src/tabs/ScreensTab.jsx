@@ -425,7 +425,8 @@ export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
     if (nav.view) setView(nav.view);
     setScreenFilter(nav.filter ?? null);
     setSchemeFilter(nav.schemes ?? "all");
-    setSearch("");
+    setSearch(nav.search ?? "");
+    setDebouncedSearch(nav.search ?? "");
     setPage(1);
   });
 

@@ -416,6 +416,12 @@ export function FieldBrowserTab({
   // maps to already existed here. What was missing was the hop: clicking the count opened
   // this tab unfiltered and left the reader to find the 123 by hand.
   useNavIntent(intent, (nav) => {
+    // Ctrl+K lands here with the field's name -- applied at once, not after the debounce.
+    if (nav.search != null) {
+      setQuery(nav.search);
+      setDeferredQuery(nav.search);
+      setPage(1);
+    }
     if (!nav.findings) return;
     setFindingsFilter(nav.findings);
     setPage(1);

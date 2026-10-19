@@ -42,6 +42,7 @@ import {
 } from "../lib/pillar-reports.js";
 import { parseOql, evaluate as evaluateOql, sortEntities as sortOqlEntities, pinnedPillars } from "../lib/oql.js";
 import { buildOqlCatalog, buildEntityIndex, OQL_PILLARS, CHURN_WINDOW_DAYS } from "../lib/oql-index.js";
+import { rankEntityMatches, ENTITY_SEARCH_MIN_TERM } from "../lib/entity-search.js";
 import { computeSiteHealth } from "../lib/health-score.js";
 import {
   buildFieldUsageInsights,
@@ -301,18 +302,10 @@ export const OQL_RESULT_LIMIT = 1000;
 
 export const OQL_LOAD_CONCURRENCY = 3;
 
-export async function runOqlQuery({ payload, context }) {
-  incrMetric(METRIC_NAMES.resolver);
-  await ensureProjectStoreReady();
-  const installationKey = getInstallationKey(context);
-  const text = String(payload?.query ?? "").slice(0, 2000);
-  const now = new Date();
-
-  const parsed = parseOql(text, buildOqlCatalog(), { now });
-  if (!parsed.ok) return { ok: false, error: parsed.error };
-
-  const pinned = pinnedPillars(parsed.query.where);
-  const keys = OQL_PILLARS.map((p) => p.key).filter((key) => !pinned || pinned.has(key));
+// Every named pillar's full report, a few at a time. A pillar that is unbuilt or throws comes
+// back as an unavailable report rather than being dropped, so callers can say which pillars
+// they could not search. Shared by OQL and the Ctrl+K entity search.
+async function loadOqlReports(keys, { installationKey, context }) {
   const reports = new Array(keys.length);
   let cursor = 0;
   async function worker() {
@@ -335,6 +328,22 @@ export async function runOqlQuery({ payload, context }) {
     }
   }
   await Promise.all(Array.from({ length: Math.min(OQL_LOAD_CONCURRENCY, keys.length) }, worker));
+  return reports;
+}
+
+export async function runOqlQuery({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+  const text = String(payload?.query ?? "").slice(0, 2000);
+  const now = new Date();
+
+  const parsed = parseOql(text, buildOqlCatalog(), { now });
+  if (!parsed.ok) return { ok: false, error: parsed.error };
+
+  const pinned = pinnedPillars(parsed.query.where);
+  const keys = OQL_PILLARS.map((p) => p.key).filter((key) => !pinned || pinned.has(key));
+  const reports = await loadOqlReports(keys, { installationKey, context });
 
   const changes = await loadOqlChurnWindow(installationKey, now);
   const index = buildEntityIndex(reports, { changes, now });
@@ -353,6 +362,36 @@ export async function runOqlQuery({ payload, context }) {
     thresholds: index.thresholds,
     churnMeasured: Boolean(changes),
     discoveryCodes,
+  };
+}
+
+// Ctrl+K: find an item by name or ID across every pillar and rank it for jumping to, not for
+// attention (see src/lib/entity-search.js). Same loading as OQL, without the churn window --
+// a jump-to box has no use for it. `unavailable` names the pillars that were not searched, so
+// "no results" is never claimed for a pillar that was never read.
+export async function searchEntities({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  const term = String(payload?.term ?? "")
+    .trim()
+    .slice(0, 200);
+  if (term.length < ENTITY_SEARCH_MIN_TERM) return { ok: true, term, total: 0, results: [], unavailable: [] };
+
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+  const reports = await loadOqlReports(
+    OQL_PILLARS.map((p) => p.key),
+    { installationKey, context },
+  );
+  const index = buildEntityIndex(reports);
+  const { total, results } = rankEntityMatches(index.entities, term, { limit: payload?.limit });
+  return {
+    ok: true,
+    term,
+    total,
+    results,
+    unavailable: index.pillars
+      .filter((p) => p.status !== "ok")
+      .map((p) => ({ key: p.key, label: p.label, reason: p.reason })),
   };
 }
 

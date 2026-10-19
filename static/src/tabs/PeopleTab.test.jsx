@@ -82,6 +82,14 @@ const roster = (over = {}) => ({
 beforeEach(() => vi.clearAllMocks());
 
 describe("PeopleTab", () => {
+  test("Ctrl+K lands on the roster with the person already searched", async () => {
+    invoke.mockImplementation((fn) => (fn === "getUserInventory" ? Promise.resolve(roster()) : Promise.resolve({})));
+    render(<PeopleTab intent={{ view: "roster", search: "Ann" }} />);
+
+    expect(await screen.findByText("Ann Admin")).toBeInTheDocument();
+    expect(screen.queryByText("Bot Account")).not.toBeInTheDocument();
+  });
+
   test("reports never-built rather than an empty roster", async () => {
     invoke.mockResolvedValue({ neverBuilt: true, state: "idle" });
     render(<PeopleTab />);

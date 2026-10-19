@@ -1,6 +1,7 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
 import { PageHeader, Panel, StatRow, StatTile, EmptyState, Chip, LinkButton } from "../components/ui";
+import { useNavIntent } from "../hooks";
 import {
   formatNumber,
   formatRelativeTime,
@@ -525,7 +526,7 @@ function csvRows(result, columns) {
   return lines;
 }
 
-export function SearchTab({ onNavigate }) {
+export function SearchTab({ onNavigate, intent = null }) {
   const [text, setText] = React.useState(() => readStored(STORAGE_QUERY, ""));
   const [result, setResult] = React.useState(null);
   const [running, setRunning] = React.useState(false);
@@ -567,6 +568,11 @@ export function SearchTab({ onNavigate }) {
       setRunning(false);
     }
   }
+
+  // Ctrl+K's last row ("Search all pillars for ...") lands here with a query to run.
+  useNavIntent(intent, (nav) => {
+    if (nav.query) run(nav.query);
+  });
 
   function saveQuery() {
     const name = saveName.trim() || text.trim();
