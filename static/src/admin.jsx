@@ -489,7 +489,7 @@ export function AdminApp() {
               ) : activeTab === "scans" ? (
                 <ScansTab siteOrigin={siteOrigin} initialSection={scansInitialSection} />
               ) : (
-                <ConfigTab config={config} onSave={handleSaveConfig} saving={savingConfig} />
+                <ConfigTab config={config} onSave={handleSaveConfig} saving={savingConfig} intent={navIntent} />
               )}
             </React.Suspense>
           </div>

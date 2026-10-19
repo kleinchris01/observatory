@@ -149,6 +149,14 @@ describe("CommandPalette", () => {
     expect(props.onClose).toHaveBeenCalled();
   });
 
+  // Focus reaches the input a frame after opening. An Escape pressed before then lands on the
+  // page, and used to do nothing.
+  test("Escape closes even before focus reaches the input, and closes once", () => {
+    const props = renderPalette();
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(props.onClose).toHaveBeenCalledTimes(1);
+  });
+
   test("End wraps to the last row and Up from the top wraps to the bottom", () => {
     const props = renderPalette();
     const input = screen.getByRole("combobox");

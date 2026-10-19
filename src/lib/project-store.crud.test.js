@@ -62,6 +62,7 @@ import {
   loadRqtFieldIssueIndex,
   listAuditEvents,
   recordAuditEvent,
+  summarizeRecentDenials,
   loadWorkflowSchemes,
   loadWorkflowSchemeProjects,
   loadWorkflowSchemeForProject,
@@ -653,6 +654,24 @@ describe("audit log", () => {
     await recordAuditEvent("scope", { action: "clear-data", accountId: "u1", allowed: true });
     const insert = calls.find((c) => sqlHas(c, "insert into audit_log"));
     expect(insert).toBeDefined();
+  });
+
+  test("summarizeRecentDenials counts only this installation's denials in the window", async () => {
+    const calls = mockSqlQueries([[{ denials: 7, actors: 2, latest_at: "2026-10-19T12:00:00Z" }]]);
+    const before = Date.now();
+    const summary = await summarizeRecentDenials("scope", 60 * 60 * 1000);
+
+    expect(sqlHas(calls[0], "from audit_log", "scope_key = ?", "at >= ?", "outcome = 'denied'")).toBe(true);
+    expect(calls[0].params[0]).toBe("scope");
+    const since = Date.parse(calls[0].params[1]);
+    expect(since).toBeGreaterThanOrEqual(before - 60 * 60 * 1000 - 1000);
+    expect(since).toBeLessThanOrEqual(Date.now() - 60 * 60 * 1000 + 1000);
+    expect(summary).toEqual({ denials: 7, actors: 2, latestAt: "2026-10-19T12:00:00Z" });
+  });
+
+  test("summarizeRecentDenials reads an empty window as zero", async () => {
+    mockSqlQueries([[]]);
+    expect(await summarizeRecentDenials("scope", 60_000)).toEqual({ denials: 0, actors: 0, latestAt: null });
   });
 
   test("listAuditEvents stays scoped to the installation", async () => {

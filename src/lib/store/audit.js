@@ -62,6 +62,29 @@ export async function listAuditEvents(scopeKey, limit = 200) {
   }));
 }
 
+// Guard denials in a trailing window: how many, from how many accounts, and the latest. Backs
+// the denial-burst alert and the Overview banner. Uses idx_audit_log_scope_at, so it stays an
+// index range read however long the log grows.
+export async function summarizeRecentDenials(scopeKey, windowMs) {
+  await ensureProjectStoreReady();
+  const sinceIso = new Date(Date.now() - windowMs).toISOString();
+  const result = await withSqlRetry(() =>
+    sql
+      .prepare(
+        `SELECT COUNT(*) AS denials, COUNT(DISTINCT actor_id) AS actors, MAX(at) AS latest_at
+         FROM audit_log WHERE scope_key = ? AND at >= ? AND outcome = 'denied'`,
+      )
+      .bindParams(scopeKey, sinceIso)
+      .execute(),
+  );
+  const row = result?.rows?.[0] || {};
+  return {
+    denials: toNumber(row.denials, 0),
+    actors: toNumber(row.actors, 0),
+    latestAt: row.latest_at || null,
+  };
+}
+
 // 180 days, far longer than the 7 kept for report jobs: this is the record you reach for
 // when asking "who cleared the snapshot in March", and that question is usually asked
 // long after the fact.

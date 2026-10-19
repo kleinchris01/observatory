@@ -130,7 +130,7 @@ import {
 } from "./resolvers/overview.js";
 import { getPillarUsage, getPillarHealth, getPillarReport, runOqlQuery, searchEntities } from "./resolvers/reports.js";
 import { getProjectOverview } from "./resolvers/project-overview.js";
-import { getAuditLog, migrateNamespaceKeys } from "./resolvers/admin-tools.js";
+import { getAuditLog, getSecuritySignals, migrateNamespaceKeys } from "./resolvers/admin-tools.js";
 export {
   rovoSearchAutomationRules,
   rovoInspectAutomationRule,
@@ -355,6 +355,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getScreenFieldReportInputs, // Admin read: field union + project scope for a set of screens
   getProjectScreenReportInputs, // Admin read: a project's screens grouped by screen scheme
   getAuditLog, // Admin read: returns recent privileged-action records
+  getSecuritySignals, // Admin read: guard denials in the last hour, for the Overview banner
 
   // Admin page surface. These were previously registered directly onto adminHandler in
   // index.js, which meant they sat outside this registry and therefore outside its

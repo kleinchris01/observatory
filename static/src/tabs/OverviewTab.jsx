@@ -3,6 +3,7 @@ import { handleJiraLinkClick } from "../utils";
 import { Icon } from "../components/Icons";
 import { Panel, EmptyState } from "../components/ui";
 import { FirstRunPanel } from "../components/admin/FirstRunPanel";
+import { SecurityAlertBanner } from "../components/admin/SecurityAlertBanner";
 
 // The admin landing tab. Composition only -- the dashboard itself lives in
 // components/OverviewDashboard.jsx.
@@ -27,6 +28,10 @@ export function OverviewTab({
 
   return (
     <div className="admin-overview">
+      {/* Above even first-run setup: someone probing the admin resolvers outranks everything.
+          Renders nothing unless the guard is refusing calls in a burst. */}
+      <SecurityAlertBanner onNavigate={onNavigate} />
+
       {/* First, above everything. On a site that has finished setting itself up this renders
           nothing at all -- it decides that for itself from the estate rather than from a
           flag, so it cannot linger after the work it describes is done. */}
