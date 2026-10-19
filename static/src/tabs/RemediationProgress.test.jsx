@@ -2,7 +2,8 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@forge/bridge";
-import { RemediationProgress } from "./RemediationProgress";
+import { fireEvent } from "@testing-library/react";
+import { RemediationProgress, integerTicks, tickIndices } from "./RemediationProgress";
 
 vi.mock("@forge/bridge", () => ({
   invoke: vi.fn(),
@@ -138,5 +139,61 @@ describe("RemediationProgress", () => {
     invoke.mockRejectedValueOnce(new Error("boom"));
     render(<RemediationProgress />);
     expect(await screen.findByRole("alert")).toHaveTextContent("boom");
+  });
+});
+
+describe("chart helpers", () => {
+  test("integerTicks starts at zero, steps in whole numbers and covers the maximum", () => {
+    expect(integerTicks(6)).toEqual([0, 2, 4, 6]);
+    expect(integerTicks(11)).toEqual([0, 5, 10, 15]);
+    expect(integerTicks(3)).toEqual([0, 1, 2, 3]);
+    expect(integerTicks(0)).toEqual([0, 1]);
+    expect(integerTicks(140)).toEqual([0, 50, 100, 150]);
+  });
+
+  test("tickIndices thins labels so they stay at least the minimum gap apart", () => {
+    expect(tickIndices(0, 20)).toEqual([]);
+    expect(tickIndices(5, 100)).toEqual([0, 1, 2, 3, 4]);
+    expect(tickIndices(10, 20)).toEqual([0, 4, 8]);
+  });
+});
+
+describe("RemediationProgress charts", () => {
+  test("draw the open and pace lines with end labels and a Today marker", async () => {
+    invoke.mockResolvedValueOnce(metrics());
+    const { container } = render(<RemediationProgress />);
+    await screen.findByText("Burn-down");
+    expect(container.querySelector(".rp-chart__line:not(.rp-chart__line--reference)")).not.toBeNull();
+    expect(container.querySelector(".rp-chart__line--reference")).not.toBeNull();
+    const ends = [...container.querySelectorAll(".remediation-progress__endlabel")].map((t) => t.textContent);
+    expect(ends).toEqual(["Open", "Pace"]);
+    expect(screen.getByText("Today")).toBeInTheDocument();
+    // Two weeks closed, so two bars.
+    expect(container.querySelectorAll(".rp-chart__bar")).toHaveLength(2);
+  });
+
+  test("hovering the burn-down shows that day's values", async () => {
+    invoke.mockResolvedValueOnce(metrics());
+    const { container } = render(<RemediationProgress />);
+    await screen.findByText("Burn-down");
+    const hit = container.querySelector(".rp-chart svg rect[fill='transparent']");
+    hit.getBoundingClientRect = () => ({ left: 0, top: 0, width: 640, height: 260 });
+    fireEvent.mouseMove(hit, { clientX: 40, clientY: 100 });
+    const tip = container.querySelector(".rp-chart__tooltip");
+    expect(tip).toHaveTextContent("Open tasks: 6");
+    expect(tip).toHaveTextContent("Pace: 6");
+    fireEvent.mouseLeave(hit);
+    expect(container.querySelector(".rp-chart__tooltip")).toBeNull();
+  });
+
+  test("hovering a week shows how many closed", async () => {
+    invoke.mockResolvedValueOnce(metrics());
+    const { container } = render(<RemediationProgress />);
+    await screen.findByText("Closed per week");
+    const bars = container.querySelectorAll(".rp-chart__bar");
+    fireEvent.mouseEnter(bars[1].parentNode);
+    expect(container.querySelector(".rp-chart__tooltip")).toHaveTextContent("Closed: 3");
+    fireEvent.mouseLeave(bars[1].parentNode);
+    expect(container.querySelector(".rp-chart__tooltip")).toBeNull();
   });
 });
