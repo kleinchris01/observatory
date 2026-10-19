@@ -116,10 +116,9 @@ Each of these is its own PR and may change behaviour, so each comes with tests.
 3. **Split `resolvers.test.js`** to one test file per module. The shared `vi.mock` block moves
    to a helper so each file does not repeat 300 lines of setup. Per-module coverage floors
    replace the one on `resolvers.js`.
-4. **Ratchet the global coverage floors.** Actuals are 86.7% lines / 73.2% branches /
-   78.7% functions against floors of 78 / 64.5 / 67. CLAUDE.md says floors sit just under
-   actuals; today a regression of about 8 points passes CI. Independent of the split — can
-   land any time.
+4. **Ratchet the global coverage floors.** Done 19 Oct 2026: globals 78 / 67 / 64.5 →
+   86.5 / 79.5 / 73.5 (lines / functions / branches, half a point under actuals), every resolver
+   module pinned at its actuals, and eleven existing pins raised.
 
 ## Other large files (not in scope here)
 
