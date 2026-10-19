@@ -128,7 +128,7 @@ import {
   getSnapshotStatus,
   getHealthHistory,
 } from "./resolvers/overview.js";
-import { getPillarUsage, getPillarHealth, getPillarReport, runOqlQuery } from "./resolvers/reports.js";
+import { getPillarUsage, getPillarHealth, getPillarReport, runOqlQuery, searchEntities } from "./resolvers/reports.js";
 import { getProjectOverview } from "./resolvers/project-overview.js";
 import { getAuditLog, migrateNamespaceKeys } from "./resolvers/admin-tools.js";
 export {
@@ -348,6 +348,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getPillarHealth, // Admin read: one pillar of the score, for the tab it is about
   getPillarReport, // Admin read: one pillar's inventory as a normalized, exportable report
   runOqlQuery, // Admin read: an OQL query across every pillar's inventory
+  searchEntities, // Admin read: Ctrl+K -- find an item by name or ID across every pillar
   getProjectOverview, // Admin read: every pillar that touches one project
   getDeletionSafety, // Admin read: every pillar's evidence about deleting a field
   getScreenFieldCrossSignal, // Admin read: screen reachability crossed with field usage

@@ -212,6 +212,18 @@ describe("DashboardsTab", () => {
     expect(container.querySelector(".dash-row__meta").textContent).toMatch(/gadgets not read/);
   });
 
+  test("Ctrl+K opens the tab with the dashboard's name already searched", async () => {
+    route({
+      getDashboardInventory: inventory({
+        allDashboards: [dashboard({ id: "1", name: "Delivery overview" }), dashboard({ id: "2", name: "Exec board" })],
+      }),
+    });
+    const { container } = render(<DashboardsTab intent={{ search: "Exec board" }} />);
+
+    await waitFor(() => expect(container.querySelectorAll(".dash-row").length).toBe(1));
+    expect(container.querySelector(".dash-row__name").textContent).toBe("Exec board");
+  });
+
   test("narrows to a finding when opened from the Overview", async () => {
     route({
       getDashboardInventory: inventory({

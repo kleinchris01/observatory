@@ -797,6 +797,7 @@ const {
   getPillarHealth,
   getPillarReport,
   runOqlQuery,
+  searchEntities,
   buildScreenInventory,
   getIssueTypeInventory,
   buildIssueTypeInventory,
@@ -7556,6 +7557,66 @@ describe("runOqlQuery", () => {
       expect.any(String),
       expect.objectContaining({ limit: 500, since: expect.any(String) }),
     );
+  });
+});
+
+describe("searchEntities", () => {
+  const ctx = (payload) => ({ payload, context: { installContext: "ari:cloud:jira::site/x" } });
+
+  function mockScreens(names) {
+    mocks.readScreenSnapshotMeta.mockResolvedValueOnce({ version: "sv1", refreshedAt: "2026-09-01T00:00:00Z" });
+    mocks.readWorkflowSnapshotMeta.mockResolvedValueOnce(null);
+    mocks.loadScreensPage.mockResolvedValueOnce({
+      rows: names.map((name, i) => ({
+        screenId: String(i + 1),
+        name,
+        tabCount: 1,
+        fieldCount: 3,
+        tabsResolved: "resolved",
+      })),
+    });
+    mocks.loadScreenSchemeOperations.mockResolvedValueOnce([]);
+    mocks.loadItssMappings.mockResolvedValueOnce([]);
+    mocks.loadItssProjects.mockResolvedValueOnce([]);
+  }
+
+  test("a term under two characters answers empty without loading any pillar", async () => {
+    const result = await searchEntities(ctx({ term: " d " }));
+    expect(result).toEqual({ ok: true, term: "d", total: 0, results: [], unavailable: [] });
+    expect(mocks.readScreenSnapshotMeta).not.toHaveBeenCalled();
+  });
+
+  test("finds items by name across pillars, best match first, and names the pillars it could not read", async () => {
+    mockScreens(["Implant screen", "Deviation screen", "Deviation", "Build Deviation edit"]);
+    const result = await searchEntities(ctx({ term: "deviation" }));
+    expect(result.ok).toBe(true);
+    const screens = result.results.filter((r) => r.pillar === "screens");
+    expect(screens.map((r) => r.name)).toEqual(["Deviation", "Deviation screen", "Build Deviation edit"]);
+    expect(screens[0]).toEqual(
+      expect.objectContaining({ pillar: "screens", pillarLabel: "Screens", id: "3", rank: 0, uid: expect.any(String) }),
+    );
+    // Unbuilt pillars are reported, never silently treated as "no matches".
+    expect(result.unavailable.length).toBeGreaterThan(0);
+    expect(result.unavailable.every((p) => p.key && p.label)).toBe(true);
+    expect(result.unavailable.map((p) => p.key)).not.toContain("screens");
+  });
+
+  test("a pillar that throws is reported unavailable, not dropped", async () => {
+    mocks.readScreenSnapshotMeta.mockRejectedValueOnce(new Error("sql down"));
+    const result = await searchEntities(ctx({ term: "screen" }));
+    expect(result.unavailable).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "screens", reason: expect.stringMatching(/could not be read/) }),
+      ]),
+    );
+  });
+
+  test("honours the limit and caps the term length", async () => {
+    mockScreens(Array.from({ length: 12 }, (_, i) => `Deviation ${i}`));
+    const result = await searchEntities(ctx({ term: `deviation${" ".repeat(300)}`, limit: 5 }));
+    expect(result.term).toBe("deviation");
+    expect(result.results).toHaveLength(5);
+    expect(result.total).toBe(12);
   });
 });
 

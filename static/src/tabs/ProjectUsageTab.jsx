@@ -29,7 +29,8 @@ export function ProjectUsageTab({ siteOrigin, intent = null, onBuildFieldReport 
 
   useNavIntent(intent, (nav) => {
     setProjectFilter(nav.filter ?? "all");
-    setProjectQuery("");
+    setProjectQuery(nav.search ?? "");
+    setDeferredProjectQuery(nav.search ?? "");
   });
 
   React.useEffect(() => {

@@ -351,10 +351,12 @@ export function PeopleTab({ intent = null, siteOrigin = "" } = {}) {
   const usage = usePillarUsage("user");
   // Arrived from an Overview finding: land on the view it names, filtered to what it counted.
   // The admin app always passed this; the tab never read it, so every People finding opened
-  // whichever view the reader had last left open.
+  // whichever view the reader had last left open. Ctrl+K lands on the roster with the
+  // person's name in the search box.
   useNavIntent(intent, (nav) => {
     if (nav.view) setView(nav.view);
     setRosterFilter(ROSTER_FILTERS.some((f) => f.value === nav.filter) ? nav.filter : "all");
+    setSearch(nav.search ?? "");
   });
   const [openUser, setOpenUser] = React.useState(null);
   const [details, setDetails] = React.useState({}); // accountId -> detail
