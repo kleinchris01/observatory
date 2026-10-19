@@ -18,6 +18,7 @@ vi.mock("./lib/jira-api.js", () => ({
   },
   getInstallationKey: vi.fn(() => "scope-1"),
   sanitizeCacheKeyPart: vi.fn((v) => String(v || "global")),
+  callerHasJiraAdmin: vi.fn().mockResolvedValue(false),
 }));
 
 vi.mock("./lib/workflow-engine.js", () => ({
@@ -1339,6 +1340,81 @@ describe("Rovo action routing", () => {
     expect(await routeAgentAction({ search, inspect, impact, impactInput: "field" })({ field: "Cost" }, {})).toBe(
       "impact",
     );
+  });
+
+  // People and Access report on data the admin page reserves for Jira administrators
+  // (licences, group membership, permission and notification schemes), so their Rovo actions
+  // carry the same check. The other agents stay open.
+  describe("admin gate on the People and Access agents", () => {
+    const NON_ADMIN = { accountId: "acct-user" };
+    const ADMIN = { accountId: "acct-admin" };
+
+    beforeEach(async () => {
+      const { __resetAdminCheckCache } = await import("./resolvers/admin-guard.js");
+      const { callerHasJiraAdmin } = await import("./lib/jira-api.js");
+      __resetAdminCheckCache();
+      vi.mocked(callerHasJiraAdmin).mockImplementation(async (id) => id === "acct-admin");
+    });
+
+    test.each([
+      ["rovoPeopleSearch", { query: "jane" }],
+      ["rovoPeopleInspect", { accountId: "acct-x" }],
+      ["rovoPeopleImpact", { accountId: "acct-x" }],
+      ["rovoAccessAction", { query: "default" }],
+      ["rovoAccessAction", { identifier: "Default Permission Scheme" }],
+      ["rovoAccessAction", { name: "jira-administrators" }],
+    ])("%s refuses a non-admin with an explicit status", async (handlerName, payload) => {
+      const index = await import("./index.js");
+      const resolvers = await import("./resolvers.js");
+      const result = await index[handlerName](payload, NON_ADMIN);
+
+      expect(result).toMatchObject({ status: "admin-required", refreshedAt: null });
+      expect(result.message).toMatch(/Jira administrators only/);
+      for (const raw of [
+        "rovoPeopleSearch",
+        "rovoPeopleInspect",
+        "rovoPeopleImpact",
+        "rovoAccessSearch",
+        "rovoAccessInspect",
+        "rovoAccessImpact",
+      ]) {
+        expect(resolvers[raw], raw).not.toHaveBeenCalled();
+      }
+    });
+
+    test("an admin reaches the action", async () => {
+      const index = await import("./index.js");
+      const resolvers = await import("./resolvers.js");
+      vi.mocked(resolvers.rovoPeopleSearch).mockResolvedValueOnce({ status: "ok", refreshedAt: null, users: [] });
+      vi.mocked(resolvers.rovoAccessInspect).mockResolvedValueOnce({ status: "ok", refreshedAt: null });
+
+      expect(await index.rovoPeopleSearch({ query: "jane" }, ADMIN)).toMatchObject({ status: "ok" });
+      expect(await index.rovoAccessAction({ identifier: "Default" }, ADMIN)).toMatchObject({ status: "ok" });
+      expect(resolvers.rovoPeopleSearch).toHaveBeenCalledWith({ query: "jane" }, ADMIN);
+    });
+
+    test("an anonymous caller is refused without asking Jira", async () => {
+      const index = await import("./index.js");
+      const { callerHasJiraAdmin } = await import("./lib/jira-api.js");
+      expect(await index.rovoPeopleSearch({ query: "jane" }, {})).toMatchObject({ status: "admin-required" });
+      expect(callerHasJiraAdmin).not.toHaveBeenCalled();
+    });
+
+    test("fails closed when the permission check errors", async () => {
+      const index = await import("./index.js");
+      const { callerHasJiraAdmin } = await import("./lib/jira-api.js");
+      vi.mocked(callerHasJiraAdmin).mockRejectedValueOnce(new Error("Jira unavailable"));
+      expect(await index.rovoAccessAction({ query: "x" }, { accountId: "acct-new" })).toMatchObject({
+        status: "admin-required",
+      });
+    });
+
+    test("the other agents stay open to non-admins", async () => {
+      const index = await import("./index.js");
+      const resolvers = await import("./resolvers.js");
+      vi.mocked(resolvers.rovoWorkflowSearch).mockResolvedValueOnce({ status: "ok", refreshedAt: null });
+      expect(await index.rovoWorkflowAction({ query: "review" }, NON_ADMIN)).toMatchObject({ status: "ok" });
+    });
   });
 
   test("every handler the manifest names is exported by index.js", async () => {

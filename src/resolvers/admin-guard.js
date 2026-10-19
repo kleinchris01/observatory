@@ -96,6 +96,39 @@ export async function checkDenialBurst(installationKey, action) {
   }
 }
 
+// ── Rovo agents that need Jira ADMINISTER ───────────────────────────────────────────
+//
+// Rovo actions are not resolvers, so the registry guard above never sees them. Most agents
+// answer about configuration any Jira user can already see the shape of. The People agent
+// (licences, group membership, who owns what) and the Access agent (permission, issue-security
+// and notification schemes, project roles) answer about data the admin page reserves for Jira
+// administrators, so they get the same check: as the user, fail closed, the same 60-second cache.
+//
+// A refused caller gets a structured answer, not a thrown error, so the agent can tell them
+// why. It is not audited and does not count toward the denial-burst alert: someone without
+// admin rights asking Rovo a question is ordinary use, not a probe of an admin resolver.
+export const ROVO_ADMIN_REQUIRED_STATUS = "admin-required";
+
+export function withRovoAdminGate(agentName, fn) {
+  return async (payload, context) => {
+    const accountId = context?.accountId || null;
+    // Fails closed even if the check itself throws.
+    const allowed = await isCallerJiraAdmin(accountId).catch(() => false);
+    if (!allowed) {
+      logger.info("rovo.admin_required", { agent: agentName, actorId: accountId });
+      return {
+        status: ROVO_ADMIN_REQUIRED_STATUS,
+        refreshedAt: null,
+        message:
+          `The ${agentName} agent answers Jira administrators only, because it reports on ` +
+          `${agentName === "People" ? "licences, group membership and ownership" : "permission, security and notification schemes"}. ` +
+          `Ask a Jira administrator, or use Observatory's admin page if you are one.`,
+      };
+    }
+    return fn(payload, context);
+  };
+}
+
 export class AdminPermissionError extends Error {
   constructor() {
     super("This action requires Jira administrator permission.");
