@@ -1,29 +1,16 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { createPortal } from "react-dom";
 import { invoke, view } from "@forge/bridge";
 import "./styles.css";
-import { formatTimestamp, formatNumber, toDisplayName, buildValueJql, formatShortTime, formatRelativeTime, formatLogTime, formatContextList, normalizeSiteOrigin, buildJiraSearchUrl, handleJiraLinkClick, escapeCsvCell, downloadCsv, slugifyFilenamePart, normalizeReportData, groupReportFieldsByType, summarizeReportData, isUsageAvailable, isSelectType, mergeFieldMetrics, openFieldExpertRovo, buildInventoryRovoPrompt, buildFieldRovoPrompt, buildProjectRovoPrompt, buildReportRovoPrompt, pillarNavStatus, readStored, writeStored } from "./utils";
-import { Icon, useLiveDuration } from "./components/Icons";
+import { normalizeSiteOrigin, pillarNavStatus, readStored, writeStored } from "./utils";
+import { Icon } from "./components/Icons";
 import { Starfield } from "./components/Starfield";
 import { DaySky } from "./components/DaySky";
-import { ReportErrorBoundary, SavedReportsPanel, ProjectUsageReportView } from "./components/ReportView";
-import { MetricChip, FindingBadge, FindingsStrip, SkeletonFieldCard, SkeletonProjectItem, InlineOptionsContext, FieldCard } from "./components/FieldCard";
+
 import { useRefreshOnVisible } from "./hooks";
 import { CommandPalette, paletteShortcutLabel } from "./components/admin/CommandPalette";
 
-// Lazy: both pull in recharts (+122KB gzip measured on the macro bundle) and
-// sit behind tabs not shown by default -- split into their own chunk, fetched
-// only when a user actually opens Projects or Scans/RQT.
-const ProjectsTabView = React.lazy(() =>
-  import("./components/ProjectsTab").then((m) => ({ default: m.ProjectsTabView }))
-);
-const RqtIndexView = React.lazy(() =>
-  import("./tabs/RqtTab").then((m) => ({ default: m.RqtIndexView }))
-);
-const WorkflowTab = React.lazy(() =>
-  import("./tabs/WorkflowTab").then((m) => ({ default: m.WorkflowTab }))
-);
+const WorkflowTab = React.lazy(() => import("./tabs/WorkflowTab").then((m) => ({ default: m.WorkflowTab })));
 // Every tab is loaded on demand.
 //
 // Six of these were static imports, which meant the entry bundle carried the Field Browser,
@@ -31,84 +18,59 @@ const WorkflowTab = React.lazy(() =>
 // 420 KB before a single tab was clicked. The other four were already lazy; this is the same
 // pattern applied to the rest rather than a new one.
 const ConfigTab = React.lazy(() => import("./tabs/ConfigTab").then((m) => ({ default: m.ConfigTab })));
-const FieldBrowserTab = React.lazy(() => import("./tabs/FieldBrowserTab").then((m) => ({ default: m.FieldBrowserTab })));
+const FieldBrowserTab = React.lazy(() =>
+  import("./tabs/FieldBrowserTab").then((m) => ({ default: m.FieldBrowserTab })),
+);
 const OverviewTab = React.lazy(() => import("./tabs/OverviewTab").then((m) => ({ default: m.OverviewTab })));
-const ProjectUsageTab = React.lazy(() => import("./tabs/ProjectUsageTab").then((m) => ({ default: m.ProjectUsageTab })));
+const ProjectUsageTab = React.lazy(() =>
+  import("./tabs/ProjectUsageTab").then((m) => ({ default: m.ProjectUsageTab })),
+);
 const ReportsTab = React.lazy(() => import("./tabs/ReportsTab").then((m) => ({ default: m.ReportsTab })));
 const ScansTab = React.lazy(() => import("./tabs/ScansTab").then((m) => ({ default: m.ScansTab })));
 const SearchTab = React.lazy(() => import("./tabs/SearchTab").then((m) => ({ default: m.SearchTab })));
 const RemediationTab = React.lazy(() => import("./tabs/RemediationTab").then((m) => ({ default: m.RemediationTab })));
 const DashboardsTab = React.lazy(() => import("./tabs/DashboardsTab").then((m) => ({ default: m.DashboardsTab })));
 const FiltersTab = React.lazy(() => import("./tabs/FiltersTab").then((m) => ({ default: m.FiltersTab })));
-const AutomationTab = React.lazy(() =>
-  import("./tabs/AutomationTab").then((m) => ({ default: m.AutomationTab }))
+const AutomationTab = React.lazy(() => import("./tabs/AutomationTab").then((m) => ({ default: m.AutomationTab })));
+const IssueTypesTab = React.lazy(() => import("./tabs/IssueTypesTab").then((m) => ({ default: m.IssueTypesTab })));
+const PeopleTab = React.lazy(() => import("./tabs/PeopleTab").then((m) => ({ default: m.PeopleTab })));
+const AssetsTab = React.lazy(() => import("./tabs/AssetsTab").then((m) => ({ default: m.AssetsTab })));
+const AccessTab = React.lazy(() => import("./tabs/AccessTab").then((m) => ({ default: m.AccessTab })));
+const ChangesTab = React.lazy(() => import("./tabs/ChangesTab").then((m) => ({ default: m.ChangesTab })));
+const FieldConfigsTab = React.lazy(() =>
+  import("./tabs/FieldConfigsTab").then((m) => ({ default: m.FieldConfigsTab })),
 );
-const IssueTypesTab = React.lazy(() =>
-  import("./tabs/IssueTypesTab").then((m) => ({ default: m.IssueTypesTab }))
-);
-const PeopleTab = React.lazy(() =>
-  import("./tabs/PeopleTab").then((m) => ({ default: m.PeopleTab }))
-);
-const AssetsTab = React.lazy(() =>
-  import("./tabs/AssetsTab").then((m) => ({ default: m.AssetsTab }))
-);
-const AccessTab = React.lazy(() =>
-  import("./tabs/AccessTab").then((m) => ({ default: m.AccessTab }))
-);
-const ChangesTab = React.lazy(() =>
-  import("./tabs/ChangesTab").then((m) => ({ default: m.ChangesTab }))
-);
-const PrioritiesTab = React.lazy(() =>
-  import("./tabs/PrioritiesTab").then((m) => ({ default: m.PrioritiesTab }))
-);
-const BoardsTab = React.lazy(() =>
-  import("./tabs/BoardsTab").then((m) => ({ default: m.BoardsTab }))
-);
-const ScreensTab = React.lazy(() =>
-  import("./tabs/ScreensTab").then((m) => ({ default: m.ScreensTab }))
-);
-const OverviewDashboard = React.lazy(() =>
-  import("./components/OverviewDashboard").then((m) => ({ default: m.OverviewDashboard }))
-);
+const PrioritiesTab = React.lazy(() => import("./tabs/PrioritiesTab").then((m) => ({ default: m.PrioritiesTab })));
+const BoardsTab = React.lazy(() => import("./tabs/BoardsTab").then((m) => ({ default: m.BoardsTab })));
+const ScreensTab = React.lazy(() => import("./tabs/ScreensTab").then((m) => ({ default: m.ScreensTab })));
 
 const bootStatusNode = document.getElementById("boot-status");
 
 // ── Default config ─────────────────────────────────────────────────────────
 
-
 // ── Sub-components ─────────────────────────────────────────────────────────
-
 
 // ── Job list (re-implemented for admin context) ───────────────────────────
 
-
 // ── Tab views ──────────────────────────────────────────────────────────────
-
 
 // Read-only view of the audit trail. Loads on demand rather than with the tab: the
 // query is cheap but pointless for the common case of someone opening Configuration to
 // change a threshold, and this app pays for SQL requests by the request.
 
-
 // ── Project usage tab ─────────────────────────────────────────────────────
-
 
 // ── Field browser tab ─────────────────────────────────────────────────────
 
-
 // ── Reports tab (self-contained) ──────────────────────────────────────────
 
-
 // ── Scan components ───────────────────────────────────────────────────────
-
 
 // Type-to-confirm rather than a plain OK dialog. This is the one irreversible action in
 // the app, and a single mis-click should not be able to destroy a snapshot that took
 // hours to build on a large site.
 
-
 // ── Scans tab (self-contained) ────────────────────────────────────────────
-
 
 // ── Root app ───────────────────────────────────────────────────────────────
 
@@ -128,6 +90,7 @@ export const ADMIN_NAV_TABS = [
   { key: "projects", label: "Project Usage", icon: "folder", group: "Pillars" },
   { key: "workflows", label: "Workflows", icon: "activity", group: "Pillars" },
   { key: "issueTypes", label: "Issue Types", icon: "tag", group: "Pillars" },
+  { key: "fieldConfigs", label: "Field Schemes", icon: "listChecks", group: "Pillars" },
   { key: "priorities", label: "Priorities", icon: "flag", group: "Pillars" },
   { key: "people", label: "People", icon: "user", group: "Pillars" },
   { key: "assets", label: "Assets", icon: "database", group: "Pillars" },
@@ -240,7 +203,11 @@ export function AdminApp() {
   }, [activeTab]);
 
   React.useEffect(() => {
-    try { view.setAutoResizing(true); } catch {}
+    try {
+      view.setAutoResizing(true);
+    } catch {
+      // Outside a Forge iframe (local dev, tests) there is nothing to resize.
+    }
   }, []);
 
   async function loadOverview({ quiet = false } = {}) {
@@ -259,16 +226,20 @@ export function AdminApp() {
 
   React.useEffect(() => {
     loadOverview();
-    view.getContext().then((ctx) => {
-      const origin = normalizeSiteOrigin(ctx?.siteUrl || ctx?.extension?.siteUrl || ctx?.extensionContext?.siteUrl);
-      if (origin) setSiteOrigin(origin);
-    }).catch(() => {});
+    view
+      .getContext()
+      .then((ctx) => {
+        const origin = normalizeSiteOrigin(ctx?.siteUrl || ctx?.extension?.siteUrl || ctx?.extensionContext?.siteUrl);
+        if (origin) setSiteOrigin(origin);
+      })
+      .catch(() => {});
   }, []);
 
   function toggleFieldSelection(fieldId, checked) {
     setSelectedFieldIds((prev) => {
       const next = new Set(prev);
-      if (checked) next.add(fieldId); else next.delete(fieldId);
+      if (checked) next.add(fieldId);
+      else next.delete(fieldId);
       return [...next];
     });
   }
@@ -312,7 +283,6 @@ export function AdminApp() {
     }
   }
 
-
   return (
     <>
       {/* The skies are siblings of .admin-shell, never children. The shell's z-index: 1 only
@@ -321,169 +291,210 @@ export function AdminApp() {
           night (the starfield is mostly transparent), but the opaque day sky blanked the page. */}
       <Starfield active={theme === "dark"} bearing={activeTab} />
       <DaySky active={theme === "day"} />
-    <div className="admin-shell">
-      <div className={`admin-layout${sidebarCollapsed ? " admin-layout--collapsed" : ""}`}>
-        <aside className="admin-sidebar">
-          <div className="admin-sidebar__brand">
-            <span className="admin-sidebar__logo">{sidebarCollapsed ? "O" : "Observatory"}</span>
-            {!sidebarCollapsed && <span className="admin-badge">Admin</span>}
-          </div>
-
-          <nav className="admin-nav" aria-label="Admin navigation">
-            <button
-              className="admin-nav__item admin-nav__jump"
-              type="button"
-              onClick={() => setPaletteOpen(true)}
-              aria-keyshortcuts="Control+K Meta+K"
-              title={sidebarCollapsed ? `Jump to… (${paletteShortcutLabel()})` : undefined}
-            >
-              <Icon name="search" size={15} />
-              {!sidebarCollapsed && <span>Jump to…</span>}
-              {!sidebarCollapsed && <kbd className="admin-nav__kbd">{paletteShortcutLabel()}</kbd>}
-            </button>
-            {ADMIN_NAV_TABS.map(({ key, label, icon, group }, index) => {
-              // A dot only when there is something to say: unmeasured, or scoring in the
-              // warning band. A healthy pillar stays quiet, or the dots stop meaning anything.
-              const status = pillarNavStatus(key, overview?.health);
-              const dot = status && status.state !== "ok" ? status : null;
-              const dotText = dot ? (dot.state === "unmeasured" ? `Not measured yet: ${dot.label}` : `Needs attention: ${dot.label}`) : null;
-              const startsGroup = group && group !== ADMIN_NAV_TABS[index - 1]?.group;
-              return (
-                <React.Fragment key={key}>
-                  {startsGroup && (sidebarCollapsed
-                    ? <div className="admin-nav__divider" role="presentation" />
-                    : <div className="admin-nav__group" role="presentation">{group}</div>)}
-                  <button
-                    className={`admin-nav__item${activeTab === key ? " admin-nav__item--active" : ""}`}
-                    type="button"
-                    onClick={() => navigate(key)}
-                    aria-current={activeTab === key ? "page" : undefined}
-                    aria-description={dotText || undefined}
-                    title={sidebarCollapsed ? (dotText ? `${label} — ${dotText}` : label) : dotText || undefined}
-                  >
-                    <Icon name={icon} size={15} />
-                    {!sidebarCollapsed && <span>{label}</span>}
-                    {dot && <span className={`admin-nav__dot admin-nav__dot--${dot.state}`} aria-hidden="true" />}
-                  </button>
-                </React.Fragment>
-              );
-            })}
-          </nav>
-
-          <div className="admin-sidebar__footer">
-            <button
-              className="admin-nav__item admin-nav__item--footer"
-              onClick={() => setTheme((v) => THEME_CYCLE[v] || "dark")}
-              type="button"
-              title={sidebarCollapsed ? `Switch to ${THEME_META[THEME_CYCLE[theme] || "dark"].label.toLowerCase()}` : undefined}
-              aria-label={`Switch to ${THEME_META[THEME_CYCLE[theme] || "dark"].label.toLowerCase()}`}
-            >
-              <span>{THEME_META[THEME_CYCLE[theme] || "dark"].icon}</span>
-              {!sidebarCollapsed && <span>{THEME_META[THEME_CYCLE[theme] || "dark"].label}</span>}
-            </button>
-            <button
-              className="admin-nav__item admin-nav__item--footer admin-sidebar__collapse"
-              onClick={() => setSidebarCollapsed((v) => !v)}
-              type="button"
-              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-              aria-pressed={sidebarCollapsed}
-            >
-              <Icon name={sidebarCollapsed ? "caretRight" : "caretLeft"} size={15} />
-              {!sidebarCollapsed && <span>Collapse</span>}
-            </button>
-          </div>
-        </aside>
-
-        <div className="admin-content">
-          {config?.readOnlyMode && (
-            <div className="admin-readonly-banner">
-              <Icon name="lock" size={14} />
-              Read-only mode is on. Scans, inventory builds, remediation tickets and clearing data are paused for everyone, admins included. Turn it off under Configuration → Access.
+      <div className="admin-shell">
+        <div className={`admin-layout${sidebarCollapsed ? " admin-layout--collapsed" : ""}`}>
+          <aside className="admin-sidebar">
+            <div className="admin-sidebar__brand">
+              <span className="admin-sidebar__logo">{sidebarCollapsed ? "O" : "Observatory"}</span>
+              {!sidebarCollapsed && <span className="admin-badge">Admin</span>}
             </div>
-          )}
 
-          {error && (
-            <div className="error-banner" style={{ margin: "0 0 12px 0" }}>
-              {error}
-              <button className="inline-text-button" type="button" onClick={() => setError("")} style={{ marginLeft: 10 }}>Dismiss</button>
+            <nav className="admin-nav" aria-label="Admin navigation">
+              <button
+                className="admin-nav__item admin-nav__jump"
+                type="button"
+                onClick={() => setPaletteOpen(true)}
+                aria-keyshortcuts="Control+K Meta+K"
+                title={sidebarCollapsed ? `Jump to… (${paletteShortcutLabel()})` : undefined}
+              >
+                <Icon name="search" size={15} />
+                {!sidebarCollapsed && <span>Jump to…</span>}
+                {!sidebarCollapsed && <kbd className="admin-nav__kbd">{paletteShortcutLabel()}</kbd>}
+              </button>
+              {ADMIN_NAV_TABS.map(({ key, label, icon, group }, index) => {
+                // A dot only when there is something to say: unmeasured, or scoring in the
+                // warning band. A healthy pillar stays quiet, or the dots stop meaning anything.
+                const status = pillarNavStatus(key, overview?.health);
+                const dot = status && status.state !== "ok" ? status : null;
+                const dotText = dot
+                  ? dot.state === "unmeasured"
+                    ? `Not measured yet: ${dot.label}`
+                    : `Needs attention: ${dot.label}`
+                  : null;
+                const startsGroup = group && group !== ADMIN_NAV_TABS[index - 1]?.group;
+                return (
+                  <React.Fragment key={key}>
+                    {startsGroup &&
+                      (sidebarCollapsed ? (
+                        <div className="admin-nav__divider" role="presentation" />
+                      ) : (
+                        <div className="admin-nav__group" role="presentation">
+                          {group}
+                        </div>
+                      ))}
+                    <button
+                      className={`admin-nav__item${activeTab === key ? " admin-nav__item--active" : ""}`}
+                      type="button"
+                      onClick={() => navigate(key)}
+                      aria-current={activeTab === key ? "page" : undefined}
+                      aria-description={dotText || undefined}
+                      title={sidebarCollapsed ? (dotText ? `${label} — ${dotText}` : label) : dotText || undefined}
+                    >
+                      <Icon name={icon} size={15} />
+                      {!sidebarCollapsed && <span>{label}</span>}
+                      {dot && <span className={`admin-nav__dot admin-nav__dot--${dot.state}`} aria-hidden="true" />}
+                    </button>
+                  </React.Fragment>
+                );
+              })}
+            </nav>
+
+            <div className="admin-sidebar__footer">
+              <button
+                className="admin-nav__item admin-nav__item--footer"
+                onClick={() => setTheme((v) => THEME_CYCLE[v] || "dark")}
+                type="button"
+                title={
+                  sidebarCollapsed
+                    ? `Switch to ${THEME_META[THEME_CYCLE[theme] || "dark"].label.toLowerCase()}`
+                    : undefined
+                }
+                aria-label={`Switch to ${THEME_META[THEME_CYCLE[theme] || "dark"].label.toLowerCase()}`}
+              >
+                <span>{THEME_META[THEME_CYCLE[theme] || "dark"].icon}</span>
+                {!sidebarCollapsed && <span>{THEME_META[THEME_CYCLE[theme] || "dark"].label}</span>}
+              </button>
+              <button
+                className="admin-nav__item admin-nav__item--footer admin-sidebar__collapse"
+                onClick={() => setSidebarCollapsed((v) => !v)}
+                type="button"
+                title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                aria-pressed={sidebarCollapsed}
+              >
+                <Icon name={sidebarCollapsed ? "caretRight" : "caretLeft"} size={15} />
+                {!sidebarCollapsed && <span>Collapse</span>}
+              </button>
             </div>
-          )}
+          </aside>
 
-          {saveSuccess && (
-            <div className="admin-success-banner">
-              <Icon name="checkCircle" size={14} />
-              Configuration saved.
-            </div>
-          )}
+          <div className="admin-content">
+            {config?.readOnlyMode && (
+              <div className="admin-readonly-banner">
+                <Icon name="lock" size={14} />
+                Read-only mode is on. Scans, inventory builds, remediation tickets and clearing data are paused for
+                everyone, admins included. Turn it off under Configuration → Access.
+              </div>
+            )}
 
-          {/* One boundary for every tab, rather than one per lazy tab. The chain below is
+            {error && (
+              <div className="error-banner" style={{ margin: "0 0 12px 0" }}>
+                {error}
+                <button
+                  className="inline-text-button"
+                  type="button"
+                  onClick={() => setError("")}
+                  style={{ marginLeft: 10 }}
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+
+            {saveSuccess && (
+              <div className="admin-success-banner">
+                <Icon name="checkCircle" size={14} />
+                Configuration saved.
+              </div>
+            )}
+
+            {/* One boundary for every tab, rather than one per lazy tab. The chain below is
               mutually exclusive -- exactly one arm renders -- so a single fallback covers
               all of them and keeps the loading state identical whichever is opened. */}
-          <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
-          {activeTab === "overview" ? (
-            loadingOverview && !overview ? (
-              <div className="empty-state">Loading…</div>
-            ) : (
-              <OverviewTab
-                overview={overview}
-                onMigrateNamespace={handleMigrateNamespace}
-                migratingNamespace={migratingNamespace}
-                onOpenRqtIndex={() => { setReportsInitialSection("rqt"); setActiveTab("reports"); }}
-                onNavigate={navigate}
-                siteOrigin={siteOrigin}
-              />
-            )
-          ) : activeTab === "fields" ? (
-            <FieldBrowserTab
-              intent={navIntent}
-              selectedFieldIds={selectedFieldIds}
-              onToggleField={toggleFieldSelection}
-              onSetSelectedFieldIds={setSelectedFieldIds}
-              onGoToReport={() => { setActiveTab("reports"); setPendingReportGenerate(true); }}
-              siteOrigin={siteOrigin}
-            />
-          ) : activeTab === "projects" ? (
-            <ProjectUsageTab siteOrigin={siteOrigin} intent={navIntent} onBuildFieldReport={buildFieldReport} />
-          ) : activeTab === "workflows" ? (
-            <WorkflowTab intent={navIntent} siteOrigin={siteOrigin} />
-          ) : activeTab === "issueTypes" ? (
-            <IssueTypesTab intent={navIntent} siteOrigin={siteOrigin} />
-          ) : activeTab === "priorities" ? (
-            <PrioritiesTab intent={navIntent} siteOrigin={siteOrigin} />
-          ) : activeTab === "boards" ? (
-            <BoardsTab intent={navIntent} siteOrigin={siteOrigin} />
-          ) : activeTab === "people" ? (
-            <PeopleTab intent={navIntent} />
-          ) : activeTab === "assets" ? (
-            <AssetsTab intent={navIntent} siteOrigin={siteOrigin} />
-          ) : activeTab === "access" ? (
-            <AccessTab intent={navIntent} siteOrigin={siteOrigin} />
-          ) : activeTab === "screens" ? (
-            <ScreensTab intent={navIntent} siteOrigin={siteOrigin} onBuildFieldReport={buildFieldReport} />
-          ) : activeTab === "filters" ? (
-            <FiltersTab siteOrigin={siteOrigin} intent={navIntent} />
-          ) : activeTab === "dashboards" ? (
-            <DashboardsTab siteOrigin={siteOrigin} intent={navIntent} />
-          ) : activeTab === "automation" ? (
-            <AutomationTab siteOrigin={siteOrigin} intent={navIntent} />
-          ) : activeTab === "search" ? (
-            <SearchTab onNavigate={navigate} intent={navIntent} />
-          ) : activeTab === "remediation" ? (
-            <RemediationTab siteOrigin={siteOrigin} intent={navIntent} />
-          ) : activeTab === "reports" ? (
-            <ReportsTab siteOrigin={siteOrigin} selectedFieldIds={selectedFieldIds} onSetSelectedFieldIds={setSelectedFieldIds} autoGenerate={pendingReportGenerate} onAutoGenerateConsumed={() => setPendingReportGenerate(false)} initialSection={reportsInitialSection} projectScope={reportProjectScope} onSetProjectScope={setReportProjectScope} health={overview?.health ?? null} healthScoredAt={overviewLoadedAt} onRescore={() => loadOverview({ quiet: true })} />
-          ) : activeTab === "changes" ? (
-            <ChangesTab intent={navIntent} />
-          ) : activeTab === "scans" ? (
-            <ScansTab siteOrigin={siteOrigin} initialSection={scansInitialSection} />
-          ) : (
-            <ConfigTab config={config} onSave={handleSaveConfig} saving={savingConfig} />
-          )}
-          </React.Suspense>
+            <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
+              {activeTab === "overview" ? (
+                loadingOverview && !overview ? (
+                  <div className="empty-state">Loading…</div>
+                ) : (
+                  <OverviewTab
+                    overview={overview}
+                    onMigrateNamespace={handleMigrateNamespace}
+                    migratingNamespace={migratingNamespace}
+                    onOpenRqtIndex={() => {
+                      setReportsInitialSection("rqt");
+                      setActiveTab("reports");
+                    }}
+                    onNavigate={navigate}
+                    siteOrigin={siteOrigin}
+                  />
+                )
+              ) : activeTab === "fields" ? (
+                <FieldBrowserTab
+                  intent={navIntent}
+                  selectedFieldIds={selectedFieldIds}
+                  onToggleField={toggleFieldSelection}
+                  onSetSelectedFieldIds={setSelectedFieldIds}
+                  onGoToReport={() => {
+                    setActiveTab("reports");
+                    setPendingReportGenerate(true);
+                  }}
+                  siteOrigin={siteOrigin}
+                />
+              ) : activeTab === "projects" ? (
+                <ProjectUsageTab siteOrigin={siteOrigin} intent={navIntent} onBuildFieldReport={buildFieldReport} />
+              ) : activeTab === "workflows" ? (
+                <WorkflowTab intent={navIntent} siteOrigin={siteOrigin} />
+              ) : activeTab === "issueTypes" ? (
+                <IssueTypesTab intent={navIntent} siteOrigin={siteOrigin} />
+              ) : activeTab === "fieldConfigs" ? (
+                <FieldConfigsTab intent={navIntent} siteOrigin={siteOrigin} />
+              ) : activeTab === "priorities" ? (
+                <PrioritiesTab intent={navIntent} siteOrigin={siteOrigin} />
+              ) : activeTab === "boards" ? (
+                <BoardsTab intent={navIntent} siteOrigin={siteOrigin} />
+              ) : activeTab === "people" ? (
+                <PeopleTab intent={navIntent} siteOrigin={siteOrigin} />
+              ) : activeTab === "assets" ? (
+                <AssetsTab intent={navIntent} siteOrigin={siteOrigin} />
+              ) : activeTab === "access" ? (
+                <AccessTab intent={navIntent} siteOrigin={siteOrigin} />
+              ) : activeTab === "screens" ? (
+                <ScreensTab intent={navIntent} siteOrigin={siteOrigin} onBuildFieldReport={buildFieldReport} />
+              ) : activeTab === "filters" ? (
+                <FiltersTab siteOrigin={siteOrigin} intent={navIntent} />
+              ) : activeTab === "dashboards" ? (
+                <DashboardsTab siteOrigin={siteOrigin} intent={navIntent} />
+              ) : activeTab === "automation" ? (
+                <AutomationTab siteOrigin={siteOrigin} intent={navIntent} />
+              ) : activeTab === "search" ? (
+                <SearchTab onNavigate={navigate} intent={navIntent} />
+              ) : activeTab === "remediation" ? (
+                <RemediationTab siteOrigin={siteOrigin} intent={navIntent} />
+              ) : activeTab === "reports" ? (
+                <ReportsTab
+                  siteOrigin={siteOrigin}
+                  selectedFieldIds={selectedFieldIds}
+                  onSetSelectedFieldIds={setSelectedFieldIds}
+                  autoGenerate={pendingReportGenerate}
+                  onAutoGenerateConsumed={() => setPendingReportGenerate(false)}
+                  initialSection={reportsInitialSection}
+                  projectScope={reportProjectScope}
+                  onSetProjectScope={setReportProjectScope}
+                  health={overview?.health ?? null}
+                  healthScoredAt={overviewLoadedAt}
+                  onRescore={() => loadOverview({ quiet: true })}
+                />
+              ) : activeTab === "changes" ? (
+                <ChangesTab intent={navIntent} />
+              ) : activeTab === "scans" ? (
+                <ScansTab siteOrigin={siteOrigin} initialSection={scansInitialSection} />
+              ) : (
+                <ConfigTab config={config} onSave={handleSaveConfig} saving={savingConfig} />
+              )}
+            </React.Suspense>
+          </div>
         </div>
       </div>
-    </div>
       <CommandPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
@@ -500,7 +511,7 @@ if (rootNode) {
     ReactDOM.createRoot(rootNode).render(
       <React.StrictMode>
         <AdminApp />
-      </React.StrictMode>
+      </React.StrictMode>,
     );
     if (bootStatusNode) bootStatusNode.remove();
   } catch (error) {

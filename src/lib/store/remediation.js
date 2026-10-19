@@ -5,12 +5,7 @@
 // Imports only from core.js: one arrow, no cycle.
 
 import { sql } from "@forge/sql";
-import {
-  chunkArray,
-  ensureProjectStoreReady,
-  toNumber,
-  withSqlRetry,
-} from "./core.js";
+import { chunkArray, ensureProjectStoreReady, toNumber, withSqlRetry } from "./core.js";
 
 const EPIC_ITEM_ID = "";
 
@@ -28,7 +23,9 @@ export async function recordRemediationTicket(scopeKey, row = {}) {
   await ensureProjectStoreReady();
   const itemId = row.isEpic ? EPIC_ITEM_ID : String(row.itemId ?? "");
   await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       INSERT INTO remediation_tickets_v2
         (scope_key, finding_key, period, pillar, item_id, issue_key, issue_id, is_epic, epic_key,
          summary, last_status, last_status_category, assignee_account_id, assignee_name,
@@ -48,25 +45,28 @@ export async function recordRemediationTicket(scopeKey, row = {}) {
         created_by = COALESCE(VALUES(created_by), created_by),
         created_at = COALESCE(VALUES(created_at), created_at),
         synced_at = COALESCE(VALUES(synced_at), synced_at)
-    `).bindParams(
-      scopeKey,
-      String(row.findingKey ?? ""),
-      String(row.period || currentPeriod()),
-      row.pillar || null,
-      itemId,
-      String(row.issueKey ?? ""),
-      row.issueId != null ? String(row.issueId) : null,
-      row.isEpic ? 1 : 0,
-      row.epicKey || null,
-      row.summary ? String(row.summary).slice(0, 500) : null,
-      row.lastStatus || null,
-      row.lastStatusCategory || null,
-      row.assigneeAccountId || null,
-      row.assigneeName || null,
-      row.createdBy || null,
-      row.createdAt || null,
-      row.syncedAt || null,
-    ).execute()
+    `,
+      )
+      .bindParams(
+        scopeKey,
+        String(row.findingKey ?? ""),
+        String(row.period || currentPeriod()),
+        row.pillar || null,
+        itemId,
+        String(row.issueKey ?? ""),
+        row.issueId != null ? String(row.issueId) : null,
+        row.isEpic ? 1 : 0,
+        row.epicKey || null,
+        row.summary ? String(row.summary).slice(0, 500) : null,
+        row.lastStatus || null,
+        row.lastStatusCategory || null,
+        row.assigneeAccountId || null,
+        row.assigneeName || null,
+        row.createdBy || null,
+        row.createdAt || null,
+        row.syncedAt || null,
+      )
+      .execute(),
   );
 }
 
@@ -99,11 +99,16 @@ export async function loadRemediationTickets(scopeKey, findingKey = null) {
   const where = findingKey ? "scope_key = ? AND finding_key = ?" : "scope_key = ?";
   const params = findingKey ? [scopeKey, String(findingKey)] : [scopeKey];
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT * FROM remediation_tickets_v2
       WHERE ${where}
       ORDER BY period DESC, is_epic DESC, created_at ASC
-    `).bindParams(...params).execute()
+    `,
+      )
+      .bindParams(...params)
+      .execute(),
   );
   return (result.rows || []).map(mapRow);
 }
@@ -112,10 +117,15 @@ export async function loadRemediationTickets(scopeKey, findingKey = null) {
 export async function getRemediationEpic(scopeKey, findingKey, period = currentPeriod()) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT * FROM remediation_tickets_v2
       WHERE scope_key = ? AND finding_key = ? AND period = ? AND item_id = ?
-    `).bindParams(scopeKey, String(findingKey), String(period), EPIC_ITEM_ID).execute()
+    `,
+      )
+      .bindParams(scopeKey, String(findingKey), String(period), EPIC_ITEM_ID)
+      .execute(),
   );
   const row = result.rows?.[0];
   return row ? mapRow(row) : null;
@@ -133,12 +143,17 @@ export async function getRemediationEpic(scopeKey, findingKey, period = currentP
 export async function loadRemediationTicketsToSync(scopeKey, reopenWindowStart) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT * FROM remediation_tickets_v2
       WHERE scope_key = ?
         AND (last_status_category IS NULL OR last_status_category != 'done'
              OR done_at IS NULL OR done_at >= ?)
-    `).bindParams(scopeKey, String(reopenWindowStart)).execute()
+    `,
+      )
+      .bindParams(scopeKey, String(reopenWindowStart))
+      .execute(),
   );
   return (result.rows || []).map(mapRow);
 }
@@ -151,37 +166,59 @@ export async function loadRemediationTicketsToSync(scopeKey, reopenWindowStart) 
 // An item whose earlier task is done but which is flagged again is NOT in the set: it came
 // back, and this quarter's epic is where it belongs.
 export async function loadTicketedItemIds(scopeKey, findingKey, period = currentPeriod()) {
+  return new Set((await loadTicketedItems(scopeKey, findingKey, period)).keys());
+}
+
+// The same set, with the ticket that holds each item -- so the Remediation tab can say an item
+// is still being worked under an earlier quarter's epic instead of offering to ticket it again.
+// The one place the rule lives; loadTicketedItemIds is this, keys only.
+export async function loadTicketedItems(scopeKey, findingKey, period = currentPeriod()) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
-      SELECT item_id FROM remediation_tickets_v2
+    sql
+      .prepare(
+        `
+      SELECT item_id, issue_key, epic_key, period FROM remediation_tickets_v2
       WHERE scope_key = ? AND finding_key = ? AND is_epic = 0
         AND (period = ? OR last_status_category IS NULL OR last_status_category != 'done')
-    `).bindParams(scopeKey, String(findingKey), String(period)).execute()
+    `,
+      )
+      .bindParams(scopeKey, String(findingKey), String(period))
+      .execute(),
   );
-  return new Set((result.rows || []).map((r) => String(r.item_id)));
+  return new Map(
+    (result.rows || []).map((r) => [
+      String(r.item_id),
+      { issueKey: r.issue_key, epicKey: r.epic_key || null, period: r.period || null },
+    ]),
+  );
 }
 
 // Refresh the live fields from a Jira read (the hourly sync). Never touches identity.
 export async function updateRemediationSync(scopeKey, issueKey, patch = {}) {
   await ensureProjectStoreReady();
   await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       UPDATE remediation_tickets_v2
       SET last_status = ?, last_status_category = ?, assignee_account_id = ?, assignee_name = ?, synced_at = ?,
           done_at = ?, status_changed_at = ?
       WHERE scope_key = ? AND issue_key = ?
-    `).bindParams(
-      patch.lastStatus || null,
-      patch.lastStatusCategory || null,
-      patch.assigneeAccountId || null,
-      patch.assigneeName || null,
-      patch.syncedAt || new Date().toISOString(),
-      patch.doneAt || null,
-      patch.statusChangedAt || null,
-      scopeKey,
-      String(issueKey),
-    ).execute()
+    `,
+      )
+      .bindParams(
+        patch.lastStatus || null,
+        patch.lastStatusCategory || null,
+        patch.assigneeAccountId || null,
+        patch.assigneeName || null,
+        patch.syncedAt || new Date().toISOString(),
+        patch.doneAt || null,
+        patch.statusChangedAt || null,
+        scopeKey,
+        String(issueKey),
+      )
+      .execute(),
   );
 }
 
@@ -193,4 +230,53 @@ export async function recordRemediationTickets(scopeKey, rows = []) {
       await recordRemediationTicket(scopeKey, row);
     }
   }
+}
+
+// ── The quarter's hierarchy above the epics ─────────────────────────────────────
+//
+// Map<node, { issueKey, issueId, adopted }> for one quarter: "root" and "initiative:<label>".
+export async function loadHierarchyNodes(scopeKey, period = currentPeriod()) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql
+      .prepare(
+        `
+      SELECT node, issue_key, issue_id, adopted FROM remediation_hierarchy
+      WHERE scope_key = ? AND period = ?
+    `,
+      )
+      .bindParams(scopeKey, String(period))
+      .execute(),
+  );
+  return new Map(
+    (result.rows || []).map((r) => [
+      r.node,
+      { issueKey: r.issue_key, issueId: r.issue_id || null, adopted: Boolean(toNumber(r.adopted)) },
+    ]),
+  );
+}
+
+export async function recordHierarchyNode(scopeKey, period, node, { issueKey, issueId = null, adopted = false } = {}) {
+  await ensureProjectStoreReady();
+  await withSqlRetry(() =>
+    sql
+      .prepare(
+        `
+      INSERT INTO remediation_hierarchy (scope_key, period, node, issue_key, issue_id, adopted, recorded_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE issue_key = VALUES(issue_key), issue_id = VALUES(issue_id),
+        adopted = VALUES(adopted), recorded_at = VALUES(recorded_at)
+    `,
+      )
+      .bindParams(
+        scopeKey,
+        String(period),
+        String(node),
+        String(issueKey),
+        issueId != null ? String(issueId) : null,
+        adopted ? 1 : 0,
+        new Date().toISOString(),
+      )
+      .execute(),
+  );
 }

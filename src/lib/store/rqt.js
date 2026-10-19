@@ -3,19 +3,12 @@
 // Split out of project-store.js; imports only from core.js.
 
 import { sql } from "@forge/sql";
-import {
-  ensureProjectStoreReady,
-  safeParseJson,
-  toNumber,
-  withSqlRetry,
-} from "./core.js";
+import { ensureProjectStoreReady, safeParseJson, toNumber, withSqlRetry } from "./core.js";
 
 export async function clearRqtFieldIndex(scopeKey) {
   await ensureProjectStoreReady();
   await withSqlRetry(() =>
-    sql.prepare("DELETE FROM rqt_field_index WHERE scope_key = ?")
-      .bindParams(scopeKey)
-      .execute()
+    sql.prepare("DELETE FROM rqt_field_index WHERE scope_key = ?").bindParams(scopeKey).execute(),
   );
 }
 
@@ -34,9 +27,12 @@ export async function upsertRqtFieldHits(scopeKey, hits) {
   for (const [fieldId, { fieldName, count, values }] of hits) {
     // Load existing sample values so we can merge without duplicates
     const existing = await withSqlRetry(() =>
-      sql.prepare("SELECT sample_values_json, unique_value_count FROM rqt_field_index WHERE scope_key = ? AND field_id = ? LIMIT 1")
+      sql
+        .prepare(
+          "SELECT sample_values_json, unique_value_count FROM rqt_field_index WHERE scope_key = ? AND field_id = ? LIMIT 1",
+        )
         .bindParams(scopeKey, fieldId)
-        .execute()
+        .execute(),
     );
     const existingRow = existing.rows?.[0];
     const existingValues = safeParseJson(existingRow?.sample_values_json, []);
@@ -47,7 +43,9 @@ export async function upsertRqtFieldHits(scopeKey, hits) {
     const sampleValues = Array.from(merged).slice(0, MAX_SAMPLE_VALUES);
 
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO rqt_field_index (scope_key, field_id, field_name, issue_count, unique_value_count, sample_values_json, refreshed_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
@@ -56,9 +54,10 @@ export async function upsertRqtFieldHits(scopeKey, hits) {
           unique_value_count = VALUES(unique_value_count),
           sample_values_json = VALUES(sample_values_json),
           refreshed_at = VALUES(refreshed_at)
-      `)
+      `,
+        )
         .bindParams(scopeKey, fieldId, fieldName || fieldId, count, newUniqueCount, JSON.stringify(sampleValues), now)
-        .execute()
+        .execute(),
     );
   }
 }
@@ -67,14 +66,17 @@ export async function loadRqtFieldIndex(scopeKey) {
   await ensureProjectStoreReady();
 
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT field_id, field_name, issue_count, unique_value_count, sample_values_json, refreshed_at
       FROM rqt_field_index
       WHERE scope_key = ?
       ORDER BY issue_count DESC, field_id ASC
-    `)
+    `,
+      )
       .bindParams(scopeKey)
-      .execute()
+      .execute(),
   );
 
   return (result.rows || []).map((row) => ({
@@ -90,9 +92,7 @@ export async function loadRqtFieldIndex(scopeKey) {
 export async function clearRqtIssueKeys(scopeKey) {
   await ensureProjectStoreReady();
   await withSqlRetry(() =>
-    sql.prepare("DELETE FROM rqt_issue_keys WHERE scope_key = ?")
-      .bindParams(scopeKey)
-      .execute()
+    sql.prepare("DELETE FROM rqt_issue_keys WHERE scope_key = ?").bindParams(scopeKey).execute(),
   );
 }
 
@@ -104,12 +104,18 @@ export async function upsertRqtIssueKeys(scopeKey, keys) {
     const batch = keys.slice(i, i + BATCH);
     const placeholders = batch.map(() => "(?, ?, ?, ?)").join(", ");
     const params = batch.flatMap(({ projectKey, issueType, issueKey }) => [
-      scopeKey, projectKey, issueType || "", issueKey,
+      scopeKey,
+      projectKey,
+      issueType || "",
+      issueKey,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`INSERT IGNORE INTO rqt_issue_keys (scope_key, project_key, issue_type, issue_key) VALUES ${placeholders}`)
+      sql
+        .prepare(
+          `INSERT IGNORE INTO rqt_issue_keys (scope_key, project_key, issue_type, issue_key) VALUES ${placeholders}`,
+        )
         .bindParams(...params)
-        .execute()
+        .execute(),
     );
   }
 }
@@ -117,14 +123,17 @@ export async function upsertRqtIssueKeys(scopeKey, keys) {
 export async function loadRqtIssueKeys(scopeKey) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT project_key, issue_type, issue_key
       FROM rqt_issue_keys
       WHERE scope_key = ?
       ORDER BY project_key ASC, issue_type ASC, issue_key ASC
-    `)
+    `,
+      )
       .bindParams(scopeKey)
-      .execute()
+      .execute(),
   );
 
   // Group: projectKey → issueType → [issueKeys]
@@ -152,9 +161,7 @@ export async function loadRqtIssueKeys(scopeKey) {
 export async function clearRqtValueIndex(scopeKey) {
   await ensureProjectStoreReady();
   await withSqlRetry(() =>
-    sql.prepare("DELETE FROM rqt_value_issue_index WHERE scope_key = ?")
-      .bindParams(scopeKey)
-      .execute()
+    sql.prepare("DELETE FROM rqt_value_issue_index WHERE scope_key = ?").bindParams(scopeKey).execute(),
   );
 }
 
@@ -167,9 +174,10 @@ export async function upsertRqtValueIssueKeys(scopeKey, entries) {
     const placeholders = batch.map(() => "(?, ?, ?)").join(", ");
     const params = batch.flatMap(({ rqtValue, issueKey }) => [scopeKey, rqtValue, issueKey]);
     await withSqlRetry(() =>
-      sql.prepare(`INSERT IGNORE INTO rqt_value_issue_index (scope_key, rqt_value, issue_key) VALUES ${placeholders}`)
+      sql
+        .prepare(`INSERT IGNORE INTO rqt_value_issue_index (scope_key, rqt_value, issue_key) VALUES ${placeholders}`)
         .bindParams(...params)
-        .execute()
+        .execute(),
     );
   }
 }
@@ -177,16 +185,19 @@ export async function upsertRqtValueIssueKeys(scopeKey, entries) {
 export async function loadRqtValueFrequency(scopeKey) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT rqt_value, COUNT(*) as cnt
       FROM rqt_value_issue_index
       WHERE scope_key = ?
       GROUP BY rqt_value
       ORDER BY cnt DESC
       LIMIT 100
-    `)
+    `,
+      )
       .bindParams(scopeKey)
-      .execute()
+      .execute(),
   );
   return (result.rows || []).map((row) => ({ value: row.rqt_value, count: toNumber(row.cnt) }));
 }
@@ -194,20 +205,23 @@ export async function loadRqtValueFrequency(scopeKey) {
 export async function searchRqtValueIssueKeys(scopeKey, rqtValue) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare("SELECT issue_key FROM rqt_value_issue_index WHERE scope_key = ? AND rqt_value = ?")
+    sql
+      .prepare("SELECT issue_key FROM rqt_value_issue_index WHERE scope_key = ? AND rqt_value = ?")
       .bindParams(scopeKey, rqtValue)
-      .execute()
+      .execute(),
   );
   return (result.rows || []).map((row) => row.issue_key);
 }
 
 export async function loadIssueRqtValues(scopeKey) {
   const result = await withSqlRetry(() =>
-    sql.prepare("SELECT issue_key, rqt_value FROM rqt_value_issue_index WHERE scope_key = ?")
-      .bindParams(scopeKey).execute()
+    sql
+      .prepare("SELECT issue_key, rqt_value FROM rqt_value_issue_index WHERE scope_key = ?")
+      .bindParams(scopeKey)
+      .execute(),
   );
   const map = {};
-  for (const row of (result.rows || [])) {
+  for (const row of result.rows || []) {
     if (!map[row.issue_key]) map[row.issue_key] = [];
     map[row.issue_key].push(row.rqt_value);
   }
@@ -216,8 +230,7 @@ export async function loadIssueRqtValues(scopeKey) {
 
 export async function clearRqtFieldIssueIndex(scopeKey) {
   await withSqlRetry(() =>
-    sql.prepare("DELETE FROM rqt_field_issue_index WHERE scope_key = ?")
-      .bindParams(scopeKey).execute()
+    sql.prepare("DELETE FROM rqt_field_issue_index WHERE scope_key = ?").bindParams(scopeKey).execute(),
   );
 }
 
@@ -226,21 +239,25 @@ export async function upsertRqtFieldIssueKeys(scopeKey, entries) {
   for (let i = 0; i < entries.length; i += 50) {
     const batch = entries.slice(i, i + 50);
     const placeholders = batch.map(() => "(?, ?, ?)").join(", ");
-    const params = batch.flatMap(e => [scopeKey, e.fieldId, e.issueKey]);
+    const params = batch.flatMap((e) => [scopeKey, e.fieldId, e.issueKey]);
     await withSqlRetry(() =>
-      sql.prepare(`INSERT IGNORE INTO rqt_field_issue_index (scope_key, field_id, issue_key) VALUES ${placeholders}`)
-        .bindParams(...params).execute()
+      sql
+        .prepare(`INSERT IGNORE INTO rqt_field_issue_index (scope_key, field_id, issue_key) VALUES ${placeholders}`)
+        .bindParams(...params)
+        .execute(),
     );
   }
 }
 
 export async function loadRqtFieldIssueIndex(scopeKey) {
   const result = await withSqlRetry(() =>
-    sql.prepare("SELECT field_id, issue_key FROM rqt_field_issue_index WHERE scope_key = ?")
-      .bindParams(scopeKey).execute()
+    sql
+      .prepare("SELECT field_id, issue_key FROM rqt_field_issue_index WHERE scope_key = ?")
+      .bindParams(scopeKey)
+      .execute(),
   );
   const map = {};
-  for (const row of (result.rows || [])) {
+  for (const row of result.rows || []) {
     if (!map[row.field_id]) map[row.field_id] = [];
     map[row.field_id].push(row.issue_key);
   }

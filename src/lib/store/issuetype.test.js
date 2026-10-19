@@ -40,7 +40,10 @@ function harness() {
     const entry = { statement: String(statement), params: null };
     issued.push(entry);
     const stub = {
-      bindParams: (...params) => { entry.params = params; return stub; },
+      bindParams: (...params) => {
+        entry.params = params;
+        return stub;
+      },
       execute: () => Promise.resolve({ rows: nextRows }),
     };
     return stub;
@@ -49,7 +52,9 @@ function harness() {
 
 const statements = () => issued.map((e) => e.statement);
 const boundParamsFor = (match) => issued.find((e) => e.statement.includes(match))?.params ?? null;
-const mockRows = (rows) => { nextRows = rows; };
+const mockRows = (rows) => {
+  nextRows = rows;
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -83,7 +88,9 @@ describe("replaceIssueTypeSnapshot", () => {
 
   test("clears all four tables before writing", async () => {
     await replaceIssueTypeSnapshot("scope-1", "v1", payload);
-    const deletes = statements().filter((s) => s.trim().startsWith("DELETE")).join(" ");
+    const deletes = statements()
+      .filter((s) => s.trim().startsWith("DELETE"))
+      .join(" ");
 
     for (const table of [
       "snapshot_issue_types",
@@ -148,10 +155,13 @@ describe("replaceIssueTypeSnapshot", () => {
       const columns = columnPart.match(/\(([^)]*)\)/)[1].split(",").length;
       const placeholders = (valuesPart.match(/\?/g) || []).length;
 
-      expect(placeholders, `${table}: ${placeholders} placeholders for ${params.length} bound params`)
-        .toBe(params.length);
-      expect(placeholders % columns, `${table}: ${placeholders} placeholders is not a multiple of ${columns} columns`)
-        .toBe(0);
+      expect(placeholders, `${table}: ${placeholders} placeholders for ${params.length} bound params`).toBe(
+        params.length,
+      );
+      expect(
+        placeholders % columns,
+        `${table}: ${placeholders} placeholders is not a multiple of ${columns} columns`,
+      ).toBe(0);
     }
   });
 });
@@ -175,9 +185,21 @@ describe("reads", () => {
   });
 
   test("maps a scheme row with its default type and reach", async () => {
-    mockRows([{ scheme_id: "5", name: "Default", description: "", default_issue_type_id: "1", is_default: 1, project_count: 42 }]);
+    mockRows([
+      {
+        scheme_id: "5",
+        name: "Default",
+        description: "",
+        default_issue_type_id: "1",
+        is_default: 1,
+        project_count: 42,
+      },
+    ]);
     expect((await loadIssueTypeSchemes("scope-1", "v1"))[0]).toMatchObject({
-      schemeId: "5", isDefault: true, defaultIssueTypeId: "1", projectCount: 42,
+      schemeId: "5",
+      isDefault: true,
+      defaultIssueTypeId: "1",
+      projectCount: 42,
     });
   });
 
@@ -205,10 +227,30 @@ describe("reads", () => {
 
   test("assembles one scheme with its ordered types for a project", async () => {
     mockRows([
-      { scheme_id: "5", name: "Default", description: "", default_issue_type_id: "1", is_default: 1,
-        issue_type_id: "1", type_name: "Epic", subtask: 0, hierarchy_level: 1, item_index: 0 },
-      { scheme_id: "5", name: "Default", description: "", default_issue_type_id: "1", is_default: 1,
-        issue_type_id: "2", type_name: "Story", subtask: 0, hierarchy_level: 0, item_index: 1 },
+      {
+        scheme_id: "5",
+        name: "Default",
+        description: "",
+        default_issue_type_id: "1",
+        is_default: 1,
+        issue_type_id: "1",
+        type_name: "Epic",
+        subtask: 0,
+        hierarchy_level: 1,
+        item_index: 0,
+      },
+      {
+        scheme_id: "5",
+        name: "Default",
+        description: "",
+        default_issue_type_id: "1",
+        is_default: 1,
+        issue_type_id: "2",
+        type_name: "Story",
+        subtask: 0,
+        hierarchy_level: 0,
+        item_index: 1,
+      },
     ]);
 
     const result = await loadIssueTypeSchemeForProject("scope-1", "v1", "10000");
@@ -256,9 +298,14 @@ describe("meta", () => {
   });
 
   test("maps a meta row", async () => {
-    mockRows([{ state: "ready", version: "v1", total_types: 42, total_schemes: 7, refreshed_at: "t", last_error: null }]);
+    mockRows([
+      { state: "ready", version: "v1", total_types: 42, total_schemes: 7, refreshed_at: "t", last_error: null },
+    ]);
     expect(await readIssueTypeSnapshotMeta("scope-1")).toMatchObject({
-      state: "ready", version: "v1", totalTypes: 42, totalSchemes: 7,
+      state: "ready",
+      version: "v1",
+      totalTypes: 42,
+      totalSchemes: 7,
     });
   });
 

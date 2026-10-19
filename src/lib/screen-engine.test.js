@@ -144,7 +144,10 @@ describe("collectScreenContents", () => {
     expect(tabs[0]).toMatchObject({ screenId: "100", tabId: "1", tabIndex: 0, fieldCount: 2 });
     // Order within the tab is the signal behind "buried field" -- discard it and the
     // finding cannot be recovered from the snapshot.
-    expect(fields.map((f) => [f.fieldId, f.fieldIndex])).toEqual([["summary", 0], ["customfield_1", 1]]);
+    expect(fields.map((f) => [f.fieldId, f.fieldIndex])).toEqual([
+      ["summary", 0],
+      ["customfield_1", 1],
+    ]);
   });
 
   // The rule the whole pillar rests on. A screen we could not read is not a screen with no
@@ -161,9 +164,7 @@ describe("collectScreenContents", () => {
 
   test("one unreadable tab marks the whole screen unresolved", async () => {
     getScreenTabs.mockResolvedValue([{ id: 1 }, { id: 2 }]);
-    getScreenTabFields
-      .mockResolvedValueOnce([{ id: "summary" }])
-      .mockRejectedValueOnce(new Error("500"));
+    getScreenTabFields.mockResolvedValueOnce([{ id: "summary" }]).mockRejectedValueOnce(new Error("500"));
 
     const { screenRows, fields } = await collectScreenContents([{ id: 100 }]);
 
@@ -204,9 +205,7 @@ describe("buildScreenSnapshot", () => {
       { issueTypeScreenSchemeId: 9, issueTypeId: "default", screenSchemeId: 5 },
       { issueTypeScreenSchemeId: 9, issueTypeId: "10001", screenSchemeId: 5 },
     ]);
-    getIssueTypeScreenSchemeProjects.mockResolvedValue([
-      { issueTypeScreenScheme: { id: 9 }, projectIds: ["10000"] },
-    ]);
+    getIssueTypeScreenSchemeProjects.mockResolvedValue([{ issueTypeScreenScheme: { id: 9 }, projectIds: ["10000"] }]);
     getAllJiraProjects.mockResolvedValue([{ id: "10000", key: "OBS", name: "Observatory" }]);
   }
 

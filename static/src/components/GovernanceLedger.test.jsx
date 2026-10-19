@@ -1,4 +1,3 @@
-import React from "react";
 import { describe, test, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { buildGovernanceLedger, useHealthHistory } from "./OverviewDashboard";
@@ -16,23 +15,45 @@ vi.mock("@forge/bridge", () => ({
 }));
 
 const dim = (key, over = {}) => ({
-  key, label: key, available: true, score: 50, detail: `${key} detail`, action: null, ...over,
+  key,
+  label: key,
+  available: true,
+  score: 50,
+  detail: `${key} detail`,
+  action: null,
+  ...over,
 });
 
 const health = (over = {}) => ({
-  score: 57, grade: "E",
+  score: 57,
+  grade: "E",
   dimensions: [dim("automation-security", { score: 0 }), dim("automation-hygiene", { score: 19 })],
-  pillars: [{
-    key: "automation", label: "Automation", score: 31, grade: "E", available: true, scored: 2, total: 2,
-    dimensions: [dim("automation-security", { score: 0 }), dim("automation-hygiene", { score: 19 })],
-  }],
+  pillars: [
+    {
+      key: "automation",
+      label: "Automation",
+      score: 31,
+      grade: "E",
+      available: true,
+      scored: 2,
+      total: 2,
+      dimensions: [dim("automation-security", { score: 0 }), dim("automation-hygiene", { score: 19 })],
+    },
+  ],
   ...over,
 });
 
 const finding = (over = {}) => ({
-  key: "f1", dimension: "automation-security", pillar: "automation",
-  tone: "critical", count: 86, title: "A finding", detail: "why it matters",
-  onOpen: vi.fn(), openLabel: "Automation", ...over,
+  key: "f1",
+  dimension: "automation-security",
+  pillar: "automation",
+  tone: "critical",
+  count: 86,
+  title: "A finding",
+  detail: "why it matters",
+  onOpen: vi.fn(),
+  openLabel: "Automation",
+  ...over,
 });
 
 const rowFor = (ledger, key) => ledger.pillars.flatMap((p) => p.rows).find((r) => r.key === key);
@@ -64,8 +85,17 @@ describe("buildGovernanceLedger — joining scores to findings", () => {
   test("a finding can escalate a row past what its score justifies", () => {
     const ledger = buildGovernanceLedger({
       health: health({
-        pillars: [{ key: "automation", label: "Automation", available: true, score: 90, grade: "A", total: 1,
-          dimensions: [dim("automation-security", { score: 95 })] }],
+        pillars: [
+          {
+            key: "automation",
+            label: "Automation",
+            available: true,
+            score: 90,
+            grade: "A",
+            total: 1,
+            dimensions: [dim("automation-security", { score: 95 })],
+          },
+        ],
       }),
       findings: [finding({ dimension: "automation-security", tone: "critical" })],
     });
@@ -92,8 +122,17 @@ describe("buildGovernanceLedger — joining scores to findings", () => {
   test("the worst of several findings decides the row's band", () => {
     const ledger = buildGovernanceLedger({
       health: health({
-        pillars: [{ key: "automation", label: "Automation", available: true, score: 90, grade: "A", total: 1,
-          dimensions: [dim("automation-hygiene", { score: 95 })] }],
+        pillars: [
+          {
+            key: "automation",
+            label: "Automation",
+            available: true,
+            score: 90,
+            grade: "A",
+            total: 1,
+            dimensions: [dim("automation-hygiene", { score: 95 })],
+          },
+        ],
       }),
       findings: [
         finding({ key: "a", dimension: "automation-hygiene", tone: "info" }),
@@ -120,7 +159,15 @@ describe("buildGovernanceLedger — nothing gets dropped", () => {
   test("keeps a finding no dimension covers", () => {
     const ledger = buildGovernanceLedger({
       health: health(),
-      findings: [finding({ key: "cleanup", dimension: null, pillar: "fields", tone: "info", title: "Fields suggested for cleanup" })],
+      findings: [
+        finding({
+          key: "cleanup",
+          dimension: null,
+          pillar: "fields",
+          tone: "info",
+          title: "Fields suggested for cleanup",
+        }),
+      ],
     });
 
     const row = rowFor(ledger, "cleanup");
@@ -157,11 +204,19 @@ describe("buildGovernanceLedger — nothing gets dropped", () => {
   test("a dimension that could not be scored still shows its finding", () => {
     const ledger = buildGovernanceLedger({
       health: health({
-        pillars: [{
-          key: "automation", label: "Automation", available: false, score: null, total: 1,
-          reason: "No automation analysis yet.",
-          dimensions: [dim("automation-security", { available: false, score: null, reason: "No automation analysis yet." })],
-        }],
+        pillars: [
+          {
+            key: "automation",
+            label: "Automation",
+            available: false,
+            score: null,
+            total: 1,
+            reason: "No automation analysis yet.",
+            dimensions: [
+              dim("automation-security", { available: false, score: null, reason: "No automation analysis yet." }),
+            ],
+          },
+        ],
       }),
       findings: [finding()],
     });
@@ -192,10 +247,17 @@ describe("buildGovernanceLedger — ordering and tallies", () => {
   test("orders rows by urgency, then by worst score", () => {
     const ledger = buildGovernanceLedger({
       health: health({
-        pillars: [{
-          key: "automation", label: "Automation", available: true, score: 30, grade: "E", total: 3,
-          dimensions: [dim("a", { score: 90 }), dim("b", { score: 20 }), dim("c", { score: 50 })],
-        }],
+        pillars: [
+          {
+            key: "automation",
+            label: "Automation",
+            available: true,
+            score: 30,
+            grade: "E",
+            total: 3,
+            dimensions: [dim("a", { score: 90 }), dim("b", { score: 20 }), dim("c", { score: 50 })],
+          },
+        ],
       }),
       findings: [finding({ key: "urgent", dimension: "a", tone: "critical" })],
     });
@@ -235,8 +297,22 @@ describe("buildGovernanceLedger — ordering and tallies", () => {
 
 describe("buildGovernanceLedger — trends", () => {
   const history = (over = {}) => ({
-    available: true, hasTrend: true, days: 90, delta: 4,
-    dimensions: [{ key: "automation-security", score: 0, first: 12, delta: -12, points: [{ day: "d1", score: 12 }, { day: "d2", score: 0 }] }],
+    available: true,
+    hasTrend: true,
+    days: 90,
+    delta: 4,
+    dimensions: [
+      {
+        key: "automation-security",
+        score: 0,
+        first: 12,
+        delta: -12,
+        points: [
+          { day: "d1", score: 12 },
+          { day: "d2", score: 0 },
+        ],
+      },
+    ],
     ...over,
   });
 
@@ -275,9 +351,15 @@ describe("Sparkline", () => {
   });
 
   test("marks direction so colour can carry it", () => {
-    expect(render(<Sparkline points={points(10, 90)} />).container.querySelector("svg").className.baseVal).toMatch(/ui-spark--up/);
-    expect(render(<Sparkline points={points(90, 10)} />).container.querySelector("svg").className.baseVal).toMatch(/ui-spark--down/);
-    expect(render(<Sparkline points={points(50, 50)} />).container.querySelector("svg").className.baseVal).toMatch(/ui-spark--flat/);
+    expect(render(<Sparkline points={points(10, 90)} />).container.querySelector("svg").className.baseVal).toMatch(
+      /ui-spark--up/,
+    );
+    expect(render(<Sparkline points={points(90, 10)} />).container.querySelector("svg").className.baseVal).toMatch(
+      /ui-spark--down/,
+    );
+    expect(render(<Sparkline points={points(50, 50)} />).container.querySelector("svg").className.baseVal).toMatch(
+      /ui-spark--flat/,
+    );
   });
 
   test("renders a dash rather than a line when there is nothing to compare", () => {
@@ -296,7 +378,11 @@ describe("Sparkline", () => {
   test("scales against a fixed 0-100 axis, not a fitted one", () => {
     // Two nearly identical scores must not render as a dramatic slope.
     const { container } = render(<Sparkline points={points(50, 51)} height={16} />);
-    const [a, b] = container.querySelector("polyline").getAttribute("points").split(" ").map((p) => Number(p.split(",")[1]));
+    const [a, b] = container
+      .querySelector("polyline")
+      .getAttribute("points")
+      .split(" ")
+      .map((p) => Number(p.split(",")[1]));
     expect(Math.abs(a - b)).toBeLessThan(1);
   });
 });

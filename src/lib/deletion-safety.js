@@ -36,13 +36,20 @@ function gap(source, reason) {
 // been built narrows the claim instead of silently strengthening it.
 export function assessFieldDeletion({
   field = {},
-  usage = null,        // { totalIssueCount, activeProjectCount } | null
-  screens = null,      // { available, screens: [], unresolvedScreens } | null
-  automation = null,   // { available, writeCount, readCount, triggerCount, evidence } | null
-  filters = null,      // { available, count, names: [] } | null
-  dashboards = null,   // { available, count, names: [] } | null
-  rqt = null,          // { available, issueCount } | null
+  usage = null, // { totalIssueCount, activeProjectCount } | null
+  screens = null, // { available, screens: [], unresolvedScreens } | null
+  automation = null, // { available, writeCount, readCount, triggerCount, evidence } | null
+  filters = null, // { available, count, names: [] } | null
+  dashboards = null, // { available, count, names: [] } | null
+  rqt = null, // { available, issueCount } | null
   invisibleData = null, // { projects: [], totalIssues } | null -- from the screen cross
+  workflowRules = null, // { available, count, workflowCount, examples: [] } | null
+  // { available, reason?, held: [{ projectKey, issueCount, lastSeenAt }],
+  //   unknown: [{ projectKey, issueCount }], reachUnknown?: boolean } | null
+  // Archived projects are invisible to Jira's search, so the usage count above cannot include
+  // them. `held` is what Observatory counted before a project was archived; `unknown` is an
+  // archived project the field is configured in whose values were never counted.
+  archived = null,
 } = {}) {
   const blockers = [];
   const gaps = [];
@@ -54,7 +61,12 @@ export function assessFieldDeletion({
   // below keys on the name. Said once, plainly, rather than letting three pillars each
   // report an empty result that reads as a clean one.
   if (!(field.name ?? field.fieldName)) {
-    gaps.push(gap("field catalogue", "The field catalogue could not be read, so this field's name is unknown — and the automation, filter and dashboard joins all match on name."));
+    gaps.push(
+      gap(
+        "field catalogue",
+        "The field catalogue could not be read, so this field's name is unknown — and the automation, filter and dashboard joins all match on name.",
+      ),
+    );
   }
 
   if (usage) {
@@ -72,18 +84,72 @@ export function assessFieldDeletion({
     gaps.push(gap("field usage", "No field snapshot has been built, so where values exist is unknown."));
   }
 
+  // ── Archived projects ─────────────────────────────────────────────────────
+  //
+  // Values in an archived project are real data nobody can see in search. Deleting the field
+  // deletes them, and a project restored later comes back with the field empty -- the exact
+  // case of an HR project archived for retention with a field someone is told to delete.
+  if (archived?.available) {
+    const held = (archived.held || []).filter((p) => Number(p.issueCount) > 0);
+    const unknown = archived.unknown || [];
+    if (held.length) {
+      const total = held.reduce((n, p) => n + Number(p.issueCount), 0);
+      const where = held
+        .slice(0, 3)
+        .map((p) => `${p.projectKey} (${Number(p.issueCount).toLocaleString()})`)
+        .join(", ");
+      blockers.push({
+        source: "archived",
+        severity: "high",
+        summary: `${total.toLocaleString()} value${total === 1 ? "" : "s"} in ${held.length} archived project${held.length === 1 ? "" : "s"} when last counted: ${where}${held.length > 3 ? ", …" : ""}.`,
+        detail:
+          "Jira's search cannot see archived projects, so these are the counts from before each was archived. Deleting the field deletes these values, and they stay empty if the project is ever restored.",
+      });
+    }
+    if (unknown.length) {
+      const where = unknown
+        .slice(0, 3)
+        .map((p) => p.projectKey)
+        .join(", ");
+      gaps.push(
+        gap(
+          "archived projects",
+          `Configured in ${unknown.length} archived project${unknown.length === 1 ? "" : "s"} whose values were never counted (${where}${unknown.length > 3 ? ", …" : ""}). Jira hides archived issues from search, so any values there cannot be seen. Check with the project's owner, or restore it, before deleting.`,
+        ),
+      );
+    }
+    if (archived.reachUnknown) {
+      gaps.push(
+        gap("archived projects", "Whether this field is configured in an archived project could not be checked."),
+      );
+    }
+    if (!held.length && !unknown.length && !archived.reachUnknown) checked.push("archived projects");
+  } else if (archived && archived.available === false) {
+    gaps.push(
+      gap(
+        "archived projects",
+        archived.reason ||
+          "The list of archived projects could not be read, so values hidden in them cannot be ruled out.",
+      ),
+    );
+  }
+
   // ── The cross-signal, which is the one that catches integrations ───────────
   //
   // Populated in a project whose screens do not show it. This is the blocker most likely to
   // be the reason a deletion breaks something, because by construction nobody can see the
   // thing writing it by looking at Jira.
   if (invisibleData && Number(invisibleData.totalIssues) > 0) {
-    const where = (invisibleData.projects || []).slice(0, 3).map((p) => p.projectKey).join(", ");
+    const where = (invisibleData.projects || [])
+      .slice(0, 3)
+      .map((p) => p.projectKey)
+      .join(", ");
     blockers.push({
       source: "invisible-data",
       severity: "high",
       summary: `Written by something outside the UI in ${invisibleData.projects?.length ?? 0} project(s)${where ? `: ${where}` : ""}.`,
-      detail: "The field holds values in projects whose screens do not display it, so an importer, integration or rule is maintaining it. Find that first.",
+      detail:
+        "The field holds values in projects whose screens do not display it, so an importer, integration or rule is maintaining it. Find that first.",
     });
   }
 
@@ -117,7 +183,9 @@ export function assessFieldDeletion({
       gaps.push(gap("automation rules", b.message));
     }
   } else {
-    gaps.push(gap("automation rules", "No automation analysis has been imported, so no rule reference can be ruled out."));
+    gaps.push(
+      gap("automation rules", "No automation analysis has been imported, so no rule reference can be ruled out."),
+    );
   }
 
   // ── Where a person can see or type it ─────────────────────────────────────
@@ -133,10 +201,44 @@ export function assessFieldDeletion({
       });
     }
     if (Number(screens.unresolvedScreens) > 0) {
-      gaps.push(gap("screens", `${screens.unresolvedScreens} screen(s) could not be read in the last build, so the screen list may be incomplete.`));
+      gaps.push(
+        gap(
+          "screens",
+          `${screens.unresolvedScreens} screen(s) could not be read in the last build, so the screen list may be incomplete.`,
+        ),
+      );
     }
   } else {
     gaps.push(gap("screens", "No screen inventory has been built, so whether a form carries this field is unknown."));
+  }
+
+  // ── Workflow rules ────────────────────────────────────────────────────────
+  //
+  // A validator that requires the field, a condition that checks it, a post-function that
+  // writes it, or a status property that names it. High, because the failure is a
+  // transition that blocks or a check that silently stops checking -- and it surfaces on
+  // someone else's ticket, not on the field.
+  if (workflowRules?.available) {
+    checked.push("workflow rules");
+    const count = Number(workflowRules.count) || 0;
+    if (count > 0) {
+      const workflows = Number(workflowRules.workflowCount) || 0;
+      const examples = (workflowRules.examples || []).slice(0, 3).join("; ");
+      blockers.push({
+        source: "workflow-rules",
+        severity: "high",
+        summary: `${count} workflow rule${count === 1 ? "" : "s"} or propert${count === 1 ? "y" : "ies"} in ${workflows} workflow${workflows === 1 ? "" : "s"} name this field${examples ? `: ${examples}` : ""}.`,
+        detail:
+          "A validator requiring a deleted field blocks the transition or stops validating; a post-function writing it fails. Remove the field from those transitions first.",
+      });
+    }
+  } else {
+    gaps.push(
+      gap(
+        "workflow rules",
+        "No workflow snapshot with rule capture has been built, so a transition validating or writing this field cannot be ruled out.",
+      ),
+    );
   }
 
   // ── What reads it ─────────────────────────────────────────────────────────
@@ -153,9 +255,10 @@ export function assessFieldDeletion({
           source: key,
           severity,
           summary: `${count} ${label}${count === 1 ? "" : "s"} reference this field${names ? `: ${names}` : ""}.`,
-          detail: key === "filters"
-            ? "A filter whose JQL names a deleted field errors for everyone who runs it, and every board and subscription on top of it."
-            : "A gadget built on that filter shows an error instead of a chart.",
+          detail:
+            key === "filters"
+              ? "A filter whose JQL names a deleted field errors for everyone who runs it, and every board and subscription on top of it."
+              : "A gadget built on that filter shows an error instead of a chart.",
         });
       }
     } else {
@@ -172,7 +275,8 @@ export function assessFieldDeletion({
         source: "rqt",
         severity: "high",
         summary: `Carries requirement tokens on ${issues} issue${issues === 1 ? "" : "s"}.`,
-        detail: "Traceability to requirements runs through this field. Deleting it breaks the trace, not just the value.",
+        detail:
+          "Traceability to requirements runs through this field. Deleting it breaks the trace, not just the value.",
       });
     }
   }
@@ -192,7 +296,8 @@ export function assessFieldDeletion({
     // Said on every verdict, including the clean ones. The app cannot read Marketplace app
     // configuration, and a site running ScriptRunner can have a post-function writing this
     // field on every transition with nothing here to show for it.
-    caveat: "Observatory cannot read Marketplace app configuration (ScriptRunner listeners, JMWE post-functions) or anything writing through the REST API. Absence of a reference here is absence of one this app can see.",
+    caveat:
+      "Workflow validators and post-functions from apps are only seen where they name the field by id. Observatory cannot read ScriptRunner listeners or anything writing through the REST API. Absence of a reference here is absence of one this app can see.",
   };
 }
 
@@ -209,19 +314,18 @@ export function assessFieldDeletion({
 // blocker and a field blocker are the same shape, `{ source, severity, summary, detail }` --
 // so this function is pure arithmetic over two arrays, nothing more.
 export function computeVerdict(blockers, gaps) {
-  const verdict = blockers.length > 0
-    ? VERDICT.IN_USE
-    : (gaps.length > 0 ? VERDICT.UNKNOWN : VERDICT.NO_EVIDENCE);
+  const verdict = blockers.length > 0 ? VERDICT.IN_USE : gaps.length > 0 ? VERDICT.UNKNOWN : VERDICT.NO_EVIDENCE;
 
   return {
     verdict,
     // Never "safe to delete", at any confidence. The strongest claim the product makes, in
     // the words it makes it in.
-    headline: verdict === VERDICT.IN_USE
-      ? `In use — ${blockers.length} reason${blockers.length === 1 ? "" : "s"} not to delete this yet.`
-      : verdict === VERDICT.NO_EVIDENCE
-        ? "No evidence of use in anything this app can see."
-        : `No evidence of use, but ${gaps.length} source${gaps.length === 1 ? "" : "s"} could not be checked.`,
+    headline:
+      verdict === VERDICT.IN_USE
+        ? `In use — ${blockers.length} reason${blockers.length === 1 ? "" : "s"} not to delete this yet.`
+        : verdict === VERDICT.NO_EVIDENCE
+          ? "No evidence of use in anything this app can see."
+          : `No evidence of use, but ${gaps.length} source${gaps.length === 1 ? "" : "s"} could not be checked.`,
   };
 }
 
@@ -237,18 +341,24 @@ export function computeVerdict(blockers, gaps) {
 // pillar -- a narrowed claim, never a clean one it did not earn.
 export function assessStatusDeletion({
   status = {},
-  schemes = null,     // { reachedByCount: number } | null
-  issueUsage = null,  // { count: number } | null
-  automation = null,  // { available, writeCount, readCount, triggerCount } | null
-  boards = null,      // { available, onBoard: boolean } | null
-  filters = null,     // { available, count, names: [] } | null
+  schemes = null, // { reachedByCount: number } | null
+  issueUsage = null, // { count: number } | null
+  automation = null, // { available, writeCount, readCount, triggerCount } | null
+  boards = null, // { available, onBoard: boolean } | null
+  filters = null, // { available, count, names: [] } | null
+  workflows = null, // { available, count, names: [], ruleRefCount } | null -- from the transition snapshot
 } = {}) {
   const blockers = [];
   const gaps = [];
   const checked = [];
 
   if (!(status.name ?? status.statusName)) {
-    gaps.push(gap("status catalogue", "The status catalogue could not be read, so this status's name is unknown — the automation and filter joins both match on name."));
+    gaps.push(
+      gap(
+        "status catalogue",
+        "The status catalogue could not be read, so this status's name is unknown — the automation and filter joins both match on name.",
+      ),
+    );
   }
 
   // ── Workflow schemes ──────────────────────────────────────────────────────
@@ -263,11 +373,47 @@ export function assessStatusDeletion({
         source: "schemes",
         severity: "high",
         summary: `Reachable from ${count} workflow scheme${count === 1 ? "" : "s"}.`,
-        detail: "Every project on one of those schemes can put an issue into this status today. Deleting it breaks the scheme's workflow diagram.",
+        detail:
+          "Every project on one of those schemes can put an issue into this status today. Deleting it breaks the scheme's workflow diagram.",
       });
     }
   } else {
     gaps.push(gap("workflow schemes", "No scheme->status mapping has been built, so reachability is unknown."));
+  }
+
+  // ── Workflows that contain it ─────────────────────────────────────────────
+  //
+  // Separate from scheme reachability, and stricter: Jira refuses to delete a status that ANY
+  // workflow uses -- including an inactive workflow no project's scheme reaches. A status the
+  // scheme chain calls unreachable can still be undeletable for exactly that reason.
+  if (workflows?.available) {
+    checked.push("workflows");
+    const count = Number(workflows.count) || 0;
+    if (count > 0) {
+      const names = (workflows.names || []).slice(0, 3).join(", ");
+      blockers.push({
+        source: "workflows",
+        severity: "high",
+        summary: `In ${count} workflow${count === 1 ? "" : "s"}${names ? `: ${names}` : ""}.`,
+        detail: "Jira will not delete a status any workflow uses, active or not. Remove it from those workflows first.",
+      });
+    }
+    const refs = Number(workflows.ruleRefCount) || 0;
+    if (refs > 0) {
+      blockers.push({
+        source: "workflow-rules",
+        severity: "medium",
+        summary: `${refs} workflow rule${refs === 1 ? " names" : "s name"} this status (a previous-status validator, say).`,
+        detail: "Those rules stop matching once the status is gone, and nothing reports it.",
+      });
+    }
+  } else {
+    gaps.push(
+      gap(
+        "workflows",
+        "No workflow snapshot with transitions has been built, so which workflows contain this status is unknown.",
+      ),
+    );
   }
 
   // ── Issues currently in it ────────────────────────────────────────────────
@@ -279,11 +425,14 @@ export function assessStatusDeletion({
         source: "usage",
         severity: "high",
         summary: `${count} issue${count === 1 ? " sits" : "s sit"} in this status right now.`,
-        detail: "Deleting the status without moving those issues first strands them where nothing can find or transition them.",
+        detail:
+          "Deleting the status without moving those issues first strands them where nothing can find or transition them.",
       });
     }
   } else {
-    gaps.push(gap("issue counts", "No universe scan has measured current issue counts, so whether issues sit here is unknown."));
+    gaps.push(
+      gap("issue counts", "No universe scan has measured current issue counts, so whether issues sit here is unknown."),
+    );
   }
 
   // ── Automation ────────────────────────────────────────────────────────────
@@ -308,7 +457,9 @@ export function assessStatusDeletion({
       });
     }
   } else {
-    gaps.push(gap("automation rules", "No automation analysis has been imported, so no rule reference can be ruled out."));
+    gaps.push(
+      gap("automation rules", "No automation analysis has been imported, so no rule reference can be ruled out."),
+    );
   }
 
   // ── Board columns ─────────────────────────────────────────────────────────
@@ -326,7 +477,9 @@ export function assessStatusDeletion({
       });
     }
   } else {
-    gaps.push(gap("board columns", "No board inventory has been built, so whether a column maps this status is unknown."));
+    gaps.push(
+      gap("board columns", "No board inventory has been built, so whether a column maps this status is unknown."),
+    );
   }
 
   // ── Saved filters ─────────────────────────────────────────────────────────
@@ -339,11 +492,14 @@ export function assessStatusDeletion({
         source: "filters",
         severity: "medium",
         summary: `${count} saved filter${count === 1 ? "" : "s"} reference this status${names ? `: ${names}` : ""}.`,
-        detail: "A filter whose JQL names a deleted status errors for everyone who runs it, and every board and subscription on top of it.",
+        detail:
+          "A filter whose JQL names a deleted status errors for everyone who runs it, and every board and subscription on top of it.",
       });
     }
   } else {
-    gaps.push(gap("saved filters", "No filter inventory has been built, so references from saved filters cannot be ruled out."));
+    gaps.push(
+      gap("saved filters", "No filter inventory has been built, so references from saved filters cannot be ruled out."),
+    );
   }
 
   blockers.sort((a, b) => (BLOCKER_ORDER[a.severity] ?? 3) - (BLOCKER_ORDER[b.severity] ?? 3));
@@ -358,7 +514,8 @@ export function assessStatusDeletion({
     gaps,
     checked,
     headline,
-    caveat: "Observatory cannot read Marketplace app configuration (ScriptRunner post-functions, JMWE listeners) or anything transitioning an issue through the REST API directly. Absence of a reference here is absence of one this app can see.",
+    caveat:
+      "Observatory cannot read Marketplace app configuration (ScriptRunner post-functions, JMWE listeners) or anything transitioning an issue through the REST API directly. Absence of a reference here is absence of one this app can see.",
   };
 }
 
@@ -375,8 +532,8 @@ export function summarizeDeletionSafety(assessments = []) {
   // subject with `<kind>Name`, so this stays generic without a type tag threading through.
   const nameOf = (a) => a.fieldName ?? a.statusName ?? a.screenName ?? a.name ?? "";
   const rank = { [VERDICT.NO_EVIDENCE]: 0, [VERDICT.UNKNOWN]: 1, [VERDICT.IN_USE]: 2 };
-  const fields = [...assessments].sort((a, b) =>
-    (rank[a.verdict] - rank[b.verdict]) || String(nameOf(a)).localeCompare(String(nameOf(b)))
+  const fields = [...assessments].sort(
+    (a, b) => rank[a.verdict] - rank[b.verdict] || String(nameOf(a)).localeCompare(String(nameOf(b))),
   );
 
   return { total: assessments.length, byVerdict, fields };

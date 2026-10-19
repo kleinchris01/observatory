@@ -1,9 +1,15 @@
-import React from "react";
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@forge/bridge";
-import { AutomationProbePanel, AssetsProbePanel, GlobalPermissionsProbePanel, ConfigTab, ScreenCostProbePanel } from "./ConfigTab";
+import {
+  AutomationProbePanel,
+  AssetsProbePanel,
+  GlobalPermissionsProbePanel,
+  ConfigTab,
+  ScreenCostProbePanel,
+  ServiceManagementProbePanel,
+} from "./ConfigTab";
 import { DEFAULT_THRESHOLDS, DEFAULT_MACRO_ACCESS, DEFAULT_AUTOMATION_STALE_AFTER_DAYS } from "../admin-defaults";
 
 // ConfigTab had no test file, which is how a panel calling an unimported `invoke` reached
@@ -20,8 +26,22 @@ const probeResult = (over = {}) => ({
   projectId: "10000",
   reachable: [],
   results: [
-    { scope: "global", path: "/rest/cb-automation/latest/project/GLOBAL/rule", status: 401, ok: false, looksLikeRules: false, sample: "scope does not match" },
-    { scope: "project", path: "/rest/cb-automation/latest/project/10000/rule", status: 404, ok: false, looksLikeRules: false, sample: "not found" },
+    {
+      scope: "global",
+      path: "/rest/cb-automation/latest/project/GLOBAL/rule",
+      status: 401,
+      ok: false,
+      looksLikeRules: false,
+      sample: "scope does not match",
+    },
+    {
+      scope: "project",
+      path: "/rest/cb-automation/latest/project/10000/rule",
+      status: 404,
+      ok: false,
+      looksLikeRules: false,
+      sample: "not found",
+    },
   ],
   ...over,
 });
@@ -35,8 +55,23 @@ describe("AssetsProbePanel", () => {
       workspaceId: "ws-abc",
       reachable: ["schemas", "objectTypes"],
       results: [
-        { step: "workspace", via: "site", path: "/rest/servicedeskapi/assets/workspace", status: 200, ok: true, sample: "{}" },
-        { step: "schemas", via: "stargate", path: "https://api.atlassian.com/jsm/assets/workspace/ws-abc/v1/objectschema/list", status: 200, ok: true, looksLikeAssets: true, sample: "[]" },
+        {
+          step: "workspace",
+          via: "site",
+          path: "/rest/servicedeskapi/assets/workspace",
+          status: 200,
+          ok: true,
+          sample: "{}",
+        },
+        {
+          step: "schemas",
+          via: "stargate",
+          path: "https://api.atlassian.com/jsm/assets/workspace/ws-abc/v1/objectschema/list",
+          status: 200,
+          ok: true,
+          looksLikeAssets: true,
+          sample: "[]",
+        },
       ],
     });
     render(<AssetsProbePanel />);
@@ -53,7 +88,16 @@ describe("AssetsProbePanel", () => {
       workspaceId: null,
       reason: "The workspace endpoint did not answer — Assets needs JSM Premium/Enterprise.",
       reachable: [],
-      results: [{ step: "workspace", via: "site", path: "/rest/servicedeskapi/assets/workspace", status: 404, ok: false, sample: "" }],
+      results: [
+        {
+          step: "workspace",
+          via: "site",
+          path: "/rest/servicedeskapi/assets/workspace",
+          status: 404,
+          ok: false,
+          sample: "",
+        },
+      ],
     });
     render(<AssetsProbePanel />);
     await userEvent.click(screen.getByRole("button", { name: /Probe Assets endpoints/i }));
@@ -70,6 +114,93 @@ describe("AssetsProbePanel", () => {
   });
 });
 
+const tier = (state, detail = null) => ({ state, detail });
+const jsmResult = (over = {}) => ({
+  jsmAvailable: true,
+  reason: null,
+  version: "10.4.0",
+  serviceDeskCount: 3,
+  moreServiceDesks: false,
+  sampledDesk: { id: "1", projectKey: "SD", projectId: "10000" },
+  slaFields: [],
+  areas: [
+    { key: "requestTypes", label: "Request types, portal and forms", structure: tier("ready"), usage: tier("ready") },
+    { key: "queues", label: "Queues", structure: tier("ready"), usage: tier("ready") },
+    {
+      key: "slas",
+      label: "SLAs",
+      structure: tier("ready"),
+      usage: tier("missing-scope", "Scope not granted for: slaBreached."),
+    },
+    {
+      key: "customers",
+      label: "Customers and organizations",
+      structure: tier("blocked", "deskCustomers: forbidden (403)"),
+      usage: tier("untested"),
+    },
+  ],
+  results: [
+    {
+      step: "serviceDesks",
+      note: "Every service desk, with its project",
+      path: "/rest/servicedeskapi/servicedesk?limit=50",
+      status: 200,
+      ok: true,
+      verdict: "ok",
+      count: 3,
+      sample: "{}",
+    },
+    {
+      step: "slaBreached",
+      note: "Issues whose first SLA is breached()",
+      jql: 'project = "SD" AND cf[10030] = breached()',
+      status: 401,
+      ok: false,
+      verdict: "missing-scope",
+      sample: "scope does not match",
+    },
+  ],
+  ...over,
+});
+
+describe("ServiceManagementProbePanel", () => {
+  test("shows each pillar's readiness at both stages, and every probed step", async () => {
+    invoke.mockResolvedValueOnce(jsmResult());
+    render(<ServiceManagementProbePanel />);
+    await userEvent.click(screen.getByRole("button", { name: /Probe Service Management endpoints/i }));
+
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("probeServiceManagementApi", {}));
+    expect(await screen.findByText(/3 service desks on JSM 10.4.0/)).toBeInTheDocument();
+    expect(screen.getByText("SD")).toBeInTheDocument();
+    expect(screen.getAllByText("Ready")).toHaveLength(5);
+    expect(screen.getByText("Scope missing")).toBeInTheDocument();
+    expect(screen.getByText("Blocked")).toBeInTheDocument();
+    expect(screen.getByText("Not tested")).toBeInTheDocument();
+    expect(screen.getByText(/deskCustomers: forbidden \(403\)/)).toBeInTheDocument();
+    expect(screen.getByText('project = "SD" AND cf[10030] = breached()')).toBeInTheDocument();
+    expect(screen.getByText(/401 · missing-scope/)).toBeInTheDocument();
+  });
+
+  test("says why when Service Management is not reachable", async () => {
+    invoke.mockResolvedValueOnce(
+      jsmResult({ jsmAvailable: false, reason: "Jira Service Management is not on this site.", sampledDesk: null }),
+    );
+    render(<ServiceManagementProbePanel />);
+    await userEvent.click(screen.getByRole("button", { name: /Probe Service Management endpoints/i }));
+
+    expect(await screen.findByText("Jira Service Management is not on this site.")).toBeInTheDocument();
+  });
+
+  test("surfaces a resolver failure without breaking the panel", async () => {
+    invoke.mockRejectedValueOnce(new Error("boom"));
+    render(<ServiceManagementProbePanel />);
+    await userEvent.click(screen.getByRole("button", { name: /Probe Service Management endpoints/i }));
+
+    expect(await screen.findByText("boom")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Probe Service Management endpoints/i })).toBeEnabled();
+  });
+});
+
 describe("GlobalPermissionsProbePanel", () => {
   test("reports the catalog is readable but grant enumeration is not available", async () => {
     invoke.mockResolvedValue({
@@ -77,7 +208,12 @@ describe("GlobalPermissionsProbePanel", () => {
       globalPermissionKeys: ["ADMINISTER", "SYSTEM_ADMIN"],
       grantEnumerationAvailable: false,
       rows: [
-        { path: "/rest/api/3/permissions", ok: true, status: 200, note: "The permission catalog — definitions only, no holders" },
+        {
+          path: "/rest/api/3/permissions",
+          ok: true,
+          status: 200,
+          note: "The permission catalog — definitions only, no holders",
+        },
       ],
     });
     render(<GlobalPermissionsProbePanel />);
@@ -116,13 +252,21 @@ describe("AutomationProbePanel", () => {
   });
 
   test("reports extraction as possible only when a body looked like rules", async () => {
-    invoke.mockResolvedValue(probeResult({
-      reachable: ["/rest/cb-automation/latest/project/GLOBAL/rule"],
-      results: [{
-        scope: "global", path: "/rest/cb-automation/latest/project/GLOBAL/rule",
-        status: 200, ok: true, looksLikeRules: true, sample: '{"rules":[{"id":1}]}',
-      }],
-    }));
+    invoke.mockResolvedValue(
+      probeResult({
+        reachable: ["/rest/cb-automation/latest/project/GLOBAL/rule"],
+        results: [
+          {
+            scope: "global",
+            path: "/rest/cb-automation/latest/project/GLOBAL/rule",
+            status: 200,
+            ok: true,
+            looksLikeRules: true,
+            sample: '{"rules":[{"id":1}]}',
+          },
+        ],
+      }),
+    );
     render(<AutomationProbePanel />);
 
     await userEvent.click(screen.getByRole("button", { name: /Probe automation endpoints/i }));
@@ -133,13 +277,21 @@ describe("AutomationProbePanel", () => {
   // A 200 carrying an HTML login page is not usable rule data. Reporting it as reachable
   // would tell someone to build an extractor on an endpoint that returns nothing useful.
   test("does not call a 200 reachable when the body is not rules", async () => {
-    invoke.mockResolvedValue(probeResult({
-      reachable: [],
-      results: [{
-        scope: "global", path: "/rest/cb-automation/latest/rule",
-        status: 200, ok: true, looksLikeRules: false, sample: "<html>login</html>",
-      }],
-    }));
+    invoke.mockResolvedValue(
+      probeResult({
+        reachable: [],
+        results: [
+          {
+            scope: "global",
+            path: "/rest/cb-automation/latest/rule",
+            status: 200,
+            ok: true,
+            looksLikeRules: false,
+            sample: "<html>login</html>",
+          },
+        ],
+      }),
+    );
     render(<AutomationProbePanel />);
 
     await userEvent.click(screen.getByRole("button", { name: /Probe automation endpoints/i }));
@@ -160,7 +312,11 @@ describe("AutomationProbePanel", () => {
 
   test("disables the button while a probe is in flight", async () => {
     let resolveProbe;
-    invoke.mockReturnValue(new Promise((resolve) => { resolveProbe = resolve; }));
+    invoke.mockReturnValue(
+      new Promise((resolve) => {
+        resolveProbe = resolve;
+      }),
+    );
     render(<AutomationProbePanel />);
 
     await userEvent.click(screen.getByRole("button", { name: /Probe/i }));
@@ -222,8 +378,9 @@ describe("ConfigTab — areas", () => {
     await userEvent.click(screen.getByRole("button", { name: /Governance rules/ }));
 
     for (const group of ["Risk", "Cleanup", "Standardize"]) {
-      expect(screen.getByText(group, { selector: ".admin-config-section__header, .admin-config-section__header *" }))
-        .toBeInTheDocument();
+      expect(
+        screen.getByText(group, { selector: ".admin-config-section__header, .admin-config-section__header *" }),
+      ).toBeInTheDocument();
     }
   });
 
@@ -256,8 +413,10 @@ describe("ConfigTab — areas", () => {
 
 describe("ConfigTab — copy describes the rule it controls", () => {
   const cfg = () => ({
-    readOnlyMode: false, apiConcurrency: 4,
-    autoSnapshotEnabled: false, autoSnapshotFrequency: "daily",
+    readOnlyMode: false,
+    apiConcurrency: 4,
+    autoSnapshotEnabled: false,
+    autoSnapshotFrequency: "daily",
     governanceThresholds: { ...DEFAULT_THRESHOLDS },
     macroAccess: { ...DEFAULT_MACRO_ACCESS },
   });
@@ -300,7 +459,10 @@ describe("ConfigTab — copy describes the rule it controls", () => {
       render(<ConfigTab config={cfg()} onSave={onSave} saving={false} />);
       await userEvent.click(screen.getByRole("button", { name: /Governance rules/ }));
 
-      const input = screen.getByText(/Analysis staleness/i).closest(".admin-threshold-rule").querySelector("input");
+      const input = screen
+        .getByText(/Analysis staleness/i)
+        .closest(".admin-threshold-rule")
+        .querySelector("input");
       // Set rather than cleared-and-typed: clearing a number input fires a change with an
       // empty value, which InlineThresholdInput floors to `min`, and the typed digits then
       // append to that instead of replacing it.
@@ -311,7 +473,7 @@ describe("ConfigTab — copy describes the rule it controls", () => {
     });
 
     test("the frontend default matches the backend's", async () => {
-      // Two literals in two bundles. They only stay equal because this asserts it.
+      // Imported now rather than copied; this guards against anyone reintroducing a literal.
       const { DEFAULT_ANALYSIS_STALE_AFTER_DAYS } = await import("../../../src/lib/automation-analysis.js");
       expect(DEFAULT_AUTOMATION_STALE_AFTER_DAYS).toBe(DEFAULT_ANALYSIS_STALE_AFTER_DAYS);
     });
@@ -336,7 +498,13 @@ describe("ScreenCostProbePanel endpoint table", () => {
   test("renders a row per probed endpoint, keeping the breakdown on failure", async () => {
     await runProbe([
       { label: "screens", scope: "read:screen:jira", path: "/rest/api/3/screens", status: 401, scopeAccepted: false },
-      { label: "screen schemes", scope: "read:screen-scheme:jira", path: "/rest/api/3/screenscheme", status: 200, scopeAccepted: true },
+      {
+        label: "screen schemes",
+        scope: "read:screen-scheme:jira",
+        path: "/rest/api/3/screenscheme",
+        status: 200,
+        scopeAccepted: true,
+      },
     ]);
 
     expect(screen.getByText("screens")).toBeInTheDocument();
@@ -389,5 +557,83 @@ describe("ScreenCostProbePanel endpoint table", () => {
 
     expect(screen.getByText(/real id/i)).toBeInTheDocument();
     expect(screen.getByText(/404 is a pass/i)).toBeInTheDocument();
+  });
+});
+
+describe("ConfigTab — remediation hierarchy", () => {
+  const cfg = () => ({
+    readOnlyMode: false,
+    apiConcurrency: 4,
+    autoSnapshotEnabled: false,
+    autoSnapshotFrequency: "daily",
+    governanceThresholds: { ...DEFAULT_THRESHOLDS },
+    macroAccess: { ...DEFAULT_MACRO_ACCESS },
+    remediation: {
+      projectKey: "ATLASDEV",
+      epicIssueType: "Epic",
+      taskIssueType: "Task",
+      hierarchyEnabled: false,
+      rootIssueType: "Product",
+      initiativeIssueType: "Initiative",
+    },
+  });
+
+  test("the two issue types appear only once the hierarchy is switched on, and save with it", async () => {
+    const onSave = vi.fn();
+    const user = userEvent.setup();
+    render(<ConfigTab config={cfg()} onSave={onSave} saving={false} />);
+    const toggle = await screen.findByRole("switch", { name: "Place epics under quarterly initiatives" });
+    expect(screen.queryByText("Top-level issue type")).not.toBeInTheDocument();
+
+    await user.click(toggle);
+    expect(screen.getByText("Top-level issue type")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Product")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Initiative")).toBeInTheDocument();
+  });
+});
+
+describe("ConfigTab — governance rule defaults", () => {
+  // A site that has never saved tolerances: every rule must show the scorer's default.
+  const blank = () => ({
+    readOnlyMode: false,
+    apiConcurrency: 4,
+    autoSnapshotEnabled: false,
+    autoSnapshotFrequency: "weekly",
+    governanceThresholds: { ...DEFAULT_THRESHOLDS },
+    macroAccess: { ...DEFAULT_MACRO_ACCESS },
+  });
+
+  test("no rule input is blank or NaN when nothing has been saved", async () => {
+    render(<ConfigTab config={blank()} onSave={vi.fn()} saving={false} />);
+    await userEvent.click(screen.getByRole("button", { name: /Governance rules/ }));
+    const inputs = [...document.querySelectorAll(".admin-threshold-rule input")];
+    expect(inputs.length).toBeGreaterThan(40);
+    const bad = inputs.filter((i) => i.value === "" || i.value === "NaN");
+    expect(bad).toEqual([]);
+    // The filter rules were among the ones the old hand-kept copy was missing.
+    const orphaned = screen
+      .getByText(/Orphaned filters/)
+      .closest(".admin-threshold-rule")
+      .querySelector("input");
+    expect(orphaned).toHaveValue(5);
+  });
+
+  test("saves target bands without the scorer-only blast weighting", async () => {
+    const onSave = vi.fn();
+    render(<ConfigTab config={blank()} onSave={onSave} saving={false} />);
+    await userEvent.click(screen.getByRole("button", { name: /Governance rules/ }));
+    const orphaned = screen
+      .getByText(/Orphaned filters/)
+      .closest(".admin-threshold-rule")
+      .querySelector("input");
+    fireEvent.change(orphaned, { target: { value: "7" } });
+    await userEvent.click(screen.getByRole("button", { name: /^Save/ }));
+
+    const saved = onSave.mock.calls[0][0];
+    expect(saved.healthTolerances.orphanedFilters).toBe(0.07);
+    expect(saved.healthTolerances).not.toHaveProperty("unusedFields");
+    for (const band of Object.values(saved.healthTargets)) {
+      expect(Object.keys(band).sort()).toEqual(["direction", "floor", "target"]);
+    }
   });
 });

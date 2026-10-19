@@ -42,20 +42,33 @@ export function agentNotFound(refreshedAt, message) {
 // loose token overlap. Stable, dependency-free, good enough for "find the thing the user
 // half-remembered the name of".
 export function rankMatches(items, query, getFields, limit = 10) {
-  const q = String(query || "").trim().toLowerCase();
+  const q = String(query || "")
+    .trim()
+    .toLowerCase();
   if (!q) return [];
   const tokens = q.split(/\s+/).filter(Boolean);
 
   const scored = [];
   for (const item of items || []) {
-    const fields = getFields(item).map((f) => String(f ?? "").toLowerCase()).filter(Boolean);
+    const fields = getFields(item)
+      .map((f) => String(f ?? "").toLowerCase())
+      .filter(Boolean);
     if (!fields.length) continue;
 
     let score = 0;
     for (const field of fields) {
-      if (field === q) { score = Math.max(score, 100); continue; }
-      if (field.startsWith(q)) { score = Math.max(score, 70); continue; }
-      if (field.includes(q)) { score = Math.max(score, 45); continue; }
+      if (field === q) {
+        score = Math.max(score, 100);
+        continue;
+      }
+      if (field.startsWith(q)) {
+        score = Math.max(score, 70);
+        continue;
+      }
+      if (field.includes(q)) {
+        score = Math.max(score, 45);
+        continue;
+      }
       const hit = tokens.filter((t) => field.includes(t)).length;
       if (hit) score = Math.max(score, 10 + hit * 5);
     }

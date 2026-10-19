@@ -43,7 +43,10 @@ function harness() {
     const entry = { statement: String(statement).replace(/\s+/g, " ").trim(), params: null };
     issued.push(entry);
     const stub = {
-      bindParams: (...params) => { entry.params = params; return stub; },
+      bindParams: (...params) => {
+        entry.params = params;
+        return stub;
+      },
       execute: () => Promise.resolve({ rows: rowsFor(entry) }),
     };
     return stub;
@@ -66,6 +69,9 @@ describe("clearIssueScanBuffer", () => {
     expect(targets.some((s) => /DELETE FROM issue_scan_buffer WHERE scope_key = \?/.test(s))).toBe(true);
     expect(targets.some((s) => /DELETE FROM issue_scan_activity_buffer WHERE scope_key = \?/.test(s))).toBe(true);
     expect(targets.some((s) => /DELETE FROM issue_scan_type_buffer WHERE scope_key = \?/.test(s))).toBe(true);
+    // The per-item usage buffer is additive too; usage_tally (the last good figures) stays.
+    expect(targets.some((s) => /DELETE FROM issue_scan_usage_buffer WHERE scope_key = \?/.test(s))).toBe(true);
+    expect(targets.some((s) => /DELETE FROM usage_tally/.test(s))).toBe(false);
     // The live series is the last good snapshot -- clearing it up front is exactly the bug.
     expect(targets.some((s) => /DELETE FROM issue_scan_project_activity/.test(s))).toBe(false);
   });
@@ -74,10 +80,13 @@ describe("clearIssueScanBuffer", () => {
 describe("flushIssueScanTypeCounts", () => {
   test("accumulates field x issue-type counts into the buffer", async () => {
     const counts = new Map([
-      ["customfield_100", new Map([
-        ["10001", { count: 12, name: "Bug" }],
-        ["10002", { count: 3, name: "Incident" }],
-      ])],
+      [
+        "customfield_100",
+        new Map([
+          ["10001", { count: 12, name: "Bug" }],
+          ["10002", { count: 3, name: "Incident" }],
+        ]),
+      ],
     ]);
 
     await flushIssueScanTypeCounts("inst", counts);
@@ -86,8 +95,16 @@ describe("flushIssueScanTypeCounts", () => {
     expect(insert.statement).toMatch(/INSERT INTO issue_scan_type_buffer/);
     expect(insert.statement).toMatch(/issue_count = issue_count \+ VALUES\(issue_count\)/);
     expect(insert.params).toEqual([
-      "inst", "customfield_100", "10001", "Bug", 12,
-      "inst", "customfield_100", "10002", "Incident", 3,
+      "inst",
+      "customfield_100",
+      "10001",
+      "Bug",
+      12,
+      "inst",
+      "customfield_100",
+      "10002",
+      "Incident",
+      3,
     ]);
   });
 
@@ -99,12 +116,13 @@ describe("flushIssueScanTypeCounts", () => {
 
 describe("promoteIssueScanFieldTypeUsage", () => {
   test("upserts this run's rows and drops the field's stale types", async () => {
-    rowsFor = (entry) => entry.statement.startsWith("SELECT")
-      ? [
-          { field_id: "customfield_1", issue_type_id: "10001", issue_type_name: "Bug", issue_count: 40 },
-          { field_id: "customfield_1", issue_type_id: "10002", issue_type_name: "Task", issue_count: 5 },
-        ]
-      : [];
+    rowsFor = (entry) =>
+      entry.statement.startsWith("SELECT")
+        ? [
+            { field_id: "customfield_1", issue_type_id: "10001", issue_type_name: "Bug", issue_count: 40 },
+            { field_id: "customfield_1", issue_type_id: "10002", issue_type_name: "Task", issue_count: 5 },
+          ]
+        : [];
 
     const result = await promoteIssueScanFieldTypeUsage("inst", "v9");
 
@@ -117,9 +135,10 @@ describe("promoteIssueScanFieldTypeUsage", () => {
   });
 
   test("with full coverage, clears usage for fields the crawl never saw", async () => {
-    rowsFor = (entry) => entry.statement.startsWith("SELECT")
-      ? [{ field_id: "customfield_1", issue_type_id: "10001", issue_type_name: "Bug", issue_count: 40 }]
-      : [];
+    rowsFor = (entry) =>
+      entry.statement.startsWith("SELECT")
+        ? [{ field_id: "customfield_1", issue_type_id: "10001", issue_type_name: "Bug", issue_count: 40 }]
+        : [];
 
     await promoteIssueScanFieldTypeUsage("inst", "v9", { coverageComplete: true });
 
@@ -149,10 +168,13 @@ describe("loadFieldTypeUsage", () => {
 describe("field x user (user-picker value) usage", () => {
   test("flushIssueScanFieldUserCounts accumulates field x account into the buffer", async () => {
     const counts = new Map([
-      ["customfield_500", new Map([
-        ["acc-1", { count: 8, name: "Ann" }],
-        ["acc-2", { count: 2, name: null }],
-      ])],
+      [
+        "customfield_500",
+        new Map([
+          ["acc-1", { count: 8, name: "Ann" }],
+          ["acc-2", { count: 2, name: null }],
+        ]),
+      ],
     ]);
 
     await flushIssueScanFieldUserCounts("inst", counts);
@@ -161,18 +183,27 @@ describe("field x user (user-picker value) usage", () => {
     expect(insert.statement).toMatch(/INSERT INTO issue_scan_field_user_buffer/);
     expect(insert.statement).toMatch(/issue_count = issue_count \+ VALUES\(issue_count\)/);
     expect(insert.params).toEqual([
-      "inst", "customfield_500", "acc-1", "Ann", 8,
-      "inst", "customfield_500", "acc-2", null, 2,
+      "inst",
+      "customfield_500",
+      "acc-1",
+      "Ann",
+      8,
+      "inst",
+      "customfield_500",
+      "acc-2",
+      null,
+      2,
     ]);
   });
 
   test("promoteIssueScanFieldUserUsage upserts and drops the field's stale accounts", async () => {
-    rowsFor = (entry) => entry.statement.startsWith("SELECT")
-      ? [
-          { field_id: "customfield_500", account_id: "acc-1", display_name: "Ann", issue_count: 30 },
-          { field_id: "customfield_500", account_id: "acc-2", display_name: "Bo", issue_count: 4 },
-        ]
-      : [];
+    rowsFor = (entry) =>
+      entry.statement.startsWith("SELECT")
+        ? [
+            { field_id: "customfield_500", account_id: "acc-1", display_name: "Ann", issue_count: 30 },
+            { field_id: "customfield_500", account_id: "acc-2", display_name: "Bo", issue_count: 4 },
+          ]
+        : [];
 
     const result = await promoteIssueScanFieldUserUsage("inst", "v9");
 
@@ -184,12 +215,13 @@ describe("field x user (user-picker value) usage", () => {
   });
 
   test("loadFieldUserUsage returns the top holders and a distinct-user total", async () => {
-    rowsFor = (entry) => /COUNT\(\*\) AS distinct_users/.test(entry.statement)
-      ? [{ distinct_users: 42, issue_total: 500 }]
-      : [
-          { account_id: "acc-1", display_name: "Ann", issue_count: 30 },
-          { account_id: "acc-2", display_name: null, issue_count: 4 },
-        ];
+    rowsFor = (entry) =>
+      /COUNT\(\*\) AS distinct_users/.test(entry.statement)
+        ? [{ distinct_users: 42, issue_total: 500 }]
+        : [
+            { account_id: "acc-1", display_name: "Ann", issue_count: 30 },
+            { account_id: "acc-2", display_name: null, issue_count: 4 },
+          ];
 
     const usage = await loadFieldUserUsage("inst", "v9", "customfield_500");
 
@@ -220,7 +252,16 @@ describe("field x user (user-picker value) usage", () => {
 describe("flushIssueScanActivity", () => {
   test("accumulates into the buffer, not the live table", async () => {
     const months = new Map([
-      ["10000|2026-01", { projectId: "10000", month: "2026-01", count: 7, first: "2026-01-02T00:00:00.000Z", last: "2026-01-30T00:00:00.000Z" }],
+      [
+        "10000|2026-01",
+        {
+          projectId: "10000",
+          month: "2026-01",
+          count: 7,
+          first: "2026-01-02T00:00:00.000Z",
+          last: "2026-01-30T00:00:00.000Z",
+        },
+      ],
     ]);
 
     await flushIssueScanActivity("inst", months);
@@ -228,7 +269,14 @@ describe("flushIssueScanActivity", () => {
     const insert = writes().find((e) => e.statement.startsWith("INSERT"));
     expect(insert.statement).toMatch(/INSERT INTO issue_scan_activity_buffer/);
     expect(insert.statement).toMatch(/issue_count = issue_count \+ VALUES\(issue_count\)/);
-    expect(insert.params).toEqual(["inst", "10000", "2026-01", 7, "2026-01-02T00:00:00.000Z", "2026-01-30T00:00:00.000Z"]);
+    expect(insert.params).toEqual([
+      "inst",
+      "10000",
+      "2026-01",
+      7,
+      "2026-01-02T00:00:00.000Z",
+      "2026-01-30T00:00:00.000Z",
+    ]);
   });
 
   test("does nothing when there are no months to flush", async () => {
@@ -261,7 +309,9 @@ describe("promoteIssueScanActivity", () => {
 
     const del = writes().find((e) => e.statement.startsWith("DELETE"));
     // Scoped to exactly the project ids the crawl re-counted -- never a global DELETE.
-    expect(del.statement).toMatch(/DELETE FROM issue_scan_project_activity WHERE scope_key = \? AND project_id IN \(\?, \?\)/);
+    expect(del.statement).toMatch(
+      /DELETE FROM issue_scan_project_activity WHERE scope_key = \? AND project_id IN \(\?, \?\)/,
+    );
     expect(del.params).toEqual(["inst", "10000", "10001"]);
 
     const ins = writes().find((e) => e.statement.startsWith("INSERT"));
@@ -269,9 +319,24 @@ describe("promoteIssueScanActivity", () => {
     // Straight copy: no ON DUPLICATE KEY accumulation, the DELETE already cleared the way.
     expect(ins.statement).not.toMatch(/ON DUPLICATE KEY/);
     expect(ins.params).toEqual([
-      "inst", "10000", "2026-05", 12, "a", "b",
-      "inst", "10000", "2026-06", 3, "a", "c",
-      "inst", "10001", "2026-06", 40, "d", "e",
+      "inst",
+      "10000",
+      "2026-05",
+      12,
+      "a",
+      "b",
+      "inst",
+      "10000",
+      "2026-06",
+      3,
+      "a",
+      "c",
+      "inst",
+      "10001",
+      "2026-06",
+      40,
+      "d",
+      "e",
     ]);
   });
 });

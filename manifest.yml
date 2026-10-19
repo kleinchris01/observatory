@@ -148,6 +148,19 @@ modules:
       actions:
         - search-estate
         - inspect-estate
+    - key: observatory-fieldconfig-expert
+      name: Observatory Field Setup Expert
+      description: A specialist in what Jira enforces on each field per project and work type - field schemes, or...
+      prompt: resource:agent-resources;prompts/fieldconfig-expert.txt
+      conversationStarters:
+        - Is this site on field schemes or legacy field configurations?
+        - Where is a specific field required, and where is it not available at all?
+        - Which field configurations require a field they also hide?
+        - Which field schemes does no project use?
+      actions:
+        - search-fieldconfig
+        - inspect-fieldconfig
+        - fieldconfig-impact
     - key: observatory-screen-expert
       name: Observatory Screen Expert
       description: A Jira screen specialist that explains the screen catalogue, tabs and fields, the...
@@ -283,7 +296,7 @@ modules:
           description: Either field or status. Defaults to field.
     - key: search-workflows
       name: Search workflow schemes and statuses
-      function: rovo-workflow-search
+      function: rovo-workflow
       actionVerb: GET
       description: Search the workflow snapshot by name and return matching workflow schemes and statuses...
       inputs:
@@ -304,7 +317,7 @@ modules:
           description: Optional maximum number of matches to return
     - key: inspect-workflow
       name: Inspect a workflow scheme or status
-      function: rovo-workflow-inspect
+      function: rovo-workflow
       actionVerb: GET
       description: Retrieve one workflow scheme (its statuses, category balance and the projects it...
       inputs:
@@ -315,7 +328,7 @@ modules:
           description: A workflow scheme name or a status name, suc
     - key: workflow-impact
       name: Impact of changing a status
-      function: rovo-workflow-impact
+      function: rovo-workflow
       actionVerb: GET
       description: Report which workflow schemes reach a status, how many projects those schemes govern,...
       inputs:
@@ -326,7 +339,7 @@ modules:
           description: The exact status name, such as "On Hold" or
     - key: search-issue-types
       name: Search issue types and schemes
-      function: rovo-issuetype-search
+      function: rovo-issuetype
       actionVerb: GET
       description: Search the issue type snapshot by name and return matching issue types and issue type...
       inputs:
@@ -347,7 +360,7 @@ modules:
           description: Optional maximum number of matches to return
     - key: inspect-issue-type
       name: Inspect an issue type or scheme
-      function: rovo-issuetype-inspect
+      function: rovo-issuetype
       actionVerb: GET
       description: Retrieve one issue type scheme (its members and the projects it governs) or one issue...
       inputs:
@@ -358,7 +371,7 @@ modules:
           description: An issue type name or an issue type scheme n
     - key: issue-type-impact
       name: Impact of changing an issue type
-      function: rovo-issuetype-impact
+      function: rovo-issuetype
       actionVerb: GET
       description: Report which issue type schemes reach a type and how many projects those schemes govern.
       inputs:
@@ -369,7 +382,7 @@ modules:
           description: The exact issue type name, such as "Change R
     - key: search-access
       name: Search access schemes
-      function: rovo-access-search
+      function: rovo-access
       actionVerb: GET
       description: Search permission, issue-security and notification schemes and project roles by name and...
       inputs:
@@ -390,7 +403,7 @@ modules:
           description: Optional maximum number of matches per famil
     - key: inspect-access
       name: Inspect an access scheme
-      function: rovo-access-inspect
+      function: rovo-access
       actionVerb: GET
       description: Retrieve one permission / issue-security / notification scheme or project role with its...
       inputs:
@@ -401,7 +414,7 @@ modules:
           description: A permission, issue-security or notification
     - key: access-impact
       name: Where an account or group is named
-      function: rovo-access-impact
+      function: rovo-access
       actionVerb: GET
       description: Report every permission / issue-security / notification scheme and project role that...
       inputs:
@@ -450,7 +463,7 @@ modules:
           description: The Atlassian accountId.
     - key: search-assets
       name: Search Assets schemas and object types
-      function: rovo-asset-search
+      function: rovo-asset
       actionVerb: GET
       description: Search the JSM Assets structure snapshot by name and return matching object schemas and...
       inputs:
@@ -471,7 +484,7 @@ modules:
           description: Optional maximum number of matches to return
     - key: inspect-asset
       name: Inspect an object schema or object type
-      function: rovo-asset-inspect
+      function: rovo-asset
       actionVerb: GET
       description: Retrieve one object schema (its object types) or one object type (its attributes, child...
       inputs:
@@ -482,7 +495,7 @@ modules:
           description: An object schema name or an object type name.
     - key: asset-impact
       name: What depends on an object type
-      function: rovo-asset-impact
+      function: rovo-asset
       actionVerb: GET
       description: Report the child types of an object type and the reference attributes that point at it,...
       inputs:
@@ -518,9 +531,47 @@ modules:
           type: string
           required: false
           description: Limit to priorities or resolutions
+    - key: search-fieldconfig
+      name: Search field schemes and configurations
+      function: rovo-fieldcfg
+      actionVerb: GET
+      description: Search field schemes (or legacy field configurations and their schemes) by name or by a project key...
+      inputs:
+        query:
+          title: Search query
+          type: string
+          required: true
+          description: A scheme or configuration name, or a project key
+        maxResults:
+          title: Maximum results
+          type: integer
+          required: false
+          description: Optional maximum number of matches to return
+    - key: inspect-fieldconfig
+      name: Inspect a field scheme or configuration
+      function: rovo-fieldcfg
+      actionVerb: GET
+      description: Return one field scheme or field configuration - its projects, work-type routing, required fields and...
+      inputs:
+        identifier:
+          title: Scheme or configuration
+          type: string
+          required: true
+          description: A field scheme or field configuration name.
+    - key: fieldconfig-impact
+      name: Where a field is required, hidden or missing
+      function: rovo-fieldcfg
+      actionVerb: GET
+      description: For one field, every field scheme or configuration and what it does to the field - required, hidden...
+      inputs:
+        field:
+          title: Field
+          type: string
+          required: true
+          description: A field name or id, e.g. customfield_10021.
     - key: search-screens
       name: Search screens and screen schemes
-      function: rovo-screen-search
+      function: rovo-screen
       actionVerb: GET
       description: Search the screen snapshot by name and return matching screens (with field and tab...
       inputs:
@@ -541,7 +592,7 @@ modules:
           description: Optional maximum number of matches to return
     - key: inspect-screen
       name: Inspect a screen or screen scheme
-      function: rovo-screen-inspect
+      function: rovo-screen
       actionVerb: GET
       description: Retrieve one screen (its tabs, field count and findings) or one screen scheme (its...
       inputs:
@@ -552,7 +603,7 @@ modules:
           description: A screen name or a screen scheme name.
     - key: screen-impact
       name: What routes to a screen
-      function: rovo-screen-impact
+      function: rovo-screen
       actionVerb: GET
       description: Report which screen scheme operations point at a screen and how many workflow...
       inputs:
@@ -659,46 +710,28 @@ modules:
       handler: index.rovoInspectAutomationRule
     - key: rovo-auto-usage
       handler: index.rovoAutomationUsage
-    - key: rovo-workflow-search
-      handler: index.rovoWorkflowSearch
-    - key: rovo-workflow-inspect
-      handler: index.rovoWorkflowInspect
-    - key: rovo-workflow-impact
-      handler: index.rovoWorkflowImpact
-    - key: rovo-issuetype-search
-      handler: index.rovoIssueTypeSearch
-    - key: rovo-issuetype-inspect
-      handler: index.rovoIssueTypeInspect
-    - key: rovo-issuetype-impact
-      handler: index.rovoIssueTypeImpact
-    - key: rovo-access-search
-      handler: index.rovoAccessSearch
-    - key: rovo-access-inspect
-      handler: index.rovoAccessInspect
-    - key: rovo-access-impact
-      handler: index.rovoAccessImpact
+    - key: rovo-workflow
+      handler: index.rovoWorkflowAction
+    - key: rovo-issuetype
+      handler: index.rovoIssueTypeAction
+    - key: rovo-access
+      handler: index.rovoAccessAction
     - key: rovo-people-search
       handler: index.rovoPeopleSearch
     - key: rovo-people-inspect
       handler: index.rovoPeopleInspect
     - key: rovo-people-impact
       handler: index.rovoPeopleImpact
-    - key: rovo-asset-search
-      handler: index.rovoAssetSearch
-    - key: rovo-asset-inspect
-      handler: index.rovoAssetInspect
-    - key: rovo-asset-impact
-      handler: index.rovoAssetImpact
+    - key: rovo-asset
+      handler: index.rovoAssetAction
     - key: rovo-estate-search
       handler: index.rovoEstateSearch
     - key: rovo-estate-inspect
       handler: index.rovoEstateInspect
-    - key: rovo-screen-search
-      handler: index.rovoScreenSearch
-    - key: rovo-screen-inspect
-      handler: index.rovoScreenInspect
-    - key: rovo-screen-impact
-      handler: index.rovoScreenImpact
+    - key: rovo-fieldcfg
+      handler: index.rovoFieldConfigAction
+    - key: rovo-screen
+      handler: index.rovoScreenAction
     - key: rovo-change-search
       handler: index.rovoChangeSearch
     - key: rovo-change-inspect
@@ -733,6 +766,11 @@ permissions:
     - read:jira-work
     - read:field:jira
     - read:field-configuration:jira
+    # The field schemes pillar. Jira is replacing field configurations + field configuration
+    # schemes with field schemes; the scheme LIST, the project assignments and the legacy
+    # field configuration scheme calls all take this scope (a scheme's fields and projects
+    # take read:field-configuration:jira above). Read from the published spec, not guessed.
+    - read:field-configuration-scheme:jira
     - read:project:jira
     - read:issue-meta:jira
     - read:issue.changelog:jira
@@ -851,6 +889,24 @@ permissions:
     - read:cmdb-type:jira
     - read:servicedesk-request
     - read:servicemanagement-insight-objects
+    # The Jira Service Management pillars (request types, queues, SLAs, customers and
+    # organizations). Granular read scopes, one per servicedeskapi resource family; all
+    # read-only. Declared together so the scope change -- which needs the install upgraded on
+    # every environment -- happens once, with the probe, rather than once per build stage.
+    # SLA configuration has no REST endpoint at all; SLA outcomes come from JQL (breached(),
+    # running()) under read:jira-work, plus per-request SLA cycles under read:request.sla.
+    # The customer and organization reads return names and email addresses: the probe and
+    # the engine keep counts and ids, never contact details.
+    - read:servicedesk:jira-service-management
+    - read:requesttype:jira-service-management
+    - read:queue:jira-service-management
+    - read:request:jira-service-management
+    - read:request.sla:jira-service-management
+    - read:organization:jira-service-management
+    - read:organization.user:jira-service-management
+    - read:servicedesk.organization:jira-service-management
+    - read:customer:jira-service-management
+    - read:servicedesk.customer:jira-service-management
     # The boards pillar. Agile boards live under /rest/agile/1.0, and their scopes are
     # jira-software, not jira. Granular scopes are conjunctive:
     #   GET /rest/agile/1.0/board                     -> read:board-scope:jira-software, read:project:jira

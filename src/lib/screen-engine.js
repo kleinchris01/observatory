@@ -26,12 +26,7 @@ import {
   getAllJiraProjects,
   mapWithConcurrency,
 } from "./jira-api.js";
-import {
-  ensureProjectStoreReady,
-  writeScreenSnapshotMeta,
-  readScreenSnapshotMeta,
-  replaceScreenSnapshot,
-} from "./project-store.js";
+import { ensureProjectStoreReady, writeScreenSnapshotMeta, replaceScreenSnapshot } from "./project-store.js";
 
 // Matches WORKFLOW_BUILD_STALE_MS and for the same reason: the consumer ceiling is 900s,
 // plus a minute so a build finishing right at the limit is never declared stale out from
@@ -218,9 +213,7 @@ export async function buildScreenSnapshot(installationKey) {
     const { screenRows, tabs, fields } = await collectScreenContents(screens);
 
     const knownScreenIds = new Set(screenRows.map((s) => String(s.id)));
-    const schemeOperations = screenSchemes.flatMap((scheme) =>
-      resolveSchemeOperations(scheme, knownScreenIds)
-    );
+    const schemeOperations = screenSchemes.flatMap((scheme) => resolveSchemeOperations(scheme, knownScreenIds));
 
     const mappingRows = itssMappings.map((m) => ({
       itssId: String(m.issueTypeScreenSchemeId),

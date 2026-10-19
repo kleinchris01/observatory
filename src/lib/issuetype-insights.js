@@ -62,7 +62,10 @@ export function findDuplicateTypeNames(types = []) {
       const b = remaining[j];
       if (consumed.has(b)) continue;
       if (Math.abs(a.length - b.length) > 1) continue;
-      if (isSpellingVariant(a, b)) { cluster.push(b); consumed.add(b); }
+      if (isSpellingVariant(a, b)) {
+        cluster.push(b);
+        consumed.add(b);
+      }
     }
     if (cluster.length < 2) continue;
     consumed.add(a);
@@ -83,7 +86,12 @@ export function findOrphanTypes(types = [], schemeItems = []) {
   const allowed = new Set(schemeItems.map((it) => String(it.issueTypeId)));
   return types
     .filter((t) => !allowed.has(String(t.id)))
-    .map((t) => ({ id: String(t.id), name: t.name, subtask: Boolean(t.subtask), scopeProjectId: t.scopeProjectId ?? null }))
+    .map((t) => ({
+      id: String(t.id),
+      name: t.name,
+      subtask: Boolean(t.subtask),
+      scopeProjectId: t.scopeProjectId ?? null,
+    }))
     .sort((l, r) => String(l.name).localeCompare(String(r.name)));
 }
 
@@ -96,28 +104,39 @@ export function findOrphanTypes(types = [], schemeItems = []) {
 // scheme with a handful of edge cases is not flagged, only ones that genuinely cannot be
 // used as configured.
 export function analyzeSchemeHierarchy(schemes = [], membersByScheme = new Map()) {
-  return schemes.map((scheme) => {
-    const members = membersByScheme.get(String(scheme.schemeId)) || [];
-    const memberIds = new Set(members.map((m) => String(m.id)));
-    const standalone = members.filter((m) => !m.subtask);
-    const subtasks = members.filter((m) => m.subtask);
+  return schemes
+    .map((scheme) => {
+      const members = membersByScheme.get(String(scheme.schemeId)) || [];
+      const memberIds = new Set(members.map((m) => String(m.id)));
+      const standalone = members.filter((m) => !m.subtask);
+      const subtasks = members.filter((m) => m.subtask);
 
-    const flags = [];
-    if (members.length > 0 && subtasks.length > 0 && standalone.length === 0) {
-      flags.push({ code: "subtasks-only", message: "Only sub-task types — no issue can be created in this scheme without a parent that does not exist." });
-    }
-    const def = scheme.defaultIssueTypeId != null ? String(scheme.defaultIssueTypeId) : null;
-    if (def) {
-      const defMember = members.find((m) => String(m.id) === def);
-      if (!memberIds.has(def)) {
-        flags.push({ code: "default-not-in-scheme", message: "The default issue type is not one this scheme allows." });
-      } else if (defMember?.subtask) {
-        flags.push({ code: "default-is-subtask", message: "The default issue type is a sub-task, which cannot be created on its own." });
+      const flags = [];
+      if (members.length > 0 && subtasks.length > 0 && standalone.length === 0) {
+        flags.push({
+          code: "subtasks-only",
+          message: "Only sub-task types — no issue can be created in this scheme without a parent that does not exist.",
+        });
       }
-    }
+      const def = scheme.defaultIssueTypeId != null ? String(scheme.defaultIssueTypeId) : null;
+      if (def) {
+        const defMember = members.find((m) => String(m.id) === def);
+        if (!memberIds.has(def)) {
+          flags.push({
+            code: "default-not-in-scheme",
+            message: "The default issue type is not one this scheme allows.",
+          });
+        } else if (defMember?.subtask) {
+          flags.push({
+            code: "default-is-subtask",
+            message: "The default issue type is a sub-task, which cannot be created on its own.",
+          });
+        }
+      }
 
-    return { schemeId: String(scheme.schemeId), name: scheme.name, projectCount: scheme.projectCount ?? 0, flags };
-  }).sort((l, r) => r.flags.length - l.flags.length || String(l.name).localeCompare(String(r.name)));
+      return { schemeId: String(scheme.schemeId), name: scheme.name, projectCount: scheme.projectCount ?? 0, flags };
+    })
+    .sort((l, r) => r.flags.length - l.flags.length || String(l.name).localeCompare(String(r.name)));
 }
 
 // Everything the pillar reports, as counts a rate can be built from.

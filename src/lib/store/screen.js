@@ -9,13 +9,7 @@
 // inside one invocation and never needs to append to a partial version.
 
 import { sql } from "@forge/sql";
-import {
-  chunkArray,
-  ensureProjectStoreReady,
-  safeParseJson,
-  toNumber,
-  withSqlRetry,
-} from "./core.js";
+import { chunkArray, ensureProjectStoreReady, safeParseJson, toNumber, withSqlRetry } from "./core.js";
 
 // Field rows dominate this snapshot -- ~22,000 on the reference site against ~760 screens
 // and tens of schemes -- so they get their own smaller batch. Every row carries 7 bind
@@ -23,16 +17,20 @@ import {
 const FIELD_BATCH_SIZE = 40;
 const DEFAULT_BATCH_SIZE = 50;
 
-export async function replaceScreenSnapshot(scopeKey, version, {
-  screens = [],
-  tabs = [],
-  fields = [],
-  screenSchemes = [],
-  schemeOperations = [],
-  issueTypeScreenSchemes = [],
-  itssMappings = [],
-  itssProjects = [],
-} = {}) {
+export async function replaceScreenSnapshot(
+  scopeKey,
+  version,
+  {
+    screens = [],
+    tabs = [],
+    fields = [],
+    screenSchemes = [],
+    schemeOperations = [],
+    issueTypeScreenSchemes = [],
+    itssMappings = [],
+    itssProjects = [],
+  } = {},
+) {
   await ensureProjectStoreReady();
 
   // Scoped deletes, every one of them. An unscoped DELETE in a multi-tenant Forge app
@@ -48,130 +46,205 @@ export async function replaceScreenSnapshot(scopeKey, version, {
     "snapshot_itss_mappings",
     "snapshot_itss_projects",
   ]) {
-    await withSqlRetry(() =>
-      sql.prepare(`DELETE FROM ${table} WHERE scope_key = ?`).bindParams(scopeKey).execute()
-    );
+    await withSqlRetry(() => sql.prepare(`DELETE FROM ${table} WHERE scope_key = ?`).bindParams(scopeKey).execute());
   }
 
   for (const batch of chunkArray(screens, DEFAULT_BATCH_SIZE)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((s) => [
-      scopeKey, version, String(s.id), s.name || null, s.description || null,
-      s.tabCount ?? 0, s.fieldCount ?? 0,
-      s.tabsResolved || "resolved", s.unresolvedReason || null,
+      scopeKey,
+      version,
+      String(s.id),
+      s.name || null,
+      s.description || null,
+      s.tabCount ?? 0,
+      s.fieldCount ?? 0,
+      s.tabsResolved || "resolved",
+      s.unresolvedReason || null,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_screens
           (scope_key, version, screen_id, name, description, tab_count, field_count, tabs_resolved, unresolved_reason)
         VALUES ${valuesSql}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
   for (const batch of chunkArray(tabs, DEFAULT_BATCH_SIZE)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((t) => [
-      scopeKey, version, String(t.screenId), String(t.tabId),
-      t.name || null, t.tabIndex ?? 0, t.fieldCount ?? 0,
+      scopeKey,
+      version,
+      String(t.screenId),
+      String(t.tabId),
+      t.name || null,
+      t.tabIndex ?? 0,
+      t.fieldCount ?? 0,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_screen_tabs
           (scope_key, version, screen_id, tab_id, name, tab_index, field_count)
         VALUES ${valuesSql}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
   for (const batch of chunkArray(fields, FIELD_BATCH_SIZE)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((f) => [
-      scopeKey, version, String(f.screenId), String(f.tabId), String(f.fieldId),
-      f.fieldName || null, f.tabIndex ?? 0, f.fieldIndex ?? 0,
+      scopeKey,
+      version,
+      String(f.screenId),
+      String(f.tabId),
+      String(f.fieldId),
+      f.fieldName || null,
+      f.tabIndex ?? 0,
+      f.fieldIndex ?? 0,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_screen_fields
           (scope_key, version, screen_id, tab_id, field_id, field_name, tab_index, field_index)
         VALUES ${valuesSql}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
   for (const batch of chunkArray(screenSchemes, DEFAULT_BATCH_SIZE)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((s) => [
-      scopeKey, version, String(s.id), s.name || null, s.description || null,
+      scopeKey,
+      version,
+      String(s.id),
+      s.name || null,
+      s.description || null,
       JSON.stringify(s.screens || null),
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_screen_schemes
           (scope_key, version, scheme_id, name, description, screens_json)
         VALUES ${valuesSql}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
   for (const batch of chunkArray(schemeOperations, DEFAULT_BATCH_SIZE)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((op) => [
-      scopeKey, version, String(op.schemeId), op.operation,
+      scopeKey,
+      version,
+      String(op.schemeId),
+      op.operation,
       op.screenId == null ? null : String(op.screenId),
-      op.inherited ? 1 : 0, op.dangling ? 1 : 0,
+      op.inherited ? 1 : 0,
+      op.dangling ? 1 : 0,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_screen_scheme_operations
           (scope_key, version, scheme_id, operation, screen_id, inherited, dangling)
         VALUES ${valuesSql}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
   for (const batch of chunkArray(issueTypeScreenSchemes, DEFAULT_BATCH_SIZE)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((s) => [
-      scopeKey, version, String(s.id), s.name || null, s.description || null, s.projectCount ?? 0,
+      scopeKey,
+      version,
+      String(s.id),
+      s.name || null,
+      s.description || null,
+      s.projectCount ?? 0,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_issue_type_screen_schemes
           (scope_key, version, itss_id, name, description, project_count)
         VALUES ${valuesSql}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
   for (const batch of chunkArray(itssMappings, DEFAULT_BATCH_SIZE)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((m) => [
-      scopeKey, version, String(m.itssId), String(m.issueTypeId),
+      scopeKey,
+      version,
+      String(m.itssId),
+      String(m.issueTypeId),
       m.screenSchemeId == null ? null : String(m.screenSchemeId),
       m.isDefault ? 1 : 0,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_itss_mappings
           (scope_key, version, itss_id, issue_type_id, screen_scheme_id, is_default)
         VALUES ${valuesSql}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
   for (const batch of chunkArray(itssProjects, DEFAULT_BATCH_SIZE)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((p) => [
-      scopeKey, version, String(p.itssId), String(p.projectId),
-      p.projectKey || null, p.projectName || null,
+      scopeKey,
+      version,
+      String(p.itssId),
+      String(p.projectId),
+      p.projectKey || null,
+      p.projectName || null,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_itss_projects
           (scope_key, version, itss_id, project_id, project_key, project_name)
         VALUES ${valuesSql}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 }
@@ -265,7 +338,11 @@ export const SCREEN_FILTERS = {
 
 export const SCREEN_FILTER_KEYS = Object.keys(SCREEN_FILTERS);
 
-export async function loadScreensPage(scopeKey, version, { limit = 50, offset = 0, search = "", sort = DEFAULT_SCREEN_SORT, filter = null, workflowVersion = null } = {}) {
+export async function loadScreensPage(
+  scopeKey,
+  version,
+  { limit = 50, offset = 0, search = "", sort = DEFAULT_SCREEN_SORT, filter = null, workflowVersion = null } = {},
+) {
   await ensureProjectStoreReady();
 
   const safeLimit = Math.max(1, Math.min(200, Math.trunc(Number(limit)) || 50));
@@ -295,18 +372,25 @@ export async function loadScreensPage(scopeKey, version, { limit = 50, offset = 
   }
 
   const countResult = await withSqlRetry(() =>
-    sql.prepare(`SELECT COUNT(*) AS total FROM snapshot_screens WHERE ${where.join(" AND ")}`)
-      .bindParams(...params).execute()
+    sql
+      .prepare(`SELECT COUNT(*) AS total FROM snapshot_screens WHERE ${where.join(" AND ")}`)
+      .bindParams(...params)
+      .execute(),
   );
 
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT screen_id, name, description, tab_count, field_count, tabs_resolved, unresolved_reason
       FROM snapshot_screens
       WHERE ${where.join(" AND ")}
       ORDER BY ${orderBy}
       LIMIT ${safeLimit} OFFSET ${safeOffset}
-    `).bindParams(...params).execute()
+    `,
+      )
+      .bindParams(...params)
+      .execute(),
   );
 
   return {
@@ -340,12 +424,17 @@ function mapScreenRow(row) {
 export async function loadScreenFields(scopeKey, version, screenId) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT tab_id, field_id, field_name, tab_index, field_index
       FROM snapshot_screen_fields
       WHERE scope_key = ? AND version = ? AND screen_id = ?
       ORDER BY tab_index ASC, field_index ASC
-    `).bindParams(scopeKey, version, String(screenId)).execute()
+    `,
+      )
+      .bindParams(scopeKey, version, String(screenId))
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     tabId: row.tab_id,
@@ -361,14 +450,19 @@ export async function loadScreenFields(scopeKey, version, screenId) {
 export async function loadScreensForField(scopeKey, version, fieldId) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT f.screen_id, f.tab_id, f.tab_index, f.field_index, s.name AS screen_name
       FROM snapshot_screen_fields f
       LEFT JOIN snapshot_screens s
         ON s.scope_key = f.scope_key AND s.version = f.version AND s.screen_id = f.screen_id
       WHERE f.scope_key = ? AND f.version = ? AND f.field_id = ?
       ORDER BY s.name ASC
-    `).bindParams(scopeKey, version, String(fieldId)).execute()
+    `,
+      )
+      .bindParams(scopeKey, version, String(fieldId))
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     screenId: row.screen_id,
@@ -394,11 +488,16 @@ export async function loadScreensWithFieldsByIds(scopeKey, version, screenIds = 
   for (const batch of chunkArray(ids, 100)) {
     const placeholders = batch.map(() => "?").join(", ");
     const metaRows = await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         SELECT screen_id, name, field_count, tabs_resolved
         FROM snapshot_screens
         WHERE scope_key = ? AND version = ? AND screen_id IN (${placeholders})
-      `).bindParams(scopeKey, version, ...batch).execute()
+      `,
+        )
+        .bindParams(scopeKey, version, ...batch)
+        .execute(),
     );
     for (const row of metaRows.rows || []) {
       byId.set(String(row.screen_id), {
@@ -411,12 +510,17 @@ export async function loadScreensWithFieldsByIds(scopeKey, version, screenIds = 
     }
 
     const fieldRows = await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         SELECT screen_id, field_id, field_name, tab_index, field_index
         FROM snapshot_screen_fields
         WHERE scope_key = ? AND version = ? AND screen_id IN (${placeholders})
         ORDER BY tab_index ASC, field_index ASC
-      `).bindParams(scopeKey, version, ...batch).execute()
+      `,
+        )
+        .bindParams(scopeKey, version, ...batch)
+        .execute(),
     );
     for (const row of fieldRows.rows || []) {
       const screen = byId.get(String(row.screen_id));
@@ -450,12 +554,17 @@ export async function loadScreenCountsForFields(scopeKey, version, fieldIds = []
   for (const batch of chunkArray(ids, 100)) {
     const placeholders = batch.map(() => "?").join(", ");
     const result = await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         SELECT field_id, COUNT(DISTINCT screen_id) AS screen_count
         FROM snapshot_screen_fields
         WHERE scope_key = ? AND version = ? AND field_id IN (${placeholders})
         GROUP BY field_id
-      `).bindParams(scopeKey, version, ...batch).execute()
+      `,
+        )
+        .bindParams(scopeKey, version, ...batch)
+        .execute(),
     );
     for (const row of result.rows || []) {
       counts[row.field_id] = toNumber(row.screen_count);
@@ -467,12 +576,17 @@ export async function loadScreenCountsForFields(scopeKey, version, fieldIds = []
 export async function loadScreenSchemes(scopeKey, version) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT scheme_id, name, description, screens_json
       FROM snapshot_screen_schemes
       WHERE scope_key = ? AND version = ?
       ORDER BY name ASC
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
   // How many issue type screen schemes map to each one.
   //
@@ -481,14 +595,21 @@ export async function loadScreenSchemes(scopeKey, version) {
   // layer was only ever sent as a separate list without the join. Counted here so the tab can
   // narrow to the exact schemes that count was about.
   const mapped = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT screen_scheme_id, COUNT(DISTINCT itss_id) AS itss_count
       FROM snapshot_itss_mappings
       WHERE scope_key = ? AND version = ? AND screen_scheme_id IS NOT NULL
       GROUP BY screen_scheme_id
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
-  const itssCounts = new Map((mapped.rows || []).map((row) => [String(row.screen_scheme_id), toNumber(row.itss_count)]));
+  const itssCounts = new Map(
+    (mapped.rows || []).map((row) => [String(row.screen_scheme_id), toNumber(row.itss_count)]),
+  );
 
   return (result.rows || []).map((row) => ({
     schemeId: row.scheme_id,
@@ -504,11 +625,16 @@ export async function loadScreenSchemes(scopeKey, version) {
 export async function loadScreenSchemeOperations(scopeKey, version) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT scheme_id, operation, screen_id, inherited, dangling
       FROM snapshot_screen_scheme_operations
       WHERE scope_key = ? AND version = ?
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     schemeId: row.scheme_id,
@@ -522,12 +648,17 @@ export async function loadScreenSchemeOperations(scopeKey, version) {
 export async function loadIssueTypeScreenSchemes(scopeKey, version) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT itss_id, name, description, project_count
       FROM snapshot_issue_type_screen_schemes
       WHERE scope_key = ? AND version = ?
       ORDER BY project_count DESC, name ASC
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     itssId: row.itss_id,
@@ -540,11 +671,16 @@ export async function loadIssueTypeScreenSchemes(scopeKey, version) {
 export async function loadItssMappings(scopeKey, version) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT itss_id, issue_type_id, screen_scheme_id, is_default
       FROM snapshot_itss_mappings
       WHERE scope_key = ? AND version = ?
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     itssId: row.itss_id,
@@ -557,11 +693,16 @@ export async function loadItssMappings(scopeKey, version) {
 export async function loadItssProjects(scopeKey, version) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT itss_id, project_id, project_key, project_name
       FROM snapshot_itss_projects
       WHERE scope_key = ? AND version = ?
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     itssId: row.itss_id,
@@ -589,14 +730,19 @@ export async function loadScreenGovernanceSummary(scopeKey, version, { workflowV
   await ensureProjectStoreReady();
 
   const screenTotals = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT
         COUNT(*) AS total,
         SUM(CASE WHEN tabs_resolved = 'resolved' AND field_count = 0 THEN 1 ELSE 0 END) AS empty_screens,
         SUM(CASE WHEN tabs_resolved <> 'resolved' THEN 1 ELSE 0 END) AS unresolved_screens
       FROM snapshot_screens
       WHERE scope_key = ? AND version = ?
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
 
   // NOT EXISTS rather than (total - COUNT(DISTINCT screen_id)): a scheme operation can point
@@ -608,7 +754,9 @@ export async function loadScreenGovernanceSummary(scopeKey, version, { workflowV
   // exactly one import arrow.
   const unreached = workflowVersion
     ? await withSqlRetry(() =>
-      sql.prepare(`
+        sql
+          .prepare(
+            `
         SELECT COUNT(*) AS unreached
         FROM snapshot_screens s
         WHERE s.scope_key = ? AND s.version = ?
@@ -620,8 +768,11 @@ export async function loadScreenGovernanceSummary(scopeKey, version, { workflowV
             SELECT 1 FROM snapshot_transition_screens t
             WHERE t.scope_key = s.scope_key AND t.version = ? AND t.screen_id = s.screen_id
           )
-      `).bindParams(scopeKey, version, workflowVersion).execute()
-    )
+      `,
+          )
+          .bindParams(scopeKey, version, workflowVersion)
+          .execute(),
+      )
     : null;
 
   // Screens reached ONLY by a transition. Reported in its own right rather than folded
@@ -629,7 +780,9 @@ export async function loadScreenGovernanceSummary(scopeKey, version, { workflowV
   // admin who was told to clean them up needs to see the correction.
   const transitionOnly = workflowVersion
     ? await withSqlRetry(() =>
-      sql.prepare(`
+        sql
+          .prepare(
+            `
         SELECT COUNT(*) AS transition_only
         FROM snapshot_screens s
         WHERE s.scope_key = ? AND s.version = ?
@@ -641,23 +794,33 @@ export async function loadScreenGovernanceSummary(scopeKey, version, { workflowV
             SELECT 1 FROM snapshot_transition_screens t
             WHERE t.scope_key = s.scope_key AND t.version = ? AND t.screen_id = s.screen_id
           )
-      `).bindParams(scopeKey, version, workflowVersion).execute()
-    )
+      `,
+          )
+          .bindParams(scopeKey, version, workflowVersion)
+          .execute(),
+      )
     : null;
 
   const operations = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT
         COUNT(*) AS total,
         SUM(CASE WHEN dangling = 1 THEN 1 ELSE 0 END) AS dangling
       FROM snapshot_screen_scheme_operations
       WHERE scope_key = ? AND version = ?
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
 
   // A screen scheme no issue-type screen scheme maps to cannot route anything to a project.
   const schemes = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT
         COUNT(*) AS total,
         SUM(CASE WHEN NOT EXISTS (
@@ -666,7 +829,10 @@ export async function loadScreenGovernanceSummary(scopeKey, version, { workflowV
         ) THEN 1 ELSE 0 END) AS unused
       FROM snapshot_screen_schemes s
       WHERE s.scope_key = ? AND s.version = ?
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
 
   const screenRow = screenTotals.rows?.[0] || {};
@@ -701,7 +867,9 @@ export async function loadScreenDistributions(scopeKey, version, { topN = 10 } =
   // Size distribution. Buckets rather than a raw histogram: "how many screens are enormous"
   // is the question, and 760 distinct field counts is not an answer anyone can read.
   const sizes = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT
         CASE
           WHEN field_count = 0 THEN 'Empty'
@@ -715,49 +883,71 @@ export async function loadScreenDistributions(scopeKey, version, { topN = 10 } =
       FROM snapshot_screens
       WHERE scope_key = ? AND version = ? AND tabs_resolved = 'resolved'
       GROUP BY bucket
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
 
   const largest = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT name, screen_id, field_count
       FROM snapshot_screens
       WHERE scope_key = ? AND version = ? AND tabs_resolved = 'resolved'
       ORDER BY field_count DESC, screen_id ASC
       LIMIT ${capped}
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
 
   // Which fields appear on the most forms. The reverse of the catalog, and the one that
   // says where a field change is felt: a field on 200 screens is not a local edit.
   const shared = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT field_name, field_id, COUNT(DISTINCT screen_id) AS screens
       FROM snapshot_screen_fields
       WHERE scope_key = ? AND version = ?
       GROUP BY field_id, field_name
       ORDER BY screens DESC, field_id ASC
       LIMIT ${capped}
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
 
   const operations = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT operation, COUNT(*) AS mappings
       FROM snapshot_screen_scheme_operations
       WHERE scope_key = ? AND version = ?
       GROUP BY operation
       ORDER BY mappings DESC
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
 
   return {
     sizeBuckets: (sizes.rows || []).map((r) => ({ bucket: r.bucket, screens: toNumber(r.screens) })),
     largestScreens: (largest.rows || []).map((r) => ({
-      name: r.name || r.screen_id, screenId: r.screen_id, fieldCount: toNumber(r.field_count),
+      name: r.name || r.screen_id,
+      screenId: r.screen_id,
+      fieldCount: toNumber(r.field_count),
     })),
     mostSharedFields: (shared.rows || []).map((r) => ({
-      name: r.field_name || r.field_id, fieldId: r.field_id, screens: toNumber(r.screens),
+      name: r.field_name || r.field_id,
+      fieldId: r.field_id,
+      screens: toNumber(r.screens),
     })),
     operationMix: (operations.rows || []).map((r) => ({ operation: r.operation, mappings: toNumber(r.mappings) })),
   };
@@ -775,7 +965,9 @@ export async function loadScreenDistributions(scopeKey, version, { topN = 10 } =
 export async function loadScreensForProject(scopeKey, version, projectId) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT DISTINCT s.screen_id, s.name, s.field_count, s.tab_count, s.tabs_resolved
       FROM snapshot_itss_projects p
       JOIN snapshot_itss_mappings m
@@ -786,7 +978,10 @@ export async function loadScreensForProject(scopeKey, version, projectId) {
         ON s.scope_key = o.scope_key AND s.version = o.version AND s.screen_id = o.screen_id
       WHERE p.scope_key = ? AND p.version = ? AND p.project_id = ?
       ORDER BY s.field_count DESC, s.screen_id ASC
-    `).bindParams(scopeKey, version, String(projectId)).execute()
+    `,
+      )
+      .bindParams(scopeKey, version, String(projectId))
+      .execute(),
   );
 
   return (result.rows || []).map((row) => ({
@@ -804,11 +999,16 @@ export async function loadScreensForProject(scopeKey, version, projectId) {
 export async function readScreenSnapshotMeta(scopeKey) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT state, version, started_at, completed_at, refreshed_at,
              total_screens, total_schemes, unresolved_screens, last_error
       FROM screen_snapshot_meta WHERE scope_key = ?
-    `).bindParams(scopeKey).execute()
+    `,
+      )
+      .bindParams(scopeKey)
+      .execute(),
   );
   const row = result.rows?.[0];
   if (!row) return null;
@@ -833,7 +1033,9 @@ export async function writeScreenSnapshotMeta(scopeKey, patch = {}) {
   const next = { ...current, ...patch };
 
   await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       INSERT INTO screen_snapshot_meta
         (scope_key, state, version, started_at, completed_at, refreshed_at,
          total_screens, total_schemes, unresolved_screens, last_error)
@@ -848,18 +1050,21 @@ export async function writeScreenSnapshotMeta(scopeKey, patch = {}) {
         total_schemes = VALUES(total_schemes),
         unresolved_screens = VALUES(unresolved_screens),
         last_error = VALUES(last_error)
-    `).bindParams(
-      scopeKey,
-      next.state || "idle",
-      next.version || null,
-      next.startedAt || null,
-      next.completedAt || null,
-      next.refreshedAt || null,
-      next.totalScreens ?? 0,
-      next.totalSchemes ?? 0,
-      next.unresolvedScreens ?? 0,
-      next.lastError || null
-    ).execute()
+    `,
+      )
+      .bindParams(
+        scopeKey,
+        next.state || "idle",
+        next.version || null,
+        next.startedAt || null,
+        next.completedAt || null,
+        next.refreshedAt || null,
+        next.totalScreens ?? 0,
+        next.totalSchemes ?? 0,
+        next.unresolvedScreens ?? 0,
+        next.lastError || null,
+      )
+      .execute(),
   );
 }
 
@@ -882,7 +1087,9 @@ export async function writeScreenSnapshotMeta(scopeKey, patch = {}) {
 export async function loadFieldReachabilityByProject(scopeKey, version) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT
         p.project_id,
         sf.field_id,
@@ -898,7 +1105,10 @@ export async function loadFieldReachabilityByProject(scopeKey, version) {
         ON sf.scope_key = o.scope_key AND sf.version = o.version AND sf.screen_id = o.screen_id
       WHERE p.scope_key = ? AND p.version = ?
       GROUP BY p.project_id, sf.field_id
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
 
   return (result.rows || []).map((row) => ({
@@ -920,7 +1130,9 @@ export async function loadFieldReachabilityByProject(scopeKey, version) {
 export async function loadProjectScreenCoverage(scopeKey, version) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT
         p.project_id,
         COUNT(DISTINCT s.screen_id) AS screen_count,
@@ -934,7 +1146,10 @@ export async function loadProjectScreenCoverage(scopeKey, version) {
         ON s.scope_key = o.scope_key AND s.version = o.version AND s.screen_id = o.screen_id
       WHERE p.scope_key = ? AND p.version = ?
       GROUP BY p.project_id
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
 
   return (result.rows || []).map((row) => ({
@@ -949,7 +1164,9 @@ export async function loadProjectScreenCoverage(scopeKey, version) {
 export async function writeScreenCrossSummary(scopeKey, summary = {}) {
   await ensureProjectStoreReady();
   await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       INSERT INTO screen_cross_summary
         (scope_key, screen_version, field_version, computed_at, projects_total, projects_resolved,
          populated_field_count, create_placements, invisible_fields, invisible_issues,
@@ -969,22 +1186,25 @@ export async function writeScreenCrossSummary(scopeKey, summary = {}) {
         clutter_placements = VALUES(clutter_placements),
         unreachable_fields = VALUES(unreachable_fields),
         usage_truncated = VALUES(usage_truncated)
-    `).bindParams(
-      scopeKey,
-      String(summary.screenVersion ?? ""),
-      String(summary.fieldVersion ?? ""),
-      summary.computedAt || new Date().toISOString(),
-      toNumber(summary.projectsTotal),
-      toNumber(summary.projectsResolved),
-      toNumber(summary.populatedFieldCount),
-      toNumber(summary.createPlacements),
-      toNumber(summary.counts?.invisibleFields),
-      toNumber(summary.counts?.invisibleIssues),
-      toNumber(summary.counts?.clutterFields),
-      toNumber(summary.counts?.clutterPlacements),
-      toNumber(summary.counts?.unreachableFields),
-      summary.usageTruncated ? 1 : 0,
-    ).execute()
+    `,
+      )
+      .bindParams(
+        scopeKey,
+        String(summary.screenVersion ?? ""),
+        String(summary.fieldVersion ?? ""),
+        summary.computedAt || new Date().toISOString(),
+        toNumber(summary.projectsTotal),
+        toNumber(summary.projectsResolved),
+        toNumber(summary.populatedFieldCount),
+        toNumber(summary.createPlacements),
+        toNumber(summary.counts?.invisibleFields),
+        toNumber(summary.counts?.invisibleIssues),
+        toNumber(summary.counts?.clutterFields),
+        toNumber(summary.counts?.clutterPlacements),
+        toNumber(summary.counts?.unreachableFields),
+        summary.usageTruncated ? 1 : 0,
+      )
+      .execute(),
   );
 }
 
@@ -996,13 +1216,18 @@ export async function writeScreenCrossSummary(scopeKey, summary = {}) {
 export async function readScreenCrossSummary(scopeKey, { screenVersion = null, fieldVersion = null } = {}) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT screen_version, field_version, computed_at, projects_total, projects_resolved,
              populated_field_count, create_placements, invisible_fields, invisible_issues,
              clutter_fields, clutter_placements, unreachable_fields, usage_truncated
       FROM screen_cross_summary
       WHERE scope_key = ?
-    `).bindParams(scopeKey).execute()
+    `,
+      )
+      .bindParams(scopeKey)
+      .execute(),
   );
 
   const row = (result.rows || [])[0];
@@ -1014,9 +1239,10 @@ export async function readScreenCrossSummary(scopeKey, { screenVersion = null, f
   return {
     available: matchesScreens && matchesFields,
     staleAgainst: matchesScreens ? (matchesFields ? null : "fields") : "screens",
-    reason: matchesScreens && matchesFields
-      ? null
-      : `The cross was computed against an older ${matchesScreens ? "field snapshot" : "screen inventory"}. It refreshes on the next scan.`,
+    reason:
+      matchesScreens && matchesFields
+        ? null
+        : `The cross was computed against an older ${matchesScreens ? "field snapshot" : "screen inventory"}. It refreshes on the next scan.`,
     screenVersion: row.screen_version,
     fieldVersion: row.field_version,
     computedAt: row.computed_at || null,
@@ -1050,7 +1276,9 @@ export async function loadScreensForProjects(scopeKey, version, projectIds = [])
   for (const batch of chunkArray(ids, 100)) {
     const placeholders = batch.map(() => "?").join(", ");
     const result = await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         SELECT
           p.project_id,
           s.screen_id,
@@ -1070,7 +1298,10 @@ export async function loadScreensForProjects(scopeKey, version, projectIds = [])
           ON s.scope_key = o.scope_key AND s.version = o.version AND s.screen_id = o.screen_id
         WHERE p.scope_key = ? AND p.version = ? AND p.project_id IN (${placeholders})
         GROUP BY p.project_id, s.screen_id, s.name, s.field_count, s.tab_count, s.tabs_resolved
-      `).bindParams(scopeKey, version, ...batch).execute()
+      `,
+        )
+        .bindParams(scopeKey, version, ...batch)
+        .execute(),
     );
 
     for (const row of result.rows || []) {
@@ -1089,4 +1320,30 @@ export async function loadScreensForProjects(scopeKey, version, projectIds = [])
     }
   }
   return out;
+}
+
+// Every screen's fields in one read, for the change log: Map<screenId, ["tabId:fieldId", ...]>
+// in tab and field order. One query instead of one per screen -- a site has hundreds.
+export async function loadScreenFieldLayout(scopeKey, version) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql
+      .prepare(
+        `
+      SELECT screen_id, tab_id, field_id
+      FROM snapshot_screen_fields
+      WHERE scope_key = ? AND version = ?
+      ORDER BY screen_id ASC, tab_index ASC, field_index ASC
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
+  );
+  const layout = new Map();
+  for (const row of result.rows || []) {
+    const id = String(row.screen_id);
+    if (!layout.has(id)) layout.set(id, []);
+    layout.get(id).push(`${row.tab_id}:${row.field_id}`);
+  }
+  return layout;
 }

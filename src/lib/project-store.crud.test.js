@@ -103,7 +103,10 @@ function mockSqlQueries(rowSets = []) {
     const call = { text: String(text), params: null };
     calls.push(call);
     const runner = {
-      bindParams: (...params) => { call.params = params; return runner; },
+      bindParams: (...params) => {
+        call.params = params;
+        return runner;
+      },
       execute: async () => {
         const next = rowSets[i++];
         return Array.isArray(next) ? { rows: next } : (next ?? { rows: [] });
@@ -133,19 +136,33 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("workflow snapshot reads", () => {
   test("loadWorkflowSchemes maps every column callers consume", async () => {
-    const calls = mockSqlQueries([[{
-      scheme_id: "s1", name: "Alpha", description: "desc",
-      default_workflow: "Default WF", issue_type_mapping_json: '{"10001":"Bug WF"}',
-      project_count: 4, findings_json: null,
-    }]]);
+    const calls = mockSqlQueries([
+      [
+        {
+          scheme_id: "s1",
+          name: "Alpha",
+          description: "desc",
+          default_workflow: "Default WF",
+          issue_type_mapping_json: '{"10001":"Bug WF"}',
+          project_count: 4,
+          findings_json: null,
+        },
+      ],
+    ]);
 
     const schemes = await loadWorkflowSchemes("scope", "v1");
 
-    expect(schemes).toEqual([{
-      id: "s1", name: "Alpha", description: "desc",
-      defaultWorkflow: "Default WF", issueTypeMapping: { 10001: "Bug WF" },
-      projectCount: 4, findings: null,
-    }]);
+    expect(schemes).toEqual([
+      {
+        id: "s1",
+        name: "Alpha",
+        description: "desc",
+        defaultWorkflow: "Default WF",
+        issueTypeMapping: { 10001: "Bug WF" },
+        projectCount: 4,
+        findings: null,
+      },
+    ]);
     expect(sqlHas(calls[0], "from snapshot_workflow_schemes", "scope_key = ?", "version = ?")).toBe(true);
     expect(calls[0].params).toEqual(["scope", "v1"]);
   });
@@ -157,9 +174,7 @@ describe("workflow snapshot reads", () => {
   });
 
   test("loadWorkflowSchemeProjects filters by scheme and maps project rows", async () => {
-    const calls = mockSqlQueries([[
-      { project_id: "10", project_key: "ALPHA", project_name: "Alpha" },
-    ]]);
+    const calls = mockSqlQueries([[{ project_id: "10", project_key: "ALPHA", project_name: "Alpha" }]]);
 
     const projects = await loadWorkflowSchemeProjects("scope", "v1", "s1");
 
@@ -174,17 +189,22 @@ describe("workflow snapshot reads", () => {
 
   test("loadWorkflowSchemeForProject maps a found scheme", async () => {
     mockSqlQueries([[{ scheme_id: "s1", name: "Alpha", description: null }]]);
-    expect(await loadWorkflowSchemeForProject("scope", "v1", "10"))
-      .toEqual({ schemeId: "s1", name: "Alpha", description: "" });
+    expect(await loadWorkflowSchemeForProject("scope", "v1", "10")).toEqual({
+      schemeId: "s1",
+      name: "Alpha",
+      description: "",
+    });
   });
 
   // The bulk form exists to avoid one query per project on a 140-project site; a keying
   // error here would silently mis-attribute schemes rather than fail.
   test("loadProjectWorkflowSchemeMap keys by project id as a string", async () => {
-    const calls = mockSqlQueries([[
-      { project_id: 10, scheme_id: "s1", name: "Alpha" },
-      { project_id: 11, scheme_id: "s1", name: "Alpha" },
-    ]]);
+    const calls = mockSqlQueries([
+      [
+        { project_id: 10, scheme_id: "s1", name: "Alpha" },
+        { project_id: 11, scheme_id: "s1", name: "Alpha" },
+      ],
+    ]);
 
     const map = await loadProjectWorkflowSchemeMap("scope", "v1");
 
@@ -240,10 +260,12 @@ describe("workflow snapshot reads", () => {
 
 describe("status issue counts", () => {
   test("loadStatusIssueCounts aggregates per status id", async () => {
-    const calls = mockSqlQueries([[
-      { status_id: "1", total: "40" },
-      { status_id: "2", total: 0 },
-    ]]);
+    const calls = mockSqlQueries([
+      [
+        { status_id: "1", total: "40" },
+        { status_id: "2", total: 0 },
+      ],
+    ]);
 
     const counts = await loadStatusIssueCounts("scope");
 
@@ -259,9 +281,15 @@ describe("status issue counts", () => {
 
   test("flushIssueScanStatusCounts accumulates rather than overwriting", async () => {
     const calls = mockSqlQueries();
-    await flushIssueScanStatusCounts("scope", new Map([
-      ["1|10", { statusId: "1", statusName: "Done", statusCategory: "Done", projectId: "10", projectKey: "A", count: 3 }],
-    ]));
+    await flushIssueScanStatusCounts(
+      "scope",
+      new Map([
+        [
+          "1|10",
+          { statusId: "1", statusName: "Done", statusCategory: "Done", projectId: "10", projectKey: "A", count: 3 },
+        ],
+      ]),
+    );
 
     const insert = calls.find((c) => sqlHas(c, "insert into issue_scan_status_totals"));
     expect(insert).toBeDefined();
@@ -278,18 +306,23 @@ describe("status issue counts", () => {
 
   test("flushIssueScanStatusCounts drops rows missing an identifier", async () => {
     const calls = mockSqlQueries();
-    await flushIssueScanStatusCounts("scope", new Map([
-      ["bad", { statusId: "", projectId: "10", count: 1 }],
-      ["worse", { statusId: "1", projectId: "", count: 1 }],
-    ]));
+    await flushIssueScanStatusCounts(
+      "scope",
+      new Map([
+        ["bad", { statusId: "", projectId: "10", count: 1 }],
+        ["worse", { statusId: "1", projectId: "", count: 1 }],
+      ]),
+    );
     expect(calls.filter((c) => sqlHas(c, "insert into issue_scan_status_totals"))).toHaveLength(0);
   });
 
   test("loadStatusHistoryCounts returns counts and the newest measurement date", async () => {
-    const calls = mockSqlQueries([[
-      { status_id: "1", ever_count: "4000", measured_at: "2026-08-01T00:00:00Z" },
-      { status_id: "2", ever_count: 0, measured_at: "2026-08-03T00:00:00Z" },
-    ]]);
+    const calls = mockSqlQueries([
+      [
+        { status_id: "1", ever_count: "4000", measured_at: "2026-08-01T00:00:00Z" },
+        { status_id: "2", ever_count: 0, measured_at: "2026-08-03T00:00:00Z" },
+      ],
+    ]);
 
     const { counts, measuredAt } = await loadStatusHistoryCounts("scope");
 
@@ -335,11 +368,20 @@ describe("status issue counts", () => {
 
 describe("snapshot reads", () => {
   test("loadSnapshotFields maps fields and parses findings JSON", async () => {
-    mockSqlQueries([[{
-      field_id: "customfield_1", name: "Team", type: "select",
-      usage_count: "12", configured_project_count: "3", total_issue_count: "40",
-      active_project_count: "2", findings_json: '{"reasons":["x"]}',
-    }]]);
+    mockSqlQueries([
+      [
+        {
+          field_id: "customfield_1",
+          name: "Team",
+          type: "select",
+          usage_count: "12",
+          configured_project_count: "3",
+          total_issue_count: "40",
+          active_project_count: "2",
+          findings_json: '{"reasons":["x"]}',
+        },
+      ],
+    ]);
 
     const [field] = await loadSnapshotFields("scope", "v1");
 
@@ -348,22 +390,50 @@ describe("snapshot reads", () => {
     expect(field.usageCount).toBe(12);
   });
 
+  // Archived-project usage rides along with every field row, so each re-hydration keeps a field
+  // whose data is only in archived projects from reading as unused (14 Oct 2026).
+  test("loadSnapshotFields and loadSnapshotField carry the archived issue count", async () => {
+    mockSqlQueries([
+      [
+        { field_id: "customfield_500", name: "Hiring Manager", archived_issue_count: "2340" },
+        { field_id: "customfield_501", name: "Never archived", archived_issue_count: null },
+      ],
+    ]);
+    const fields = await loadSnapshotFields("scope", "v1");
+    expect(fields.map((f) => f.archivedIssueCount)).toEqual([2340, 0]);
+
+    mockSqlQueries([[{ field_id: "customfield_500", name: "Hiring Manager", archived_issue_count: "7" }]]);
+    expect((await loadSnapshotField("scope", "v1", "customfield_500")).archivedIssueCount).toBe(7);
+  });
+
   test("loadSnapshotField returns null for a missing field", async () => {
     mockSqlQueries([[]]);
     expect(await loadSnapshotField("scope", "v1", "customfield_missing")).toBeNull();
   });
 
   test("listSnapshotProjects maps aggregate columns and coerces numbers", async () => {
-    mockSqlQueries([[{
-      project_id: "10", project_key: "ALPHA", project_name: "Alpha",
-      field_count: "6", total_issue_count: "400", latest_issue_updated_at: "2026-01-01",
-    }]]);
+    mockSqlQueries([
+      [
+        {
+          project_id: "10",
+          project_key: "ALPHA",
+          project_name: "Alpha",
+          field_count: "6",
+          total_issue_count: "400",
+          latest_issue_updated_at: "2026-01-01",
+        },
+      ],
+    ]);
 
     const [project] = await listSnapshotProjects("scope", "v1");
 
     expect(project).toEqual({
-      projectId: "10", projectKey: "ALPHA", projectName: "Alpha",
-      fieldCount: 6, totalIssueCount: 400, latestIssueUpdatedAt: "2026-01-01",
+      projectId: "10",
+      projectKey: "ALPHA",
+      projectName: "Alpha",
+      fieldCount: 6,
+      totalIssueCount: 400,
+      latestIssueUpdatedAt: "2026-01-01",
     });
   });
 
@@ -476,7 +546,12 @@ describe("reports and summaries", () => {
     });
 
     test("returns every state, including the ones with no rows", async () => {
-      mockSqlQueries([[{ summary_status: "ready", total: 3 }, { summary_status: "failed", total: 1 }]]);
+      mockSqlQueries([
+        [
+          { summary_status: "ready", total: 3 },
+          { summary_status: "failed", total: 1 },
+        ],
+      ]);
       const { counts, total } = await countFieldSummariesByStatus("scope");
 
       expect(counts).toEqual({ queued: 0, building: 0, ready: 3, failed: 1, cancelled: 0, unbuilt: 0 });
@@ -485,7 +560,12 @@ describe("reports and summaries", () => {
 
     // The rule the replaced loop implemented, pinned against the query that implements it now.
     test("counts an unrecognised status as unbuilt rather than dropping it", async () => {
-      mockSqlQueries([[{ summary_status: "some-unknown-state", total: 2 }, { summary_status: null, total: 5 }]]);
+      mockSqlQueries([
+        [
+          { summary_status: "some-unknown-state", total: 2 },
+          { summary_status: null, total: 5 },
+        ],
+      ]);
       const { counts, total } = await countFieldSummariesByStatus("scope");
 
       expect(counts.unbuilt).toBe(7);
@@ -628,8 +708,13 @@ describe("scoped deletes", () => {
     ["clearStatusIssueCounts", (fn) => fn("scope")],
   ];
   const fns = {
-    clearSnapshotVersion, clearIssueScanBuffer, clearRqtFieldIndex, clearRqtIssueKeys,
-    clearRqtValueIndex, clearRqtFieldIssueIndex, clearStatusIssueCounts,
+    clearSnapshotVersion,
+    clearIssueScanBuffer,
+    clearRqtFieldIndex,
+    clearRqtIssueKeys,
+    clearRqtValueIndex,
+    clearRqtFieldIssueIndex,
+    clearStatusIssueCounts,
   };
 
   test.each(cases)("%s scopes every DELETE it issues", async (name, invoke) => {
@@ -658,8 +743,10 @@ describe("snapshot writes", () => {
     });
 
     for (const table of [
-      "snapshot_workflow_schemes", "snapshot_workflow_scheme_projects",
-      "snapshot_statuses", "snapshot_workflow_statuses",
+      "snapshot_workflow_schemes",
+      "snapshot_workflow_scheme_projects",
+      "snapshot_statuses",
+      "snapshot_workflow_statuses",
     ]) {
       expect(calls.some((c) => sqlHas(c, `delete from ${table}`))).toBe(true);
       expect(calls.some((c) => sqlHas(c, `insert into ${table}`))).toBe(true);
@@ -674,8 +761,12 @@ describe("snapshot writes", () => {
 
   test("replaceSnapshotFields and appendSnapshotFields batch their inserts", async () => {
     const fields = Array.from({ length: 120 }, (_, i) => ({
-      fieldId: `customfield_${i}`, name: `F${i}`, usageCount: 1,
-      configuredProjectCount: 1, totalIssueCount: 1, activeProjectCount: 1,
+      fieldId: `customfield_${i}`,
+      name: `F${i}`,
+      usageCount: 1,
+      configuredProjectCount: 1,
+      totalIssueCount: 1,
+      activeProjectCount: 1,
     }));
 
     // These two differ, and the difference is worth pinning: appendSnapshotFields batches
@@ -720,7 +811,7 @@ describe("snapshot writes", () => {
     await flushIssueScanCounts(
       "scope",
       new Map([["customfield_1", new Map([["10", { count: 2, key: "A", name: "Alpha" }]])]]),
-      new Map([["10", { count: 5, key: "A", name: "Alpha" }]])
+      new Map([["10", { count: 5, key: "A", name: "Alpha" }]]),
     );
     expect(calls.some((c) => sqlHas(c, "issue_scan_buffer"))).toBe(true);
   });

@@ -10,10 +10,6 @@
 
 import { normalizeJql } from "./jql-refs.js";
 
-// Share permission types Jira uses. `global` is every logged-in user on the site; `authenticated`
-// is the same thing under its older name; `loggedin` appears on some payloads. All three mean
-// "everyone", which is the claim worth flagging.
-const EVERYONE_TYPES = new Set(["global", "authenticated", "loggedin"]);
 // A filter shared to `project` with no role is every user who can browse that project.
 const OPEN_PROJECT_SHARE = new Set(["project"]);
 
@@ -22,8 +18,26 @@ const OPEN_PROJECT_SHARE = new Set(["project"]);
 // enough to catch quarterly use would flag half the site every quarter.
 export const STALE_FILTER_DAYS = 365;
 
+// Share permission types, read from Jira's published spec rather than from habit:
+//
+//   global                  shared GLOBALLY -- the public, anonymous visitors included on a site
+//                           that allows anonymous access
+//   loggedin / authenticated every logged-in user (`authenticated` is the request spelling,
+//                           `loggedin` what responses return)
+//
+// These were one "everyone" set, which made a filter on the open internet read exactly like
+// one shared with staff. They are two findings now, and public is the sharper of the two.
+const PUBLIC_TYPES = new Set(["global"]);
+const LOGGED_IN_TYPES = new Set(["authenticated", "loggedin"]);
+const shareType = (share) => String(share?.type || "").toLowerCase();
+
+export function isSharedPublicly(shares = []) {
+  return shares.some((share) => PUBLIC_TYPES.has(shareType(share)));
+}
+
+// Every logged-in user -- and only that. A public share is reported as public, not twice.
 export function isSharedWithEveryone(shares = []) {
-  return shares.some((share) => EVERYONE_TYPES.has(String(share?.type || "").toLowerCase()));
+  return !isSharedPublicly(shares) && shares.some((share) => LOGGED_IN_TYPES.has(shareType(share)));
 }
 
 // Shared to a whole project with no role restriction.
@@ -34,8 +48,7 @@ export function isSharedWithEveryone(shares = []) {
 // is a claim this module cannot make without the project catalog, so it publishes the count
 // and lets the caller join.
 export function isSharedWithOpenProject(shares = []) {
-  return shares.some((share) =>
-    OPEN_PROJECT_SHARE.has(String(share?.type || "").toLowerCase()) && !share?.roleId);
+  return shares.some((share) => OPEN_PROJECT_SHARE.has(String(share?.type || "").toLowerCase()) && !share?.roleId);
 }
 
 export function daysSince(iso, now = Date.now()) {
@@ -70,7 +83,10 @@ export function classifyOwner(filter) {
 // null -- and "we could not tell" must not be rendered as "never opened", the same rule the
 // status pillar follows for its counts (CONNECT-4091). When it is false, the three
 // last-used findings are suppressed entirely rather than fired on every filter.
-export function analyzeFilter(filter, { now = Date.now(), staleDays = STALE_FILTER_DAYS, lastUsedTracked = true } = {}) {
+export function analyzeFilter(
+  filter,
+  { now = Date.now(), staleDays = STALE_FILTER_DAYS, lastUsedTracked = true } = {},
+) {
   const findings = [];
   const ownerState = classifyOwner(filter);
   const subscriptions = Number(filter?.subscriptionCount) || 0;
@@ -79,17 +95,26 @@ export function analyzeFilter(filter, { now = Date.now(), staleDays = STALE_FILT
     findings.push({
       code: "orphaned-owner",
       severity: subscriptions > 0 ? "high" : "medium",
-      detail: ownerState === "missing"
-        ? "The owning account no longer exists. Jira deletes a filter with its owner, and anything built on it breaks at the same moment."
-        : "Owned by a deactivated account. The filter still works, and disappears if that account is ever deleted.",
+      detail:
+        ownerState === "missing"
+          ? "The owning account no longer exists. Jira deletes a filter with its owner, and anything built on it breaks at the same moment."
+          : "Owned by a deactivated account. The filter still works, and disappears if that account is ever deleted.",
     });
   }
 
-  if (isSharedWithEveryone(filter?.shares)) {
+  if (isSharedPublicly(filter?.shares)) {
+    findings.push({
+      code: "shared-publicly",
+      severity: "high",
+      detail:
+        "Shared globally. On a site that allows anonymous access, anyone on the internet who has the link can run it -- and see every issue it returns.",
+    });
+  } else if (isSharedWithEveryone(filter?.shares)) {
     findings.push({
       code: "shared-with-everyone",
       severity: "medium",
-      detail: "Shared with every logged-in user. Anyone on the site can run it, including against projects they can browse but were never meant to survey.",
+      detail:
+        "Shared with every logged-in user. Anyone on the site can run it, including against projects they can browse but were never meant to survey.",
     });
   }
 
@@ -148,7 +173,10 @@ export function findDuplicateFilters(filters = []) {
       jql: group[0].jql,
       count: group.length,
       filters: group.map((f) => ({
-        id: f.id, name: f.name, ownerName: f.ownerName ?? null, lastUsedAt: f.lastUsedAt ?? null,
+        id: f.id,
+        name: f.name,
+        ownerName: f.ownerName ?? null,
+        lastUsedAt: f.lastUsedAt ?? null,
       })),
     }))
     .sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
@@ -206,7 +234,10 @@ const SEVERITY_ORDER = { high: 0, medium: 1, low: 2 };
 //
 // Same rule the health score follows: a site with 4,000 filters and 50 orphans is tidier
 // than one with 80 filters and 50 orphans, and scoring counts would rank them the other way.
-export function summarizeFilters(filters = [], { now = Date.now(), projectKeys = null, typeNames = null, staleDays = STALE_FILTER_DAYS } = {}) {
+export function summarizeFilters(
+  filters = [],
+  { now = Date.now(), projectKeys = null, typeNames = null, staleDays = STALE_FILTER_DAYS } = {},
+) {
   // If not one filter on the whole site carries a last-used date, Jira does not track it
   // here -- so the "stale" / "never opened" findings are all noise, and the tab should say
   // "not tracked" rather than assert every filter is dead.
@@ -223,9 +254,11 @@ export function summarizeFilters(filters = [], { now = Date.now(), projectKeys =
 
   const withFindings = analyzed
     .filter((filter) => filter.findings.length > 0)
-    .sort((a, b) =>
-      SEVERITY_ORDER[a.findings[0].severity] - SEVERITY_ORDER[b.findings[0].severity]
-      || String(a.name).localeCompare(String(b.name)));
+    .sort(
+      (a, b) =>
+        SEVERITY_ORDER[a.findings[0].severity] - SEVERITY_ORDER[b.findings[0].severity] ||
+        String(a.name).localeCompare(String(b.name)),
+    );
 
   return {
     // Tri-state, like every other pillar: no snapshot is "not measured", never "no filters".
@@ -237,6 +270,7 @@ export function summarizeFilters(filters = [], { now = Date.now(), projectKeys =
     total: filters.length,
     orphanedCount: analyzed.filter((f) => has(f, "orphaned-owner")).length,
     sharedWithEveryoneCount: analyzed.filter((f) => has(f, "shared-with-everyone")).length,
+    sharedPubliclyCount: analyzed.filter((f) => has(f, "shared-publicly")).length,
     subscribedButUnusedCount: analyzed.filter((f) => has(f, "subscribed-but-unused")).length,
     staleCount: analyzed.filter((f) => has(f, "stale")).length,
     neverUsedCount: analyzed.filter((f) => has(f, "never-used")).length,
@@ -282,6 +316,7 @@ export function summarizeFilterHealth(summary) {
     total: summary.total,
     orphanedCount: summary.orphanedCount,
     sharedWithEveryoneCount: summary.sharedWithEveryoneCount,
+    sharedPubliclyCount: summary.sharedPubliclyCount,
     subscribedButUnusedCount: summary.subscribedButUnusedCount,
     brokenProjectCount: summary.brokenProjectCount,
     projectsChecked: summary.projectsChecked,

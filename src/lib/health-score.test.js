@@ -56,7 +56,7 @@ describe("scoring model v2 primitives", () => {
   describe("directionAdjust", () => {
     test("rewards improvement up to the bonus cap, penalises regression harder", () => {
       expect(directionAdjust(0, 0.4)).toBe(0);
-      expect(directionAdjust(1, 0.4)).toBe(6);   // clamped to DIRECTION_MAX_BONUS
+      expect(directionAdjust(1, 0.4)).toBe(6); // clamped to DIRECTION_MAX_BONUS
       expect(directionAdjust(-1, 0.4)).toBe(-12); // clamped to DIRECTION_MAX_PENALTY
       expect(directionAdjust(0.2, 0.4)).toBe(3);
       expect(directionAdjust(-0.2, 0.4)).toBe(-6);
@@ -69,8 +69,14 @@ describe("scoring model v2 primitives", () => {
 
   describe("targetDimension", () => {
     const base = {
-      key: "k", label: "K", pillar: "boards", weight: 1.5,
-      value: 0.9, target: 0.98, floor: 0.75, direction: "up",
+      key: "k",
+      label: "K",
+      pillar: "boards",
+      weight: 1.5,
+      value: 0.9,
+      target: 0.98,
+      floor: 0.75,
+      direction: "up",
     };
     test("scores the level, exposes value/target/floor/direction, and scales weight by blast", () => {
       const d = targetDimension({ ...base, affected: 3, estate: 30 });
@@ -104,7 +110,12 @@ describe("scoring model v2 primitives", () => {
     });
     test("applies a valid override and keeps the direction/blast metadata", () => {
       const out = resolveHealthTargets({ leastPrivilegeConformance: { target: 0.95, floor: 0.6 } });
-      expect(out.leastPrivilegeConformance).toMatchObject({ target: 0.95, floor: 0.6, direction: "up", blast: "users" });
+      expect(out.leastPrivilegeConformance).toMatchObject({
+        target: 0.95,
+        floor: 0.6,
+        direction: "up",
+        blast: "users",
+      });
     });
     test("keeps the whole default when the override pair is degenerate for the direction", () => {
       // "up" band with floor above target -> reject, keep default.
@@ -142,6 +153,33 @@ const workflow = (over = {}) => ({
   unreachableNoRuleCount: 0,
   automationChecked: true,
   flaggedSchemeCount: 0,
+  // Transition rules read by the build: 600 rules across 120 workflows, none broken.
+  ruleIntegrity: {
+    available: true,
+    workflows: 120,
+    teamManaged: 20,
+    rules: 600,
+    brokenRules: 0,
+    brokenProperties: 0,
+    inactive: 0,
+  },
+  ...over,
+});
+
+// A legacy site, so all three field-scheme dimensions score: on field schemes the
+// required-but-hidden dimension cannot apply.
+const fieldConfigs = (over = {}) => ({
+  available: true,
+  source: "field-configurations",
+  usageJudged: 40,
+  unusedSchemes: 0,
+  unusedConfigs: 0,
+  duplicateJudged: 40,
+  duplicateGroups: 0,
+  reducible: 0,
+  conflictJudged: 30,
+  requiredHiddenConfigs: 0,
+  requiredHiddenPairs: 0,
   ...over,
 });
 
@@ -199,6 +237,8 @@ const dashboards = (over = {}) => ({
   available: true,
   total: 212,
   orphanedCount: 0,
+  filterGadgetDashboards: 120,
+  brokenGadgetCount: 0,
   editableByEveryoneCount: 0,
   publishedUnusedCount: 0,
   // Zero, not absent. Absent means the gadget walk did not finish, and "no empty dashboards"
@@ -267,18 +307,68 @@ const assets = (over = {}) => ({
 });
 
 // The three access pillars' health inputs.
-const permissions = (over = {}) => ({ available: true, totalSchemes: 8, riskySchemeCount: 0, unusedSchemeCount: 0, ...over });
-const security = (over = {}) => ({ available: true, totalSchemes: 4, totalLevels: 12, brokenLevelCount: 0, unusedSchemeCount: 0, ...over });
-const notifications = (over = {}) => ({ available: true, totalSchemes: 5, fragileSchemeCount: 0, unusedSchemeCount: 0, ...over });
-const estate = (over = {}) => ({ available: true, totalResolutions: 6, totalPriorities: 5, reducibleResolutionCount: 0, reduciblePriorityCount: 0, ...over });
-const roles = (over = {}) => ({ available: true, projectsWithRoles: 40, projectsMissingAdminActorCount: 0, offRosterActorCount: 0, directUserActorCount: 20, ...over });
-const boards = (over = {}) => ({ available: true, total: 30, brokenBackingCount: 0, inactiveFilterOwner: 0, staleColumnBoards: 0, unmappedColumnBoards: 0, ...over });
+const permissions = (over = {}) => ({
+  available: true,
+  totalSchemes: 8,
+  riskySchemeCount: 0,
+  unusedSchemeCount: 0,
+  ...over,
+});
+const security = (over = {}) => ({
+  available: true,
+  totalSchemes: 4,
+  totalLevels: 12,
+  brokenLevelCount: 0,
+  unusedSchemeCount: 0,
+  ...over,
+});
+const notifications = (over = {}) => ({
+  available: true,
+  totalSchemes: 5,
+  fragileSchemeCount: 0,
+  unusedSchemeCount: 0,
+  ...over,
+});
+const estate = (over = {}) => ({
+  available: true,
+  totalResolutions: 6,
+  totalPriorities: 5,
+  reducibleResolutionCount: 0,
+  reduciblePriorityCount: 0,
+  usageMeasured: true,
+  unusedPriorityCount: 0,
+  unusedResolutionCount: 0,
+  ...over,
+});
+const roles = (over = {}) => ({
+  available: true,
+  projectsWithRoles: 40,
+  projectsMissingAdminActorCount: 0,
+  offRosterActorCount: 0,
+  directUserActorCount: 20,
+  groupActorCount: 2000,
+  totalRoles: 8,
+  emptyRoleCount: 0,
+  ...over,
+});
+const boards = (over = {}) => ({
+  available: true,
+  total: 30,
+  brokenBackingCount: 0,
+  inactiveFilterOwner: 0,
+  staleColumnBoards: 0,
+  unmappedColumnBoards: 0,
+  ...over,
+});
 const drift = (over = {}) => ({ available: true, windowDays: 30, trackedEntities: 500, changesInWindow: 0, ...over });
 // The screen x field cross. Its two dimensions are the only ones in the model that come from
 // a STORED summary rather than a live overview, so the fixture mirrors what the scan wrote.
 const screenCross = (over = {}) => ({
-  available: true, projectsTotal: 40, projectsResolved: 40,
-  populatedFieldCount: 120, createPlacements: 900,
+  available: true,
+  projectsTotal: 40,
+  projectsResolved: 40,
+  populatedFieldCount: 120,
+  createPlacements: 900,
   counts: { invisibleFields: 0, invisibleIssues: 0, clutterFields: 0, clutterPlacements: 0, unreachableFields: 0 },
   ...over,
 });
@@ -286,17 +376,114 @@ const screenCross = (over = {}) => ({
 describe("computeSiteHealth — scoring", () => {
   test("a clean site scores at the top", () => {
     const health = computeSiteHealth({
-      fieldUsage: fieldUsage(), workflow: workflow(), projects: projects(),
-      automation: automation(), screens: screens(), adoption: adoption(), filters: filters(),
-      dashboards: dashboards(), issueTypes: issueTypes(), users: users(), assets: assets(),
-      permissions: permissions(), security: security(), notifications: notifications(), roles: roles(), estate: estate(), boards: boards(),
+      fieldUsage: fieldUsage(),
+      workflow: workflow(),
+      projects: projects(),
+      automation: automation(),
+      screens: screens(),
+      adoption: adoption(),
+      filters: filters(),
+      dashboards: dashboards(),
+      issueTypes: issueTypes(),
+      users: users(),
+      assets: assets(),
+      permissions: permissions(),
+      security: security(),
+      notifications: notifications(),
+      roles: roles(),
+      estate: estate(),
+      boards: boards(),
       drift: drift(),
       screenCross: screenCross(),
+      fieldConfigs: fieldConfigs(),
     });
 
     expect(health.score).toBeGreaterThanOrEqual(90);
     expect(health.grade).toBe("A");
     expect(health.dimensionsScored).toBe(health.dimensionsTotal);
+  });
+
+  describe("field scheme dimensions", () => {
+    const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+
+    test("score unused, conflicting and duplicate schemes as rates, each on what was measured", () => {
+      const health = computeSiteHealth({
+        fieldConfigs: fieldConfigs({
+          unusedSchemes: 6,
+          unusedConfigs: 6,
+          requiredHiddenConfigs: 1,
+          requiredHiddenPairs: 3,
+          reducible: 8,
+          duplicateGroups: 3,
+        }),
+      });
+      expect(dim(health, "fieldconfig-usage")).toMatchObject({ pillar: "fieldConfigs", available: true, score: 0 });
+      expect(dim(health, "fieldconfig-usage").detail).toMatch(/12 of 40 non-default field configurations and schemes/);
+      const conflict = dim(health, "fieldconfig-required-hidden");
+      expect(conflict.score).toBe(0);
+      expect(conflict.detail).toMatch(/1 of 30 field configurations require a field they also hide \(3 fields/);
+      expect(dim(health, "fieldconfig-duplicates").detail).toMatch(
+        /8 field configurations duplicate another exactly, across 3 groups/,
+      );
+    });
+
+    test("on field schemes the required-but-hidden dimension says why it cannot apply", () => {
+      const d = dim(
+        computeSiteHealth({ fieldConfigs: fieldConfigs({ source: "field-schemes", conflictJudged: null }) }),
+        "fieldconfig-required-hidden",
+      );
+      expect(d).toMatchObject({ available: false, score: null });
+      expect(d.reason).toMatch(/cannot hide a required field/);
+    });
+
+    test("nothing built is unavailable everywhere, never clean", () => {
+      const health = computeSiteHealth({ fieldConfigs: { available: false } });
+      for (const key of ["fieldconfig-usage", "fieldconfig-required-hidden", "fieldconfig-duplicates"]) {
+        expect(dim(health, key)).toMatchObject({ available: false, score: null });
+      }
+    });
+
+    test("duplicates are not judged when no owner's fields were read", () => {
+      const d = dim(
+        computeSiteHealth({ fieldConfigs: fieldConfigs({ duplicateJudged: 0 }) }),
+        "fieldconfig-duplicates",
+      );
+      expect(d.available).toBe(false);
+    });
+  });
+
+  describe("workflow rule dimensions", () => {
+    const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+    const rules = (over) => workflow({ ruleIntegrity: { ...workflow().ruleIntegrity, ...over } });
+
+    test("score broken references against the rules read, and say what to do", () => {
+      const clean = dim(computeSiteHealth({ workflow: workflow() }), "workflow-rule-references");
+      expect(clean).toMatchObject({ available: true, score: 100, pillar: "workflows" });
+
+      const broken = dim(
+        computeSiteHealth({ workflow: rules({ brokenRules: 9, brokenProperties: 3 }) }),
+        "workflow-rule-references",
+      );
+      expect(broken.score).toBe(0);
+      expect(broken.detail).toMatch(/12 workflow rules or properties name/);
+      expect(broken.action).toMatch(/Rules view/);
+    });
+
+    test("are unavailable, not clean, when the snapshot predates rule capture", () => {
+      const health = computeSiteHealth({ workflow: workflow({ ruleIntegrity: { available: false } }) });
+      for (const key of ["workflow-rule-references", "inactive-workflows"]) {
+        expect(dim(health, key)).toMatchObject({ available: false, score: null });
+        expect(dim(health, key).reason).toMatch(/rebuild the workflow inventory/i);
+      }
+    });
+
+    test("judge inactivity among company-managed workflows only", () => {
+      // 100 company-managed (120 - 20 team-managed); 25 inactive = the tolerance, so it bottoms out.
+      const d = dim(computeSiteHealth({ workflow: rules({ inactive: 25 }) }), "inactive-workflows");
+      expect(d.detail).toMatch(/25 of 100 company-managed/);
+      expect(d.score).toBe(0);
+      expect(d.weight).toBe(0.5);
+    });
   });
 
   describe("automation dimensions", () => {
@@ -329,7 +516,9 @@ describe("computeSiteHealth — scoring", () => {
 
     test("credential findings outweigh a single tidy dimension in the roll-up", () => {
       const health = computeSiteHealth({
-        fieldUsage: fieldUsage(), workflow: workflow(), projects: projects(),
+        fieldUsage: fieldUsage(),
+        workflow: workflow(),
+        projects: projects(),
         automation: automation({ credentialRuleCount: 86, ruleCount: 1477 }),
       });
       expect(dim(health, "automation-security").weight).toBe(2);
@@ -357,7 +546,9 @@ describe("computeSiteHealth — scoring", () => {
     });
 
     test("hygiene counts inert rules alongside disabled ones", () => {
-      const health = computeSiteHealth({ automation: automation({ ruleCount: 100, disabledCount: 10, noActionCount: 5 }) });
+      const health = computeSiteHealth({
+        automation: automation({ ruleCount: 100, disabledCount: 10, noActionCount: 5 }),
+      });
       expect(dim(health, "automation-hygiene").detail).toContain("no actions");
     });
 
@@ -377,7 +568,9 @@ describe("computeSiteHealth — scoring", () => {
     });
 
     test("the blast dimension calls out estate-wide rules that also carry a credential", () => {
-      const health = computeSiteHealth({ automation: automation({ ruleCount: 1000, estateWideCount: 40, estateWideCredentialCount: 6 }) });
+      const health = computeSiteHealth({
+        automation: automation({ ruleCount: 1000, estateWideCount: 40, estateWideCredentialCount: 6 }),
+      });
       expect(dim(health, "automation-blast").detail).toMatch(/6 of those also store a credential/);
     });
 
@@ -398,8 +591,11 @@ describe("computeSiteHealth — scoring", () => {
     const dim = (health, key) => health.dimensions.find((d) => d.key === key);
     // 94 unreachable by a scheme; 63 of those a rule still reaches.
     const split = workflow({
-      statusCount: 400, orphanCount: 94, unreachableNoRuleCount: 31,
-      ruleOnlyStatusCount: 63, safeToRemoveCount: 27,
+      statusCount: 400,
+      orphanCount: 94,
+      unreachableNoRuleCount: 31,
+      ruleOnlyStatusCount: 63,
+      safeToRemoveCount: 27,
     });
 
     test("scores reachability on the statuses no rule reaches", () => {
@@ -424,22 +620,38 @@ describe("computeSiteHealth — scoring", () => {
     });
 
     test("says so when every unreachable status is held open by a rule", () => {
-      const allHeld = workflow({ orphanCount: 20, unreachableNoRuleCount: 0, ruleOnlyStatusCount: 20, safeToRemoveCount: 0 });
-      expect(dim(computeSiteHealth({ workflow: allHeld }), "status-reachability").action)
-        .toMatch(/held open by an automation rule/);
+      const allHeld = workflow({
+        orphanCount: 20,
+        unreachableNoRuleCount: 0,
+        ruleOnlyStatusCount: 20,
+        safeToRemoveCount: 0,
+      });
+      expect(dim(computeSiteHealth({ workflow: allHeld }), "status-reachability").action).toMatch(
+        /held open by an automation rule/,
+      );
     });
 
     // Coverage is a claim about rules. Without an analysis it is unknowable, and scoring it
     // as perfect would be the same false all-clear the credential dimension used to give.
     test("coverage is unavailable, not perfect, when no rules have been read", () => {
-      const unchecked = workflow({ orphanCount: 12, automationChecked: false, ruleOnlyStatusCount: 0, unreachableNoRuleCount: 12 });
+      const unchecked = workflow({
+        orphanCount: 12,
+        automationChecked: false,
+        ruleOnlyStatusCount: 0,
+        unreachableNoRuleCount: 12,
+      });
       const coverage = dim(computeSiteHealth({ workflow: unchecked }), "status-coverage");
       expect(coverage).toMatchObject({ available: false, score: null });
       expect(coverage.reason).toMatch(/no automation analysis/i);
     });
 
     test("still warns about the blind spot when no analysis has been built", () => {
-      const unchecked = workflow({ orphanCount: 12, safeToRemoveCount: 5, automationChecked: false, unreachableNoRuleCount: 12 });
+      const unchecked = workflow({
+        orphanCount: 12,
+        safeToRemoveCount: 5,
+        automationChecked: false,
+        unreachableNoRuleCount: 12,
+      });
       const reachability = dim(computeSiteHealth({ workflow: unchecked }), "status-reachability");
       expect(reachability.detail).toMatch(/No automation analysis/);
       expect(reachability.action).toMatch(/a rule could still transition into one of these/);
@@ -448,7 +660,14 @@ describe("computeSiteHealth — scoring", () => {
     // An older cached measurement predates the split and carries only orphanCount. It must
     // still score rather than reporting unavailable.
     test("falls back to the whole orphan count on a payload built before the split", () => {
-      const legacy = { available: true, schemeStatusesAvailable: true, statusCount: 400, orphanCount: 40, safeToRemoveCount: 0, hasIssueCounts: true };
+      const legacy = {
+        available: true,
+        schemeStatusesAvailable: true,
+        statusCount: 400,
+        orphanCount: 40,
+        safeToRemoveCount: 0,
+        hasIssueCounts: true,
+      };
       expect(dim(computeSiteHealth({ workflow: legacy }), "status-reachability").score).toBe(50);
     });
   });
@@ -461,7 +680,12 @@ describe("computeSiteHealth — scoring", () => {
 
     test("scores consistency over every project, not a top-eight list", () => {
       const health = computeSiteHealth({
-        projects: projects({ totalProjects: 200, overConfiguredCount: 64, overConfiguredFloor: 76, medianFieldCount: 38 }),
+        projects: projects({
+          totalProjects: 200,
+          overConfiguredCount: 64,
+          overConfiguredFloor: 76,
+          medianFieldCount: 38,
+        }),
       });
       // 64/200 = 32%, past the 25% tolerance. Capped at 8 this was 4% and scored 84.
       expect(dim(health, "project-consistency").score).toBe(0);
@@ -469,7 +693,9 @@ describe("computeSiteHealth — scoring", () => {
     });
 
     test("names the threshold and the median it was derived from", () => {
-      const health = computeSiteHealth({ projects: projects({ overConfiguredCount: 5, overConfiguredFloor: 76, medianFieldCount: 38 }) });
+      const health = computeSiteHealth({
+        projects: projects({ overConfiguredCount: 5, overConfiguredFloor: 76, medianFieldCount: 38 }),
+      });
       expect(dim(health, "project-consistency").detail).toMatch(/76 or more fields, against a median of 38/);
     });
 
@@ -507,11 +733,13 @@ describe("computeSiteHealth — scoring", () => {
   test("scores rates, not counts", () => {
     const big = computeSiteHealth({
       fieldUsage: fieldUsage({ totalFields: 5000, duplicateClusters: 50 }),
-      workflow: workflow(), projects: projects(),
+      workflow: workflow(),
+      projects: projects(),
     });
     const small = computeSiteHealth({
       fieldUsage: fieldUsage({ totalFields: 80, duplicateClusters: 50 }),
-      workflow: workflow(), projects: projects(),
+      workflow: workflow(),
+      projects: projects(),
     });
 
     const dim = (h) => h.dimensions.find((d) => d.key === "field-naming").score;
@@ -522,11 +750,13 @@ describe("computeSiteHealth — scoring", () => {
   test("weights high-severity field findings above medium", () => {
     const high = computeSiteHealth({
       fieldUsage: fieldUsage({ findingsBySeverity: { high: 40, medium: 0, low: 0 } }),
-      workflow: workflow(), projects: projects(),
+      workflow: workflow(),
+      projects: projects(),
     });
     const medium = computeSiteHealth({
       fieldUsage: fieldUsage({ findingsBySeverity: { high: 0, medium: 40, low: 0 } }),
-      workflow: workflow(), projects: projects(),
+      workflow: workflow(),
+      projects: projects(),
     });
 
     const dim = (h) => h.dimensions.find((d) => d.key === "field-governance").score;
@@ -534,8 +764,16 @@ describe("computeSiteHealth — scoring", () => {
   });
 
   test("rewards shared schemes, because a bespoke-per-project site cannot standardise", () => {
-    const shared = computeSiteHealth({ fieldUsage: fieldUsage(), workflow: workflow({ sharedSchemes: 60 }), projects: projects() });
-    const bespoke = computeSiteHealth({ fieldUsage: fieldUsage(), workflow: workflow({ sharedSchemes: 2 }), projects: projects() });
+    const shared = computeSiteHealth({
+      fieldUsage: fieldUsage(),
+      workflow: workflow({ sharedSchemes: 60 }),
+      projects: projects(),
+    });
+    const bespoke = computeSiteHealth({
+      fieldUsage: fieldUsage(),
+      workflow: workflow({ sharedSchemes: 2 }),
+      projects: projects(),
+    });
 
     const dim = (h) => h.dimensions.find((d) => d.key === "standardisation");
     expect(dim(shared).score).toBeGreaterThan(dim(bespoke).score);
@@ -633,15 +871,20 @@ describe("screen dimensions", () => {
   test("reachability is a v2 target, scored only when the workflow inventory can answer it", () => {
     // 8 of 100 unreached -> reachable 0.92. Band 0.95 / 0.60, "up".
     // 100 * (0.92 - 0.60) / (0.95 - 0.60) ≈ 91.
-    const d = dim(computeSiteHealth({
-      screens: screens({ totalScreens: 100, totalOperations: 100, unreachedScreens: 8 }),
-    }), "screen-reachability");
+    const d = dim(
+      computeSiteHealth({
+        screens: screens({ totalScreens: 100, totalOperations: 100, unreachedScreens: 8 }),
+      }),
+      "screen-reachability",
+    );
     expect(d.available).toBe(true);
     expect(d.level).toBe(91);
     expect(d.direction).toBe("up");
 
     // No unreachedScreens count (null) -> the workflow snapshot did not run -> not scored.
-    const noWf = computeSiteHealth({ screens: screens({ totalScreens: 100, totalOperations: 100, unreachedScreens: null }) });
+    const noWf = computeSiteHealth({
+      screens: screens({ totalScreens: 100, totalOperations: 100, unreachedScreens: null }),
+    });
     expect(noWf.dimensions.find((x) => x.key === "screen-reachability")).toBeUndefined();
   });
 });
@@ -665,7 +908,9 @@ describe("issue type dimensions", () => {
     // 4/24 against a 0.40 tolerance -> ~58, not bottomed out.
     expect(dim(unused, "issue-type-scheme-usage").score).toBeGreaterThan(40);
 
-    const dupes = computeSiteHealth({ issueTypes: issueTypes({ totalTypes: 63, reducibleTypeCount: 6, duplicateTypeGroupCount: 3 }) });
+    const dupes = computeSiteHealth({
+      issueTypes: issueTypes({ totalTypes: 63, reducibleTypeCount: 6, duplicateTypeGroupCount: 3 }),
+    });
     expect(dim(dupes, "issue-type-naming").detail).toMatch(/3 groups/);
   });
 
@@ -853,8 +1098,19 @@ describe("access dimensions", () => {
   const dim = (health, key) => health.dimensions.find((d) => d.key === key);
 
   test("a clean access config scores every dimension at the top", () => {
-    const health = computeSiteHealth({ permissions: permissions(), security: security(), notifications: notifications() });
-    for (const key of ["permission-least-privilege", "permission-scheme-sprawl", "security-level-integrity", "security-scheme-sprawl", "notification-routing", "notification-scheme-sprawl"]) {
+    const health = computeSiteHealth({
+      permissions: permissions(),
+      security: security(),
+      notifications: notifications(),
+    });
+    for (const key of [
+      "permission-least-privilege",
+      "permission-scheme-sprawl",
+      "security-level-integrity",
+      "security-scheme-sprawl",
+      "notification-routing",
+      "notification-scheme-sprawl",
+    ]) {
       expect(dim(health, key).score).toBe(100);
     }
   });
@@ -862,7 +1118,10 @@ describe("access dimensions", () => {
   test("least privilege is a v2 target: scored against a conformance band, weighted by blast", () => {
     // 7 of 10 schemes clean -> conformance 0.70. Band is target 0.90, floor 0.50, "up".
     // 100 * (0.70 - 0.50) / (0.90 - 0.50) = 50.
-    const d = dim(computeSiteHealth({ permissions: permissions({ totalSchemes: 10, riskySchemeCount: 3 }) }), "permission-least-privilege");
+    const d = dim(
+      computeSiteHealth({ permissions: permissions({ totalSchemes: 10, riskySchemeCount: 3 }) }),
+      "permission-least-privilege",
+    );
     expect(d.level).toBe(50);
     expect(d.score).toBe(50); // no prior -> no directional term
     expect(d.value).toBeCloseTo(0.7, 5);
@@ -875,14 +1134,30 @@ describe("access dimensions", () => {
   });
 
   test("least privilege at conformance floor scores 0, at target scores 100", () => {
-    expect(dim(computeSiteHealth({ permissions: permissions({ totalSchemes: 10, riskySchemeCount: 5 }) }), "permission-least-privilege").level).toBe(0);
-    expect(dim(computeSiteHealth({ permissions: permissions({ totalSchemes: 10, riskySchemeCount: 1 }) }), "permission-least-privilege").level).toBe(100);
+    expect(
+      dim(
+        computeSiteHealth({ permissions: permissions({ totalSchemes: 10, riskySchemeCount: 5 }) }),
+        "permission-least-privilege",
+      ).level,
+    ).toBe(0);
+    expect(
+      dim(
+        computeSiteHealth({ permissions: permissions({ totalSchemes: 10, riskySchemeCount: 1 }) }),
+        "permission-least-privilege",
+      ).level,
+    ).toBe(100);
   });
 
   test("least privilege folds in a small penalty when conformance slipped since the last scan", () => {
     const base = { permissions: permissions({ totalSchemes: 10, riskySchemeCount: 3 }) }; // value 0.70, level 50
-    const steady = dim(computeSiteHealth({ ...base, priorValues: { "permission-least-privilege": 0.7 } }), "permission-least-privilege");
-    const slipped = dim(computeSiteHealth({ ...base, priorValues: { "permission-least-privilege": 0.85 } }), "permission-least-privilege");
+    const steady = dim(
+      computeSiteHealth({ ...base, priorValues: { "permission-least-privilege": 0.7 } }),
+      "permission-least-privilege",
+    );
+    const slipped = dim(
+      computeSiteHealth({ ...base, priorValues: { "permission-least-privilege": 0.85 } }),
+      "permission-least-privilege",
+    );
     expect(steady.score).toBe(50);
     expect(slipped.score).toBeLessThan(50);
     expect(slipped.trend).toBe("worsening");
@@ -890,19 +1165,31 @@ describe("access dimensions", () => {
 
   test("security level integrity is a v2 target: integrity rate against the 0.95 / 0.70 band", () => {
     // 17 of 20 levels intact -> integrity 0.85. 100 * (0.85 - 0.70) / (0.95 - 0.70) = 60.
-    const d = dim(computeSiteHealth({ security: security({ totalLevels: 20, brokenLevelCount: 3 }) }), "security-level-integrity");
+    const d = dim(
+      computeSiteHealth({ security: security({ totalLevels: 20, brokenLevelCount: 3 }) }),
+      "security-level-integrity",
+    );
     expect(d.level).toBe(60);
     expect(d.value).toBeCloseTo(0.85, 5);
     expect(d.direction).toBe("up");
     // 6 of 20 broken -> integrity 0.70 == floor -> 0.
-    expect(dim(computeSiteHealth({ security: security({ totalLevels: 20, brokenLevelCount: 6 }) }), "security-level-integrity").level).toBe(0);
+    expect(
+      dim(
+        computeSiteHealth({ security: security({ totalLevels: 20, brokenLevelCount: 6 }) }),
+        "security-level-integrity",
+      ).level,
+    ).toBe(0);
   });
 
-  test("the three access pillars are weighted 1.5 / 1 / 0.5 and each rolls its two dimensions", () => {
-    const health = computeSiteHealth({ permissions: permissions({ riskySchemeCount: 1 }), security: security(), notifications: notifications() });
-    expect(health.pillars.find((p) => p.key === "permissions").total).toBe(2);
-    expect(health.pillars.find((p) => p.key === "security").total).toBe(2);
-    expect(health.pillars.find((p) => p.key === "notifications").total).toBe(2);
+  test("the three access pillars roll up six, four and four dimensions", () => {
+    const health = computeSiteHealth({
+      permissions: permissions({ riskySchemeCount: 1 }),
+      security: security(),
+      notifications: notifications(),
+    });
+    expect(health.pillars.find((p) => p.key === "permissions").total).toBe(6);
+    expect(health.pillars.find((p) => p.key === "security").total).toBe(4);
+    expect(health.pillars.find((p) => p.key === "notifications").total).toBe(4);
   });
 
   test("all six dimensions are unmeasured until an access inventory exists", () => {
@@ -925,14 +1212,24 @@ describe("project-role dimensions", () => {
 
   test("admin coverage is a v2 target: the covered-project rate against the 0.95 / 0.60 band", () => {
     // 45 of 50 covered -> 0.90. 100 * (0.90 - 0.60) / (0.95 - 0.60) ≈ 86.
-    const d = dim(computeSiteHealth({ roles: roles({ projectsWithRoles: 50, projectsMissingAdminActorCount: 5 }) }), "role-admin-coverage");
+    const d = dim(
+      computeSiteHealth({ roles: roles({ projectsWithRoles: 50, projectsMissingAdminActorCount: 5 }) }),
+      "role-admin-coverage",
+    );
     expect(d.level).toBe(86);
     expect(d.value).toBeCloseTo(0.9, 5);
     expect(d.direction).toBe("up");
     expect(d.baseWeight).toBe(1.5);
     // 25 of 50 missing -> coverage 0.50, below the 0.60 floor -> 0.
-    expect(dim(computeSiteHealth({ roles: roles({ projectsWithRoles: 50, projectsMissingAdminActorCount: 25 }) }), "role-admin-coverage").level).toBe(0);
-    expect(computeSiteHealth({ roles: roles({ projectsWithRoles: 50 }) }).pillars.find((p) => p.key === "roles").total).toBe(2);
+    expect(
+      dim(
+        computeSiteHealth({ roles: roles({ projectsWithRoles: 50, projectsMissingAdminActorCount: 25 }) }),
+        "role-admin-coverage",
+      ).level,
+    ).toBe(0);
+    expect(
+      computeSiteHealth({ roles: roles({ projectsWithRoles: 50 }) }).pillars.find((p) => p.key === "roles").total,
+    ).toBe(4);
   });
 
   test("both dimensions are unmeasured until the access inventory exists", () => {
@@ -956,7 +1253,7 @@ describe("estate dimensions", () => {
     const health = computeSiteHealth({ estate: estate({ totalResolutions: 20, reducibleResolutionCount: 3 }) });
     // 3/20 = 0.15 = the tolerance -> 0.
     expect(dim(health, "resolution-naming").score).toBe(0);
-    expect(health.pillars.find((p) => p.key === "estate").total).toBe(2);
+    expect(health.pillars.find((p) => p.key === "estate").total).toBe(5);
   });
 
   test("both dimensions are unmeasured until the inventory exists", () => {
@@ -1003,7 +1300,10 @@ describe("board dimensions", () => {
   test("backing is a v2 target: integrity of broken + inactive-owner boards against the band", () => {
     // (2 broken + 1 inactive owner) / 30 -> integrity 0.90. Band target 0.98, floor 0.75, "up".
     // 100 * (0.90 - 0.75) / (0.98 - 0.75) = 65.
-    const d = dim(computeSiteHealth({ boards: boards({ total: 30, brokenBackingCount: 2, inactiveFilterOwner: 1 }) }), "board-backing");
+    const d = dim(
+      computeSiteHealth({ boards: boards({ total: 30, brokenBackingCount: 2, inactiveFilterOwner: 1 }) }),
+      "board-backing",
+    );
     expect(d.level).toBe(65);
     expect(d.value).toBeCloseTo(0.9, 5);
     expect(d.pillar).toBe("boards");
@@ -1012,7 +1312,9 @@ describe("board dimensions", () => {
 
   test("backing at the integrity floor scores 0", () => {
     // 8 of 30 broken -> integrity 0.733, below the 0.75 floor.
-    expect(dim(computeSiteHealth({ boards: boards({ total: 30, brokenBackingCount: 8 }) }), "board-backing").level).toBe(0);
+    expect(
+      dim(computeSiteHealth({ boards: boards({ total: 30, brokenBackingCount: 8 }) }), "board-backing").level,
+    ).toBe(0);
   });
 
   test("columns scores stale and unmapped boards against the softer bound", () => {
@@ -1025,7 +1327,10 @@ describe("board dimensions", () => {
   test("rates are over readable boards; unreadable ones are left out, not counted clean", () => {
     // 3 broken of 30 boards, but only 10 could be read -> integrity 0.70, below the floor.
     // Counting the 20 unread boards as clean would have scored 0.90.
-    const d = dim(computeSiteHealth({ boards: boards({ total: 30, readable: 10, unreadable: 20, brokenBackingCount: 3 }) }), "board-backing");
+    const d = dim(
+      computeSiteHealth({ boards: boards({ total: 30, readable: 10, unreadable: 20, brokenBackingCount: 3 }) }),
+      "board-backing",
+    );
     expect(d.value).toBeCloseTo(0.7, 5);
     expect(d.detail).toMatch(/20 more could not be read/);
   });
@@ -1075,8 +1380,11 @@ describe("automation exposure", () => {
 describe("pillar roll-ups", () => {
   test("every dimension belongs to a pillar", () => {
     const health = computeSiteHealth({
-      fieldUsage: fieldUsage(), workflow: workflow(), projects: projects(),
-      automation: automation(), screens: screens(),
+      fieldUsage: fieldUsage(),
+      workflow: workflow(),
+      projects: projects(),
+      automation: automation(),
+      screens: screens(),
     });
 
     const known = new Set(HEALTH_PILLARS.map((p) => p.key));
@@ -1090,7 +1398,13 @@ describe("pillar roll-ups", () => {
   // in the UI is exactly the kind of drift the pillar scores exist to prevent.
   test("weights a pillar the same way the headline score is weighted", () => {
     const health = computeSiteHealth({
-      automation: automation({ ruleCount: 100, credentialRuleCount: 2, selfTriggeringCount: 0, externalHttpCount: 0, disabledCount: 0 }),
+      automation: automation({
+        ruleCount: 100,
+        credentialRuleCount: 2,
+        selfTriggeringCount: 0,
+        externalHttpCount: 0,
+        disabledCount: 0,
+      }),
     });
 
     const pillar = health.pillars.find((p) => p.key === "automation");
@@ -1119,7 +1433,9 @@ describe("computeSiteHealth — missing input", () => {
   test("excludes dimensions with no data rather than scoring them zero", () => {
     const health = computeSiteHealth({ fieldUsage: fieldUsage(), workflow: null, projects: null });
 
-    const workflowDims = health.dimensions.filter((d) => d.key.startsWith("status") || d.key === "workflow-structure" || d.key === "standardisation");
+    const workflowDims = health.dimensions.filter(
+      (d) => d.key.startsWith("status") || d.key === "workflow-structure" || d.key === "standardisation",
+    );
     expect(workflowDims.every((d) => d.available === false)).toBe(true);
     expect(workflowDims.every((d) => d.score === null)).toBe(true);
     // A clean field score is not dragged down by workflow data that was never collected.
@@ -1160,7 +1476,13 @@ describe("computeSiteHealth — missing input", () => {
 });
 
 describe("gradeFor", () => {
-  test.each([[95, "A"], [85, "B"], [75, "C"], [65, "D"], [20, "E"]])("%i maps to %s", (score, grade) => {
+  test.each([
+    [95, "A"],
+    [85, "B"],
+    [75, "C"],
+    [65, "D"],
+    [20, "E"],
+  ])("%i maps to %s", (score, grade) => {
     expect(gradeFor(score)).toBe(grade);
   });
 
@@ -1190,22 +1512,26 @@ describe("resolveHealthTolerances", () => {
     expect(out.notADimension).toBeUndefined();
   });
 
-  test.each([[0], [-1], [NaN], ["0.2"], [null]])(
-    "falls back to the default rather than accepting %p",
-    (bad) => {
-      expect(resolveHealthTolerances({ credentialRules: bad }).credentialRules)
-        .toBe(DEFAULT_HEALTH_TOLERANCES.credentialRules);
-    }
-  );
+  test.each([[0], [-1], [NaN], ["0.2"], [null]])("falls back to the default rather than accepting %p", (bad) => {
+    expect(resolveHealthTolerances({ credentialRules: bad }).credentialRules).toBe(
+      DEFAULT_HEALTH_TOLERANCES.credentialRules,
+    );
+  });
 });
 
 describe("computeSiteHealth tolerance tuning", () => {
   // A site knowingly running self-triggering rules under guard conditions was permanently
   // marked down for a decision it had already made. Raising the tolerance must move the score.
   test("a looser tolerance scores the same estate higher", () => {
-    const automation = { available: true, ruleCount: 100, selfTriggeringTotal: 10, disabledCount: 0, credentialRuleCount: 0 };
-    const strict = computeSiteHealth({ automation, tolerances: { selfTriggeringRules: 0.10 } });
-    const loose = computeSiteHealth({ automation, tolerances: { selfTriggeringRules: 0.50 } });
+    const automation = {
+      available: true,
+      ruleCount: 100,
+      selfTriggeringTotal: 10,
+      disabledCount: 0,
+      credentialRuleCount: 0,
+    };
+    const strict = computeSiteHealth({ automation, tolerances: { selfTriggeringRules: 0.1 } });
+    const loose = computeSiteHealth({ automation, tolerances: { selfTriggeringRules: 0.5 } });
 
     const dim = (h) => h.dimensions.find((d) => d.key === "selfTriggeringRules");
     if (dim(strict) && dim(loose)) {
@@ -1226,10 +1552,14 @@ describe("project adoption", () => {
   const dim = (health) => health.dimensions.find((d) => d.key === "project-adoption");
 
   test("scores the share that fell off or never started", () => {
-    const health = computeSiteHealth({ adoption: adoption({ judgeableProjects: 180, fellOffCount: 22, neverAdoptedCount: 9 }) });
+    const health = computeSiteHealth({
+      adoption: adoption({ judgeableProjects: 180, fellOffCount: 22, neverAdoptedCount: 9 }),
+    });
     // 31/180 = 17%, against a 25% tolerance.
     expect(dim(health).score).toBe(31);
-    expect(dim(health).detail).toMatch(/22 projects have fallen well below their own historical rate and 9 never took off/);
+    expect(dim(health).detail).toMatch(
+      /22 projects have fallen well below their own historical rate and 9 never took off/,
+    );
   });
 
   test("leads with the ones people left, not the ones nobody started", () => {
@@ -1259,8 +1589,11 @@ describe("project adoption", () => {
   test("belongs to the projects pillar, beside shape and activity", () => {
     const health = computeSiteHealth({ projects: projects(), adoption: adoption() });
     const pillar = health.pillars.find((p) => p.key === "projects");
-    expect(pillar.dimensions.map((d) => d.key).sort())
-      .toEqual(["project-activity", "project-adoption", "project-consistency"]);
+    expect(pillar.dimensions.map((d) => d.key).sort()).toEqual([
+      "project-activity",
+      "project-adoption",
+      "project-consistency",
+    ]);
   });
 });
 
@@ -1275,7 +1608,13 @@ describe("dashboard rules", () => {
 
   test("scores each failure against its own bound", () => {
     const health = computeSiteHealth({
-      dashboards: dashboards({ total: 200, orphanedCount: 20, editableByEveryoneCount: 50, publishedUnusedCount: 70, emptyCount: 30 }),
+      dashboards: dashboards({
+        total: 200,
+        orphanedCount: 20,
+        editableByEveryoneCount: 50,
+        publishedUnusedCount: 70,
+        emptyCount: 30,
+      }),
     });
 
     // 10% orphaned against a 10% bound bottoms out; 25% editable against 25% likewise. The
@@ -1293,8 +1632,7 @@ describe("dashboard rules", () => {
 
     // Jira deletes a dashboard with its owner, so an orphan has a deletion date nobody has
     // written down. An open edit list is bad manners; this is data loss.
-    expect(dim(health, "dashboard-ownership").weight)
-      .toBeGreaterThan(dim(health, "dashboard-exposure").weight);
+    expect(dim(health, "dashboard-ownership").weight).toBeGreaterThan(dim(health, "dashboard-exposure").weight);
 
     // The action appears only when there is something to act on -- a clean pillar offers no
     // advice, which is why this needs its own fixture rather than the default one.
@@ -1330,8 +1668,55 @@ describe("dashboard rules", () => {
     const pillar = health.pillars.find((p) => p.key === "dashboards");
 
     expect(pillar.dimensions.map((d) => d.key).sort()).toEqual([
-      "dashboard-adoption", "dashboard-content", "dashboard-exposure", "dashboard-ownership",
+      "dashboard-adoption",
+      "dashboard-content",
+      "dashboard-exposure",
+      "dashboard-gadget-filters",
+      "dashboard-ownership",
+      "dashboard-public",
     ]);
+  });
+});
+
+describe("gadget filters", () => {
+  const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+
+  test("scores dashboards with a broken gadget against those whose gadget filters were probed", () => {
+    const d = dim(
+      computeSiteHealth({ dashboards: dashboards({ filterGadgetDashboards: 40, brokenGadgetCount: 2 }) }),
+      "dashboard-gadget-filters",
+    );
+    expect(d).toMatchObject({ available: true, score: 0 });
+    expect(d.detail).toMatch(/2 of 40 dashboards with filter gadgets/);
+  });
+
+  test("a snapshot from before the probe is unavailable, not clean", () => {
+    const d = dim(
+      computeSiteHealth({ dashboards: dashboards({ filterGadgetDashboards: 0 }) }),
+      "dashboard-gadget-filters",
+    );
+    expect(d).toMatchObject({ available: false, score: null });
+    expect(d.reason).toMatch(/Rebuild the dashboard inventory/);
+  });
+});
+
+describe("public exposure", () => {
+  const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+
+  test("a public filter or dashboard scores apart from, and harder than, a logged-in share", () => {
+    const health = computeSiteHealth({
+      filters: filters({ total: 100, sharedWithEveryoneCount: 2, sharedPubliclyCount: 2 }),
+      dashboards: dashboards({ total: 100, sharedPubliclyCount: 2 }),
+    });
+    expect(dim(health, "filter-public")).toMatchObject({ score: 0, weight: 1.5 });
+    expect(dim(health, "filter-exposure").score).toBeGreaterThan(50);
+    expect(dim(health, "filter-public").detail).toBe("2 of 100 filters are shared publicly.");
+    expect(dim(health, "dashboard-public").score).toBe(0);
+  });
+
+  test("none public is a clean score, not an unmeasured one", () => {
+    const health = computeSiteHealth({ filters: filters({ total: 10, sharedPubliclyCount: 0 }) });
+    expect(dim(health, "filter-public")).toMatchObject({ available: true, score: 100 });
   });
 });
 
@@ -1342,7 +1727,13 @@ describe("filter rules", () => {
 
   test("scores each failure against its own bound", () => {
     const health = computeSiteHealth({
-      filters: filters({ total: 400, orphanedCount: 20, sharedWithEveryoneCount: 80, subscribedButUnusedCount: 40, brokenProjectCount: 20 }),
+      filters: filters({
+        total: 400,
+        orphanedCount: 20,
+        sharedWithEveryoneCount: 80,
+        subscribedButUnusedCount: 40,
+        brokenProjectCount: 20,
+      }),
     });
 
     expect(dim(health, "filter-ownership").score).toBe(0);
@@ -1367,7 +1758,11 @@ describe("filter rules", () => {
     const pillar = health.pillars.find((p) => p.key === "filters");
 
     expect(pillar.dimensions.map((d) => d.key).sort()).toEqual([
-      "filter-exposure", "filter-ownership", "filter-scope", "filter-subscriptions",
+      "filter-exposure",
+      "filter-ownership",
+      "filter-public",
+      "filter-scope",
+      "filter-subscriptions",
     ]);
   });
 });
@@ -1377,9 +1772,23 @@ describe("pillar weighting", () => {
   test("adding rules to a pillar does not change what that pillar is worth", () => {
     // A site perfect everywhere except dashboards, which are at their worst.
     const bad = computeSiteHealth({
-      fieldUsage: fieldUsage(), workflow: workflow(), projects: projects(), automation: automation(),
-      screens: screens(), adoption: adoption(), filters: filters(),
-      dashboards: dashboards({ total: 100, orphanedCount: 100, editableByEveryoneCount: 100, publishedUnusedCount: 100, emptyCount: 100 }),
+      fieldUsage: fieldUsage(),
+      workflow: workflow(),
+      projects: projects(),
+      automation: automation(),
+      screens: screens(),
+      adoption: adoption(),
+      filters: filters(),
+      dashboards: dashboards({
+        total: 100,
+        orphanedCount: 100,
+        editableByEveryoneCount: 100,
+        sharedPubliclyCount: 100,
+        brokenGadgetCount: 100,
+        filterGadgetDashboards: 100,
+        publishedUnusedCount: 100,
+        emptyCount: 100,
+      }),
     });
 
     // Dashboards is one of seven pillars carrying weight 1 out of 9 total, so a pillar scoring
@@ -1392,8 +1801,13 @@ describe("pillar weighting", () => {
 
   test("a pillar with nothing measured is excluded, not scored zero", () => {
     const withoutDashboards = computeSiteHealth({
-      fieldUsage: fieldUsage(), workflow: workflow(), projects: projects(), automation: automation(),
-      screens: screens(), adoption: adoption(), filters: filters(),
+      fieldUsage: fieldUsage(),
+      workflow: workflow(),
+      projects: projects(),
+      automation: automation(),
+      screens: screens(),
+      adoption: adoption(),
+      filters: filters(),
     });
 
     // A site with no dashboard inventory is not a site with bad dashboards.
@@ -1418,7 +1832,16 @@ describe("the screen cross-signal dimensions", () => {
   test("invisible data is scored against populated fields, not the whole catalogue", () => {
     // A site with 700 fields and 120 populated ones has 120 chances to be wrong here.
     // Dividing by the catalogue would report every estate as spotless.
-    const health = run({ populatedFieldCount: 120, counts: { invisibleFields: 6, invisibleIssues: 4000, clutterFields: 0, clutterPlacements: 0, unreachableFields: 0 } });
+    const health = run({
+      populatedFieldCount: 120,
+      counts: {
+        invisibleFields: 6,
+        invisibleIssues: 4000,
+        clutterFields: 0,
+        clutterPlacements: 0,
+        unreachableFields: 0,
+      },
+    });
     const d = dim(health, "invisible-data");
 
     expect(d.score).toBeLessThan(100);
@@ -1430,8 +1853,20 @@ describe("the screen cross-signal dimensions", () => {
   test("form clutter is scored per placement, not per field", () => {
     // The same field on ten create screens is ten filing experiences carrying it. A
     // field-count rate would make a widely-placed offender look like a single-form one.
-    const wide = run({ createPlacements: 900, counts: { clutterPlacements: 300, clutterFields: 3, invisibleFields: 0, invisibleIssues: 0, unreachableFields: 0 } });
-    const narrow = run({ createPlacements: 900, counts: { clutterPlacements: 3, clutterFields: 3, invisibleFields: 0, invisibleIssues: 0, unreachableFields: 0 } });
+    const wide = run({
+      createPlacements: 900,
+      counts: {
+        clutterPlacements: 300,
+        clutterFields: 3,
+        invisibleFields: 0,
+        invisibleIssues: 0,
+        unreachableFields: 0,
+      },
+    });
+    const narrow = run({
+      createPlacements: 900,
+      counts: { clutterPlacements: 3, clutterFields: 3, invisibleFields: 0, invisibleIssues: 0, unreachableFields: 0 },
+    });
 
     expect(dim(wide, "form-clutter").score).toBeLessThan(dim(narrow, "form-clutter").score);
   });
@@ -1439,8 +1874,20 @@ describe("the screen cross-signal dimensions", () => {
   test("invisible data is graded far more harshly than form clutter", () => {
     // Same rate, different consequence: one is an integration nobody can see, the other is
     // an optional field somebody skips.
-    const invisible = run({ populatedFieldCount: 100, counts: { invisibleFields: 10, invisibleIssues: 10, clutterFields: 0, clutterPlacements: 0, unreachableFields: 0 } });
-    const clutter = run({ createPlacements: 100, counts: { clutterPlacements: 10, clutterFields: 1, invisibleFields: 0, invisibleIssues: 0, unreachableFields: 0 } });
+    const invisible = run({
+      populatedFieldCount: 100,
+      counts: {
+        invisibleFields: 10,
+        invisibleIssues: 10,
+        clutterFields: 0,
+        clutterPlacements: 0,
+        unreachableFields: 0,
+      },
+    });
+    const clutter = run({
+      createPlacements: 100,
+      counts: { clutterPlacements: 10, clutterFields: 1, invisibleFields: 0, invisibleIssues: 0, unreachableFields: 0 },
+    });
 
     expect(dim(invisible, "invisible-data").score).toBeLessThan(dim(clutter, "form-clutter").score);
   });
@@ -1474,5 +1921,182 @@ describe("the screen cross-signal dimensions", () => {
       screenCross: { available: false, reason: "No project's screen chain resolved completely in the last build." },
     });
     expect(dim(health, "invisible-data").reason).toMatch(/no project's screen chain resolved/i);
+  });
+});
+
+// The checks added to the thin pillars on 14 Oct 2026: permissions, issue security,
+// notifications, project roles, priorities and resolutions. Each is a rate against a tolerance
+// over counts the access and estate builds already computed.
+describe("thin-pillar checks", () => {
+  const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+
+  test("public access scores schemes open to anonymous users, tightly", () => {
+    // 1 of 50 = 0.02 = the tolerance -> 0. 0 of 50 -> 100.
+    expect(
+      dim(
+        computeSiteHealth({ permissions: permissions({ totalSchemes: 50, publicSchemeCount: 1 }) }),
+        "permission-public-access",
+      ).score,
+    ).toBe(0);
+    const clean = dim(
+      computeSiteHealth({ permissions: permissions({ totalSchemes: 50 }) }),
+      "permission-public-access",
+    );
+    expect(clean.score).toBe(100);
+    expect(clean.weight).toBe(1.5);
+  });
+
+  test("sensitive grants to everyone, and grants to individuals, score their own rates", () => {
+    // 2 of 40 = 0.05, half the 0.10 tolerance -> 50.
+    expect(
+      dim(
+        computeSiteHealth({ permissions: permissions({ totalSchemes: 40, loggedInSensitiveSchemeCount: 2 }) }),
+        "permission-everyone-sensitive",
+      ).score,
+    ).toBe(50);
+    // 5 of 100 grants name a person: 0.05 of a 0.10 tolerance -> 50.
+    const direct = dim(
+      computeSiteHealth({ permissions: permissions({ totalGrantCount: 100, directUserGrantCount: 5 }) }),
+      "permission-direct-grants",
+    );
+    expect(direct.score).toBe(50);
+    expect(direct.detail).toMatch(/5 of 100 permission grants name an individual/);
+  });
+
+  test("a scheme with no grants at all reads as clean, never as 0/0", () => {
+    const d = dim(
+      computeSiteHealth({ permissions: permissions({ totalGrantCount: 0, directUserGrantCount: 0 }) }),
+      "permission-direct-grants",
+    );
+    expect(d.score).toBe(100);
+  });
+
+  test("departed-account checks are unmeasured without the People roster", () => {
+    const health = computeSiteHealth({
+      permissions: permissions({ rosterMeasured: false, directUserGrantCount: 3, offRosterUserGrantCount: 3 }),
+      security: security({ rosterMeasured: false }),
+      notifications: notifications({ rosterMeasured: false }),
+      roles: roles({ rosterMeasured: false, offRosterActorCount: 20 }),
+    });
+    for (const key of [
+      "permission-departed-grants",
+      "security-departed-members",
+      "notification-departed-recipients",
+      "role-actor-hygiene",
+    ]) {
+      expect(dim(health, key).available).toBe(false);
+      expect(dim(health, key).reason).toMatch(/People roster/);
+    }
+  });
+
+  // The Actor hygiene fix: an empty roster used to make every user actor "departed".
+  test("actor hygiene still scores when the roster is measured", () => {
+    expect(
+      dim(computeSiteHealth({ roles: roles({ rosterMeasured: true, offRosterActorCount: 0 }) }), "role-actor-hygiene")
+        .score,
+    ).toBe(100);
+  });
+
+  test("departed accounts score against the individuals they are drawn from", () => {
+    // 1 of 100 named grants is a departed account: 0.01 of the 0.02 tolerance -> 50.
+    expect(
+      dim(
+        computeSiteHealth({ permissions: permissions({ directUserGrantCount: 100, offRosterUserGrantCount: 1 }) }),
+        "permission-departed-grants",
+      ).score,
+    ).toBe(50);
+    expect(
+      dim(
+        computeSiteHealth({ security: security({ userMemberCount: 50, offRosterMemberCount: 1 }) }),
+        "security-departed-members",
+      ).score,
+    ).toBe(0);
+    const notif = dim(
+      computeSiteHealth({ notifications: notifications({ namedUserRecipientCount: 200, offRosterRecipientCount: 2 }) }),
+      "notification-departed-recipients",
+    );
+    expect(notif.score).toBe(50);
+    expect(notif.detail).toMatch(/2 notification recipients are accounts no longer on the licensed roster/);
+  });
+
+  test("security levels held by individuals score member share", () => {
+    // 5 of 40 members are people: 0.125 of a 0.25 tolerance -> 50.
+    expect(
+      dim(
+        computeSiteHealth({ security: security({ totalMemberCount: 40, userMemberCount: 5 }) }),
+        "security-direct-members",
+      ).score,
+    ).toBe(50);
+  });
+
+  test("raw email recipients are weighted as exposure", () => {
+    const d = dim(
+      computeSiteHealth({ notifications: notifications({ totalRecipientCount: 100, emailRecipientCount: 1 }) }),
+      "notification-external-email",
+    );
+    expect(d.score).toBe(50);
+    expect(d.weight).toBe(1.5);
+    expect(d.action).toMatch(/group or project role/);
+  });
+
+  test("roles held by individuals and roles nobody holds", () => {
+    // 30 of 100 actors are people: 0.30 of a 0.60 tolerance -> 50.
+    expect(
+      dim(computeSiteHealth({ roles: roles({ directUserActorCount: 30, groupActorCount: 70 }) }), "role-group-actors")
+        .score,
+    ).toBe(50);
+    // 3 of 20 roles empty: 0.15 of a 0.30 tolerance -> 50.
+    const unused = dim(computeSiteHealth({ roles: roles({ totalRoles: 20, emptyRoleCount: 3 }) }), "role-unused");
+    expect(unused.score).toBe(50);
+    expect(unused.detail).toMatch(/3 of 20 project roles have no user or group/);
+  });
+
+  test("priority and resolution usage need the issue crawl, and score unused values", () => {
+    const unmeasured = computeSiteHealth({ estate: estate({ usageMeasured: false }) });
+    expect(dim(unmeasured, "priority-usage").available).toBe(false);
+    expect(dim(unmeasured, "resolution-usage").reason).toMatch(/issue crawl/);
+    // 3 of 20 priorities unused: 0.15 of a 0.30 tolerance -> 50.
+    expect(
+      dim(computeSiteHealth({ estate: estate({ totalPriorities: 20, unusedPriorityCount: 3 }) }), "priority-usage")
+        .score,
+    ).toBe(50);
+    expect(
+      dim(computeSiteHealth({ estate: estate({ totalResolutions: 10, unusedResolutionCount: 0 }) }), "resolution-usage")
+        .score,
+    ).toBe(100);
+  });
+
+  test("defaults set loses half for each list with no default", () => {
+    expect(dim(computeSiteHealth({ estate: estate() }), "estate-defaults").score).toBe(100);
+    const one = dim(computeSiteHealth({ estate: estate({ prioritiesWithoutDefault: true }) }), "estate-defaults");
+    expect(one.score).toBe(50);
+    expect(one.action).toBe("Set a default priority.");
+    expect(
+      dim(
+        computeSiteHealth({ estate: estate({ prioritiesWithoutDefault: true, resolutionsWithoutDefault: true }) }),
+        "estate-defaults",
+      ).score,
+    ).toBe(0);
+  });
+
+  test("every new check is unmeasured until its inventory exists", () => {
+    const health = computeSiteHealth({});
+    for (const key of [
+      "permission-public-access",
+      "permission-everyone-sensitive",
+      "permission-direct-grants",
+      "permission-departed-grants",
+      "security-direct-members",
+      "security-departed-members",
+      "notification-external-email",
+      "notification-departed-recipients",
+      "role-group-actors",
+      "role-unused",
+      "priority-usage",
+      "resolution-usage",
+      "estate-defaults",
+    ]) {
+      expect(dim(health, key)?.available).toBe(false);
+    }
   });
 });

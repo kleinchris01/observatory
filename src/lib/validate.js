@@ -109,7 +109,9 @@ export function optionalPositiveInt(value, name, defaultValue, max = 1_000_000) 
 export function optionalEnum(value, name, allowed, defaultValue = null) {
   if (value === null || value === undefined) return defaultValue;
   if (!allowed.includes(value)) {
-    throw new Error(`${name} must be one of [${allowed.map((a) => JSON.stringify(a)).join(", ")}] (got ${JSON.stringify(value)})`);
+    throw new Error(
+      `${name} must be one of [${allowed.map((a) => JSON.stringify(a)).join(", ")}] (got ${JSON.stringify(value)})`,
+    );
   }
   return value;
 }

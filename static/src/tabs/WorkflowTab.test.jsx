@@ -1,4 +1,3 @@
-import React from "react";
 import { describe, it, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -26,8 +25,14 @@ function inventory(overrides = {}) {
         issueTypeMapping: { Bug: "Bug Workflow" },
       },
       {
-        id: "s2", name: "Legacy Scheme", description: "", defaultWorkflow: null,
-        projectCount: 0, projects: [], projectsTruncated: false, issueTypeMapping: null,
+        id: "s2",
+        name: "Legacy Scheme",
+        description: "",
+        defaultWorkflow: null,
+        projectCount: 0,
+        projects: [],
+        projectsTruncated: false,
+        issueTypeMapping: null,
       },
     ],
     statuses: [
@@ -35,7 +40,10 @@ function inventory(overrides = {}) {
       { id: "2", name: "In Review", statusCategory: "In Progress", findings: null },
       { id: "3", name: "Closed", statusCategory: "Done", findings: null },
     ],
-    page: 1, pageSize: 10, totalCount: 2, totalPages: 1,
+    page: 1,
+    pageSize: 10,
+    totalCount: 2,
+    totalPages: 1,
     snapshotStatus: { state: "ready", version: "wf-1", refreshedAt: "2026-07-31T10:00:00Z", lastError: null },
     ...overrides,
   };
@@ -47,6 +55,28 @@ beforeEach(() => {
 });
 
 describe("WorkflowTab", () => {
+  it("offers the workflow, transition rule and restriction views, and opens them on demand", async () => {
+    const user = userEvent.setup();
+    invoke.mockImplementation((name) =>
+      Promise.resolve(
+        name === "getWorkflowRules"
+          ? { available: false, reason: "rules-not-read", rules: [], total: 0 }
+          : name === "getWorkflowInsights"
+            ? { available: false }
+            : inventory(),
+      ),
+    );
+    render(<WorkflowTab />);
+    await screen.findByText("ADVEV Standard");
+
+    for (const label of ["Workflows", "Transition rules", "Restrictions"]) {
+      expect(screen.getAllByRole("button", { name: new RegExp(label) }).length).toBeGreaterThan(0);
+    }
+    await user.click(screen.getByRole("button", { name: /Transition rules/ }));
+    expect(await screen.findByText(/built before transition rules were captured/i)).toBeInTheDocument();
+    expect(invoke).toHaveBeenCalledWith("getWorkflowRules", expect.any(Object));
+  });
+
   it("lists workflow schemes with their project counts", async () => {
     render(<WorkflowTab />);
 
@@ -107,10 +137,14 @@ describe("WorkflowTab", () => {
   });
 
   it("offers to build when no inventory exists yet", async () => {
-    invoke.mockResolvedValue(inventory({
-      schemes: [], statuses: [], totalCount: 0,
-      snapshotStatus: { state: "idle", version: null, refreshedAt: null, lastError: null },
-    }));
+    invoke.mockResolvedValue(
+      inventory({
+        schemes: [],
+        statuses: [],
+        totalCount: 0,
+        snapshotStatus: { state: "idle", version: null, refreshedAt: null, lastError: null },
+      }),
+    );
 
     render(<WorkflowTab />);
 
@@ -139,9 +173,11 @@ describe("WorkflowTab", () => {
   });
 
   it("surfaces a build error recorded on the snapshot", async () => {
-    invoke.mockResolvedValue(inventory({
-      snapshotStatus: { state: "failed", version: "wf-1", refreshedAt: null, lastError: "Jira returned 403" },
-    }));
+    invoke.mockResolvedValue(
+      inventory({
+        snapshotStatus: { state: "failed", version: "wf-1", refreshedAt: null, lastError: "Jira returned 403" },
+      }),
+    );
 
     render(<WorkflowTab />);
 
@@ -153,7 +189,12 @@ describe("WorkflowTab", () => {
 // so these tests are mostly about what it must NOT say when the data is incomplete.
 describe("WorkflowTab — insights", () => {
   const readySnapshot = {
-    schemes: [], statuses: [], page: 1, pageSize: 10, totalCount: 0, totalPages: 1,
+    schemes: [],
+    statuses: [],
+    page: 1,
+    pageSize: 10,
+    totalCount: 0,
+    totalPages: 1,
     snapshotStatus: { state: "ready", version: "v1", refreshedAt: "2026-08-03T12:00:00.000Z" },
   };
 
@@ -162,16 +203,24 @@ describe("WorkflowTab — insights", () => {
     schemeStatusesAvailable: true,
     hasIssueCounts: true,
     summary: {
-      duplicateGroupCount: 1, duplicateStatusCount: 2, reducibleStatusCount: 1,
-      orphanCount: 1, safeToRemoveCount: 1, flaggedSchemeCount: 0,
+      duplicateGroupCount: 1,
+      duplicateStatusCount: 2,
+      reducibleStatusCount: 1,
+      orphanCount: 1,
+      safeToRemoveCount: 1,
+      flaggedSchemeCount: 0,
     },
-    duplicateGroups: [{
-      key: "backlog", kind: "spacing", count: 2,
-      statuses: [
-        { statusId: "1", name: "Backlog", issueCount: 40 },
-        { statusId: "2", name: "Back Log", issueCount: 0 },
-      ],
-    }],
+    duplicateGroups: [
+      {
+        key: "backlog",
+        kind: "spacing",
+        count: 2,
+        statuses: [
+          { statusId: "1", name: "Backlog", issueCount: 40 },
+          { statusId: "2", name: "Back Log", issueCount: 0 },
+        ],
+      },
+    ],
     orphans: [{ statusId: "9", name: "Abandoned", issueCount: 0, safeToRemove: true }],
     balance: [],
     statusTotals: { catalogCount: 3, withIssues: 1 },
@@ -208,11 +257,13 @@ describe("WorkflowTab — insights", () => {
   });
 
   test("never says 'never used' without scan data, and prompts for a scan instead", async () => {
-    routeInvoke(insights({
-      hasIssueCounts: false,
-      orphans: [{ statusId: "9", name: "Abandoned", issueCount: null, safeToRemove: false }],
-      summary: { ...insights().summary, safeToRemoveCount: 0 },
-    }));
+    routeInvoke(
+      insights({
+        hasIssueCounts: false,
+        orphans: [{ statusId: "9", name: "Abandoned", issueCount: null, safeToRemove: false }],
+        summary: { ...insights().summary, safeToRemoveCount: 0 },
+      }),
+    );
     render(<WorkflowTab />);
 
     await userEvent.click(await screen.findByRole("button", { name: /Insights/i }));
@@ -248,7 +299,11 @@ describe("WorkflowTab — insights", () => {
 // unmeasured status must never be classified as unused.
 describe("WorkflowTab — status catalog", () => {
   const statusesPayload = (overrides = {}) => ({
-    schemes: [], page: 1, pageSize: 10, totalCount: 0, totalPages: 1,
+    schemes: [],
+    page: 1,
+    pageSize: 10,
+    totalCount: 0,
+    totalPages: 1,
     snapshotStatus: { state: "ready", version: "v1", refreshedAt: "2026-08-03T12:00:00.000Z" },
     statuses: [
       { id: "1", name: "Backlog", statusCategory: "To Do", issueCount: 9423, everCount: 12000, departedCount: 2577 },
@@ -273,7 +328,6 @@ describe("WorkflowTab — status catalog", () => {
   // The catalog is now grouped by category, so there is one grid per group -- a helper
   // that looked at only the first would quietly answer a different question.
   const grids = () => [...document.querySelectorAll(".wf-status-grid")];
-  const inGrid = () => grids()[0];
   const gridHas = (name) => grids().some((g) => within(g).queryAllByText(name).length > 0);
   const gridText = (text) => grids().flatMap((g) => within(g).queryAllByText(text));
 
@@ -318,10 +372,21 @@ describe("WorkflowTab — status catalog", () => {
 
   // Unmeasured is not unused: an em dash, never a zero.
   test("renders unmeasured usage as a dash and never classifies it as never-used", async () => {
-    await openStatuses(statusesPayload({
-      statuses: [{ id: "1", name: "Unmeasured", statusCategory: "To Do", issueCount: null, everCount: null, departedCount: null }],
-      statusCounts: { hasCurrentCounts: false, hasHistoryCounts: false },
-    }));
+    await openStatuses(
+      statusesPayload({
+        statuses: [
+          {
+            id: "1",
+            name: "Unmeasured",
+            statusCategory: "To Do",
+            issueCount: null,
+            everCount: null,
+            departedCount: null,
+          },
+        ],
+        statusCounts: { hasCurrentCounts: false, hasHistoryCounts: false },
+      }),
+    );
     await waitFor(() => expect(gridHas("Unmeasured")).toBe(true));
 
     // Scoped to the grid: the key above it also shows an em dash by way of explanation.
@@ -332,25 +397,28 @@ describe("WorkflowTab — status catalog", () => {
   });
 
   test("prompts to measure history when it has never been run", async () => {
-    await openStatuses(statusesPayload({
-      statusCounts: { hasCurrentCounts: true, hasHistoryCounts: false },
-    }));
+    await openStatuses(
+      statusesPayload({
+        statusCounts: { hasCurrentCounts: true, hasHistoryCounts: false },
+      }),
+    );
 
     expect(await screen.findByText(/Historical usage not measured yet/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Measure history/i })).toBeInTheDocument();
   });
 
   test("requests the history measurement without re-scanning issues", async () => {
-    await openStatuses(statusesPayload({
-      statusCounts: { hasCurrentCounts: true, hasHistoryCounts: false },
-    }));
+    await openStatuses(
+      statusesPayload({
+        statusCounts: { hasCurrentCounts: true, hasHistoryCounts: false },
+      }),
+    );
 
     await userEvent.click(await screen.findByRole("button", { name: /Measure history/i }));
 
-    await waitFor(() => expect(invoke).toHaveBeenCalledWith(
-      "getWorkflowInventory",
-      expect.objectContaining({ measureHistory: true })
-    ));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("getWorkflowInventory", expect.objectContaining({ measureHistory: true })),
+    );
   });
 });
 
@@ -358,7 +426,11 @@ describe("WorkflowTab — status catalog", () => {
 // the category a heading instead, which is the same information at 1/433 the repetition.
 describe("WorkflowTab — status catalog grouping", () => {
   const payload = {
-    schemes: [], page: 1, pageSize: 10, totalCount: 0, totalPages: 1,
+    schemes: [],
+    page: 1,
+    pageSize: 10,
+    totalCount: 0,
+    totalPages: 1,
     snapshotStatus: { state: "ready", version: "v1", refreshedAt: "2026-08-03T12:00:00.000Z" },
     statuses: [
       { id: "1", name: "Backlog", statusCategory: "To Do", issueCount: 10, everCount: 20, departedCount: 10 },
@@ -371,7 +443,8 @@ describe("WorkflowTab — status catalog grouping", () => {
 
   async function open() {
     invoke.mockImplementation((fn) =>
-      fn === "getWorkflowInventory" ? Promise.resolve(payload) : Promise.resolve({ available: false }));
+      fn === "getWorkflowInventory" ? Promise.resolve(payload) : Promise.resolve({ available: false }),
+    );
     render(<WorkflowTab />);
     await userEvent.click(await screen.findByRole("button", { name: /Statuses/i }));
   }
@@ -381,8 +454,12 @@ describe("WorkflowTab — status catalog grouping", () => {
 
     const headings = await screen.findAllByRole("heading", { level: 4 });
     // To Do -> In Progress -> Done is the direction work travels; uncategorised last.
-    expect(headings.map((h) => h.textContent.replace(/\d+$/, "").trim()))
-      .toEqual(["To Do", "In Progress", "Done", "Uncategorised"]);
+    expect(headings.map((h) => h.textContent.replace(/\d+$/, "").trim())).toEqual([
+      "To Do",
+      "In Progress",
+      "Done",
+      "Uncategorised",
+    ]);
   });
 
   test("omits a category heading entirely when nothing matches the filter", async () => {
@@ -426,8 +503,12 @@ describe("WorkflowTab — automation caveat", () => {
     schemeStatusesAvailable: true,
     hasIssueCounts: true,
     summary: {
-      duplicateGroupCount: 0, duplicateStatusCount: 0, reducibleStatusCount: 0,
-      orphanCount: 1, safeToRemoveCount: 1, flaggedSchemeCount: 0,
+      duplicateGroupCount: 0,
+      duplicateStatusCount: 0,
+      reducibleStatusCount: 0,
+      orphanCount: 1,
+      safeToRemoveCount: 1,
+      flaggedSchemeCount: 0,
     },
     duplicateGroups: [],
     orphans: [{ statusId: "9", name: "Abandoned", issueCount: 0, safeToRemove: true }],
@@ -440,7 +521,12 @@ describe("WorkflowTab — automation caveat", () => {
     invoke.mockImplementation((fn) => {
       if (fn === "getWorkflowInsights") return Promise.resolve(insightsPayload);
       return Promise.resolve({
-        schemes: [], statuses: [], page: 1, pageSize: 10, totalCount: 0, totalPages: 1,
+        schemes: [],
+        statuses: [],
+        page: 1,
+        pageSize: 10,
+        totalCount: 0,
+        totalPages: 1,
         snapshotStatus: { state: "ready", version: "v1", refreshedAt: "2026-08-03T12:00:00.000Z" },
       });
     });
@@ -518,9 +604,24 @@ describe("WorkflowTab — unreachable statuses vs automation", () => {
   });
 
   test("names the rules holding a status that otherwise looks safe to delete", () => {
-    render(<WorkflowInsights insights={withOrphans([
-      { statusId: "1", name: "Parking Lot", issueCount: 0, safeToRemove: false, automationRuleCount: 3, ruleOnly: true },
-    ], true)} loading={false} />);
+    render(
+      <WorkflowInsights
+        insights={withOrphans(
+          [
+            {
+              statusId: "1",
+              name: "Parking Lot",
+              issueCount: 0,
+              safeToRemove: false,
+              automationRuleCount: 3,
+              ruleOnly: true,
+            },
+          ],
+          true,
+        )}
+        loading={false}
+      />,
+    );
 
     // "never used" and "3 rules" sit on the same row deliberately: the second is the reason
     // the first is not permission to delete it.
@@ -534,35 +635,68 @@ describe("WorkflowTab — unreachable statuses vs automation", () => {
   // workflow-insights.test.js; what this asserts is that the tab renders the model's
   // verdict rather than recomputing it, which is what it used to do.
   test("stops calling a status safe once a rule references it", () => {
-    const { container } = render(<WorkflowInsights insights={withOrphans([
-      { statusId: "1", name: "Parking Lot", issueCount: 0, safeToRemove: false, automationRuleCount: 2, ruleOnly: true },
-    ], true)} loading={false} />);
+    const { container } = render(
+      <WorkflowInsights
+        insights={withOrphans(
+          [
+            {
+              statusId: "1",
+              name: "Parking Lot",
+              issueCount: 0,
+              safeToRemove: false,
+              automationRuleCount: 2,
+              ruleOnly: true,
+            },
+          ],
+          true,
+        )}
+        loading={false}
+      />,
+    );
 
     expect(container.querySelector(".wf-orphan--safe")).toBeNull();
     expect(screen.getByText("2 rules")).toBeInTheDocument();
   });
 
   test("keeps the safe marker for a status nothing references", () => {
-    const { container } = render(<WorkflowInsights insights={withOrphans([
-      { statusId: "1", name: "Ghost", issueCount: 0, safeToRemove: true, automationRuleCount: 0 },
-    ], true)} loading={false} />);
+    const { container } = render(
+      <WorkflowInsights
+        insights={withOrphans(
+          [{ statusId: "1", name: "Ghost", issueCount: 0, safeToRemove: true, automationRuleCount: 0 }],
+          true,
+        )}
+        loading={false}
+      />,
+    );
 
     expect(container.querySelector(".wf-orphan--safe")).not.toBeNull();
   });
 
   // The caveat is still the honest answer when nothing has been imported to check against.
   test("keeps the blanket warning only while it cannot check", () => {
-    render(<WorkflowInsights insights={withOrphans([
-      { statusId: "1", name: "Ghost", issueCount: 0, safeToRemove: true, automationRuleCount: null },
-    ], false)} loading={false} />);
+    render(
+      <WorkflowInsights
+        insights={withOrphans(
+          [{ statusId: "1", name: "Ghost", issueCount: 0, safeToRemove: true, automationRuleCount: null }],
+          false,
+        )}
+        loading={false}
+      />,
+    );
 
     expect(screen.getByText(/no rule export has been imported/i)).toBeInTheDocument();
   });
 
   test("drops the blanket warning once every status carries its own answer", () => {
-    render(<WorkflowInsights insights={withOrphans([
-      { statusId: "1", name: "Ghost", issueCount: 0, safeToRemove: true, automationRuleCount: 0 },
-    ], true)} loading={false} />);
+    render(
+      <WorkflowInsights
+        insights={withOrphans(
+          [{ statusId: "1", name: "Ghost", issueCount: 0, safeToRemove: true, automationRuleCount: 0 }],
+          true,
+        )}
+        loading={false}
+      />,
+    );
 
     expect(screen.queryByText(/Automation rules are not included/i)).not.toBeInTheDocument();
   });
@@ -586,10 +720,15 @@ describe("WorkflowTab — which rules hold a status open", () => {
     snapshotStatus: { state: "ready", refreshedAt: "2026-08-13T00:00:00Z" },
   });
 
-  const parkingLot = [{ statusId: "1", name: "Parking Lot", issueCount: 0, safeToRemove: false, automationRuleCount: 3, ruleOnly: true }];
+  const parkingLot = [
+    { statusId: "1", name: "Parking Lot", issueCount: 0, safeToRemove: false, automationRuleCount: 3, ruleOnly: true },
+  ];
 
   const usage = (over = {}) => ({
-    available: true, label: "Parking Lot", referenced: true, ruleCount: 3,
+    available: true,
+    label: "Parking Lot",
+    referenced: true,
+    ruleCount: 3,
     write: { count: 1, rules: [{ id: "10", name: "Sends to Parking Lot", enabled: true }] },
     trigger: { count: 1, rules: [{ id: "11", name: "Fires on entry", enabled: false }] },
     read: { count: 1, rules: [{ id: "12", name: "Checks the status", enabled: true }] },
@@ -609,7 +748,9 @@ describe("WorkflowTab — which rules hold a status open", () => {
 
   test("leads with the rules that transition issues into it", async () => {
     const user = userEvent.setup();
-    render(<WorkflowInsights insights={insights(parkingLot)} loading={false} load={vi.fn().mockResolvedValue(usage())} />);
+    render(
+      <WorkflowInsights insights={insights(parkingLot)} loading={false} load={vi.fn().mockResolvedValue(usage())} />,
+    );
 
     await user.click(screen.getByRole("button", { name: "3 rules" }));
     await screen.findByText("Sends to Parking Lot");
@@ -623,7 +764,9 @@ describe("WorkflowTab — which rules hold a status open", () => {
 
   test("marks a disabled rule, which is not currently holding anything open", async () => {
     const user = userEvent.setup();
-    render(<WorkflowInsights insights={insights(parkingLot)} loading={false} load={vi.fn().mockResolvedValue(usage())} />);
+    render(
+      <WorkflowInsights insights={insights(parkingLot)} loading={false} load={vi.fn().mockResolvedValue(usage())} />,
+    );
 
     await user.click(screen.getByRole("button", { name: "3 rules" }));
     const row = (await screen.findByText("Fires on entry")).closest(".wf-statusrules__rule");
@@ -632,7 +775,9 @@ describe("WorkflowTab — which rules hold a status open", () => {
 
   test("closes again on a second click", async () => {
     const user = userEvent.setup();
-    render(<WorkflowInsights insights={insights(parkingLot)} loading={false} load={vi.fn().mockResolvedValue(usage())} />);
+    render(
+      <WorkflowInsights insights={insights(parkingLot)} loading={false} load={vi.fn().mockResolvedValue(usage())} />,
+    );
 
     await user.click(screen.getByRole("button", { name: "3 rules" }));
     await screen.findByText("Sends to Parking Lot");
@@ -653,11 +798,15 @@ describe("WorkflowTab — which rules hold a status open", () => {
   });
 
   test("a status no rule references offers no way in", () => {
-    render(<WorkflowInsights
-      insights={insights([{ statusId: "2", name: "Ghost", issueCount: 0, safeToRemove: true, automationRuleCount: 0, ruleOnly: false }])}
-      loading={false}
-      load={vi.fn()}
-    />);
+    render(
+      <WorkflowInsights
+        insights={insights([
+          { statusId: "2", name: "Ghost", issueCount: 0, safeToRemove: true, automationRuleCount: 0, ruleOnly: false },
+        ])}
+        loading={false}
+        load={vi.fn()}
+      />,
+    );
 
     expect(screen.queryByRole("button", { name: /rules?$/ })).not.toBeInTheDocument();
   });
@@ -674,8 +823,13 @@ describe("WorkflowInsights — arriving from a finding", () => {
     { statusId: "3", name: "Ghost", issueCount: 0, safeToRemove: true, automationRuleCount: 0, ruleOnly: false },
   ];
   const insights = (over = {}) => ({
-    available: true, schemeStatusesAvailable: true, hasIssueCounts: true, automationChecked: true,
-    orphans, duplicateGroups: [], balance: [],
+    available: true,
+    schemeStatusesAvailable: true,
+    hasIssueCounts: true,
+    automationChecked: true,
+    orphans,
+    duplicateGroups: [],
+    balance: [],
     summary: { duplicateGroupCount: 0, orphanCount: orphans.length, flaggedSchemeCount: 0 },
     statusTotals: { catalogCount: 10, withIssues: 5 },
     snapshotStatus: { state: "ready", refreshedAt: "2026-08-13T00:00:00Z" },
@@ -689,30 +843,42 @@ describe("WorkflowInsights — arriving from a finding", () => {
   });
 
   test("narrows to the statuses a rule holds open", () => {
-    const { container } = render(<WorkflowInsights
-      insights={insights()} loading={false} load={vi.fn()}
-      intent={{ view: "insights", panel: "orphans", statuses: "rule-only" }} />);
+    const { container } = render(
+      <WorkflowInsights
+        insights={insights()}
+        loading={false}
+        load={vi.fn()}
+        intent={{ view: "insights", panel: "orphans", statuses: "rule-only" }}
+      />,
+    );
     expect(names(container)).toEqual(["Parking Lot", "On Ice"]);
   });
 
   test("narrows to the statuses that are actually safe to delete", () => {
-    const { container } = render(<WorkflowInsights
-      insights={insights()} loading={false} load={vi.fn()}
-      intent={{ view: "insights", panel: "orphans", statuses: "safe-to-remove" }} />);
+    const { container } = render(
+      <WorkflowInsights
+        insights={insights()}
+        loading={false}
+        load={vi.fn()}
+        intent={{ view: "insights", panel: "orphans", statuses: "safe-to-remove" }}
+      />,
+    );
     expect(names(container)).toEqual(["Ghost"]);
   });
 
   test("counts each bucket on its own control", () => {
     const { container } = render(<WorkflowInsights insights={insights()} loading={false} load={vi.fn()} />);
-    const chips = [...container.querySelectorAll(".wf-orphan-filters .findings-filter-button")].map((b) => b.textContent);
+    const chips = [...container.querySelectorAll(".wf-orphan-filters .findings-filter-button")].map(
+      (b) => b.textContent,
+    );
     expect(chips).toEqual(["All unreachable3", "No evidence of use1", "Held open by a rule2"]);
   });
 
   test("the reader can clear the filter the finding applied", async () => {
     const user = userEvent.setup();
-    const { container } = render(<WorkflowInsights
-      insights={insights()} loading={false} load={vi.fn()}
-      intent={{ statuses: "safe-to-remove" }} />);
+    const { container } = render(
+      <WorkflowInsights insights={insights()} loading={false} load={vi.fn()} intent={{ statuses: "safe-to-remove" }} />,
+    );
     expect(names(container)).toEqual(["Ghost"]);
 
     await user.click(screen.getByText("All unreachable"));
@@ -722,15 +888,21 @@ describe("WorkflowInsights — arriving from a finding", () => {
   // Without an analysis every orphan is in the same bucket, so a filter row would be three
   // controls that all do the same thing.
   test("offers no buckets when the rules have never been read", () => {
-    const { container } = render(<WorkflowInsights
-      insights={insights({ automationChecked: false })} loading={false} load={vi.fn()} />);
+    const { container } = render(
+      <WorkflowInsights insights={insights({ automationChecked: false })} loading={false} load={vi.fn()} />,
+    );
     expect(container.querySelector(".wf-orphan-filters")).toBeNull();
   });
 
   test("says the filter matched nothing rather than looking empty", () => {
-    const { container } = render(<WorkflowInsights
-      insights={insights({ orphans: [orphans[2]], summary: { orphanCount: 1 } })}
-      loading={false} load={vi.fn()} intent={{ statuses: "rule-only" }} />);
+    const { container } = render(
+      <WorkflowInsights
+        insights={insights({ orphans: [orphans[2]], summary: { orphanCount: 1 } })}
+        loading={false}
+        load={vi.fn()}
+        intent={{ statuses: "rule-only" }}
+      />,
+    );
     expect(container.textContent).toMatch(/No unreachable status matches/);
   });
 });
@@ -738,28 +910,41 @@ describe("WorkflowInsights — arriving from a finding", () => {
 // A rule breaking is loud; a saved filter breaking is not. A reader deciding whether to
 // delete a status needs both answers, and needs to see which source each comes from.
 describe("WorkflowInsights — filters that search on a status", () => {
-  const orphans = [{ statusId: "1", name: "Parking Lot", issueCount: 0, safeToRemove: false, automationRuleCount: 3, ruleOnly: true }];
+  const orphans = [
+    { statusId: "1", name: "Parking Lot", issueCount: 0, safeToRemove: false, automationRuleCount: 3, ruleOnly: true },
+  ];
   const insights = {
-    available: true, schemeStatusesAvailable: true, hasIssueCounts: true, automationChecked: true,
-    orphans, duplicateGroups: [], balance: [],
+    available: true,
+    schemeStatusesAvailable: true,
+    hasIssueCounts: true,
+    automationChecked: true,
+    orphans,
+    duplicateGroups: [],
+    balance: [],
     summary: { duplicateGroupCount: 0, orphanCount: 1, flaggedSchemeCount: 0 },
     statusTotals: { catalogCount: 10, withIssues: 5 },
     snapshotStatus: { state: "ready", refreshedAt: "2026-08-13T00:00:00Z" },
   };
 
-  const route = (filterResult) => vi.fn((name) => {
-    if (name === "getFilterUsage") return Promise.resolve(filterResult);
-    return Promise.resolve({
-      available: true, label: "Parking Lot", referenced: true, ruleCount: 1,
-      write: { count: 1, rules: [{ id: "10", name: "Sends to Parking Lot", enabled: true }] },
-      trigger: { count: 0, rules: [] }, read: { count: 0, rules: [] },
+  const route = (filterResult) =>
+    vi.fn((name) => {
+      if (name === "getFilterUsage") return Promise.resolve(filterResult);
+      return Promise.resolve({
+        available: true,
+        label: "Parking Lot",
+        referenced: true,
+        ruleCount: 1,
+        write: { count: 1, rules: [{ id: "10", name: "Sends to Parking Lot", enabled: true }] },
+        trigger: { count: 0, rules: [] },
+        read: { count: 0, rules: [] },
+      });
     });
-  });
 
   test("lists the filters alongside the rules", async () => {
     const user = userEvent.setup();
     const load = route({
-      available: true, total: 1,
+      available: true,
+      total: 1,
       filters: [{ id: "9", name: "Parked work", ownerName: "Ann", subscriptionCount: 2 }],
     });
     render(<WorkflowInsights insights={insights} loading={false} load={load} />);
@@ -796,9 +981,12 @@ describe("WorkflowInsights — filters that search on a status", () => {
     const load = vi.fn((name) => {
       if (name === "getFilterUsage") return Promise.reject(new Error("sql down"));
       return Promise.resolve({
-        available: true, referenced: true, ruleCount: 1,
+        available: true,
+        referenced: true,
+        ruleCount: 1,
         write: { count: 1, rules: [{ id: "10", name: "Sends to Parking Lot", enabled: true }] },
-        trigger: { count: 0, rules: [] }, read: { count: 0, rules: [] },
+        trigger: { count: 0, rules: [] },
+        read: { count: 0, rules: [] },
       });
     });
     render(<WorkflowInsights insights={insights} loading={false} load={load} />);
@@ -808,3 +996,126 @@ describe("WorkflowInsights — filters that search on a status", () => {
   });
 });
 
+// Every status opens the drawer: the deletion verdict, the schemes and workflows that hold it,
+// the transitions in and out, and what each workflow restricts while an issue sits there.
+describe("WorkflowTab — status drawer", () => {
+  const payload = {
+    schemes: [],
+    page: 1,
+    pageSize: 10,
+    totalCount: 0,
+    totalPages: 1,
+    snapshotStatus: { state: "ready", version: "v1", refreshedAt: "2026-08-03T12:00:00.000Z" },
+    statuses: [
+      { id: "2", name: "In Review", statusCategory: "In Progress", issueCount: 3, everCount: 50, departedCount: 47 },
+      { id: "9", name: "On Hold", statusCategory: "In Progress", issueCount: 0, everCount: 0, departedCount: 0 },
+    ],
+    statusCounts: { hasCurrentCounts: true, hasHistoryCounts: true },
+  };
+  const detail = {
+    available: true,
+    found: true,
+    refreshedAt: "2026-08-03T12:00:00.000Z",
+    status: { statusId: "2", name: "In Review" },
+    schemes: [{ schemeId: "s1", name: "Build scheme" }],
+    schemeCount: 1,
+    projectCount: 4,
+    projectSample: ["BLD"],
+    rulesRead: true,
+    workflows: ["Build WF", "Old WF"],
+    transitions: [
+      { workflowName: "Build WF", name: "Submit", direction: "into", from: ["Open"], to: "In Review", ruleCount: 2 },
+      {
+        workflowName: "Build WF",
+        name: "Approve",
+        direction: "out",
+        from: ["In Review"],
+        to: "Approved",
+        ruleCount: 0,
+      },
+    ],
+    restrictions: {
+      available: true,
+      restrictions: [
+        {
+          workflowName: "Build WF",
+          key: "jira.permission.edit.group",
+          effect: "restrict-permission",
+          permission: "edit",
+          holder: { label: "Plant Engineers", missing: false },
+        },
+      ],
+    },
+    ruleUsage: { available: true, total: 0, usages: [] },
+    verdict: "in-use",
+    headline: "In use — 2 reasons not to delete this yet.",
+    blockers: [
+      {
+        source: "workflows",
+        severity: "high",
+        summary: "In 2 workflows: Build WF, Old WF.",
+        detail: "Jira will not delete a status any workflow uses, active or not.",
+      },
+    ],
+    gaps: [{ source: "board columns" }],
+  };
+
+  function route(statusDetail = detail) {
+    invoke.mockImplementation((fn) => {
+      if (fn === "getWorkflowInventory") return Promise.resolve(payload);
+      if (fn === "getStatusDetail") return Promise.resolve(statusDetail);
+      return Promise.resolve({ available: false });
+    });
+  }
+
+  async function openDrawer(name = "In Review") {
+    render(<WorkflowTab siteOrigin="https://acme.atlassian.net" />);
+    await userEvent.click(await screen.findByRole("button", { name: /^Statuses/i }));
+    const card = (await screen.findAllByText(name)).find((el) => el.closest(".wf-status--button")).closest("button");
+    await userEvent.click(card);
+    return card;
+  }
+
+  test("opens from any status card with the verdict and what holds the status", async () => {
+    route();
+    const card = await openDrawer();
+    expect(card).toHaveAttribute("aria-expanded", "true");
+    expect(invoke).toHaveBeenCalledWith("getStatusDetail", { statusId: "2" });
+    expect(await screen.findByText("In use — 2 reasons not to delete this yet.")).toBeInTheDocument();
+    expect(screen.getByText("In 2 workflows: Build WF, Old WF.")).toBeInTheDocument();
+    expect(screen.getByText(/Not checked: board columns/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Build scheme" }).getAttribute("href")).toContain(
+      "EditWorkflowScheme.jspa?schemeId=s1",
+    );
+    expect(screen.getByRole("link", { name: "Old WF" }).getAttribute("href")).toContain("workflowName=Old%20WF");
+    expect(screen.getByText("1 in · 1 out")).toBeInTheDocument();
+    expect(screen.getByText("2 rules")).toBeInTheDocument();
+    expect(screen.getByText(/Build WF: edit only Plant Engineers/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Ask Rovo about this status/ })).toBeInTheDocument();
+  });
+
+  test("a snapshot without transitions says to rebuild rather than 'in no workflow'", async () => {
+    route({
+      ...detail,
+      rulesRead: false,
+      workflows: null,
+      transitions: null,
+      restrictions: null,
+      ruleUsage: null,
+      blockers: [],
+      verdict: "unknown",
+      headline: "No evidence of use, but 1 source could not be checked.",
+    });
+    await openDrawer();
+    expect(await screen.findByText(/predates transition capture/)).toBeInTheDocument();
+    expect(screen.queryByText(/No workflow contains it/)).not.toBeInTheDocument();
+  });
+
+  test("closing the drawer collapses the card", async () => {
+    route();
+    const card = await openDrawer();
+    await screen.findByText("In use — 2 reasons not to delete this yet.");
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(card).toHaveAttribute("aria-expanded", "false");
+  });
+});

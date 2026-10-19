@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { ReportErrorBoundary, SavedReportsPanel, ProjectUsageReportView } from "./ReportView";
 
 // ---------------------------------------------------------------------------
@@ -21,7 +21,7 @@ describe("ReportErrorBoundary", () => {
     render(
       <ReportErrorBoundary>
         <span>All good</span>
-      </ReportErrorBoundary>
+      </ReportErrorBoundary>,
     );
     expect(screen.getByText("All good")).toBeInTheDocument();
   });
@@ -30,7 +30,7 @@ describe("ReportErrorBoundary", () => {
     render(
       <ReportErrorBoundary>
         <BrokenChild />
-      </ReportErrorBoundary>
+      </ReportErrorBoundary>,
     );
     expect(screen.getByText("Render explosion")).toBeInTheDocument();
   });
@@ -141,14 +141,7 @@ describe("ProjectUsageReportView", () => {
   });
 
   it("renders empty state with 'Select fields' prompt when no reportData or reportJob", () => {
-    render(
-      <ProjectUsageReportView
-        {...savedReportsProps}
-        reportData={null}
-        reportJob={null}
-        reportName=""
-      />
-    );
+    render(<ProjectUsageReportView {...savedReportsProps} reportData={null} reportJob={null} reportName="" />);
     expect(screen.getByText("Select fields, then generate a report.")).toBeInTheDocument();
   });
 
@@ -159,7 +152,7 @@ describe("ProjectUsageReportView", () => {
         reportData={{ fields: [], projects: [], pendingFields: [], uniqueIssueCount: null }}
         reportJob={null}
         reportName="Empty Report"
-      />
+      />,
     );
     expect(screen.getByText("No report rows were returned for the selected fields.")).toBeInTheDocument();
   });
@@ -182,7 +175,7 @@ describe("ProjectUsageReportView", () => {
         reportData={{ fields: [], projects: [], pendingFields: [], uniqueIssueCount: null }}
         reportJob={reportJob}
         reportName="Failed Report"
-      />
+      />,
     );
     expect(screen.getByText(/Report generation failed: Snapshot version mismatch/)).toBeInTheDocument();
     expect(screen.queryByText("No report rows were returned for the selected fields.")).not.toBeInTheDocument();
@@ -206,7 +199,7 @@ describe("ProjectUsageReportView", () => {
         reportData={{ fields: [], projects: [], pendingFields: [], uniqueIssueCount: null }}
         reportJob={reportJob}
         reportName="Failed Report"
-      />
+      />,
     );
     expect(screen.getByText(/Report generation failed: Unknown error\./)).toBeInTheDocument();
   });
@@ -218,7 +211,15 @@ describe("ProjectUsageReportView", () => {
           fieldId: "customfield_1",
           fieldName: "Alpha Field",
           fieldType: "text",
-          projects: [{ projectId: "P1", projectKey: "AA", projectName: "Alpha", issueCount: 10, jql: "cf[1] is not EMPTY AND project = AA" }],
+          projects: [
+            {
+              projectId: "P1",
+              projectKey: "AA",
+              projectName: "Alpha",
+              issueCount: 10,
+              jql: "cf[1] is not EMPTY AND project = AA",
+            },
+          ],
         },
       ],
       projects: [{ projectId: "P1", projectKey: "AA", projectName: "Alpha" }],
@@ -231,7 +232,7 @@ describe("ProjectUsageReportView", () => {
         reportData={reportData}
         reportJob={null}
         reportName="Test Report"
-      />
+      />,
     );
     expect(screen.getByText("Test Report")).toBeInTheDocument();
     // The filter controls should be visible
@@ -269,7 +270,7 @@ describe("ProjectUsageReportView", () => {
         reportData={reportData}
         reportJob={reportJob}
         reportName="Building Report"
-      />
+      />,
     );
     expect(screen.getByText("building")).toBeInTheDocument();
     expect(screen.getByText("30%")).toBeInTheDocument();

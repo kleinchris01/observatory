@@ -57,7 +57,10 @@ export async function syncRemediationTickets(installationKey, now = new Date()) 
     } catch (error) {
       failedBatches += 1;
       logger.warn("remediation.sync_batch_failed", {
-        installationKey, firstKey: batch[0], size: batch.length, error: error?.message || String(error),
+        installationKey,
+        firstKey: batch[0],
+        size: batch.length,
+        error: error?.message || String(error),
       });
     }
   }

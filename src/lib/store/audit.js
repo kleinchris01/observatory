@@ -3,11 +3,8 @@
 // Split out of project-store.js; imports only from core.js.
 
 import { sql } from "@forge/sql";
-import {
-  ensureProjectStoreReady,
-  toNumber,
-  withSqlRetry,
-} from "./core.js";
+import { ensureProjectStoreReady, toNumber, withSqlRetry } from "./core.js";
+import { logger, errorContext } from "../logger.js";
 
 // Write one audit row. Never throws: an audit failure must not become the reason a
 // legitimate admin action fails, and must not become a way to block one either. Failures
@@ -17,23 +14,25 @@ export async function recordAuditEvent(scopeKey, { actorId, action, outcome, det
     await ensureProjectStoreReady();
     await withSqlRetry(() =>
       sql
-        .prepare(`
+        .prepare(
+          `
           INSERT INTO audit_log (scope_key, at, actor_id, action, outcome, detail)
           VALUES (?, ?, ?, ?, ?, ?)
-        `)
+        `,
+        )
         .bindParams(
           scopeKey,
           new Date().toISOString(),
           actorId ? String(actorId).slice(0, 128) : null,
           String(action || "unknown").slice(0, 128),
           String(outcome || "unknown").slice(0, 32),
-          detail ? String(detail).slice(0, 2000) : null
+          detail ? String(detail).slice(0, 2000) : null,
         )
-        .execute()
+        .execute(),
     );
     return { recorded: true };
   } catch (error) {
-    console.error("recordAuditEvent: failed to write audit row", error?.message || error);
+    logger.error("recordAuditEvent.failed_to_write_audit_row", errorContext(error));
     return { recorded: false };
   }
 }
@@ -48,9 +47,11 @@ export async function listAuditEvents(scopeKey, limit = 200) {
   // caller-controlled text.
   const result = await withSqlRetry(() =>
     sql
-      .prepare(`SELECT at, actor_id, action, outcome, detail FROM audit_log WHERE scope_key = ? ORDER BY at DESC LIMIT ${capped}`)
+      .prepare(
+        `SELECT at, actor_id, action, outcome, detail FROM audit_log WHERE scope_key = ? ORDER BY at DESC LIMIT ${capped}`,
+      )
       .bindParams(scopeKey)
-      .execute()
+      .execute(),
   );
   return (result?.rows || []).map((row) => ({
     at: row.at,
@@ -68,10 +69,7 @@ export async function pruneOldAuditEvents(scopeKey, olderThanMs = 180 * 24 * 60 
   await ensureProjectStoreReady();
   const cutoffIso = new Date(Date.now() - olderThanMs).toISOString();
   const result = await withSqlRetry(() =>
-    sql
-      .prepare("DELETE FROM audit_log WHERE scope_key = ? AND at < ?")
-      .bindParams(scopeKey, cutoffIso)
-      .execute()
+    sql.prepare("DELETE FROM audit_log WHERE scope_key = ? AND at < ?").bindParams(scopeKey, cutoffIso).execute(),
   );
   return { eventsDeleted: toNumber(result?.rowsAffected, 0) };
 }

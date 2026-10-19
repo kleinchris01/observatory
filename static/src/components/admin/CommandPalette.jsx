@@ -61,7 +61,15 @@ export function readRecent() {
 }
 
 export function pushRecent(row) {
-  const keep = { uid: row.uid, pillar: row.pillar, pillarLabel: row.pillarLabel, name: row.name, id: row.id ?? null, kind: row.kind ?? null, type: row.type ?? null };
+  const keep = {
+    uid: row.uid,
+    pillar: row.pillar,
+    pillarLabel: row.pillarLabel,
+    name: row.name,
+    id: row.id ?? null,
+    kind: row.kind ?? null,
+    type: row.type ?? null,
+  };
   const next = [keep, ...readRecent().filter((r) => r.uid !== keep.uid)].slice(0, RECENT_MAX);
   writeStored(RECENT_KEY, JSON.stringify(next));
   return next;
@@ -111,7 +119,8 @@ function itemIcon(item, tabsByKey) {
 }
 
 function shortcutLabel() {
-  const platform = typeof navigator === "undefined" ? "" : (navigator.userAgentData?.platform || navigator.platform || "");
+  const platform =
+    typeof navigator === "undefined" ? "" : navigator.userAgentData?.platform || navigator.platform || "";
   return /mac/i.test(platform) ? "⌘K" : "Ctrl K";
 }
 
@@ -177,8 +186,13 @@ export function CommandPalette({ open, onClose, tabs = [], onNavigate, load = in
     return () => clearTimeout(handle);
   }, [term, open, load]);
 
-  const items = React.useMemo(() => buildPaletteItems({ term, tabs, recents, results }), [term, tabs, recents, results]);
-  React.useEffect(() => { setActive(0); }, [term, results]);
+  const items = React.useMemo(
+    () => buildPaletteItems({ term, tabs, recents, results }),
+    [term, tabs, recents, results],
+  );
+  React.useEffect(() => {
+    setActive(0);
+  }, [term, results]);
 
   // Keep the highlighted row in view as the arrow keys move it.
   React.useEffect(() => {
@@ -202,13 +216,36 @@ export function CommandPalette({ open, onClose, tabs = [], onNavigate, load = in
   }
 
   function onKeyDown(event) {
-    if (event.key === "Escape") { event.preventDefault(); onClose(); return; }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onClose();
+      return;
+    }
     if (!items.length) return;
-    if (event.key === "ArrowDown") { event.preventDefault(); setActive((i) => (i + 1) % items.length); return; }
-    if (event.key === "ArrowUp") { event.preventDefault(); setActive((i) => (i <= 0 ? items.length - 1 : i - 1)); return; }
-    if (event.key === "Home") { event.preventDefault(); setActive(0); return; }
-    if (event.key === "End") { event.preventDefault(); setActive(items.length - 1); return; }
-    if (event.key === "Enter") { event.preventDefault(); choose(items[active]); }
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActive((i) => (i + 1) % items.length);
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActive((i) => (i <= 0 ? items.length - 1 : i - 1));
+      return;
+    }
+    if (event.key === "Home") {
+      event.preventDefault();
+      setActive(0);
+      return;
+    }
+    if (event.key === "End") {
+      event.preventDefault();
+      setActive(items.length - 1);
+      return;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      choose(items[active]);
+    }
   }
 
   const searching = term.trim().length >= MIN_TERM;
@@ -241,26 +278,47 @@ export function CommandPalette({ open, onClose, tabs = [], onNavigate, load = in
             onChange={(event) => setTerm(event.target.value)}
             onKeyDown={onKeyDown}
           />
-          {loading && <span className="command-palette__status" role="status">Searching…</span>}
+          {loading && (
+            <span className="command-palette__status" role="status">
+              Searching…
+            </span>
+          )}
         </div>
 
-        <ul className="command-palette__list" id="command-palette-list" role="listbox" aria-label="Results" ref={listRef}>
+        <ul
+          className="command-palette__list"
+          id="command-palette-list"
+          role="listbox"
+          aria-label="Results"
+          ref={listRef}
+        >
           {items.map((item, index) => {
             const heading = index === 0 || items[index - 1].group !== item.group;
             return (
               <React.Fragment key={item.key}>
-                {heading && <li className="command-palette__group" role="presentation">{item.group}</li>}
+                {heading && (
+                  <li className="command-palette__group" role="presentation">
+                    {item.group}
+                  </li>
+                )}
                 <li
                   id={`command-palette-item-${index}`}
                   data-index={index}
                   role="option"
                   aria-selected={index === active}
                   className={`command-palette__item${index === active ? " is-active" : ""}`}
-                  onMouseMove={() => { if (index !== active) setActive(index); }}
+                  onMouseMove={() => {
+                    if (index !== active) setActive(index);
+                  }}
                   // mousedown, not click: it must win before anything else takes focus.
-                  onMouseDown={(event) => { event.preventDefault(); choose(item); }}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    choose(item);
+                  }}
                 >
-                  <span className="command-palette__icon" aria-hidden="true"><Icon name={itemIcon(item, tabsByKey)} size={14} /></span>
+                  <span className="command-palette__icon" aria-hidden="true">
+                    <Icon name={itemIcon(item, tabsByKey)} size={14} />
+                  </span>
                   <span className="command-palette__label">{itemLabel(item)}</span>
                   <span className="command-palette__detail">{itemDetail(item)}</span>
                 </li>
@@ -272,7 +330,11 @@ export function CommandPalette({ open, onClose, tabs = [], onNavigate, load = in
         {(emptyResults || failure || (searching && unavailable.length > 0)) && (
           <div className="command-palette__notes">
             {failure && <p className="command-palette__note command-palette__note--error">{failure}</p>}
-            {emptyResults && <p className="command-palette__note">No items named "{term.trim()}". Try the OQL search above for more.</p>}
+            {emptyResults && (
+              <p className="command-palette__note">
+                No items named "{term.trim()}". Try the OQL search above for more.
+              </p>
+            )}
             {searching && unavailable.length > 0 && (
               <p className="command-palette__note">
                 Not searched (not built yet or unreadable): {unavailable.map((p) => p.label || p.key).join(", ")}.
@@ -282,9 +344,16 @@ export function CommandPalette({ open, onClose, tabs = [], onNavigate, load = in
         )}
 
         <div className="command-palette__footer" aria-hidden="true">
-          <span><kbd>↑</kbd><kbd>↓</kbd> move</span>
-          <span><kbd>Enter</kbd> open</span>
-          <span><kbd>Esc</kbd> close</span>
+          <span>
+            <kbd>↑</kbd>
+            <kbd>↓</kbd> move
+          </span>
+          <span>
+            <kbd>Enter</kbd> open
+          </span>
+          <span>
+            <kbd>Esc</kbd> close
+          </span>
           <span className="command-palette__shortcut">{shortcutLabel()} to open anywhere</span>
         </div>
       </div>

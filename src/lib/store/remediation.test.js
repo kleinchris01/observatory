@@ -20,6 +20,9 @@ const {
   loadRemediationTicketsToSync,
   getRemediationEpic,
   loadTicketedItemIds,
+  loadTicketedItems,
+  loadHierarchyNodes,
+  recordHierarchyNode,
   updateRemediationSync,
   recordRemediationTickets,
   currentPeriod,
@@ -46,9 +49,15 @@ describe("recordRemediationTicket", () => {
   it("upserts an epic with item_id '' and is_epic 1", async () => {
     const calls = stubSql();
     await recordRemediationTicket("scope", {
-      findingKey: "filter-ownership", pillar: "filters", isEpic: true,
-      issueKey: "OPS-1", issueId: "10001", epicKey: "OPS-1",
-      summary: "Reassign 5 filters", createdBy: "acc-1", createdAt: "2026-09-10T00:00:00Z",
+      findingKey: "filter-ownership",
+      pillar: "filters",
+      isEpic: true,
+      issueKey: "OPS-1",
+      issueId: "10001",
+      epicKey: "OPS-1",
+      summary: "Reassign 5 filters",
+      createdBy: "acc-1",
+      createdAt: "2026-09-10T00:00:00Z",
       period: "2026-Q3",
     });
     expect(calls[0].text).toMatch(/INSERT INTO remediation_tickets_v2/);
@@ -56,15 +65,19 @@ describe("recordRemediationTicket", () => {
     expect(p[0]).toBe("scope");
     expect(p[1]).toBe("filter-ownership");
     expect(p[2]).toBe("2026-Q3"); // period
-    expect(p[4]).toBe("");        // item_id
-    expect(p[5]).toBe("OPS-1");   // issue_key
-    expect(p[7]).toBe(1);         // is_epic
+    expect(p[4]).toBe(""); // item_id
+    expect(p[5]).toBe("OPS-1"); // issue_key
+    expect(p[7]).toBe(1); // is_epic
   });
 
   it("upserts a task with its item id and is_epic 0", async () => {
     const calls = stubSql();
     await recordRemediationTicket("scope", {
-      findingKey: "filter-ownership", itemId: "4001", issueKey: "OPS-2", issueId: "10002", epicKey: "OPS-1",
+      findingKey: "filter-ownership",
+      itemId: "4001",
+      issueKey: "OPS-2",
+      issueId: "10002",
+      epicKey: "OPS-1",
     });
     const p = calls[0].params;
     expect(p[4]).toBe("4001");
@@ -75,18 +88,40 @@ describe("recordRemediationTicket", () => {
 
   it("truncates a long summary to the column width", async () => {
     const calls = stubSql();
-    await recordRemediationTicket("scope", { findingKey: "x", itemId: "1", issueKey: "OPS-9", summary: "z".repeat(900) });
+    await recordRemediationTicket("scope", {
+      findingKey: "x",
+      itemId: "1",
+      issueKey: "OPS-9",
+      summary: "z".repeat(900),
+    });
     expect(calls[0].params[9].length).toBe(500);
   });
 });
 
 describe("getRemediationEpic", () => {
   it("queries by finding, quarter and item_id '' and maps the row", async () => {
-    const calls = stubSql([[{
-      finding_key: "filter-ownership", period: "2026-Q3", pillar: "filters", item_id: "", issue_key: "OPS-1", issue_id: "10001",
-      is_epic: 1, epic_key: "OPS-1", summary: "Reassign filters", last_status: null, last_status_category: null,
-      assignee_account_id: null, assignee_name: null, created_by: "acc-1", created_at: "t", synced_at: null,
-    }]]);
+    const calls = stubSql([
+      [
+        {
+          finding_key: "filter-ownership",
+          period: "2026-Q3",
+          pillar: "filters",
+          item_id: "",
+          issue_key: "OPS-1",
+          issue_id: "10001",
+          is_epic: 1,
+          epic_key: "OPS-1",
+          summary: "Reassign filters",
+          last_status: null,
+          last_status_category: null,
+          assignee_account_id: null,
+          assignee_name: null,
+          created_by: "acc-1",
+          created_at: "t",
+          synced_at: null,
+        },
+      ],
+    ]);
     const epic = await getRemediationEpic("scope", "filter-ownership", "2026-Q3");
     expect(calls[0].params).toEqual(["scope", "filter-ownership", "2026-Q3", ""]);
     expect(epic).toMatchObject({ issueKey: "OPS-1", isEpic: true, findingKey: "filter-ownership", period: "2026-Q3" });
@@ -117,6 +152,14 @@ describe("loadTicketedItemIds", () => {
   });
 });
 
+describe("loadTicketedItems", () => {
+  it("maps each held item id to the ticket and quarter holding it", async () => {
+    stubSql([[{ item_id: "4001", issue_key: "ADMIN-7", epic_key: "ADMIN-5", period: "2026-Q3" }]]);
+    const map = await loadTicketedItems("scope", "filter-ownership", "2026-Q4");
+    expect(map.get("4001")).toEqual({ issueKey: "ADMIN-7", epicKey: "ADMIN-5", period: "2026-Q3" });
+  });
+});
+
 describe("currentPeriod", () => {
   it("names the calendar quarter in UTC", () => {
     expect(currentPeriod(new Date("2026-01-01T00:00:00Z"))).toBe("2026-Q1");
@@ -134,10 +177,12 @@ describe("currentPeriod", () => {
 
 describe("loadRemediationTickets", () => {
   it("scopes to one finding when given a key, epic first", async () => {
-    const calls = stubSql([[
-      { finding_key: "f", item_id: "", issue_key: "OPS-1", is_epic: 1 },
-      { finding_key: "f", item_id: "1", issue_key: "OPS-2", is_epic: 0 },
-    ]]);
+    const calls = stubSql([
+      [
+        { finding_key: "f", item_id: "", issue_key: "OPS-1", is_epic: 1 },
+        { finding_key: "f", item_id: "1", issue_key: "OPS-2", is_epic: 0 },
+      ],
+    ]);
     const rows = await loadRemediationTickets("scope", "f");
     expect(calls[0].text).toMatch(/finding_key = \?/);
     expect(calls[0].params).toEqual(["scope", "f"]);
@@ -154,7 +199,9 @@ describe("loadRemediationTickets", () => {
 
 describe("loadRemediationTicketsToSync", () => {
   it("queries tickets not done, done without a date, or done inside the reopen window", async () => {
-    const calls = stubSql([[{ finding_key: "f", item_id: "1", issue_key: "OPS-2", is_epic: 0, done_at: "2026-09-20T00:00:00.000Z" }]]);
+    const calls = stubSql([
+      [{ finding_key: "f", item_id: "1", issue_key: "OPS-2", is_epic: 0, done_at: "2026-09-20T00:00:00.000Z" }],
+    ]);
     const rows = await loadRemediationTicketsToSync("scope", "2026-08-29T16:00:00.000Z");
     expect(calls[0].params).toEqual(["scope", "2026-08-29T16:00:00.000Z"]);
     expect(calls[0].text).toMatch(/last_status_category IS NULL OR last_status_category != 'done'/);
@@ -167,13 +214,26 @@ describe("updateRemediationSync", () => {
   it("writes only the live fields, keyed by scope + issue key", async () => {
     const calls = stubSql();
     await updateRemediationSync("scope", "OPS-2", {
-      lastStatus: "In Progress", lastStatusCategory: "indeterminate",
-      assigneeAccountId: "acc-9", assigneeName: "Sam", syncedAt: "2026-09-10T01:00:00Z",
+      lastStatus: "In Progress",
+      lastStatusCategory: "indeterminate",
+      assigneeAccountId: "acc-9",
+      assigneeName: "Sam",
+      syncedAt: "2026-09-10T01:00:00Z",
     });
     expect(calls[0].text).toMatch(/UPDATE remediation_tickets/);
     expect(calls[0].text).not.toMatch(/issue_key =\s*VALUES|finding_key/);
     const p = calls[0].params;
-    expect(p).toEqual(["In Progress", "indeterminate", "acc-9", "Sam", "2026-09-10T01:00:00Z", null, null, "scope", "OPS-2"]);
+    expect(p).toEqual([
+      "In Progress",
+      "indeterminate",
+      "acc-9",
+      "Sam",
+      "2026-09-10T01:00:00Z",
+      null,
+      null,
+      "scope",
+      "OPS-2",
+    ]);
   });
 
   it("defaults synced_at to now when omitted", async () => {
@@ -193,5 +253,26 @@ describe("recordRemediationTickets", () => {
     expect(calls).toHaveLength(2);
     expect(calls[0].params[4]).toBe("1");
     expect(calls[1].params[4]).toBe("2");
+  });
+});
+
+describe("remediation hierarchy nodes", () => {
+  it("loads one quarter's nodes for this site", async () => {
+    const calls = stubSql([[{ node: "root", issue_key: "OPS-1", issue_id: "1", adopted: 1 }]]);
+    const nodes = await loadHierarchyNodes("scope", "2026-Q4");
+    expect(calls[0].params).toEqual(["scope", "2026-Q4"]);
+    expect(calls[0].text).toMatch(/WHERE scope_key = \? AND period = \?/);
+    expect(nodes.get("root")).toEqual({ issueKey: "OPS-1", issueId: "1", adopted: true });
+  });
+
+  it("records a node, replacing any earlier record of it", async () => {
+    const calls = stubSql([[]]);
+    await recordHierarchyNode("scope", "2026-Q4", "initiative:Roles", {
+      issueKey: "OPS-7",
+      issueId: "7",
+      adopted: true,
+    });
+    expect(calls[0].text).toMatch(/ON DUPLICATE KEY UPDATE/);
+    expect(calls[0].params.slice(0, 6)).toEqual(["scope", "2026-Q4", "initiative:Roles", "OPS-7", "7", 1]);
   });
 });

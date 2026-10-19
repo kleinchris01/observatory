@@ -12,16 +12,30 @@
 // Pure functions over already-loaded rows, like filter-insights.js: no I/O, so the resolver
 // decides what to load and this decides what it means.
 
-// Share permission types that mean "everyone". Same set filters use, and for the same reason:
-// Jira has spelled this three ways over time and all three still appear in payloads.
-const EVERYONE_TYPES = new Set(["global", "authenticated", "loggedin"]);
-
 // A dashboard with no gadgets renders as an empty grid. Not a defect on its own -- somebody
 // may be mid-build -- which is why it is reported as cleanup rather than as a problem.
 export const EMPTY_DASHBOARD_GADGETS = 0;
 
+// Share permission types, read from Jira's published spec rather than from habit:
+//
+//   global                  shared GLOBALLY -- the public, anonymous visitors included on a site
+//                           that allows anonymous access
+//   loggedin / authenticated every logged-in user (`authenticated` is the request spelling,
+//                           `loggedin` what responses return)
+//
+// These were one "everyone" set, which made a dashboard on the open internet read exactly like
+// one shared with staff. They are two findings now, and public is the sharper of the two.
+const PUBLIC_TYPES = new Set(["global"]);
+const LOGGED_IN_TYPES = new Set(["authenticated", "loggedin"]);
+const shareType = (share) => String(share?.type || "").toLowerCase();
+
+export function isSharedPublicly(shares = []) {
+  return shares.some((share) => PUBLIC_TYPES.has(shareType(share)));
+}
+
+// Every logged-in user -- and only that. A public share is reported as public, not twice.
 export function isSharedWithEveryone(shares = []) {
-  return shares.some((share) => EVERYONE_TYPES.has(String(share?.type || "").toLowerCase()));
+  return !isSharedPublicly(shares) && shares.some((share) => LOGGED_IN_TYPES.has(shareType(share)));
 }
 
 // Editable by everyone, which is a different and sharper claim than readable by everyone.
@@ -30,7 +44,7 @@ export function isSharedWithEveryone(shares = []) {
 // document with no owner in practice: the next person to rearrange it does so for everybody,
 // and the person whose name is on it will not know.
 export function isEditableByEveryone(editShares = []) {
-  return editShares.some((share) => EVERYONE_TYPES.has(String(share?.type || "").toLowerCase()));
+  return editShares.some((share) => PUBLIC_TYPES.has(shareType(share)) || LOGGED_IN_TYPES.has(shareType(share)));
 }
 
 // Same tri-state the filter pillar uses, and it matters more here.
@@ -62,9 +76,19 @@ export function analyzeDashboard(dashboard) {
       // Weighted by blast radius rather than by owner state alone: a dashboard fifty people
       // have favourited disappearing is a different event from a private one doing so.
       severity: popularity >= 5 ? "high" : "medium",
-      detail: ownerState === "missing"
-        ? "The owning account no longer exists. Jira deletes a dashboard with its owner, and anything linking to it breaks at the same moment."
-        : "Owned by a deactivated account. It still works, and disappears if that account is ever deleted.",
+      detail:
+        ownerState === "missing"
+          ? "The owning account no longer exists. Jira deletes a dashboard with its owner, and anything linking to it breaks at the same moment."
+          : "Owned by a deactivated account. It still works, and disappears if that account is ever deleted.",
+    });
+  }
+
+  if (isSharedPublicly(dashboard?.shares)) {
+    findings.push({
+      code: "shared-publicly",
+      severity: "high",
+      detail:
+        "Shared globally. On a site that allows anonymous access, anyone on the internet with the link can open it and read every gadget on it.",
     });
   }
 
@@ -72,17 +96,48 @@ export function analyzeDashboard(dashboard) {
     findings.push({
       code: "editable-by-everyone",
       severity: "medium",
-      detail: "Any logged-in user can rearrange this dashboard for everybody who uses it, and the owner will not be told.",
+      detail:
+        "Any logged-in user can rearrange this dashboard for everybody who uses it, and the owner will not be told.",
     });
   }
 
-  if (isSharedWithEveryone(dashboard?.shares) && popularity === 0) {
+  if ((isSharedWithEveryone(dashboard?.shares) || isSharedPublicly(dashboard?.shares)) && popularity === 0) {
     // Shared with the whole site and favourited by nobody. Either is unremarkable alone;
     // together they describe a dashboard published to everyone that nobody wanted.
     findings.push({
       code: "published-unused",
       severity: "low",
       detail: "Shared with every logged-in user and favourited by nobody.",
+    });
+  }
+
+  // Gadgets reading a filter nobody but (possibly) its owner can read. Missing is flagged
+  // on any dashboard -- even the owner sees the error. Private only breaks the gadget for
+  // OTHER viewers, so it counts only when the dashboard is shared with anyone at all.
+  const gadgets = dashboard?.gadgets || [];
+  const shared = (dashboard?.shares || []).length > 0;
+  const missing = gadgets.filter((g) => g.filterState === "missing");
+  const privateFilters = shared ? gadgets.filter((g) => g.filterState === "private") : [];
+  if (missing.length || privateFilters.length) {
+    const parts = [];
+    if (missing.length)
+      parts.push(
+        `${missing.length} gadget${missing.length === 1 ? " reads a filter" : "s read filters"} that no longer exist${missing.length === 1 ? "s" : ""} or that this app cannot see at all`,
+      );
+    if (privateFilters.length)
+      parts.push(
+        `${privateFilters.length} read${privateFilters.length === 1 ? "s a" : ""} private filter${privateFilters.length === 1 ? "" : "s"} only ${privateFilters.length === 1 ? "its owner" : "their owners"} can open`,
+      );
+    findings.push({
+      code: "broken-gadget",
+      severity: missing.length ? "high" : "medium",
+      detail: `${parts.join("; ")}. Everyone else opening this dashboard sees an error in place of ${missing.length + privateFilters.length === 1 ? "that gadget" : "those gadgets"}.`,
+      gadgets: [...missing, ...privateFilters].map((g) => ({
+        id: g.id,
+        title: g.title,
+        filterId: g.filterId,
+        filterState: g.filterState,
+      })),
     });
   }
 
@@ -113,14 +168,17 @@ export function summarizeDashboards(dashboards = []) {
   // Whether the gadget walk reached everything. A partial walk can still say a dashboard HAS
   // gadgets; it cannot say one has none, so the empty count is suppressed rather than
   // under-reported.
-  const gadgetsKnown = dashboards.length > 0 && dashboards.every((d) => d.gadgetCount !== null && d.gadgetCount !== undefined);
+  const gadgetsKnown =
+    dashboards.length > 0 && dashboards.every((d) => d.gadgetCount !== null && d.gadgetCount !== undefined);
 
   const withFindings = analyzed
     .filter((dashboard) => dashboard.findings.length > 0)
-    .sort((a, b) =>
-      SEVERITY_ORDER[a.findings[0].severity] - SEVERITY_ORDER[b.findings[0].severity]
-      || (Number(b.popularity) || 0) - (Number(a.popularity) || 0)
-      || String(a.name).localeCompare(String(b.name)));
+    .sort(
+      (a, b) =>
+        SEVERITY_ORDER[a.findings[0].severity] - SEVERITY_ORDER[b.findings[0].severity] ||
+        (Number(b.popularity) || 0) - (Number(a.popularity) || 0) ||
+        String(a.name).localeCompare(String(b.name)),
+    );
 
   return {
     // Tri-state, like every other pillar: no snapshot is "not measured", never "no dashboards".
@@ -128,6 +186,14 @@ export function summarizeDashboards(dashboards = []) {
     total: dashboards.length,
     orphanedCount: analyzed.filter((d) => has(d, "orphaned-owner")).length,
     editableByEveryoneCount: analyzed.filter((d) => has(d, "editable-by-everyone")).length,
+    sharedPubliclyCount: analyzed.filter((d) => has(d, "shared-publicly")).length,
+    brokenGadgetCount: analyzed.filter((d) => has(d, "broken-gadget")).length,
+    // The denominator: dashboards with at least one filter gadget whose filter was probed.
+    // Zero on a snapshot built before the probe, which makes the dimension unavailable
+    // rather than a clean pass nobody measured.
+    filterGadgetDashboards: dashboards.filter((d) =>
+      (d.gadgets || []).some((g) => g.filterId && g.filterState && g.filterState !== "unknown"),
+    ).length,
     publishedUnusedCount: analyzed.filter((d) => has(d, "published-unused")).length,
     emptyCount: gadgetsKnown ? analyzed.filter((d) => has(d, "empty")).length : null,
     gadgetsKnown,
@@ -154,6 +220,9 @@ export function summarizeDashboardHealth(summary) {
     total: summary.total,
     orphanedCount: summary.orphanedCount,
     editableByEveryoneCount: summary.editableByEveryoneCount,
+    sharedPubliclyCount: summary.sharedPubliclyCount,
+    brokenGadgetCount: summary.brokenGadgetCount,
+    filterGadgetDashboards: summary.filterGadgetDashboards,
     emptyCount: summary.emptyCount,
     publishedUnusedCount: summary.publishedUnusedCount,
   };

@@ -35,9 +35,7 @@ export function FirstRunStep({ step, onAcknowledge, onNavigate, busy }) {
         <p className="first-run__step-detail">{step.detail}</p>
 
         <div className="first-run__step-actions">
-          {step.cta && !step.done && (
-            <LinkButton onClick={() => onNavigate(step.cta.tab)}>{step.cta.label}</LinkButton>
-          )}
+          {step.cta && !step.done && <LinkButton onClick={() => onNavigate(step.cta.tab)}>{step.cta.label}</LinkButton>}
           {/* Only the two steps that describe a human having READ something can be ticked by
               hand. A derived step reports the estate, and the estate is the only thing
               entitled to answer -- a "mark done" there would be a tick meaning "somebody
@@ -67,9 +65,18 @@ export function ArrivalsList({ arrivals, onNavigate }) {
   // Stage keys map to tabs by name in most cases; the handful that do not are listed here
   // rather than guessed at, because a dead link in a welcome panel is worse than no link.
   const TAB_FOR_STAGE = {
-    workflows: "workflows", screens: "screens", filters: "filters", dashboards: "dashboards",
-    fields: "fields", "issue-types": "issueTypes", access: "access", estate: "priorities",
-    boards: "boards", people: "people", assets: "assets", drift: "changes",
+    workflows: "workflows",
+    screens: "screens",
+    filters: "filters",
+    dashboards: "dashboards",
+    fields: "fields",
+    "issue-types": "issueTypes",
+    access: "access",
+    estate: "priorities",
+    boards: "boards",
+    people: "people",
+    assets: "assets",
+    drift: "changes",
   };
 
   return (
@@ -107,10 +114,12 @@ export function ArrivalsList({ arrivals, onNavigate }) {
             <span className="first-run__arrival-label">
               <strong>{stage.label}</strong>
               {stage.state === "failed" && stage.error
-                // A failed stage is reported here in the same list rather than hidden. The
-                // pillar did not build, which is a fact the admin needs on the way past.
-                ? ` — did not build: ${stage.error}`
-                : stage.state === "running" ? " — running now" : " — not started"}
+                ? // A failed stage is reported here in the same list rather than hidden. The
+                  // pillar did not build, which is a fact the admin needs on the way past.
+                  ` — did not build: ${stage.error}`
+                : stage.state === "running"
+                  ? " — running now"
+                  : " — not started"}
             </span>
           </li>
         ))}
@@ -132,7 +141,9 @@ export function FirstRunPanel({ onNavigate }) {
     }
   }, []);
 
-  React.useEffect(() => { load(); }, [load]);
+  React.useEffect(() => {
+    load();
+  }, [load]);
 
   const mutate = async (payload) => {
     setBusy(true);

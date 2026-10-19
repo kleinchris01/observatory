@@ -1,9 +1,8 @@
-import React from "react";
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, within, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@forge/bridge";
-import { RemediationTab, SYNC_POLL_MS } from "./RemediationTab";
+import { RemediationTab, SYNC_POLL_MS, openTasksNoLongerFlagged } from "./RemediationTab";
 
 vi.mock("@forge/bridge", () => ({
   invoke: vi.fn(),
@@ -37,7 +36,13 @@ const CATALOG = [
   ["asset-schema-hygiene", "Dead Assets schemas", "assets"],
   ["asset-type-usage", "Empty Assets object types", "assets"],
   ["role-offroster-actors", "Project-role actors off the licensed roster", "roles"],
-].map(([key, label, pillar]) => ({ key, label, pillar, findings: [], granularity: key === "role-offroster-actors" ? "bounded" : "item" }));
+].map(([key, label, pillar]) => ({
+  key,
+  label,
+  pillar,
+  findings: [],
+  granularity: key === "role-offroster-actors" ? "bounded" : "item",
+}));
 
 // Fills in what every real getRemediationTickets response carries -- the catalog, the current
 // quarter, and each group's isCurrent -- so a test only states what it is about.
@@ -66,6 +71,29 @@ function mockInvoke(handlers) {
     return Promise.resolve(fn === "getRemediationTickets" ? withDefaults(result) : result);
   });
 }
+
+describe("RemediationTab — Did it hold?", () => {
+  // Starts on the remembered view, so the Progress view (and its metrics) is not the subject.
+  test("a third view checks every task against the latest scan", async () => {
+    window.localStorage.setItem("observatory.section.remediation", "verify");
+    mockInvoke({
+      getRemediationTickets: { available: false, total: 0, groups: [] },
+      getRemediationVerification: {
+        checkedAt: "2026-10-14T09:30:00.000Z",
+        labels: {},
+        counts: { held: 2 },
+        heldRate: 1,
+        rows: [{ issueKey: "A-1", verdict: "held", findingKey: "f" }],
+      },
+    });
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+
+    expect(await screen.findByText("Fixes that held")).toBeInTheDocument();
+    expect(invoke).toHaveBeenCalledWith("getRemediationVerification", {});
+    expect(screen.getByRole("button", { name: /Did it hold\?/ })).toHaveAttribute("aria-current", "page");
+    window.localStorage.removeItem("observatory.section.remediation");
+  });
+});
 
 describe("RemediationTab", () => {
   test("lists every finding in the catalog", async () => {
@@ -115,16 +143,26 @@ describe("RemediationTab", () => {
       getRemediationTickets: {
         available: true,
         total: 2,
-        groups: [{
-          findingKey: "filter-ownership",
-          pillar: "filters",
-          epic: { issueKey: "ADMIN-1", lastStatus: "In Progress", lastStatusCategory: "indeterminate" },
-          tasks: [
-            { issueKey: "ADMIN-2", itemId: "4001", summary: "Reassign filter \"Open Bugs\"", lastStatus: "Done", lastStatusCategory: "done", assigneeName: "Sam", syncedAt: "2026-09-20T00:00:00Z" },
-          ],
-          taskCount: 1,
-          openCount: 0,
-        }],
+        groups: [
+          {
+            findingKey: "filter-ownership",
+            pillar: "filters",
+            epic: { issueKey: "ADMIN-1", lastStatus: "In Progress", lastStatusCategory: "indeterminate" },
+            tasks: [
+              {
+                issueKey: "ADMIN-2",
+                itemId: "4001",
+                summary: 'Reassign filter "Open Bugs"',
+                lastStatus: "Done",
+                lastStatusCategory: "done",
+                assigneeName: "Sam",
+                syncedAt: "2026-09-20T00:00:00Z",
+              },
+            ],
+            taskCount: 1,
+            openCount: 0,
+          },
+        ],
       },
     });
 
@@ -140,9 +178,16 @@ describe("RemediationTab", () => {
     const createRemediationEpic = vi.fn().mockResolvedValue({ ok: true, epicKey: "ADMIN-1", tasksCreated: 2 });
     mockInvoke({
       getRemediationTickets: { available: false, total: 0, groups: [] },
-      getRemediationCandidates: (payload) => payload.findingKey === "filter-ownership"
-        ? { available: true, items: [{ id: "4001", name: "Open Bugs" }, { id: "4002", name: "Sprint Filter" }] }
-        : { available: false, reason: "not-connected", items: [] },
+      getRemediationCandidates: (payload) =>
+        payload.findingKey === "filter-ownership"
+          ? {
+              available: true,
+              items: [
+                { id: "4001", name: "Open Bugs" },
+                { id: "4002", name: "Sprint Filter" },
+              ],
+            }
+          : { available: false, reason: "not-connected", items: [] },
       createRemediationEpic,
     });
 
@@ -156,10 +201,17 @@ describe("RemediationTab", () => {
     const createButton = screen.getByRole("button", { name: /Create (\d{4}-Q\d )?remediation epic \(2 tasks\)/i });
     await user.click(createButton);
 
-    await waitFor(() => expect(createRemediationEpic).toHaveBeenCalledWith(expect.objectContaining({
-      findingKey: "filter-ownership",
-      items: [{ id: "4001", name: "Open Bugs" }, { id: "4002", name: "Sprint Filter" }],
-    })));
+    await waitFor(() =>
+      expect(createRemediationEpic).toHaveBeenCalledWith(
+        expect.objectContaining({
+          findingKey: "filter-ownership",
+          items: [
+            { id: "4001", name: "Open Bugs" },
+            { id: "4002", name: "Sprint Filter" },
+          ],
+        }),
+      ),
+    );
   });
 
   // The resolver only ever creates a bounded batch per call (a synchronous Forge resolver
@@ -173,7 +225,7 @@ describe("RemediationTab", () => {
       return Promise.resolve(
         call === 1
           ? { ok: true, epicKey: "ADMIN-899", tasksCreated: 20, itemsRemaining: 5 }
-          : { ok: true, epicKey: "ADMIN-899", tasksCreated: 5, itemsRemaining: 0 }
+          : { ok: true, epicKey: "ADMIN-899", tasksCreated: 5, itemsRemaining: 0 },
       );
     });
     const items = Array.from({ length: 25 }, (_, i) => ({ id: `item-${i}`, name: `Item ${i}` }));
@@ -197,9 +249,15 @@ describe("RemediationTab", () => {
 
   test("shows live progress while a large finding is still batching", async () => {
     let resolveSecondBatch;
-    const createRemediationEpic = vi.fn()
+    const createRemediationEpic = vi
+      .fn()
       .mockResolvedValueOnce({ ok: true, epicKey: "ADMIN-899", tasksCreated: 20, itemsRemaining: 5 })
-      .mockImplementationOnce(() => new Promise((resolve) => { resolveSecondBatch = resolve; }));
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSecondBatch = resolve;
+          }),
+      );
     const items = Array.from({ length: 25 }, (_, i) => ({ id: `item-${i}`, name: `Item ${i}` }));
     mockInvoke({
       getRemediationTickets: { available: false, total: 0, groups: [] },
@@ -221,14 +279,87 @@ describe("RemediationTab", () => {
     await waitFor(() => expect(screen.queryByRole("button", { name: /Creating/i })).not.toBeInTheDocument());
   });
 
+  // Adding to an existing epic: progress counts against what is still to ticket, not every
+  // flagged item -- "0 of 31" when only 24 were going to be created read as a stall.
+  test("progress counts only the items not yet ticketed", async () => {
+    let resolveBatch;
+    const createRemediationEpic = vi.fn().mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveBatch = resolve;
+        }),
+    );
+    const items = Array.from({ length: 30 }, (_, i) => ({ id: `item-${i}`, name: `Item ${i}` }));
+    mockInvoke({
+      getRemediationTickets: {
+        available: true,
+        total: 6,
+        groups: [
+          {
+            findingKey: "filter-ownership",
+            pillar: "filters",
+            epic: { issueKey: "ADMIN-1" },
+            tasks: items.slice(0, 5).map((it, i) => ({ issueKey: `ADMIN-${i + 2}`, itemId: it.id, summary: it.name })),
+            taskCount: 5,
+            openCount: 5,
+          },
+        ],
+      },
+      getRemediationCandidates: { available: true, items },
+      createRemediationEpic,
+    });
+
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    await checkItems(user);
+    await user.click(await screen.findByRole("button", { name: /Add 25 tasks to ADMIN-1/i }));
+
+    expect(await screen.findByRole("button", { name: /Creating… 0 of 25/i })).toBeInTheDocument();
+    resolveBatch({ ok: true, epicKey: "ADMIN-1", tasksCreated: 25, itemsRemaining: 0 });
+    await waitFor(() => expect(screen.queryByRole("button", { name: /Creating/i })).not.toBeInTheDocument());
+  });
+
+  test("a batch that throws still refreshes the task list, since some tasks may have landed", async () => {
+    const getRemediationTickets = vi.fn(() => ({ available: false, total: 0, groups: [] }));
+    mockInvoke({
+      getRemediationTickets,
+      getRemediationCandidates: { available: true, items: [{ id: "1", name: "X" }] },
+    });
+    invoke.mockImplementation((fn, payload) => {
+      if (fn === "createRemediationEpic") return Promise.reject(new Error("Function timed out"));
+      if (fn === "getRemediationTickets") return Promise.resolve(withDefaults(getRemediationTickets(payload)));
+      if (fn === "getRemediationCandidates")
+        return Promise.resolve({ available: true, items: [{ id: "1", name: "X" }] });
+      return Promise.resolve({});
+    });
+
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    await checkItems(user);
+    const before = getRemediationTickets.mock.calls.length;
+    await user.click(await screen.findByRole("button", { name: /Create (\d{4}-Q\d )?remediation epic/i }));
+
+    expect(await screen.findByText("Function timed out")).toBeInTheDocument();
+    await waitFor(() => expect(getRemediationTickets.mock.calls.length).toBeGreaterThan(before));
+  });
+
   test("reports partial failures after the loop finishes rather than dropping them", async () => {
     const createRemediationEpic = vi.fn().mockResolvedValue({
-      ok: true, epicKey: "ADMIN-1", tasksCreated: 1, itemsRemaining: 0,
+      ok: true,
+      epicKey: "ADMIN-1",
+      tasksCreated: 1,
+      itemsRemaining: 0,
       failures: [{ itemId: "4002", error: "Field 'customfield_10099' is required." }],
     });
     mockInvoke({
       getRemediationTickets: { available: false, total: 0, groups: [] },
-      getRemediationCandidates: { available: true, items: [{ id: "4001", name: "Open Bugs" }, { id: "4002", name: "Sprint Filter" }] },
+      getRemediationCandidates: {
+        available: true,
+        items: [
+          { id: "4001", name: "Open Bugs" },
+          { id: "4002", name: "Sprint Filter" },
+        ],
+      },
       createRemediationEpic,
     });
 
@@ -261,12 +392,16 @@ describe("RemediationTab", () => {
       getRemediationTickets: {
         available: true,
         total: 1,
-        groups: [{
-          findingKey: "filter-ownership", pillar: "filters",
-          epic: { issueKey: "ADMIN-1" },
-          tasks: [{ issueKey: "ADMIN-2", itemId: "4001", summary: "x", lastStatusCategory: "indeterminate" }],
-          taskCount: 1, openCount: 1,
-        }],
+        groups: [
+          {
+            findingKey: "filter-ownership",
+            pillar: "filters",
+            epic: { issueKey: "ADMIN-1" },
+            tasks: [{ issueKey: "ADMIN-2", itemId: "4001", summary: "x", lastStatusCategory: "indeterminate" }],
+            taskCount: 1,
+            openCount: 1,
+          },
+        ],
       },
       getRemediationCandidates: { available: true, items: [{ id: "4001", name: "Open Bugs" }] },
     });
@@ -277,6 +412,64 @@ describe("RemediationTab", () => {
 
     expect(await screen.findByRole("button", { name: /Everything is already ticketed/i })).toBeDisabled();
   });
+
+  // The live bug after the quarter rolled over: 31 flagged, 7 ticketed this quarter, 24 still
+  // open under last quarter's epic. The button offered "Add 24 tasks" and the server created
+  // none. The server now marks those items, and the card counts and names them.
+  test("items still open under an earlier quarter's epic are not offered again, and the card says where they are", async () => {
+    const createRemediationEpic = vi.fn();
+    mockInvoke({
+      getRemediationTickets: {
+        available: true,
+        total: 2,
+        groups: [
+          {
+            findingKey: "filter-ownership",
+            pillar: "filters",
+            epic: { issueKey: "ADMIN-9" },
+            tasks: [{ issueKey: "ADMIN-10", itemId: "4001", summary: "x", lastStatusCategory: "new" }],
+            taskCount: 1,
+            openCount: 1,
+          },
+        ],
+      },
+      getRemediationCandidates: {
+        available: true,
+        items: [
+          { id: "4001", name: "A", ticketed: { issueKey: "ADMIN-10", epicKey: "ADMIN-9", period: "2026-Q3" } },
+          { id: "4002", name: "B", ticketed: { issueKey: "ADMIN-3", epicKey: "ADMIN-1", period: "2026-Q2" } },
+          { id: "4003", name: "C", ticketed: { issueKey: "ADMIN-4", epicKey: "ADMIN-1", period: "2026-Q2" } },
+          { id: "4004", name: "D" },
+        ],
+      },
+      createRemediationEpic,
+    });
+
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    await checkItems(user);
+
+    expect(await screen.findByRole("button", { name: /Add 1 task to ADMIN-9/i })).toBeEnabled();
+    expect(screen.getByText(/1 not yet ticketed/)).toBeInTheDocument();
+    const note = screen.getByRole("note");
+    expect(note).toHaveTextContent(/2 are still open under an earlier quarter's epic/);
+    expect(within(note).getByRole("link", { name: "ADMIN-1" })).toBeInTheDocument();
+  });
+
+  test("a run that creates nothing says so instead of just stopping", async () => {
+    mockInvoke({
+      getRemediationTickets: { available: false, total: 0, groups: [] },
+      getRemediationCandidates: { available: true, items: [{ id: "1", name: "X" }] },
+      createRemediationEpic: { ok: true, epicKey: "ADMIN-1", tasksCreated: 0, itemsRemaining: 0, failures: [] },
+    });
+
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    await checkItems(user);
+    await user.click(await screen.findByRole("button", { name: /Create (\d{4}-Q\d )?remediation epic/i }));
+
+    expect(await screen.findByText(/Nothing was created: every item is already held/)).toBeInTheDocument();
+  });
 });
 
 describe("RemediationTab — quarters, confirmation, deep links", () => {
@@ -285,13 +478,19 @@ describe("RemediationTab — quarters, confirmation, deep links", () => {
       getRemediationTickets: {
         available: true,
         total: 2,
-        groups: [{
-          findingKey: "filter-ownership", pillar: "filters", period: "2026-Q2", isCurrent: false,
-          epic: { issueKey: "ADMIN-1", lastStatusCategory: "done" },
-          tasks: [{ issueKey: "ADMIN-2", itemId: "4001", summary: "x", lastStatusCategory: "done" }],
-          taskCount: 1, openCount: 0,
-          previousPeriods: [{ period: "2026-Q1", epicKey: "ADMIN-0", taskCount: 3, openCount: 0 }],
-        }],
+        groups: [
+          {
+            findingKey: "filter-ownership",
+            pillar: "filters",
+            period: "2026-Q2",
+            isCurrent: false,
+            epic: { issueKey: "ADMIN-1", lastStatusCategory: "done" },
+            tasks: [{ issueKey: "ADMIN-2", itemId: "4001", summary: "x", lastStatusCategory: "done" }],
+            taskCount: 1,
+            openCount: 0,
+            previousPeriods: [{ period: "2026-Q1", epicKey: "ADMIN-0", taskCount: 3, openCount: 0 }],
+          },
+        ],
       },
       // The same filter is flagged again: its Q2 task is done, so it belongs in Q3's epic.
       getRemediationCandidates: { available: true, items: [{ id: "4001", name: "Open Bugs" }] },
@@ -299,8 +498,9 @@ describe("RemediationTab — quarters, confirmation, deep links", () => {
     const user = userEvent.setup();
     render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
 
-    expect(await screen.findByText(/Earlier quarters:/)).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Show 1 2026-Q2 task" })).toBeInTheDocument();
     expect(screen.getByText(/2026-Q2 epic/)).toBeInTheDocument();
+    expect(screen.getByText(/0 open, 3 of 3 closed/)).toBeInTheDocument();
     await checkItems(user);
     expect(await screen.findByRole("button", { name: "Create 2026-Q3 remediation epic (1 task)" })).toBeEnabled();
   });
@@ -310,7 +510,8 @@ describe("RemediationTab — quarters, confirmation, deep links", () => {
     const items = Array.from({ length: 250 }, (_, i) => ({ id: `f${i}`, name: `F${i}` }));
     mockInvoke({
       getRemediationTickets: { available: false, total: 0, groups: [] },
-      getRemediationCandidates: (payload) => (payload.findingKey === "filter-ownership" ? { available: true, items } : { available: false, items: [] }),
+      getRemediationCandidates: (payload) =>
+        payload.findingKey === "filter-ownership" ? { available: true, items } : { available: false, items: [] },
       createRemediationEpic,
     });
     const user = userEvent.setup();
@@ -333,9 +534,10 @@ describe("RemediationTab — quarters, confirmation, deep links", () => {
   test("arriving from an Overview finding opens that finding's card", async () => {
     mockInvoke({
       getRemediationTickets: { available: false, total: 0, groups: [] },
-      getRemediationCandidates: (payload) => (payload.findingKey === "role-offroster-actors"
-        ? { available: true, items: [{ id: "DEV", name: "DEV", owners: ["DEV"], count: 3, members: [] }] }
-        : { available: false, items: [] }),
+      getRemediationCandidates: (payload) =>
+        payload.findingKey === "role-offroster-actors"
+          ? { available: true, items: [{ id: "DEV", name: "DEV", owners: ["DEV"], count: 3, members: [] }] }
+          : { available: false, items: [] },
     });
     render(<RemediationTab siteOrigin="https://acme.atlassian.net" intent={{ finding: "role-offroster-actors" }} />);
     // The card loads its current items without a click.
@@ -357,14 +559,17 @@ describe("RemediationTab — partial lists", () => {
   test("says plainly when a finding's list is only a preview", async () => {
     mockInvoke({
       getRemediationTickets: { available: false, total: 0, groups: [] },
-      getRemediationCandidates: (payload) => (payload.findingKey === "filter-ownership"
-        ? { available: true, partial: true, expected: 9, items: [{ id: "1", name: "Webhook" }] }
-        : { available: false, items: [] }),
+      getRemediationCandidates: (payload) =>
+        payload.findingKey === "filter-ownership"
+          ? { available: true, partial: true, expected: 9, items: [{ id: "1", name: "Webhook" }] }
+          : { available: false, items: [] },
     });
     const user = userEvent.setup();
     render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
     await checkItems(user);
-    expect(await screen.findByRole("note")).toHaveTextContent("Only the 1 highest-severity of 9 flagged rules are listed");
+    expect(await screen.findByRole("note")).toHaveTextContent(
+      "Only the 1 highest-severity of 9 flagged rules are listed",
+    );
     expect(screen.getByRole("note")).toHaveTextContent("the other 8 cannot be ticketed from here yet");
   });
 
@@ -421,13 +626,27 @@ describe("RemediationTab — views", () => {
 
 describe("RemediationTab — search and filters", () => {
   const TASK = (issueKey, summary, done = false) => ({
-    issueKey, summary, itemId: issueKey, lastStatusCategory: done ? "done" : "new", lastStatus: done ? "Done" : "To Do",
+    issueKey,
+    summary,
+    itemId: issueKey,
+    lastStatusCategory: done ? "done" : "new",
+    lastStatus: done ? "Done" : "To Do",
   });
   const GROUPS = [
-    { findingKey: "filter-ownership", taskCount: 2, openCount: 1, epic: { issueKey: "OPS-1" },
-      tasks: [TASK("OPS-2", "Reassign 'Team backlog' filter"), TASK("OPS-3", "Reassign 'Old sprint' filter", true)] },
-    { findingKey: "field-cleanup", taskCount: 1, openCount: 0, epic: { issueKey: "OPS-10" },
-      tasks: [TASK("OPS-11", "Delete Legacy Cost field", true)] },
+    {
+      findingKey: "filter-ownership",
+      taskCount: 2,
+      openCount: 1,
+      epic: { issueKey: "OPS-1" },
+      tasks: [TASK("OPS-2", "Reassign 'Team backlog' filter"), TASK("OPS-3", "Reassign 'Old sprint' filter", true)],
+    },
+    {
+      findingKey: "field-cleanup",
+      taskCount: 1,
+      openCount: 0,
+      epic: { issueKey: "OPS-10" },
+      tasks: [TASK("OPS-11", "Delete Legacy Cost field", true)],
+    },
   ];
 
   async function renderFindings() {
@@ -500,14 +719,23 @@ describe("RemediationTab — Sync now", () => {
   const TRACKED = {
     available: true,
     total: 2,
-    groups: [{
-      findingKey: "filter-ownership", pillar: "filters", taskCount: 1, openCount: 1,
-      epic: { issueKey: "ADMIN-1", isEpic: true },
-      tasks: [{ issueKey: "ADMIN-2", summary: "Reassign filter", itemId: "f1", lastStatusCategory: null, syncedAt: null }],
-    }],
+    groups: [
+      {
+        findingKey: "filter-ownership",
+        pillar: "filters",
+        taskCount: 1,
+        openCount: 1,
+        epic: { issueKey: "ADMIN-1", isEpic: true },
+        tasks: [
+          { issueKey: "ADMIN-2", summary: "Reassign filter", itemId: "f1", lastStatusCategory: null, syncedAt: null },
+        ],
+      },
+    ],
   };
 
-  afterEach(() => { vi.useRealTimers(); });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   test("says plainly when the tickets have never been synced", async () => {
     mockInvoke({ getRemediationTickets: { ...TRACKED, lastSyncedAt: null } });
@@ -539,12 +767,16 @@ describe("RemediationTab — Sync now", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Syncing with Jira");
 
     // Still running on the first poll: nothing has moved yet.
-    await act(async () => { await vi.advanceTimersByTimeAsync(SYNC_POLL_MS); });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SYNC_POLL_MS);
+    });
     expect(screen.getByRole("button", { name: "Syncing…" })).toBeDisabled();
 
     // The sync lands: the next poll sees lastSyncedAt move and the button comes back.
     lastSyncedAt = new Date().toISOString();
-    await act(async () => { await vi.advanceTimersByTimeAsync(SYNC_POLL_MS); });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SYNC_POLL_MS);
+    });
     expect(await screen.findByRole("button", { name: "Sync now" })).toBeEnabled();
     expect(screen.getByRole("status")).toHaveTextContent(/Last synced/);
   });
@@ -561,5 +793,387 @@ describe("RemediationTab — Sync now", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("queue backpressure");
     expect(screen.getByRole("button", { name: "Sync now" })).toBeEnabled();
+  });
+});
+
+// Which findings still need tickets, visible without opening each one: the tab reads every
+// finding's items in the background, and each header, the filter, the sort and a tile say it.
+describe("RemediationTab — which findings need tickets", () => {
+  const CANDIDATES = {
+    "filter-ownership": { available: true, items: [{ id: "1" }, { id: "2" }, { id: "3" }] },
+    "dashboard-ownership": {
+      available: true,
+      items: [{ id: "9", ticketed: { issueKey: "OPS-9", epicKey: "OPS-1", period: "2026-Q3" } }],
+    },
+    "field-cleanup": { available: true, items: [{ id: "a" }] },
+    "board-backing": { available: false, reason: "no-snapshot", items: [] },
+  };
+  const candidatesFor = (payload) => CANDIDATES[payload.findingKey] || { available: true, items: [] };
+
+  function panelFor(title) {
+    return screen.getByRole("button", { name: new RegExp(`^${title}`, "i") }).closest(".ui-panel");
+  }
+
+  test("checks every finding in the background and shows each one's count on its header", async () => {
+    const getRemediationCandidates = vi.fn(candidatesFor);
+    mockInvoke({ getRemediationTickets: { available: false, total: 0, groups: [] }, getRemediationCandidates });
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+
+    await waitFor(() => expect(getRemediationCandidates).toHaveBeenCalledTimes(CATALOG.length));
+    expect(await within(panelFor("Filter ownership")).findByText("3 to ticket")).toBeInTheDocument();
+    expect(within(panelFor("Fields with no populated issues")).getByText("1 to ticket")).toBeInTheDocument();
+    expect(within(panelFor("Dashboard ownership")).getByText("all ticketed")).toBeInTheDocument();
+    expect(within(panelFor("Board backing filters")).getByText("no data")).toBeInTheDocument();
+    expect(within(panelFor("Duplicate filters")).getByText("nothing flagged")).toBeInTheDocument();
+
+    // The tile: two findings, four items.
+    expect(await screen.findByText("4 items with no task yet")).toBeInTheDocument();
+  });
+
+  test("never asks for more than a few findings at once", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    invoke.mockImplementation(async (fn, payload) => {
+      if (fn === "getRemediationTickets") return withDefaults({ available: false, total: 0, groups: [] });
+      if (fn !== "getRemediationCandidates") return {};
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight -= 1;
+      return candidatesFor(payload);
+    });
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    expect(await screen.findByText(/Checked every finding/, {}, { timeout: 10000 })).toBeInTheDocument();
+    expect(peak).toBeLessThanOrEqual(4);
+  });
+
+  test("the Needs tickets shortcut filters to them and sorts the most first", async () => {
+    mockInvoke({
+      getRemediationTickets: { available: false, total: 0, groups: [] },
+      getRemediationCandidates: candidatesFor,
+    });
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+
+    await user.click(await screen.findByRole("button", { name: "Show the 2 that need tickets" }));
+
+    const titles = screen
+      .getAllByRole("button", { name: /Filter ownership|Fields with no populated issues|Dashboard ownership/ })
+      .map((b) => b.textContent);
+    expect(titles[0]).toMatch(/Filter ownership/);
+    expect(titles[1]).toMatch(/Fields with no populated issues/);
+    expect(screen.queryByText("Dashboard ownership")).not.toBeInTheDocument();
+    const tickets = screen.getByRole("combobox", { name: /Tickets/ });
+    expect(within(tickets).getByRole("option", { name: "Needs tickets (2)" })).toBeInTheDocument();
+    expect(within(tickets).getByRole("option", { name: "No data (1)" })).toBeInTheDocument();
+  });
+
+  test("after creating, the finding is re-read so its count drops", async () => {
+    let round = 0;
+    mockInvoke({
+      getRemediationTickets: { available: false, total: 0, groups: [] },
+      getRemediationCandidates: (payload) =>
+        payload.findingKey === "field-cleanup" && round > 0
+          ? {
+              available: true,
+              items: [{ id: "a", ticketed: { issueKey: "OPS-20", epicKey: "OPS-19", period: "2026-Q3" } }],
+            }
+          : candidatesFor(payload),
+      createRemediationEpic: () => {
+        round += 1;
+        return { ok: true, epicKey: "OPS-19", tasksCreated: 1, itemsRemaining: 0, failures: [] };
+      },
+    });
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    const panel = await waitFor(() => panelFor("Fields with no populated issues"));
+    await within(panel).findByText("1 to ticket");
+
+    await user.click(within(panel).getByRole("button", { name: /Check current items/i }));
+    await user.click(await within(panel).findByRole("button", { name: /remediation epic \(1 task\)/i }));
+
+    expect(await within(panelFor("Fields with no populated issues")).findByText("all ticketed")).toBeInTheDocument();
+  });
+
+  test("unprobed gadget filters say to rebuild, never Clean", async () => {
+    mockInvoke({
+      getRemediationTickets: { available: false, total: 0, groups: [] },
+      getRemediationCandidates: (payload) =>
+        payload.findingKey === "filter-ownership"
+          ? { available: false, reason: "not-probed", items: [] }
+          : { available: true, items: [] },
+    });
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    await checkItems(user);
+    expect(await screen.findByText(/Rebuild the dashboard inventory/)).toBeInTheDocument();
+    expect(within(panelFor("Filter ownership")).queryByText(/Clean/)).not.toBeInTheDocument();
+    expect(within(panelFor("Filter ownership")).getByText("no data")).toBeInTheDocument();
+  });
+
+  test("a finding whose read fails says why when opened", async () => {
+    invoke.mockImplementation((fn, payload) => {
+      if (fn === "getRemediationTickets")
+        return Promise.resolve(withDefaults({ available: false, total: 0, groups: [] }));
+      if (fn === "getRemediationCandidates" && payload.findingKey === "filter-ownership")
+        return Promise.reject(new Error("Function timed out"));
+      if (fn === "getRemediationCandidates") return Promise.resolve({ available: true, items: [] });
+      return Promise.resolve({});
+    });
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    await checkItems(user);
+    expect(await screen.findByText(/Could not read this finding's items: Function timed out/)).toBeInTheDocument();
+  });
+});
+
+// Earlier quarters' work, counted and listed alongside this quarter's: on the totals, on each
+// finding's tiles and status line, in the task list, the search, the State filter and the sort.
+describe("RemediationTab — earlier quarters", () => {
+  const T = (issueKey, done = false) => ({
+    issueKey,
+    itemId: issueKey,
+    summary: `Fix ${issueKey}`,
+    lastStatusCategory: done ? "done" : "new",
+    lastStatus: done ? "Done" : "To Do",
+  });
+  const GROUPS = [
+    {
+      findingKey: "filter-ownership",
+      pillar: "filters",
+      period: "2026-Q3",
+      isCurrent: true,
+      epic: { issueKey: "OPS-40" },
+      tasks: [T("OPS-41"), T("OPS-42", true)],
+      taskCount: 2,
+      openCount: 1,
+      allTaskCount: 5,
+      allOpenCount: 3,
+      previousPeriods: [
+        {
+          period: "2026-Q2",
+          epicKey: "OPS-30",
+          taskCount: 3,
+          openCount: 2,
+          tasks: [T("OPS-31"), T("OPS-32"), T("OPS-33", true)],
+        },
+      ],
+    },
+    {
+      // Only last quarter's epic, still open: "this quarter not started", but open work.
+      findingKey: "field-cleanup",
+      pillar: "fields",
+      period: "2026-Q2",
+      isCurrent: false,
+      epic: { issueKey: "OPS-50" },
+      tasks: [T("OPS-51")],
+      taskCount: 1,
+      openCount: 1,
+      allTaskCount: 1,
+      allOpenCount: 1,
+      previousPeriods: [],
+    },
+  ];
+
+  async function renderIt() {
+    mockInvoke({ getRemediationTickets: { available: true, total: 9, groups: GROUPS } });
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    await screen.findByText("Filter ownership");
+    return user;
+  }
+  const panelFor = (title) => screen.getByRole("button", { name: new RegExp(`^${title}`, "i") }).closest(".ui-panel");
+
+  test("the totals count every quarter and say how much is from earlier ones", async () => {
+    await renderIt();
+    // Open: 3 + 1. Closed: 2 (OPS-42, OPS-33).
+    const open = screen.getByText("Open tasks").closest(".ui-stat");
+    expect(within(open).getByText("4")).toBeInTheDocument();
+    expect(within(open).getByText("3 from earlier quarters")).toBeInTheDocument();
+    expect(
+      within(screen.getByText("Closed tasks").closest(".ui-stat")).getByText("1 from earlier quarters"),
+    ).toBeInTheDocument();
+  });
+
+  test("each finding's tiles and status line include earlier quarters, and their tasks are one click away", async () => {
+    const user = await renderIt();
+    const panel = panelFor("Filter ownership");
+    expect(within(panel).getByText("2 this quarter · 3 from earlier quarters")).toBeInTheDocument();
+    expect(within(panel).getByText(/1 of 2 tasks open · 2 more open from earlier quarters/)).toBeInTheDocument();
+    expect(within(panel).queryByText("OPS-31")).not.toBeInTheDocument();
+
+    await user.click(within(panel).getByRole("button", { name: "Show 3 2026-Q2 tasks" }));
+    expect(within(panel).getByText("OPS-31")).toBeInTheDocument();
+    expect(within(panel).getByText("OPS-33")).toBeInTheDocument();
+  });
+
+  test("a finding whose only epic is last quarter's still shows its tiles and tasks", async () => {
+    const user = await renderIt();
+    const panel = panelFor("Fields with no populated issues");
+    expect(within(panel).getByText("Tasks").closest(".ui-stat")).toHaveTextContent("1");
+    await user.click(within(panel).getByRole("button", { name: "Show 1 2026-Q2 task" }));
+    expect(within(panel).getByText("OPS-51")).toBeInTheDocument();
+  });
+
+  test("search reaches earlier quarters' tasks and opens their quarter", async () => {
+    const user = await renderIt();
+    await user.type(screen.getByRole("searchbox"), "ops-32");
+    const panel = panelFor("Filter ownership");
+    expect(within(panel).getByText("OPS-32")).toBeInTheDocument();
+    expect(within(panel).queryByText("OPS-31")).not.toBeInTheDocument();
+    expect(screen.queryByText("Fields with no populated issues")).not.toBeInTheDocument();
+  });
+
+  test("open work under an earlier quarter counts as open for the State filter", async () => {
+    await renderIt();
+    const state = screen.getByRole("combobox", { name: /State/ });
+    expect(within(state).getByRole("option", { name: "Has open tasks (2)" })).toBeInTheDocument();
+  });
+});
+
+// After the roles rule was corrected (7 Oct 2026), dozens of open "add an administrator" tasks
+// were for projects that already had one. The card says how many open tasks the finding no
+// longer stands behind, and links them in Jira, so nobody acts on stale advice.
+describe("RemediationTab — open tasks the finding no longer flags", () => {
+  const T = (issueKey, itemId, done = false) => ({
+    issueKey,
+    itemId,
+    summary: issueKey,
+    lastStatusCategory: done ? "done" : "new",
+  });
+  const group = {
+    findingKey: "filter-ownership",
+    pillar: "filters",
+    epic: { issueKey: "OPS-1" },
+    tasks: [T("OPS-2", "p1"), T("OPS-3", "p2"), T("OPS-4", "p3", true)],
+    taskCount: 3,
+    openCount: 2,
+    allTaskCount: 4,
+    allOpenCount: 3,
+    previousPeriods: [{ period: "2026-Q2", epicKey: "OPS-0", taskCount: 1, openCount: 1, tasks: [T("OPS-9", "p9")] }],
+  };
+
+  test("openTasksNoLongerFlagged: open tasks from any quarter whose item is gone; done tasks never", () => {
+    expect(openTasksNoLongerFlagged(group, [{ id: "p1" }]).map((t) => t.issueKey)).toEqual(["OPS-3", "OPS-9"]);
+    expect(openTasksNoLongerFlagged(group, [{ id: "p1" }, { id: "p2" }, { id: "p9" }])).toEqual([]);
+    expect(openTasksNoLongerFlagged(null, [])).toEqual([]);
+  });
+
+  test("the card names them and links exactly those issues in Jira", async () => {
+    mockInvoke({
+      getRemediationTickets: { available: true, total: 5, groups: [group] },
+      getRemediationCandidates: (payload) =>
+        payload.findingKey === "filter-ownership"
+          ? { available: true, items: [{ id: "p1" }] }
+          : { available: true, items: [] },
+    });
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    const note = await screen.findByTestId("stale-tasks");
+    expect(note).toHaveTextContent("2 open tasks are for items this finding no longer flags");
+    const link = within(note).getByRole("link", { name: "Open all 2 in Jira" });
+    expect(decodeURIComponent(link.getAttribute("href"))).toContain("issuekey in (OPS-3, OPS-9)");
+  });
+
+  // "Review and close" opens Did it hold? narrowed to this finding, so the fixed and the
+  // withdrawn tasks can be closed with the right comment rather than only opened in Jira.
+  test("Review and close opens Did it hold? for just this finding", async () => {
+    const calls = [];
+    mockInvoke({
+      getRemediationTickets: { available: true, total: 5, groups: [group] },
+      getRemediationCandidates: (payload) =>
+        payload.findingKey === "filter-ownership"
+          ? { available: true, items: [{ id: "p1" }] }
+          : { available: true, items: [] },
+      getRemediationVerification: (payload) => {
+        calls.push(payload);
+        return {
+          checkedAt: "2026-10-14T09:30:00.000Z",
+          labels: {},
+          counts: { withdrawn: 1 },
+          rows: [
+            {
+              issueKey: "OPS-3",
+              verdict: "withdrawn",
+              findingKey: "filter-ownership",
+              itemId: "p2",
+              summary: "Old",
+              evidence: "it holds data",
+            },
+          ],
+        };
+      },
+    });
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    const note = await screen.findByTestId("stale-tasks");
+    await userEvent.click(within(note).getByRole("button", { name: /Review and close/ }));
+    expect(await screen.findByText("Advice withdrawn, still open (1)")).toBeInTheDocument();
+    expect(calls.at(-1)).toEqual({ findingKey: "filter-ownership" });
+    expect(screen.getByText(/Showing tasks for/)).toBeInTheDocument();
+    // Widening back checks every finding.
+    await userEvent.click(screen.getByRole("button", { name: /Show every finding/ }));
+    await screen.findByText("Advice withdrawn, still open (1)");
+    expect(calls.at(-1)).toEqual({});
+  });
+
+  test("an unreadable finding never makes its tasks look stale", async () => {
+    mockInvoke({
+      getRemediationTickets: { available: true, total: 5, groups: [group] },
+      getRemediationCandidates: { available: false, reason: "no-snapshot", items: [] },
+    });
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    await screen.findByText(/Checked every finding/, {}, { timeout: 10000 });
+    expect(screen.queryByTestId("stale-tasks")).not.toBeInTheDocument();
+  });
+});
+
+describe("RemediationTab — quarterly hierarchy", () => {
+  test("names the quarter's top item and organises epics under initiatives, round by round", async () => {
+    const organise = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, organised: 30, alreadyPlaced: 2, remaining: 11, failures: [] })
+      .mockResolvedValueOnce({ ok: true, organised: 10, alreadyPlaced: 1, remaining: 0, failures: [] });
+    mockInvoke({
+      getRemediationTickets: {
+        available: true,
+        total: 1,
+        groups: [],
+        hierarchy: { enabled: true, rootKey: "ATLASDEV-5627", initiativeCount: 14 },
+      },
+      organiseRemediationHierarchy: organise,
+    });
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+
+    expect(await screen.findByRole("link", { name: "ATLASDEV-5627" })).toBeInTheDocument();
+    expect(screen.getByText(/and its 14 initiatives/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Organise under initiatives" }));
+    expect(await screen.findByText(/40 epics moved, 3 already in place/)).toBeInTheDocument();
+    expect(organise).toHaveBeenCalledTimes(2);
+  });
+
+  test("says why organising was refused", async () => {
+    mockInvoke({
+      getRemediationTickets: {
+        available: true,
+        total: 1,
+        groups: [],
+        hierarchy: { enabled: true, rootKey: null, initiativeCount: 0 },
+      },
+      organiseRemediationHierarchy: {
+        error: "Read-only mode is enabled. Disable it before changing remediation tickets.",
+      },
+    });
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    expect(await screen.findByText(/created \(or found\) with the quarter's first epic/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Organise under initiatives" }));
+    expect(await screen.findByText(/Read-only mode is enabled/)).toBeInTheDocument();
+  });
+
+  test("shows nothing about a hierarchy when it is off", async () => {
+    mockInvoke({ getRemediationTickets: { available: true, total: 1, groups: [], hierarchy: null } });
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    await screen.findByText("Filter ownership");
+    expect(screen.queryByRole("button", { name: "Organise under initiatives" })).not.toBeInTheDocument();
   });
 });

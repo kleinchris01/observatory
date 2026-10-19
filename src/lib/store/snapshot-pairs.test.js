@@ -31,8 +31,11 @@ function harness(pages) {
     const isPairRead = /FROM snapshot_project_usage/.test(entry.statement);
     if (isPairRead) issued.push(entry);
     const stub = {
-      bindParams: (...params) => { entry.params = params; return stub; },
-      execute: () => Promise.resolve({ rows: isPairRead ? (pages[page++] || []) : [] }),
+      bindParams: (...params) => {
+        entry.params = params;
+        return stub;
+      },
+      execute: () => Promise.resolve({ rows: isPairRead ? pages[page++] || [] : [] }),
     };
     return stub;
   });
@@ -65,7 +68,10 @@ describe("loadPopulatedFieldProjectPairs", () => {
   });
 
   test("reports an incomplete read at the ceiling rather than passing it off as whole", async () => {
-    harness([[row("cf_1", "10"), row("cf_1", "11")], [row("cf_2", "10"), row("cf_2", "11")]]);
+    harness([
+      [row("cf_1", "10"), row("cf_1", "11")],
+      [row("cf_2", "10"), row("cf_2", "11")],
+    ]);
 
     const { complete } = await loadPopulatedFieldProjectPairs("scope-a", "v1", { pageSize: 2, ceiling: 2 });
 

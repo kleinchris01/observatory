@@ -36,10 +36,26 @@ import {
 const ARI = (projectId) => `ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/${projectId}`;
 
 function action(type, value, extra = {}) {
-  return { id: `a-${Math.random().toString(36).slice(2)}`, component: "ACTION", type, value, children: [], conditions: [], ...extra };
+  return {
+    id: `a-${Math.random().toString(36).slice(2)}`,
+    component: "ACTION",
+    type,
+    value,
+    children: [],
+    conditions: [],
+    ...extra,
+  };
 }
 function condition(type, value, extra = {}) {
-  return { id: `c-${Math.random().toString(36).slice(2)}`, component: "CONDITION", type, value, children: [], conditions: [], ...extra };
+  return {
+    id: `c-${Math.random().toString(36).slice(2)}`,
+    component: "CONDITION",
+    type,
+    value,
+    children: [],
+    conditions: [],
+    ...extra,
+  };
 }
 function editAction(fieldName, { fieldType = "NAME", sourceField = null } = {}) {
   return action("jira.issue.edit", {
@@ -59,7 +75,14 @@ function rule(overrides = {}) {
     state: "ENABLED",
     canOtherRuleTrigger: false,
     updated: Date.now(),
-    trigger: { id: "t", component: "TRIGGER", type: "jira.issue.event.trigger:created", value: {}, children: [], conditions: [] },
+    trigger: {
+      id: "t",
+      component: "TRIGGER",
+      type: "jira.issue.event.trigger:created",
+      value: {},
+      children: [],
+      conditions: [],
+    },
     components: [],
     projects: [],
     ruleScope: { resources: [] },
@@ -75,10 +98,14 @@ describe("walkComponents", () => {
   });
 
   it("descends into children and conditions, which is where most components live", () => {
-    const nested = action("outer", {}, {
-      children: [action("child", {}, { children: [action("grandchild", {})] })],
-      conditions: [condition("cond", {})],
-    });
+    const nested = action(
+      "outer",
+      {},
+      {
+        children: [action("child", {}, { children: [action("grandchild", {})] })],
+        conditions: [condition("cond", {})],
+      },
+    );
     const seen = [];
     walkComponents(rule({ components: [nested] }), (c) => seen.push(c.type));
     expect(seen).toContain("grandchild");
@@ -88,7 +115,9 @@ describe("walkComponents", () => {
   it("reports nesting depth", () => {
     const nested = action("outer", {}, { children: [action("inner", {})] });
     const depths = {};
-    walkComponents(rule({ components: [nested] }), (c, depth) => { depths[c.type] = depth; });
+    walkComponents(rule({ components: [nested] }), (c, depth) => {
+      depths[c.type] = depth;
+    });
     expect(depths.outer).toBe(0);
     expect(depths.inner).toBe(1);
   });
@@ -114,16 +143,27 @@ describe("extractFieldReferences", () => {
   });
 
   it("records the source of a COPY as a read, so it is not reported unused", () => {
-    const refs = extractFieldReferences(rule({ components: [editAction("Target", { sourceField: "Employee Start Date" })] }));
+    const refs = extractFieldReferences(
+      rule({ components: [editAction("Target", { sourceField: "Employee Start Date" })] }),
+    );
     expect(refs).toContainEqual(expect.objectContaining({ name: "Employee Start Date", kind: REF_KIND.READ }));
     expect(refs).toContainEqual(expect.objectContaining({ name: "Target", kind: REF_KIND.WRITE }));
   });
 
   it("records a field-changed trigger as a trigger reference", () => {
     const r = rule({
-      trigger: { id: "t", component: "TRIGGER", type: "jira.issue.field.changed", value: { fields: [{ type: "fieldName", value: "Actual SEOBD" }] }, children: [], conditions: [] },
+      trigger: {
+        id: "t",
+        component: "TRIGGER",
+        type: "jira.issue.field.changed",
+        value: { fields: [{ type: "fieldName", value: "Actual SEOBD" }] },
+        children: [],
+        conditions: [],
+      },
     });
-    expect(extractFieldReferences(r)).toContainEqual(expect.objectContaining({ name: "Actual SEOBD", kind: REF_KIND.TRIGGER }));
+    expect(extractFieldReferences(r)).toContainEqual(
+      expect.objectContaining({ name: "Actual SEOBD", kind: REF_KIND.TRIGGER }),
+    );
   });
 
   it("distinguishes an id reference from a name reference rather than guessing", () => {
@@ -132,17 +172,34 @@ describe("extractFieldReferences", () => {
   });
 
   it("records a condition's field as a read", () => {
-    const r = rule({ components: [condition("jira.issue.condition", { selectedField: { type: "NAME", value: "Request Type" }, compareValue: { value: "x" } })] });
-    expect(extractFieldReferences(r)).toContainEqual(expect.objectContaining({ name: "Request Type", kind: REF_KIND.READ }));
+    const r = rule({
+      components: [
+        condition("jira.issue.condition", {
+          selectedField: { type: "NAME", value: "Request Type" },
+          compareValue: { value: "x" },
+        }),
+      ],
+    });
+    expect(extractFieldReferences(r)).toContainEqual(
+      expect.objectContaining({ name: "Request Type", kind: REF_KIND.READ }),
+    );
   });
 
   it("picks up a field named only inside a smart value", () => {
-    const r = rule({ components: [action("jira.issue.comment", { comment: "Program is {{issue.ADVEV Vehicle Program}} today" })] });
-    expect(extractFieldReferences(r)).toContainEqual(expect.objectContaining({ name: "ADVEV Vehicle Program", kind: REF_KIND.READ }));
+    const r = rule({
+      components: [action("jira.issue.comment", { comment: "Program is {{issue.ADVEV Vehicle Program}} today" })],
+    });
+    expect(extractFieldReferences(r)).toContainEqual(
+      expect.objectContaining({ name: "ADVEV Vehicle Program", kind: REF_KIND.READ }),
+    );
   });
 
   it("ignores built-in smart-value properties, which are not custom fields", () => {
-    const r = rule({ components: [action("jira.issue.comment", { comment: "{{issue.key}} {{issue.summary}} {{now}} {{lookupIssues.size}}" })] });
+    const r = rule({
+      components: [
+        action("jira.issue.comment", { comment: "{{issue.key}} {{issue.summary}} {{now}} {{lookupIssues.size}}" }),
+      ],
+    });
     const names = extractFieldReferences(r).map((f) => f.name);
     expect(names).not.toContain("key");
     expect(names).not.toContain("summary");
@@ -157,14 +214,17 @@ describe("extractFieldReferences", () => {
 
   it("keeps read and write of the same field as separate references", () => {
     const r = rule({ components: [editAction("Status Note", { sourceField: "Status Note" })] });
-    const kinds = extractFieldReferences(r).filter((f) => f.name === "Status Note").map((f) => f.kind).sort();
+    const kinds = extractFieldReferences(r)
+      .filter((f) => f.name === "Status Note")
+      .map((f) => f.kind)
+      .sort();
     expect(kinds).toEqual([REF_KIND.READ, REF_KIND.WRITE]);
   });
 
   it("finds fields written deep inside a branch", () => {
     const deep = action("branch", {}, { children: [action("inner", {}, { children: [editAction("Deep Field")] })] });
     expect(extractFieldReferences(rule({ components: [deep] }))).toContainEqual(
-      expect.objectContaining({ name: "Deep Field", kind: REF_KIND.WRITE })
+      expect.objectContaining({ name: "Deep Field", kind: REF_KIND.WRITE }),
     );
   });
 
@@ -175,15 +235,24 @@ describe("extractFieldReferences", () => {
 
 describe("extractStatusReferences", () => {
   it("records a transition destination as a write", () => {
-    const r = rule({ components: [action("jira.issue.transition", { destinationStatus: { type: "NAME", value: "Done" } })] });
+    const r = rule({
+      components: [action("jira.issue.transition", { destinationStatus: { type: "NAME", value: "Done" } })],
+    });
     expect(extractStatusReferences(r)).toContainEqual(expect.objectContaining({ name: "Done", kind: REF_KIND.WRITE }));
   });
 
   it("records both ends of a transitioned trigger", () => {
     const r = rule({
       trigger: {
-        id: "t", component: "TRIGGER", type: "jira.issue.event.trigger:transitioned", children: [], conditions: [],
-        value: { fromStatus: [{ type: "NAME", value: "Offer Sent" }], toStatus: [{ type: "NAME", value: "Comp Negotiation" }] },
+        id: "t",
+        component: "TRIGGER",
+        type: "jira.issue.event.trigger:transitioned",
+        children: [],
+        conditions: [],
+        value: {
+          fromStatus: [{ type: "NAME", value: "Offer Sent" }],
+          toStatus: [{ type: "NAME", value: "Comp Negotiation" }],
+        },
       },
     });
     const names = extractStatusReferences(r).map((s) => s.name);
@@ -192,10 +261,12 @@ describe("extractStatusReferences", () => {
 
   it("parses a multi-value status condition encoded as a JSON array string", () => {
     const r = rule({
-      components: [condition("jira.issue.condition", {
-        selectedField: { type: "ID", value: "status" },
-        compareValue: { multiValue: true, value: '["In Progress","Waiting for support"]' },
-      })],
+      components: [
+        condition("jira.issue.condition", {
+          selectedField: { type: "ID", value: "status" },
+          compareValue: { multiValue: true, value: '["In Progress","Waiting for support"]' },
+        }),
+      ],
     });
     const names = extractStatusReferences(r).map((s) => s.name);
     expect(names).toEqual(expect.arrayContaining(["In Progress", "Waiting for support"]));
@@ -203,26 +274,39 @@ describe("extractStatusReferences", () => {
 
   it("treats an unparseable multi-value as a single literal rather than dropping it", () => {
     const r = rule({
-      components: [condition("jira.issue.condition", {
-        selectedField: { type: "ID", value: "status" },
-        compareValue: { multiValue: true, value: "[not json" },
-      })],
+      components: [
+        condition("jira.issue.condition", {
+          selectedField: { type: "ID", value: "status" },
+          compareValue: { multiValue: true, value: "[not json" },
+        }),
+      ],
     });
     expect(extractStatusReferences(r)).toContainEqual(expect.objectContaining({ name: "[not json" }));
   });
 
   it("ignores conditions on fields other than status", () => {
-    const r = rule({ components: [condition("jira.issue.condition", { selectedField: { type: "ID", value: "issuetype" }, compareValue: { value: "Bug" } })] });
+    const r = rule({
+      components: [
+        condition("jira.issue.condition", {
+          selectedField: { type: "ID", value: "issuetype" },
+          compareValue: { value: "Bug" },
+        }),
+      ],
+    });
     expect(extractStatusReferences(r)).toEqual([]);
   });
 });
 
 describe("extractIssueTypeReferences", () => {
   it("records an issuetype condition as a read", () => {
-    const r = rule({ components: [condition("jira.issue.condition", {
-      selectedField: { type: "ID", value: "issuetype" },
-      compareValue: { multiValue: true, value: '["Bug","Incident"]' },
-    })] });
+    const r = rule({
+      components: [
+        condition("jira.issue.condition", {
+          selectedField: { type: "ID", value: "issuetype" },
+          compareValue: { multiValue: true, value: '["Bug","Incident"]' },
+        }),
+      ],
+    });
     const names = extractIssueTypeReferences(r).map((t) => t.name);
     expect(names).toEqual(expect.arrayContaining(["Bug", "Incident"]));
     expect(extractIssueTypeReferences(r).every((t) => t.kind === REF_KIND.READ)).toBe(true);
@@ -231,23 +315,31 @@ describe("extractIssueTypeReferences", () => {
   it("records a create-issue action's target type as a write", () => {
     const r = rule({ components: [action("jira.issue.create", { issueType: { type: "NAME", value: "Incident" } })] });
     expect(extractIssueTypeReferences(r)).toContainEqual(
-      expect.objectContaining({ name: "Incident", kind: REF_KIND.WRITE })
+      expect.objectContaining({ name: "Incident", kind: REF_KIND.WRITE }),
     );
   });
 
   it("records an edit operation that sets issuetype as a write", () => {
-    const r = rule({ components: [action("jira.issue.edit", {
-      operations: [{ field: { type: "NAME", value: "Issue Type" }, type: "SET", value: { value: "Task" } }],
-    })] });
+    const r = rule({
+      components: [
+        action("jira.issue.edit", {
+          operations: [{ field: { type: "NAME", value: "Issue Type" }, type: "SET", value: { value: "Task" } }],
+        }),
+      ],
+    });
     expect(extractIssueTypeReferences(r)).toContainEqual(
-      expect.objectContaining({ name: "Task", kind: REF_KIND.WRITE })
+      expect.objectContaining({ name: "Task", kind: REF_KIND.WRITE }),
     );
   });
 
   it("pulls issue types out of a JQL condition", () => {
-    const r = rule({ components: [condition("jira.jql.condition", {
-      query: { value: 'issuetype in ("Sub-task", Story) AND status = Done' },
-    })] });
+    const r = rule({
+      components: [
+        condition("jira.jql.condition", {
+          query: { value: 'issuetype in ("Sub-task", Story) AND status = Done' },
+        }),
+      ],
+    });
     const names = extractIssueTypeReferences(r).map((t) => t.name.toLowerCase());
     expect(names).toEqual(expect.arrayContaining(["sub-task", "story"]));
   });
@@ -255,26 +347,45 @@ describe("extractIssueTypeReferences", () => {
   it("records the trigger's own issue-type scope as a trigger reference", () => {
     const r = rule({
       trigger: {
-        id: "t", component: "TRIGGER", type: "jira.issue.event.trigger:created", children: [], conditions: [],
+        id: "t",
+        component: "TRIGGER",
+        type: "jira.issue.event.trigger:created",
+        children: [],
+        conditions: [],
         value: { issueTypes: [{ type: "NAME", value: "Epic" }] },
       },
     });
     expect(extractIssueTypeReferences(r)).toContainEqual(
-      expect.objectContaining({ name: "Epic", kind: REF_KIND.TRIGGER })
+      expect.objectContaining({ name: "Epic", kind: REF_KIND.TRIGGER }),
     );
   });
 
   it("collapses the same type across components to one entry per direction", () => {
-    const r = rule({ components: [
-      condition("jira.issue.condition", { selectedField: { type: "ID", value: "issuetype" }, compareValue: { value: "Bug" } }),
-      condition("jira.issue.condition", { selectedField: { type: "ID", value: "type" }, compareValue: { value: "Bug" } }),
-    ] });
+    const r = rule({
+      components: [
+        condition("jira.issue.condition", {
+          selectedField: { type: "ID", value: "issuetype" },
+          compareValue: { value: "Bug" },
+        }),
+        condition("jira.issue.condition", {
+          selectedField: { type: "ID", value: "type" },
+          compareValue: { value: "Bug" },
+        }),
+      ],
+    });
     const bugReads = extractIssueTypeReferences(r).filter((t) => t.name === "Bug" && t.kind === REF_KIND.READ);
     expect(bugReads).toHaveLength(1);
   });
 
   it("ignores conditions on fields other than issue type", () => {
-    const r = rule({ components: [condition("jira.issue.condition", { selectedField: { type: "ID", value: "status" }, compareValue: { value: "Done" } })] });
+    const r = rule({
+      components: [
+        condition("jira.issue.condition", {
+          selectedField: { type: "ID", value: "status" },
+          compareValue: { value: "Done" },
+        }),
+      ],
+    });
     expect(extractIssueTypeReferences(r)).toEqual([]);
   });
 });
@@ -288,25 +399,41 @@ describe("extractUserReferences", () => {
   });
 
   it("records an edit operation that sets a user field", () => {
-    const r = rule({ components: [action("jira.issue.edit", {
-      operations: [{ field: { type: "NAME", value: "Reviewer (User Picker)" }, type: "SET", value: { accountId: ACCT } }],
-    })] });
+    const r = rule({
+      components: [
+        action("jira.issue.edit", {
+          operations: [
+            { field: { type: "NAME", value: "Reviewer (User Picker)" }, type: "SET", value: { accountId: ACCT } },
+          ],
+        }),
+      ],
+    });
     expect(extractUserReferences(r)).toContainEqual(expect.objectContaining({ id: ACCT, kind: REF_KIND.WRITE }));
   });
 
   it("records a condition on the assignee being a specific account as a read", () => {
-    const r = rule({ components: [condition("jira.issue.condition", {
-      selectedField: { type: "ID", value: "assignee" }, compareValue: { value: ACCT },
-    })] });
+    const r = rule({
+      components: [
+        condition("jira.issue.condition", {
+          selectedField: { type: "ID", value: "assignee" },
+          compareValue: { value: ACCT },
+        }),
+      ],
+    });
     expect(extractUserReferences(r)).toContainEqual(expect.objectContaining({ id: ACCT, kind: REF_KIND.READ }));
   });
 
   it("ignores {{initiator}}, 'automatic' and bare display names", () => {
-    const r = rule({ components: [
-      action("jira.issue.assign", { assignee: { type: "COPY", value: "{{initiator.accountId}}" } }),
-      action("jira.issue.assign", { assignee: { type: "NAME", value: "automatic" } }),
-      condition("jira.issue.condition", { selectedField: { value: "reporter" }, compareValue: { value: "Jane Doe" } }),
-    ] });
+    const r = rule({
+      components: [
+        action("jira.issue.assign", { assignee: { type: "COPY", value: "{{initiator.accountId}}" } }),
+        action("jira.issue.assign", { assignee: { type: "NAME", value: "automatic" } }),
+        condition("jira.issue.condition", {
+          selectedField: { value: "reporter" },
+          compareValue: { value: "Jane Doe" },
+        }),
+      ],
+    });
     expect(extractUserReferences(r)).toEqual([]);
   });
 });
@@ -322,7 +449,14 @@ describe("extractProjectReferences", () => {
 
   it("parses project ids out of trigger event filters", () => {
     const r = rule({
-      trigger: { id: "t", component: "TRIGGER", type: "x", value: { eventFilters: [ARI("10061"), ARI("10027")] }, children: [], conditions: [] },
+      trigger: {
+        id: "t",
+        component: "TRIGGER",
+        type: "x",
+        value: { eventFilters: [ARI("10061"), ARI("10027")] },
+        children: [],
+        conditions: [],
+      },
     });
     expect(extractProjectReferences(r)).toEqual(["10027", "10061"]);
   });
@@ -348,7 +482,9 @@ describe("countComponents", () => {
 
 describe("extractOutboundHosts", () => {
   it("collects hosts from web request actions", () => {
-    const r = rule({ components: [action("jira.issue.outgoing.webhook", { url: "https://graph.microsoft.com/v1.0/users" })] });
+    const r = rule({
+      components: [action("jira.issue.outgoing.webhook", { url: "https://graph.microsoft.com/v1.0/users" })],
+    });
     expect(extractOutboundHosts(r)).toEqual(["graph.microsoft.com"]);
   });
 
@@ -360,12 +496,14 @@ describe("extractOutboundHosts", () => {
 
 describe("extractActionKinds", () => {
   it("buckets each action by its component type", () => {
-    const r = rule({ components: [
-      action("jira.issue.transition", { destinationStatus: { type: "NAME", value: "Done" } }),
-      action("jira.issue.create", { issueType: { type: "NAME", value: "Bug" } }),
-      action("jira.issue.outgoing.webhook", { url: "https://example.com/hook" }),
-      action("jira.issue.assign", { assignee: { type: "ID", value: "abc" } }),
-    ] });
+    const r = rule({
+      components: [
+        action("jira.issue.transition", { destinationStatus: { type: "NAME", value: "Done" } }),
+        action("jira.issue.create", { issueType: { type: "NAME", value: "Bug" } }),
+        action("jira.issue.outgoing.webhook", { url: "https://example.com/hook" }),
+        action("jira.issue.assign", { assignee: { type: "ID", value: "abc" } }),
+      ],
+    });
     const kinds = extractActionKinds(r);
     expect(kinds).toEqual(expect.arrayContaining(["transition", "create-issue", "outbound-http", "assign"]));
   });
@@ -384,8 +522,28 @@ describe("extractActionKinds", () => {
 describe("computeBlastEntries", () => {
   it("scores every summary and lifts fan-out for a rule that sits in a cascade loop", () => {
     const summaries = [
-      { id: "1", enabled: true, triggerType: "jira.jql.scheduled", canOtherRuleTrigger: true, projectIds: [], statusRefs: [], writesFields: ["A"], actionKinds: ["transition"], risks: [] },
-      { id: "2", enabled: true, triggerType: "jira.manual.trigger.issue", canOtherRuleTrigger: false, projectIds: ["p1"], statusRefs: [], writesFields: [], actionKinds: [], risks: [] },
+      {
+        id: "1",
+        enabled: true,
+        triggerType: "jira.jql.scheduled",
+        canOtherRuleTrigger: true,
+        projectIds: [],
+        statusRefs: [],
+        writesFields: ["A"],
+        actionKinds: ["transition"],
+        risks: [],
+      },
+      {
+        id: "2",
+        enabled: true,
+        triggerType: "jira.manual.trigger.issue",
+        canOtherRuleTrigger: false,
+        projectIds: ["p1"],
+        statusRefs: [],
+        writesFields: [],
+        actionKinds: [],
+        risks: [],
+      },
     ];
     const cascades = [
       { sourceId: "1", targetId: "1", field: "A", sourceName: "one", targetName: "one", selfTriggering: true },
@@ -405,19 +563,29 @@ describe("analyzeRuleRisks", () => {
   // cannot appear. So the check could only ever return false, and a site with 86
   // credential-bearing rules was reported as storing none.
   it("flags a rule carrying a live credential as high severity", () => {
-    const r = rule({ components: [action("jira.issue.outgoing.webhook", { customBody: "grant_type=client_credentials&client_secret=Xq7~vN2rL8pZ" })] });
+    const r = rule({
+      components: [
+        action("jira.issue.outgoing.webhook", {
+          customBody: "grant_type=client_credentials&client_secret=Xq7~vN2rL8pZ",
+        }),
+      ],
+    });
     const risks = analyzeRuleRisks(r);
-    expect(risks).toContainEqual(expect.objectContaining({
-      code: "embedded-credential",
-      severity: "high",
-      kinds: ["form-encoded-secret"],
-    }));
+    expect(risks).toContainEqual(
+      expect.objectContaining({
+        code: "embedded-credential",
+        severity: "high",
+        kinds: ["form-encoded-secret"],
+      }),
+    );
   });
 
   it("names every kind of credential the rule carries", () => {
     const r = rule({
       trigger: { component: "TRIGGER", type: "jira.incoming.webhook", value: { webhookToken: "9f2c4a1e77" } },
-      components: [action("jira.issue.outgoing.webhook", { url: "https://hooks.slack.com/services/T00/B00/XXXXXXXXXXXX" })],
+      components: [
+        action("jira.issue.outgoing.webhook", { url: "https://hooks.slack.com/services/T00/B00/XXXXXXXXXXXX" }),
+      ],
     });
     const credential = analyzeRuleRisks(r).find((risk) => risk.code === "embedded-credential");
     expect(credential.kinds).toEqual(["incoming-webhook-url", "webhook-token"]);
@@ -426,15 +594,23 @@ describe("analyzeRuleRisks", () => {
   it("does not flag a rule whose secret is a smart-value reference", () => {
     // This is the remediation the finding advises. Flagging it would mean a rule could
     // never clear the finding by doing the right thing.
-    const r = rule({ components: [action("jira.issue.outgoing.webhook", { customBody: "client_secret={{graphSecret}}" })] });
+    const r = rule({
+      components: [action("jira.issue.outgoing.webhook", { customBody: "client_secret={{graphSecret}}" })],
+    });
     expect(analyzeRuleRisks(r).map((risk) => risk.code)).not.toContain("embedded-credential");
   });
 
   it("still flags a rule read from an already-redacted snapshot", () => {
-    const r = rule({ components: [action("jira.issue.outgoing.webhook", { customBody: "client_secret=[[REDACTED:a1b2c3d4]]" })] });
-    expect(analyzeRuleRisks(r)).toContainEqual(expect.objectContaining({
-      code: "embedded-credential", severity: "high", kinds: ["redacted"],
-    }));
+    const r = rule({
+      components: [action("jira.issue.outgoing.webhook", { customBody: "client_secret=[[REDACTED:a1b2c3d4]]" })],
+    });
+    expect(analyzeRuleRisks(r)).toContainEqual(
+      expect.objectContaining({
+        code: "embedded-credential",
+        severity: "high",
+        kinds: ["redacted"],
+      }),
+    );
   });
 
   it("flags a rule with a trigger but no actions", () => {
@@ -447,10 +623,16 @@ describe("analyzeRuleRisks", () => {
   });
 
   it("flags external HTTP but not calls back to Atlassian", () => {
-    const external = rule({ components: [action("jira.issue.outgoing.webhook", { url: "https://graph.microsoft.com/x" })] });
-    expect(analyzeRuleRisks(external)).toContainEqual(expect.objectContaining({ code: "external-http", hosts: ["graph.microsoft.com"] }));
+    const external = rule({
+      components: [action("jira.issue.outgoing.webhook", { url: "https://graph.microsoft.com/x" })],
+    });
+    expect(analyzeRuleRisks(external)).toContainEqual(
+      expect.objectContaining({ code: "external-http", hosts: ["graph.microsoft.com"] }),
+    );
 
-    const internal = rule({ components: [action("jira.issue.outgoing.webhook", { url: "https://acme.atlassian.net/rest/api/3/issue" })] });
+    const internal = rule({
+      components: [action("jira.issue.outgoing.webhook", { url: "https://acme.atlassian.net/rest/api/3/issue" })],
+    });
     expect(analyzeRuleRisks(internal).map((x) => x.code)).not.toContain("external-http");
   });
 
@@ -468,7 +650,12 @@ describe("analyzeRuleRisks", () => {
 
 describe("summarizeRule", () => {
   it("produces a compact row carrying the fields a table needs", () => {
-    const r = rule({ id: 42, name: "Set due date", components: [editAction("Due Date")], projects: [{ projectId: "10518" }] });
+    const r = rule({
+      id: 42,
+      name: "Set due date",
+      components: [editAction("Due Date")],
+      projects: [{ projectId: "10518" }],
+    });
     expect(summarizeRule(r)).toMatchObject({
       id: 42,
       name: "Set due date",
@@ -481,7 +668,14 @@ describe("summarizeRule", () => {
   });
 
   it("reports the most severe risk present", () => {
-    const r = rule({ components: [action("jira.issue.outgoing.webhook", { url: "https://x.example.com", customBody: "client_secret=[[REDACTED:aaaaaaaa]]" })] });
+    const r = rule({
+      components: [
+        action("jira.issue.outgoing.webhook", {
+          url: "https://x.example.com",
+          customBody: "client_secret=[[REDACTED:aaaaaaaa]]",
+        }),
+      ],
+    });
     expect(summarizeRule(r).topSeverity).toBe("high");
   });
 
@@ -506,21 +700,35 @@ describe("scopesOverlap", () => {
 });
 
 describe("findTriggerCascades", () => {
-  const writer = (id, field, projectId) => rule({
-    id, name: `writer ${id}`, canOtherRuleTrigger: true,
-    components: [editAction(field)],
-    projects: projectId ? [{ projectId }] : [],
-  });
-  const listener = (id, field, projectId) => rule({
-    id, name: `listener ${id}`,
-    trigger: { id: `t${id}`, component: "TRIGGER", type: "jira.issue.field.changed", value: { fields: [{ type: "fieldName", value: field }] }, children: [], conditions: [] },
-    components: [editAction("Something Else")],
-    projects: projectId ? [{ projectId }] : [],
-  });
+  const writer = (id, field, projectId) =>
+    rule({
+      id,
+      name: `writer ${id}`,
+      canOtherRuleTrigger: true,
+      components: [editAction(field)],
+      projects: projectId ? [{ projectId }] : [],
+    });
+  const listener = (id, field, projectId) =>
+    rule({
+      id,
+      name: `listener ${id}`,
+      trigger: {
+        id: `t${id}`,
+        component: "TRIGGER",
+        type: "jira.issue.field.changed",
+        value: { fields: [{ type: "fieldName", value: field }] },
+        children: [],
+        conditions: [],
+      },
+      components: [editAction("Something Else")],
+      projects: projectId ? [{ projectId }] : [],
+    });
 
   it("links a rule that writes a field to a rule that triggers on it", () => {
     const cascades = findTriggerCascades([writer(1, "Actual SEOBD", "10518"), listener(2, "Actual SEOBD", "10518")]);
-    expect(cascades).toContainEqual(expect.objectContaining({ sourceId: 1, targetId: 2, field: "Actual SEOBD", selfTriggering: false }));
+    expect(cascades).toContainEqual(
+      expect.objectContaining({ sourceId: 1, targetId: 2, field: "Actual SEOBD", selfTriggering: false }),
+    );
   });
 
   it("ignores rules in projects that cannot see each other's issues", () => {
@@ -534,15 +742,31 @@ describe("findTriggerCascades", () => {
 
   it("marks a rule that triggers on a field it also writes as self-triggering", () => {
     const loop = rule({
-      id: 7, name: "loop", canOtherRuleTrigger: true,
-      trigger: { id: "t7", component: "TRIGGER", type: "jira.issue.field.changed", value: { fields: [{ type: "fieldName", value: "Loopy" }] }, children: [], conditions: [] },
+      id: 7,
+      name: "loop",
+      canOtherRuleTrigger: true,
+      trigger: {
+        id: "t7",
+        component: "TRIGGER",
+        type: "jira.issue.field.changed",
+        value: { fields: [{ type: "fieldName", value: "Loopy" }] },
+        children: [],
+        conditions: [],
+      },
       components: [editAction("Loopy")],
     });
-    expect(findTriggerCascades([loop])).toContainEqual(expect.objectContaining({ sourceId: 7, targetId: 7, selfTriggering: true }));
+    expect(findTriggerCascades([loop])).toContainEqual(
+      expect.objectContaining({ sourceId: 7, targetId: 7, selfTriggering: true }),
+    );
   });
 
   it("reports one edge per rule pair and field, not one per component", () => {
-    const noisy = rule({ id: 1, canOtherRuleTrigger: true, components: [editAction("F"), editAction("F")], projects: [] });
+    const noisy = rule({
+      id: 1,
+      canOtherRuleTrigger: true,
+      components: [editAction("F"), editAction("F")],
+      projects: [],
+    });
     expect(findTriggerCascades([noisy, listener(2, "F")])).toHaveLength(1);
   });
 
@@ -553,13 +777,27 @@ describe("findTriggerCascades", () => {
 
 describe("extractEventReferences", () => {
   it("reads the event a trigger listens for", () => {
-    const r = rule({ trigger: { component: "TRIGGER", type: "jira.proforma.form.attached.trigger", value: {}, children: [], conditions: [] } });
-    expect(extractEventReferences(r)).toContainEqual({ event: "form-attached", kind: REF_KIND.TRIGGER, via: "jira.proforma.form.attached.trigger" });
+    const r = rule({
+      trigger: {
+        component: "TRIGGER",
+        type: "jira.proforma.form.attached.trigger",
+        value: {},
+        children: [],
+        conditions: [],
+      },
+    });
+    expect(extractEventReferences(r)).toContainEqual({
+      event: "form-attached",
+      kind: REF_KIND.TRIGGER,
+      via: "jira.proforma.form.attached.trigger",
+    });
   });
 
   it("reads the event an action can produce", () => {
     const r = rule({ components: [action("jira.proforma.form.add.action", {})] });
-    expect(extractEventReferences(r)).toContainEqual(expect.objectContaining({ event: "form-attached", kind: REF_KIND.WRITE }));
+    expect(extractEventReferences(r)).toContainEqual(
+      expect.objectContaining({ event: "form-attached", kind: REF_KIND.WRITE }),
+    );
   });
 
   it("finds nothing on a rule that neither listens for nor produces a recognised event", () => {
@@ -573,22 +811,41 @@ describe("extractEventReferences", () => {
 // id 33271508, also canOtherRuleTrigger: true) and deletes whatever it finds. Neither of
 // those rules writes a field, so findTriggerCascades never saw this edge.
 describe("findEventCascades", () => {
-  const attacher = (id, projectId) => rule({
-    id, name: `attacher ${id}`, canOtherRuleTrigger: true,
-    trigger: { component: "TRIGGER", type: "jira.issue.event.trigger:created", value: {}, children: [], conditions: [] },
-    components: [action("jira.proforma.form.add.action", {})],
-    projects: projectId ? [{ projectId }] : [],
-  });
-  const deleter = (id, projectId) => rule({
-    id, name: `deleter ${id}`,
-    trigger: { component: "TRIGGER", type: "jira.proforma.form.attached.trigger", value: {}, children: [], conditions: [] },
-    components: [action("jira.issue.outgoing.webhook", { method: "DELETE" })],
-    projects: projectId ? [{ projectId }] : [],
-  });
+  const attacher = (id, projectId) =>
+    rule({
+      id,
+      name: `attacher ${id}`,
+      canOtherRuleTrigger: true,
+      trigger: {
+        component: "TRIGGER",
+        type: "jira.issue.event.trigger:created",
+        value: {},
+        children: [],
+        conditions: [],
+      },
+      components: [action("jira.proforma.form.add.action", {})],
+      projects: projectId ? [{ projectId }] : [],
+    });
+  const deleter = (id, projectId) =>
+    rule({
+      id,
+      name: `deleter ${id}`,
+      trigger: {
+        component: "TRIGGER",
+        type: "jira.proforma.form.attached.trigger",
+        value: {},
+        children: [],
+        conditions: [],
+      },
+      components: [action("jira.issue.outgoing.webhook", { method: "DELETE" })],
+      projects: projectId ? [{ projectId }] : [],
+    });
 
   it("links a rule whose action attaches a form to a rule that triggers on the form being attached", () => {
     const cascades = findEventCascades([attacher(1, "10104"), deleter(2, "10104")]);
-    expect(cascades).toContainEqual(expect.objectContaining({ field: "form-attached", sourceId: 1, targetId: 2, selfTriggering: false }));
+    expect(cascades).toContainEqual(
+      expect.objectContaining({ field: "form-attached", sourceId: 1, targetId: 2, selfTriggering: false }),
+    );
   });
 
   it("ignores rules in projects that cannot see each other's issues", () => {
@@ -603,13 +860,22 @@ describe("findEventCascades", () => {
   it("does not pair issue creation with a form-attached trigger", () => {
     // jira.issue.create fires its "created" event on the NEW issue, which this module does
     // not (yet) resolve to a project -- see the comment above EVENT_TRIGGER_PATTERNS.
-    const creator = rule({ id: 1, canOtherRuleTrigger: true, components: [action("jira.issue.create", {})], projects: [{ projectId: "10104" }] });
+    const creator = rule({
+      id: 1,
+      canOtherRuleTrigger: true,
+      components: [action("jira.issue.create", {})],
+      projects: [{ projectId: "10104" }],
+    });
     expect(findEventCascades([creator, deleter(2, "10104")])).toEqual([]);
   });
 });
 
 describe("findUnconditionalDestructiveActions", () => {
-  const deleteWebhook = () => action("jira.issue.outgoing.webhook", { method: "DELETE", url: "https://acme.atlassian.net/rest/api/3/issue/1/form/2" });
+  const deleteWebhook = () =>
+    action("jira.issue.outgoing.webhook", {
+      method: "DELETE",
+      url: "https://acme.atlassian.net/rest/api/3/issue/1/form/2",
+    });
 
   it("flags a destructive action with nothing gating it", () => {
     const r = rule({ components: [deleteWebhook()] });
@@ -639,7 +905,9 @@ describe("findUnconditionalDestructiveActions", () => {
   });
 
   it("treats clearing a field's value as destructive, not just delete actions", () => {
-    const clearOp = action("jira.issue.edit", { operations: [{ field: { type: "NAME", value: "Owner" }, type: "SET", value: null }] });
+    const clearOp = action("jira.issue.edit", {
+      operations: [{ field: { type: "NAME", value: "Owner" }, type: "SET", value: null }],
+    });
     expect(findUnconditionalDestructiveActions(rule({ components: [clearOp] }))).toHaveLength(1);
   });
 
@@ -651,7 +919,9 @@ describe("findUnconditionalDestructiveActions", () => {
 describe("analyzeRuleRisks: unconditional-destructive and silent-failure", () => {
   it("flags an unguarded destructive action", () => {
     const r = rule({ components: [action("jira.issue.outgoing.webhook", { method: "DELETE" })] });
-    expect(analyzeRuleRisks(r)).toContainEqual(expect.objectContaining({ code: "unconditional-destructive", severity: "medium" }));
+    expect(analyzeRuleRisks(r)).toContainEqual(
+      expect.objectContaining({ code: "unconditional-destructive", severity: "medium" }),
+    );
   });
 
   it("does not flag a destructive action gated by two or more conditions", () => {
@@ -666,12 +936,18 @@ describe("analyzeRuleRisks: unconditional-destructive and silent-failure", () =>
   });
 
   it("flags a rule that cannot notify on a failed outbound call", () => {
-    const r = rule({ notifyOnError: "NEVER", components: [action("jira.issue.outgoing.webhook", { url: "https://acme.atlassian.net/x" })] });
+    const r = rule({
+      notifyOnError: "NEVER",
+      components: [action("jira.issue.outgoing.webhook", { url: "https://acme.atlassian.net/x" })],
+    });
     expect(analyzeRuleRisks(r)).toContainEqual(expect.objectContaining({ code: "silent-failure", severity: "low" }));
   });
 
   it("does not flag silent-failure when notifications are on", () => {
-    const r = rule({ notifyOnError: "FIRSTERROR", components: [action("jira.issue.outgoing.webhook", { url: "https://acme.atlassian.net/x" })] });
+    const r = rule({
+      notifyOnError: "FIRSTERROR",
+      components: [action("jira.issue.outgoing.webhook", { url: "https://acme.atlassian.net/x" })],
+    });
     expect(analyzeRuleRisks(r).map((x) => x.code)).not.toContain("silent-failure");
   });
 
@@ -682,23 +958,36 @@ describe("analyzeRuleRisks: unconditional-destructive and silent-failure", () =>
 });
 
 describe("findFieldContradictions", () => {
-  const setter = (id, field, value, projectId) => rule({
-    id, name: `setter ${id}`,
-    components: [action("jira.issue.edit", { operations: [{ field: { type: "NAME", value: field }, type: "SET", value }] })],
-    projects: projectId ? [{ projectId }] : [],
-  });
+  const setter = (id, field, value, projectId) =>
+    rule({
+      id,
+      name: `setter ${id}`,
+      components: [
+        action("jira.issue.edit", { operations: [{ field: { type: "NAME", value: field }, type: "SET", value }] }),
+      ],
+      projects: projectId ? [{ projectId }] : [],
+    });
 
   it("flags two enabled rules in overlapping scope that set the same field to different literals", () => {
-    const contradictions = findFieldContradictions([setter(1, "Priority", "High", "10104"), setter(2, "Priority", "Low", "10104")]);
-    expect(contradictions).toContainEqual(expect.objectContaining({ field: "Priority", aId: 1, bId: 2, aValue: "High", bValue: "Low" }));
+    const contradictions = findFieldContradictions([
+      setter(1, "Priority", "High", "10104"),
+      setter(2, "Priority", "Low", "10104"),
+    ]);
+    expect(contradictions).toContainEqual(
+      expect.objectContaining({ field: "Priority", aId: 1, bId: 2, aValue: "High", bValue: "Low" }),
+    );
   });
 
   it("does not flag the same literal value set by two rules", () => {
-    expect(findFieldContradictions([setter(1, "Priority", "High", "10104"), setter(2, "Priority", "High", "10104")])).toEqual([]);
+    expect(
+      findFieldContradictions([setter(1, "Priority", "High", "10104"), setter(2, "Priority", "High", "10104")]),
+    ).toEqual([]);
   });
 
   it("ignores rules in projects that cannot see each other's issues", () => {
-    expect(findFieldContradictions([setter(1, "Priority", "High", "10104"), setter(2, "Priority", "Low", "99999")])).toEqual([]);
+    expect(
+      findFieldContradictions([setter(1, "Priority", "High", "10104"), setter(2, "Priority", "Low", "99999")]),
+    ).toEqual([]);
   });
 
   it("ignores a disabled rule's literal", () => {
@@ -714,30 +1003,49 @@ describe("findFieldContradictions", () => {
 });
 
 describe("findCompetingRulePairs", () => {
-  const triggered = (id, { projectId = "10104", issueType = null, triggerType = "jira.issue.event.trigger:created" } = {}) => rule({
-    id, name: `rule ${id}`,
-    trigger: { component: "TRIGGER", type: triggerType, value: {}, children: [], conditions: [] },
-    components: issueType
-      ? [condition("jira.issue.condition", { selectedField: { type: "ID", value: "issuetype" }, comparison: "EQUALS", compareValue: { value: issueType } })]
-      : [],
-    projects: [{ projectId }],
-  });
+  const triggered = (
+    id,
+    { projectId = "10104", issueType = null, triggerType = "jira.issue.event.trigger:created" } = {},
+  ) =>
+    rule({
+      id,
+      name: `rule ${id}`,
+      trigger: { component: "TRIGGER", type: triggerType, value: {}, children: [], conditions: [] },
+      components: issueType
+        ? [
+            condition("jira.issue.condition", {
+              selectedField: { type: "ID", value: "issuetype" },
+              comparison: "EQUALS",
+              compareValue: { value: issueType },
+            }),
+          ]
+        : [],
+      projects: [{ projectId }],
+    });
 
   it("pairs two enabled rules that share a trigger type and scope", () => {
     const pairs = findCompetingRulePairs([triggered(1), triggered(2)]);
-    expect(pairs).toContainEqual(expect.objectContaining({ triggerType: "jira.issue.event.trigger:created", aId: 1, bId: 2 }));
+    expect(pairs).toContainEqual(
+      expect.objectContaining({ triggerType: "jira.issue.event.trigger:created", aId: 1, bId: 2 }),
+    );
   });
 
   it("does not pair rules with different trigger types", () => {
-    expect(findCompetingRulePairs([triggered(1), triggered(2, { triggerType: "jira.issue.event.trigger:transitioned" })])).toEqual([]);
+    expect(
+      findCompetingRulePairs([triggered(1), triggered(2, { triggerType: "jira.issue.event.trigger:transitioned" })]),
+    ).toEqual([]);
   });
 
   it("does not pair rules whose projects cannot see the same issue", () => {
-    expect(findCompetingRulePairs([triggered(1, { projectId: "10104" }), triggered(2, { projectId: "99999" })])).toEqual([]);
+    expect(
+      findCompetingRulePairs([triggered(1, { projectId: "10104" }), triggered(2, { projectId: "99999" })]),
+    ).toEqual([]);
   });
 
   it("does not pair rules scoped to different, non-overlapping issue types", () => {
-    expect(findCompetingRulePairs([triggered(1, { issueType: "Bug" }), triggered(2, { issueType: "Story" })])).toEqual([]);
+    expect(findCompetingRulePairs([triggered(1, { issueType: "Bug" }), triggered(2, { issueType: "Story" })])).toEqual(
+      [],
+    );
   });
 
   it("pairs rules scoped to the same issue type", () => {
@@ -750,19 +1058,35 @@ describe("buildReferenceIndex", () => {
   it("maps a field to the rules that write, read and trigger on it", () => {
     const rules = [
       rule({ id: 1, components: [editAction("Shared")] }),
-      rule({ id: 2, components: [condition("jira.issue.condition", { selectedField: { type: "NAME", value: "Shared" }, compareValue: { value: "x" } })] }),
+      rule({
+        id: 2,
+        components: [
+          condition("jira.issue.condition", {
+            selectedField: { type: "NAME", value: "Shared" },
+            compareValue: { value: "x" },
+          }),
+        ],
+      }),
     ];
     const { fields } = buildReferenceIndex(rules);
     expect(fields.get("shared")).toMatchObject({ label: "Shared", write: [1], read: [2], trigger: [] });
   });
 
   it("indexes statuses alongside fields", () => {
-    const rules = [rule({ id: 5, components: [action("jira.issue.transition", { destinationStatus: { type: "NAME", value: "Done" } })] })];
+    const rules = [
+      rule({
+        id: 5,
+        components: [action("jira.issue.transition", { destinationStatus: { type: "NAME", value: "Done" } })],
+      }),
+    ];
     expect(buildReferenceIndex(rules).statuses.get("done")).toMatchObject({ label: "Done", write: [5] });
   });
 
   it("matches field names case-insensitively so casing drift does not split an entry", () => {
-    const rules = [rule({ id: 1, components: [editAction("Story Points")] }), rule({ id: 2, components: [editAction("story points")] })];
+    const rules = [
+      rule({ id: 1, components: [editAction("Story Points")] }),
+      rule({ id: 2, components: [editAction("story points")] }),
+    ];
     const { fields } = buildReferenceIndex(rules);
     expect(fields.size).toBe(1);
     expect(fields.get("story points").write).toEqual([1, 2]);
@@ -777,12 +1101,22 @@ describe("buildReferenceIndex", () => {
 
 describe("compact findings", () => {
   const summary = {
-    id: 7, name: "Send to approval", enabled: false, triggerType: "jira.jql.scheduled",
-    updated: 1700000000000, projectIds: ["1", "2", "3"], writesFields: ["A", "B"],
+    id: 7,
+    name: "Send to approval",
+    enabled: false,
+    triggerType: "jira.jql.scheduled",
+    updated: 1700000000000,
+    projectIds: ["1", "2", "3"],
+    writesFields: ["A", "B"],
     topSeverity: "high",
     risks: [
       { code: "embedded-credential", severity: "high", detail: "Contains a credential stored in plaintext in Jira." },
-      { code: "external-http", severity: "low", detail: "Sends data outside Atlassian to: graph.microsoft.com.", hosts: ["graph.microsoft.com"] },
+      {
+        code: "external-http",
+        severity: "low",
+        detail: "Sends data outside Atlassian to: graph.microsoft.com.",
+        hosts: ["graph.microsoft.com"],
+      },
       { code: "disabled", severity: "info", detail: "Rule is disabled and was last edited 90 days ago.", ageDays: 90 },
     ],
   };
@@ -804,8 +1138,12 @@ describe("compact findings", () => {
   it("round-trips everything the findings list renders", () => {
     const expanded = expandFinding(compactFinding(summary));
     expect(expanded).toMatchObject({
-      id: 7, name: "Send to approval", enabled: false,
-      triggerType: "jira.jql.scheduled", projectCount: 3, topSeverity: "high",
+      id: 7,
+      name: "Send to approval",
+      enabled: false,
+      triggerType: "jira.jql.scheduled",
+      projectCount: 3,
+      topSeverity: "high",
     });
     expect(expanded.risks.map((r) => r.code)).toEqual(["embedded-credential", "external-http", "disabled"]);
   });
@@ -819,8 +1157,14 @@ describe("compact findings", () => {
 
 describe("buildFindingsDocument", () => {
   const withRisk = (id, severity) => ({
-    id, name: `rule ${id}`, enabled: true, triggerType: null, updated: 1,
-    projectIds: [], writesFields: [], topSeverity: severity,
+    id,
+    name: `rule ${id}`,
+    enabled: true,
+    triggerType: null,
+    updated: 1,
+    projectIds: [],
+    writesFields: [],
+    topSeverity: severity,
     risks: [{ code: "x", severity }],
   });
 
@@ -848,8 +1192,15 @@ describe("buildFindingsDocument", () => {
 
 describe("summarizeAutomationHealth", () => {
   const mk = (id, { enabled = true, codes = [] } = {}) => ({
-    id, name: `r${id}`, enabled, triggerType: null, updated: 1, projectIds: [], writesFields: [],
-    topSeverity: codes[0] ?? null, risks: codes.map((code) => ({ code, severity: "high" })),
+    id,
+    name: `r${id}`,
+    enabled,
+    triggerType: null,
+    updated: 1,
+    projectIds: [],
+    writesFields: [],
+    topSeverity: codes[0] ?? null,
+    risks: codes.map((code) => ({ code, severity: "high" })),
   });
 
   it("counts the inputs the health score scores as rates", () => {
@@ -860,7 +1211,11 @@ describe("summarizeAutomationHealth", () => {
       mk(4),
     ];
     expect(summarizeAutomationHealth(summaries, [])).toMatchObject({
-      available: true, ruleCount: 4, disabledCount: 1, credentialRuleCount: 1, externalHttpCount: 1,
+      available: true,
+      ruleCount: 4,
+      disabledCount: 1,
+      credentialRuleCount: 1,
+      externalHttpCount: 1,
     });
   });
 
@@ -882,7 +1237,14 @@ describe("summarizeAutomationHealth", () => {
 
 describe("buildRuleDirectory", () => {
   const summaries = [
-    { id: 1, name: "Alpha", enabled: true, triggerType: "jira.issue.created", projectIds: ["10015", "10016"], authorAccountId: "acc-1" },
+    {
+      id: 1,
+      name: "Alpha",
+      enabled: true,
+      triggerType: "jira.issue.created",
+      projectIds: ["10015", "10016"],
+      authorAccountId: "acc-1",
+    },
     { id: 2, name: "Beta", enabled: false, triggerType: null, projectIds: [] },
   ];
 
@@ -896,7 +1258,14 @@ describe("buildRuleDirectory", () => {
 
   it("round-trips through hydration without losing state, including the author", () => {
     const byId = hydrateRuleDirectory(buildRuleDirectory(summaries));
-    expect(byId.get(1)).toEqual({ id: 1, name: "Alpha", enabled: true, triggerType: "jira.issue.created", projectCount: 2, authorAccountId: "acc-1" });
+    expect(byId.get(1)).toEqual({
+      id: 1,
+      name: "Alpha",
+      enabled: true,
+      triggerType: "jira.issue.created",
+      projectCount: 2,
+      authorAccountId: "acc-1",
+    });
     expect(byId.get(2)).toMatchObject({ enabled: false, triggerType: null, authorAccountId: null });
   });
 
@@ -916,14 +1285,31 @@ describe("analyzeRules", () => {
     rule({ id: 1, components: [editAction("Shared Field")] }),
     rule({
       id: 2,
-      trigger: { id: "t2", component: "TRIGGER", type: "jira.issue.field.changed", value: { fields: [{ type: "fieldName", value: "Shared Field" }] }, children: [], conditions: [] },
+      trigger: {
+        id: "t2",
+        component: "TRIGGER",
+        type: "jira.issue.field.changed",
+        value: { fields: [{ type: "fieldName", value: "Shared Field" }] },
+        children: [],
+        conditions: [],
+      },
       components: [action("jira.issue.transition", { destinationStatus: { type: "NAME", value: "Done" } })],
     }),
   ];
 
   it("returns every document the tab needs from one pass", () => {
     const out = analyzeRules(rules, { source: "export.json" });
-    expect(Object.keys(out).sort()).toEqual(["analysis", "blast", "cascades", "directory", "fields", "findings", "issueTypes", "statuses", "users"]);
+    expect(Object.keys(out).sort()).toEqual([
+      "analysis",
+      "blast",
+      "cascades",
+      "directory",
+      "fields",
+      "findings",
+      "issueTypes",
+      "statuses",
+      "users",
+    ]);
     expect(out.analysis).toMatchObject({ schemaVersion: 1, source: "export.json" });
   });
 
@@ -952,7 +1338,7 @@ describe("analyzeRules", () => {
 
   it("caps rule ids per direction but reports the true count", () => {
     const writers = Array.from({ length: MAX_RULE_IDS_PER_REFERENCE + 15 }, (_, i) =>
-      rule({ id: i + 1, components: [editAction("Popular")] })
+      rule({ id: i + 1, components: [editAction("Popular")] }),
     );
     const entry = analyzeRules(writers).fields.entries.find((e) => e.label === "Popular");
     expect(entry.write).toHaveLength(MAX_RULE_IDS_PER_REFERENCE);
@@ -986,13 +1372,27 @@ describe("analyzeRules", () => {
   // in summaries that could not have been derived from the rules, and checking they are
   // used rather than silently recomputed.
   it("buildReferenceIndex uses precomputed summaries instead of re-deriving them", () => {
-    const planted = [{
-      id: 99, name: "planted", state: "ENABLED", enabled: true, triggerType: null,
-      created: null, updated: null, canOtherRuleTrigger: false,
-      actionCount: 0, conditionCount: 0, componentCount: 0, projectIds: [],
-      fieldRefs: [{ id: null, name: "Only In Summary", kind: REF_KIND.WRITE, via: ["x"] }],
-      statusRefs: [], writesFields: ["Only In Summary"], risks: [], topSeverity: null,
-    }];
+    const planted = [
+      {
+        id: 99,
+        name: "planted",
+        state: "ENABLED",
+        enabled: true,
+        triggerType: null,
+        created: null,
+        updated: null,
+        canOtherRuleTrigger: false,
+        actionCount: 0,
+        conditionCount: 0,
+        componentCount: 0,
+        projectIds: [],
+        fieldRefs: [{ id: null, name: "Only In Summary", kind: REF_KIND.WRITE, via: ["x"] }],
+        statusRefs: [],
+        writesFields: ["Only In Summary"],
+        risks: [],
+        topSeverity: null,
+      },
+    ];
 
     const { fields } = buildReferenceIndex(rules, { summaries: planted });
 
@@ -1002,22 +1402,42 @@ describe("analyzeRules", () => {
 
   it("findTriggerCascades uses precomputed summaries instead of re-deriving them", () => {
     const base = {
-      state: "ENABLED", enabled: true, created: null, updated: null,
-      actionCount: 0, conditionCount: 0, componentCount: 0, projectIds: [],
-      statusRefs: [], risks: [], topSeverity: null,
+      state: "ENABLED",
+      enabled: true,
+      created: null,
+      updated: null,
+      actionCount: 0,
+      conditionCount: 0,
+      componentCount: 0,
+      projectIds: [],
+      statusRefs: [],
+      risks: [],
+      topSeverity: null,
     };
     const planted = [
-      { ...base, id: 501, name: "writer", canOtherRuleTrigger: true, triggerType: null,
-        fieldRefs: [{ id: null, name: "Planted", kind: REF_KIND.WRITE, via: ["x"] }], writesFields: ["Planted"] },
-      { ...base, id: 502, name: "listener", canOtherRuleTrigger: false, triggerType: "jira.issue.field.changed",
-        fieldRefs: [{ id: null, name: "Planted", kind: REF_KIND.TRIGGER, via: ["x"] }], writesFields: [] },
+      {
+        ...base,
+        id: 501,
+        name: "writer",
+        canOtherRuleTrigger: true,
+        triggerType: null,
+        fieldRefs: [{ id: null, name: "Planted", kind: REF_KIND.WRITE, via: ["x"] }],
+        writesFields: ["Planted"],
+      },
+      {
+        ...base,
+        id: 502,
+        name: "listener",
+        canOtherRuleTrigger: false,
+        triggerType: "jira.issue.field.changed",
+        fieldRefs: [{ id: null, name: "Planted", kind: REF_KIND.TRIGGER, via: ["x"] }],
+        writesFields: [],
+      },
     ];
 
     const cascades = findTriggerCascades(rules, { summaries: planted });
 
-    expect(cascades).toEqual([
-      expect.objectContaining({ sourceId: 501, targetId: 502, field: "Planted" }),
-    ]);
+    expect(cascades).toEqual([expect.objectContaining({ sourceId: 501, targetId: 502, field: "Planted" })]);
   });
 });
 
@@ -1025,7 +1445,10 @@ describe("summarizeEstate", () => {
   const rules = [
     rule({ id: 1, components: [editAction("A")] }),
     rule({ id: 2, state: "DISABLED", components: [editAction("B")] }),
-    rule({ id: 3, components: [action("jira.issue.transition", { destinationStatus: { type: "NAME", value: "Done" } })] }),
+    rule({
+      id: 3,
+      components: [action("jira.issue.transition", { destinationStatus: { type: "NAME", value: "Done" } })],
+    }),
   ];
 
   it("counts rules by state", () => {
@@ -1039,13 +1462,24 @@ describe("summarizeEstate", () => {
   });
 
   it("breaks rules down by trigger type, most common first", () => {
-    expect(summarizeEstate(rules).triggerBreakdown[0]).toMatchObject({ type: "jira.issue.event.trigger:created", count: 3 });
+    expect(summarizeEstate(rules).triggerBreakdown[0]).toMatchObject({
+      type: "jira.issue.event.trigger:created",
+      count: 3,
+    });
   });
 
   it("orders risks by severity so the worst appears first", () => {
     const risky = [
       rule({ id: 9, state: "DISABLED", components: [editAction("X")] }),
-      rule({ id: 10, components: [action("jira.issue.outgoing.webhook", { customBody: "client_secret=[[REDACTED:deadbeef]]", url: "https://x.example.com" })] }),
+      rule({
+        id: 10,
+        components: [
+          action("jira.issue.outgoing.webhook", {
+            customBody: "client_secret=[[REDACTED:deadbeef]]",
+            url: "https://x.example.com",
+          }),
+        ],
+      }),
     ];
     expect(summarizeEstate(risky).risks[0].severity).toBe("high");
   });

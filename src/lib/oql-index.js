@@ -15,9 +15,11 @@
 import { PILLAR_REPORTS, PILLAR_REPORT_BUILDERS } from "./pillar-reports.js";
 
 // Every report except the change log, which lists events, not things.
-export const OQL_PILLARS = PILLAR_REPORTS
-  .filter((r) => r.key !== "changes")
-  .map(({ key, label, entity }) => ({ key, label, entity }));
+export const OQL_PILLARS = PILLAR_REPORTS.filter((r) => r.key !== "changes").map(({ key, label, entity }) => ({
+  key,
+  label,
+  entity,
+}));
 
 const sum = (...values) => (values.every((v) => v == null) ? null : values.reduce((t, v) => t + (Number(v) || 0), 0));
 const num = (v) => (v == null || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
@@ -42,6 +44,10 @@ export const PILLAR_MEASURES = {
     usage: { label: "Issues of this type", value: (r) => num(r.issues) },
     impact: { label: "Projects it is used in", value: (r) => num(r.projects) },
   },
+  fieldConfigs: {
+    usage: { label: "Projects using it", value: (r) => num(r.projects) },
+    impact: { label: "Required fields it sets", value: (r) => num(r.required) },
+  },
   priorities: {
     // Issues carrying the value, from the issue crawl. Null until a crawl has run, which
     // ranks as unmeasured, never as low.
@@ -50,7 +56,10 @@ export const PILLAR_MEASURES = {
   },
   people: {
     usage: { label: "Not measured: no last-active data is collected", value: null },
-    impact: { label: "Filters and dashboards owned, plus automation references", value: (r) => sum(num(r.ownedFilters), num(r.ownedDashboards), num(r.automationRefs)) },
+    impact: {
+      label: "Filters and dashboards owned, plus automation references",
+      value: (r) => sum(num(r.ownedFilters), num(r.ownedDashboards), num(r.automationRefs)),
+    },
   },
   assets: {
     usage: { label: "Objects of this type", value: (r) => num(r.objects) },
@@ -61,7 +70,10 @@ export const PILLAR_MEASURES = {
     impact: { label: "Grants, holders or actors", value: (r) => num(r.grants) },
   },
   screens: {
-    usage: { label: "Projects it reaches through screen schemes (transition screens not counted)", value: (r) => num(r.projects) },
+    usage: {
+      label: "Projects it reaches through screen schemes (transition screens not counted)",
+      value: (r) => num(r.projects),
+    },
     impact: { label: "Fields on the screen", value: (r) => num(r.fields) },
   },
   filters: {
@@ -99,13 +111,19 @@ export function quartileLevels(values) {
   const measured = values.filter((v) => v != null).sort((a, b) => a - b);
   const total = values.length;
   if (measured.length < MIN_ROWS_FOR_LEVELS) {
-    return { p25: null, p75: null, measured: measured.length, total, levelOf: (v) => (v == null ? "unmeasured" : "medium") };
+    return {
+      p25: null,
+      p75: null,
+      measured: measured.length,
+      total,
+      levelOf: (v) => (v == null ? "unmeasured" : "medium"),
+    };
   }
   const p25 = percentile(measured, 0.25);
   const p75 = percentile(measured, 0.75);
   const levelOf = (v) => {
     if (v == null) return "unmeasured";
-    if (p25 === p75) return v < p25 ? "low" : v > p75 ? "high" : (measured[0] === p25 ? "low" : "medium");
+    if (p25 === p75) return v < p25 ? "low" : v > p75 ? "high" : measured[0] === p25 ? "low" : "medium";
     if (v <= p25) return "low";
     if (v >= p75) return "high";
     return "medium";
@@ -138,7 +156,22 @@ export function churnLevel(count) {
 
 // The pillars the drift engine digests. The rest have no change history, so their churn is
 // unmeasured -- not zero.
-export const CHURN_TRACKED_PILLARS = ["fields", "workflows", "issueTypes", "access", "priorities", "filters", "dashboards"];
+export const CHURN_TRACKED_PILLARS = [
+  "fields",
+  "workflows",
+  "issueTypes",
+  "access",
+  "priorities",
+  "filters",
+  "dashboards",
+  "fieldConfigs",
+  "screens",
+  "boards",
+  "projects",
+  "people",
+  "assets",
+  "automation",
+];
 
 const ACCESS_TYPE_BY_LABEL = {
   "Permission scheme": "permission",
@@ -153,8 +186,25 @@ const ACCESS_TYPE_BY_LABEL = {
 export function changeEntityKey(change) {
   const type = String(change?.entityType || "");
   const id = String(change?.entityId ?? "");
-  const simple = { field: "fields", "workflow-scheme": "workflows", "issue-type": "issueTypes", filter: "filters", dashboard: "dashboards" };
+  const simple = {
+    field: "fields",
+    "workflow-scheme": "workflows",
+    "issue-type": "issueTypes",
+    filter: "filters",
+    dashboard: "dashboards",
+    "field-scheme": "fieldConfigs",
+    "field-configuration": "fieldConfigs",
+    screen: "screens",
+    board: "boards",
+    user: "people",
+    "asset-object-type": "assets",
+    "automation-rule": "automation",
+  };
   if (simple[type]) return `${simple[type]}|${id}`;
+  // Projects are listed by key, and the change log names each one by its key.
+  if (type === "project") return change?.label ? `projects|${change.label}` : null;
+  // An attribute counts against its object type, as a grant counts against its scheme.
+  if (type === "asset-attribute") return `assets|${id.split(":")[0]}`;
   if (type === "priority" || type === "resolution") return `priorities|${type}|${id}`;
   if (type === "security-level") return `access|security|${id.split(":")[0]}`;
   const access = /^(permission|security|notification|project-role)-(scheme|grant)$/.exec(type);
@@ -199,9 +249,8 @@ export function scoreBreakdown(levels) {
     return { dim, level, weight, share, points, contribution: points * share * 100 };
   });
   const measured = parts.filter((p) => p.points != null).length;
-  const score = measured < MIN_DIMENSIONS_FOR_SCORE
-    ? null
-    : Math.round(parts.reduce((t, p) => t + (p.contribution || 0), 0));
+  const score =
+    measured < MIN_DIMENSIONS_FOR_SCORE ? null : Math.round(parts.reduce((t, p) => t + (p.contribution || 0), 0));
   return { parts, measured, score };
 }
 
@@ -260,8 +309,20 @@ export function buildEntityIndex(reports = [], { changes = null, now = new Date(
     const usage = quartileLevels(usageValues);
     const impact = quartileLevels(impactValues);
     thresholds[key] = {
-      usage: { label: measures.usage.label, p25: usage.p25, p75: usage.p75, measured: usage.measured, total: usage.total },
-      impact: { label: measures.impact.label, p25: impact.p25, p75: impact.p75, measured: impact.measured, total: impact.total },
+      usage: {
+        label: measures.usage.label,
+        p25: usage.p25,
+        p75: usage.p75,
+        measured: usage.measured,
+        total: usage.total,
+      },
+      impact: {
+        label: measures.impact.label,
+        p25: impact.p25,
+        p75: impact.p75,
+        measured: impact.measured,
+        total: impact.total,
+      },
     };
 
     report.rows.forEach((row, i) => {
@@ -300,14 +361,42 @@ export function buildEntityIndex(reports = [], { changes = null, now = new Date(
 // ── Catalog ─────────────────────────────────────────────────────────────────
 
 const PILLAR_ALIASES = {
-  issuetypes: "issueTypes", "issue-types": "issueTypes", "issue types": "issueTypes", "issue type": "issueTypes", issuetype: "issueTypes",
-  field: "fields", project: "projects", workflow: "workflows", screen: "screens", filter: "filters",
-  "saved filters": "filters", "saved-filters": "filters", savedfilters: "filters",
-  dashboard: "dashboards", board: "boards", rules: "automation", rule: "automation",
-  users: "people", user: "people", resolutions: "priorities", priority: "priorities",
-  "priorities & resolutions": "priorities", estate: "priorities",
-  permissions: "access", security: "access", notifications: "access", roles: "access",
-  asset: "assets", "object types": "assets",
+  issuetypes: "issueTypes",
+  "issue-types": "issueTypes",
+  "issue types": "issueTypes",
+  "issue type": "issueTypes",
+  issuetype: "issueTypes",
+  field: "fields",
+  project: "projects",
+  workflow: "workflows",
+  screen: "screens",
+  filter: "filters",
+  "saved filters": "filters",
+  "saved-filters": "filters",
+  savedfilters: "filters",
+  dashboard: "dashboards",
+  board: "boards",
+  rules: "automation",
+  rule: "automation",
+  users: "people",
+  user: "people",
+  resolutions: "priorities",
+  priority: "priorities",
+  "priorities & resolutions": "priorities",
+  estate: "priorities",
+  "field schemes": "fieldConfigs",
+  "field scheme": "fieldConfigs",
+  fieldschemes: "fieldConfigs",
+  fieldconfigs: "fieldConfigs",
+  "field configurations": "fieldConfigs",
+  "field configuration": "fieldConfigs",
+  "field-configs": "fieldConfigs",
+  permissions: "access",
+  security: "access",
+  notifications: "access",
+  roles: "access",
+  asset: "assets",
+  "object types": "assets",
 };
 
 const CORE_FIELDS = [
@@ -317,13 +406,35 @@ const CORE_FIELDS = [
   { key: "usage", label: "Usage", kind: "level", detail: "low / medium / high within its pillar, or unmeasured" },
   { key: "impact", label: "Impact", kind: "level", detail: "low / medium / high within its pillar, or unmeasured" },
   { key: "risk", label: "Risk", kind: "level", detail: "From its discoveries: none low, one medium, two or more high" },
-  { key: "churn", label: "Churn", kind: "level", detail: `Config changes in ${CHURN_WINDOW_DAYS} days: none low, 1-2 medium, 3+ high` },
-  { key: "score", label: "Attention score", kind: "number", aliases: ["attention"], detail: "0-100 from usage, impact, risk and churn" },
-  { key: "discoveries", label: "Discoveries", kind: "list", aliases: ["discovery", "findings", "finding"], detail: "Discovery codes on the item" },
+  {
+    key: "churn",
+    label: "Churn",
+    kind: "level",
+    detail: `Config changes in ${CHURN_WINDOW_DAYS} days: none low, 1-2 medium, 3+ high`,
+  },
+  {
+    key: "score",
+    label: "Attention score",
+    kind: "number",
+    aliases: ["attention"],
+    detail: "0-100 from usage, impact, risk and churn",
+  },
+  {
+    key: "discoveries",
+    label: "Discoveries",
+    kind: "list",
+    aliases: ["discovery", "findings", "finding"],
+    detail: "Discovery codes on the item",
+  },
   { key: "usageValue", label: "Usage value", kind: "number", detail: "The number behind usage" },
   { key: "impactValue", label: "Impact value", kind: "number", detail: "The number behind impact" },
   { key: "riskValue", label: "Risk value", kind: "number", detail: "How many discoveries" },
-  { key: "churnValue", label: "Churn value", kind: "number", detail: `Config changes in the last ${CHURN_WINDOW_DAYS} days` },
+  {
+    key: "churnValue",
+    label: "Churn value",
+    kind: "number",
+    detail: `Config changes in the last ${CHURN_WINDOW_DAYS} days`,
+  },
 ];
 
 const QUARTILE_DETAILS = {
@@ -336,7 +447,12 @@ const LEVEL_DETAILS_BY_FIELD = {
   usage: QUARTILE_DETAILS,
   impact: QUARTILE_DETAILS,
   risk: { low: "No discoveries", medium: "One discovery", high: "Two or more discoveries", unmeasured: "No data" },
-  churn: { low: `No changes in ${CHURN_WINDOW_DAYS} days`, medium: "1-2 changes", high: "3 or more changes", unmeasured: "Pillar has no change history" },
+  churn: {
+    low: `No changes in ${CHURN_WINDOW_DAYS} days`,
+    medium: "1-2 changes",
+    high: "3 or more changes",
+    unmeasured: "Pillar has no change history",
+  },
 };
 
 /**
@@ -373,7 +489,8 @@ export function buildOqlCatalog({ findingCodes = [] } = {}) {
     const { columns = [] } = PILLAR_REPORT_BUILDERS[p.key]({});
     for (const col of columns) {
       if (coreKeys.has(col.key)) continue;
-      if (!byKey.has(col.key)) byKey.set(col.key, { key: col.key, label: col.label, kind: col.kind, pillars: [], labels: {} });
+      if (!byKey.has(col.key))
+        byKey.set(col.key, { key: col.key, label: col.label, kind: col.kind, pillars: [], labels: {} });
       byKey.get(col.key).pillars.push(p.key);
       // The same key can mean slightly different things per pillar ("fields" is "Fields in
       // use" on a project, "Fields" on a screen); each pillar keeps its own header.

@@ -1,4 +1,3 @@
-import React from "react";
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import { DaySky } from "./DaySky";
@@ -19,10 +18,11 @@ function fakeCtx() {
 let getContextSpy;
 
 beforeEach(() => {
-  getContextSpy = vi
-    .spyOn(HTMLCanvasElement.prototype, "getContext")
-    .mockImplementation(() => fakeCtx());
-  vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
+  getContextSpy = vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => fakeCtx());
+  vi.stubGlobal(
+    "requestAnimationFrame",
+    vi.fn(() => 1),
+  );
 });
 
 afterEach(() => {

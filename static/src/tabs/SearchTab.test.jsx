@@ -1,4 +1,3 @@
-import React from "react";
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -14,7 +13,10 @@ vi.mock("@forge/bridge", () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   window.localStorage.clear();
-  vi.stubGlobal("requestAnimationFrame", (fn) => { fn(); return 1; });
+  vi.stubGlobal("requestAnimationFrame", (fn) => {
+    fn();
+    return 1;
+  });
 });
 
 const SCREENS_RESULT = {
@@ -23,13 +25,38 @@ const SCREENS_RESULT = {
   ranAt: new Date().toISOString(),
   total: 1,
   truncated: false,
-  results: [{
-    uid: "screens:1", pillar: "screens", pillarLabel: "Screens", id: "1", name: "Bug Create",
-    usage: "low", impact: "high", risk: "medium", churn: "unmeasured", usageValue: 1, impactValue: 40, riskValue: 1, churnValue: null,
-    score: 60, scoreDimensions: 3, tabs: 2, fields: 40, projects: 1, discoveries: ["unreached"],
-  }],
-  pillars: [{ key: "screens", label: "Screens", status: "ok", reason: null, refreshedAt: "2026-09-28T00:00:00Z", total: 8 }],
-  thresholds: { screens: { usage: { p25: 2, p75: 5, measured: 8, total: 8, label: "x" }, impact: { p25: 5, p75: 25, measured: 8, total: 8, label: "y" } } },
+  results: [
+    {
+      uid: "screens:1",
+      pillar: "screens",
+      pillarLabel: "Screens",
+      id: "1",
+      name: "Bug Create",
+      usage: "low",
+      impact: "high",
+      risk: "medium",
+      churn: "unmeasured",
+      usageValue: 1,
+      impactValue: 40,
+      riskValue: 1,
+      churnValue: null,
+      score: 60,
+      scoreDimensions: 3,
+      tabs: 2,
+      fields: 40,
+      projects: 1,
+      discoveries: ["unreached"],
+    },
+  ],
+  pillars: [
+    { key: "screens", label: "Screens", status: "ok", reason: null, refreshedAt: "2026-09-28T00:00:00Z", total: 8 },
+  ],
+  thresholds: {
+    screens: {
+      usage: { p25: 2, p75: 5, measured: 8, total: 8, label: "x" },
+      impact: { p25: 5, p75: 25, measured: 8, total: 8, label: "y" },
+    },
+  },
   discoveryCodes: ["unreached"],
 };
 
@@ -60,8 +87,24 @@ describe("SearchTab", () => {
     expect((await screen.findAllByText("Bug Create")).length).toBeGreaterThan(0);
     const table = screen.getAllByRole("table")[0];
     // Screens' own columns join the shared ones when every result is a screen.
-    const headers = within(table).getAllByRole("columnheader").map((h) => h.textContent);
-    expect(headers).toEqual(expect.arrayContaining(["Pillar", "Name", "Usage", "Impact", "Risk", "Churn", "Attention", "Tabs", "Fields", "Projects (through screen schemes)", "Discoveries"]));
+    const headers = within(table)
+      .getAllByRole("columnheader")
+      .map((h) => h.textContent);
+    expect(headers).toEqual(
+      expect.arrayContaining([
+        "Pillar",
+        "Name",
+        "Usage",
+        "Impact",
+        "Risk",
+        "Churn",
+        "Attention",
+        "Tabs",
+        "Fields",
+        "Projects (through screen schemes)",
+        "Discoveries",
+      ]),
+    );
     expect(within(table).getByTitle("Scored on 3 of 4 dimensions")).toHaveTextContent("60");
     expect(screen.getByText("Average attention").closest(".ui-stat")).toHaveTextContent("60");
     expect(within(table).getByText("unreached")).toBeInTheDocument();
@@ -84,8 +127,15 @@ describe("SearchTab", () => {
     render(<SearchTab />);
     await user.type(queryBox(), "usage = ");
     const listbox = screen.getByRole("listbox", { name: "Suggestions" });
-    expect(within(listbox).getAllByRole("option").map((o) => o.textContent)).toEqual([
-      "lowBottom quarter of its pillar", "mediumMiddle half of its pillar", "highTop quarter of its pillar", "unmeasuredNo data for this measure",
+    expect(
+      within(listbox)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual([
+      "lowBottom quarter of its pillar",
+      "mediumMiddle half of its pillar",
+      "highTop quarter of its pillar",
+      "unmeasuredNo data for this measure",
     ]);
     await user.keyboard("{ArrowDown}{Enter}");
     expect(queryBox()).toHaveValue("usage = low ");
@@ -176,7 +226,9 @@ describe("SearchTab", () => {
     render(<SearchTab />);
     expect(screen.getByText("How scoring works")).toBeInTheDocument();
     expect(screen.getByText("40% of score")).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "low: 0 discoveries, medium: 1 discoveries, high: 2+ discoveries" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: "low: 0 discoveries, medium: 1 discoveries, high: 2+ discoveries" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Risk 40%, Impact 25%, Usage 20%, Churn 15%" })).toBeInTheDocument();
   });
 
@@ -204,8 +256,8 @@ describe("SearchTab", () => {
     const grid = screen.getByRole("table", { name: "What each pillar measures for each dimension" });
     const screensRow = within(grid).getByRole("rowheader", { name: "Screens" }).closest("tr");
     expect(screensRow).toHaveTextContent(/through screen schemes/);
-    // Screens have no change history.
-    expect(within(screensRow).getAllByText("Not measured")).toHaveLength(1);
+    // Screens have change history since every pillar got a change source.
+    expect(within(screensRow).queryAllByText("Not measured")).toHaveLength(0);
     const prioritiesRow = within(grid).getByRole("rowheader", { name: "Priorities & resolutions" }).closest("tr");
     // Usage is the crawl's issue count now; only impact is still unmeasured.
     expect(within(prioritiesRow).getAllByText("Not measured")).toHaveLength(1);

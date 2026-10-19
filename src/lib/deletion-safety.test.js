@@ -1,5 +1,11 @@
 import { describe, test, expect } from "vitest";
-import { assessFieldDeletion, assessStatusDeletion, computeVerdict, summarizeDeletionSafety, VERDICT } from "./deletion-safety.js";
+import {
+  assessFieldDeletion,
+  assessStatusDeletion,
+  computeVerdict,
+  summarizeDeletionSafety,
+  VERDICT,
+} from "./deletion-safety.js";
 
 // The verdict the whole product is judged by. Its own stated success metric is "whether a
 // recommended deletion was ever wrong", so almost everything pinned here is about what the
@@ -18,6 +24,7 @@ const allClean = {
   filters: { available: true, count: 0, names: [] },
   dashboards: { available: true, count: 0, names: [] },
   rqt: { available: true, issueCount: 0 },
+  workflowRules: { available: true, count: 0, workflowCount: 0, examples: [] },
 };
 
 describe("assessFieldDeletion — what it refuses to say", () => {
@@ -58,6 +65,31 @@ describe("assessFieldDeletion — what it refuses to say", () => {
 describe("assessFieldDeletion — blockers", () => {
   const withOne = (over) => assessFieldDeletion({ ...allClean, ...over });
 
+  test("a workflow validator or post-function naming the field blocks deletion", () => {
+    const result = withOne({
+      workflowRules: {
+        available: true,
+        count: 3,
+        workflowCount: 2,
+        examples: ["Approve (In Review -> Approved) in Build WF"],
+      },
+    });
+
+    expect(result.verdict).toBe(VERDICT.IN_USE);
+    const blocker = result.blockers.find((b) => b.source === "workflow-rules");
+    expect(blocker).toMatchObject({ severity: "high" });
+    expect(blocker.summary).toMatch(/3 workflow rules or properties in 2 workflows/);
+    expect(blocker.summary).toMatch(/Approve \(In Review -> Approved\)/);
+  });
+
+  test("an unread workflow rule snapshot is a gap, never a clean pass", () => {
+    const result = withOne({ workflowRules: null });
+
+    expect(result.verdict).toBe(VERDICT.UNKNOWN);
+    expect(result.gaps.map((g) => g.source)).toContain("workflow rules");
+    expect(result.checked).not.toContain("workflow rules");
+  });
+
   test("values in issues block deletion, and say what is lost", () => {
     const result = withOne({ usage: { totalIssueCount: 4820, activeProjectCount: 9 } });
 
@@ -69,8 +101,12 @@ describe("assessFieldDeletion — blockers", () => {
   test("a rule that WRITES the field is a harder blocker than one that reads it", () => {
     // The distinction the whole automation pillar exists for: a writer keeps the field
     // alive, a reader merely breaks.
-    const writes = withOne({ automation: { available: true, writeCount: 2, readCount: 0, triggerCount: 0, evidence: { blockers: [] } } });
-    const reads = withOne({ automation: { available: true, writeCount: 0, readCount: 2, triggerCount: 0, evidence: { blockers: [] } } });
+    const writes = withOne({
+      automation: { available: true, writeCount: 2, readCount: 0, triggerCount: 0, evidence: { blockers: [] } },
+    });
+    const reads = withOne({
+      automation: { available: true, writeCount: 0, readCount: 2, triggerCount: 0, evidence: { blockers: [] } },
+    });
 
     expect(writes.blockers[0].severity).toBe("high");
     expect(reads.blockers[0].severity).toBe("medium");
@@ -123,8 +159,15 @@ describe("assessFieldDeletion — evidence quality", () => {
     const result = assessFieldDeletion({
       ...allClean,
       automation: {
-        available: true, writeCount: 0, readCount: 0, triggerCount: 0,
-        evidence: { blockers: [{ code: "index-truncated", message: "The reference index was truncated to 1000 of 1400 entries." }] },
+        available: true,
+        writeCount: 0,
+        readCount: 0,
+        triggerCount: 0,
+        evidence: {
+          blockers: [
+            { code: "index-truncated", message: "The reference index was truncated to 1000 of 1400 entries." },
+          ],
+        },
       },
     });
 
@@ -189,7 +232,10 @@ describe("summarizeDeletionSafety", () => {
 // issue type) is provably using the same three-state logic rather than a lookalike.
 describe("computeVerdict — the shared core", () => {
   test("any blocker at all is in-use, regardless of how many gaps also exist", () => {
-    const { verdict } = computeVerdict([{ source: "x", severity: "low", summary: "s", detail: "d" }], [{ source: "y", reason: "r" }]);
+    const { verdict } = computeVerdict(
+      [{ source: "x", severity: "low", summary: "s", detail: "d" }],
+      [{ source: "y", reason: "r" }],
+    );
     expect(verdict).toBe(VERDICT.IN_USE);
   });
 
@@ -201,8 +247,12 @@ describe("computeVerdict — the shared core", () => {
     expect(computeVerdict([], [{ source: "y", reason: "r" }]).verdict).toBe(VERDICT.UNKNOWN);
   });
 
-  test("the headline never contains the words \"safe to delete\"", () => {
-    for (const [blockers, gaps] of [[[], []], [[], [{ source: "y", reason: "r" }]], [[{ source: "x", severity: "low", summary: "s", detail: "d" }], []]]) {
+  test('the headline never contains the words "safe to delete"', () => {
+    for (const [blockers, gaps] of [
+      [[], []],
+      [[], [{ source: "y", reason: "r" }]],
+      [[{ source: "x", severity: "low", summary: "s", detail: "d" }], []],
+    ]) {
       expect(computeVerdict(blockers, gaps).headline.toLowerCase()).not.toMatch(/safe to delete/);
     }
   });
@@ -210,6 +260,7 @@ describe("computeVerdict — the shared core", () => {
 
 // Every source consulted and every source clean, mirroring allClean above for the field case.
 const statusAllClean = {
+  workflows: { available: true, count: 0, names: [], ruleRefCount: 0 },
   status: { id: "9", name: "On Hold" },
   schemes: { reachedByCount: 0 },
   issueUsage: { count: 0 },
@@ -245,12 +296,20 @@ describe("assessStatusDeletion — blockers", () => {
 
   test("issues currently sitting in the status block deletion", () => {
     const result = assessStatusDeletion({ ...statusAllClean, issueUsage: { count: 40 } });
-    expect(result.blockers).toEqual([expect.objectContaining({ source: "usage", summary: expect.stringContaining("40 issues sit") })]);
+    expect(result.blockers).toEqual([
+      expect.objectContaining({ source: "usage", summary: expect.stringContaining("40 issues sit") }),
+    ]);
   });
 
   test("a rule that transitions INTO the status is a harder blocker than one that only reads it", () => {
-    const writer = assessStatusDeletion({ ...statusAllClean, automation: { available: true, writeCount: 1, readCount: 0, triggerCount: 0 } });
-    const reader = assessStatusDeletion({ ...statusAllClean, automation: { available: true, writeCount: 0, readCount: 1, triggerCount: 0 } });
+    const writer = assessStatusDeletion({
+      ...statusAllClean,
+      automation: { available: true, writeCount: 1, readCount: 0, triggerCount: 0 },
+    });
+    const reader = assessStatusDeletion({
+      ...statusAllClean,
+      automation: { available: true, writeCount: 0, readCount: 1, triggerCount: 0 },
+    });
     expect(writer.blockers[0].severity).toBe("high");
     expect(reader.blockers[0].severity).toBe("medium");
   });
@@ -262,7 +321,10 @@ describe("assessStatusDeletion — blockers", () => {
   });
 
   test("a filter reference names what breaks downstream of it", () => {
-    const result = assessStatusDeletion({ ...statusAllClean, filters: { available: true, count: 2, names: ["Open Bugs", "Sprint Board"] } });
+    const result = assessStatusDeletion({
+      ...statusAllClean,
+      filters: { available: true, count: 2, names: ["Open Bugs", "Sprint Board"] },
+    });
     expect(result.blockers[0].summary).toContain("Open Bugs, Sprint Board");
   });
 
@@ -286,5 +348,62 @@ describe("assessStatusDeletion — evidence quality", () => {
   test("an unnamed status is a gap on the catalogue, not a silent skip", () => {
     const result = assessStatusDeletion({ ...statusAllClean, status: { id: "9" } });
     expect(result.gaps).toEqual(expect.arrayContaining([expect.objectContaining({ source: "status catalogue" })]));
+  });
+});
+
+describe("assessStatusDeletion -- workflows", () => {
+  test("a status in any workflow, even one no scheme reaches, is in use", () => {
+    const result = assessStatusDeletion({
+      ...statusAllClean,
+      workflows: { available: true, count: 2, names: ["Old WF", "Build WF"], ruleRefCount: 0 },
+    });
+    expect(result.verdict).toBe(VERDICT.IN_USE);
+    expect(result.blockers[0]).toMatchObject({ source: "workflows", severity: "high" });
+    expect(result.blockers[0].summary).toBe("In 2 workflows: Old WF, Build WF.");
+  });
+
+  test("a workflow rule naming the status is a medium blocker", () => {
+    const result = assessStatusDeletion({
+      ...statusAllClean,
+      workflows: { available: true, count: 0, names: [], ruleRefCount: 1 },
+    });
+    expect(result.blockers).toEqual([expect.objectContaining({ source: "workflow-rules", severity: "medium" })]);
+  });
+
+  test("no transition snapshot is a gap", () => {
+    const result = assessStatusDeletion({ ...statusAllClean, workflows: null });
+    expect(result.verdict).toBe(VERDICT.UNKNOWN);
+    expect(result.gaps.map((g) => g.source)).toContain("workflows");
+  });
+});
+
+describe("assessFieldDeletion — archived projects", () => {
+  const archived = (over) => ({ ...allClean, archived: { available: true, held: [], unknown: [], ...over } });
+
+  test("nothing archived reaches the field: checked, and the clean verdict stands", () => {
+    const a = assessFieldDeletion(archived({}));
+    expect(a.verdict).toBe(VERDICT.NO_EVIDENCE);
+    expect(a.checked).toContain("archived projects");
+  });
+
+  test("values counted before archiving block the deletion", () => {
+    const a = assessFieldDeletion(
+      archived({ held: [{ projectKey: "TT", issueCount: 2340, lastSeenAt: "2026-05-30" }] }),
+    );
+    expect(a.verdict).toBe(VERDICT.IN_USE);
+    expect(a.blockers[0]).toMatchObject({ source: "archived", severity: "high" });
+    expect(a.blockers[0].detail).toMatch(/stay empty if the project is ever restored/);
+  });
+
+  test("an archived project never counted is a gap, so the verdict cannot be 'no evidence'", () => {
+    const a = assessFieldDeletion(archived({ unknown: [{ projectKey: "TT", issueCount: 2340 }] }));
+    expect(a.verdict).toBe(VERDICT.UNKNOWN);
+    expect(a.gaps[0].reason).toMatch(/Configured in 1 archived project whose values were never counted \(TT\)/);
+  });
+
+  test("an unreadable list is a gap with its reason", () => {
+    const a = assessFieldDeletion({ ...allClean, archived: { available: false, reason: "refused" } });
+    expect(a.verdict).toBe(VERDICT.UNKNOWN);
+    expect(a.gaps).toEqual([{ source: "archived projects", reason: "refused" }]);
   });
 });

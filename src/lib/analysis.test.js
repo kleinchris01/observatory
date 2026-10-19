@@ -115,7 +115,7 @@ describe("isFieldValueNonEmpty", () => {
     expect(isFieldValueNonEmpty(NaN)).toBe(false);
     expect(isFieldValueNonEmpty(Infinity)).toBe(false);
     expect(isFieldValueNonEmpty(-Infinity)).toBe(false);
-  })
+  });
 
   test("returns true for 0 (a valid populated field value)", () => {
     expect(isFieldValueNonEmpty(0)).toBe(true);
@@ -400,7 +400,7 @@ describe("getRetryDelayMs", () => {
 
   test("uses Retry-After header when present and valid", () => {
     vi.spyOn(Math, "random").mockReturnValue(0);
-    const error = { originalResponse: { headers: { get: (h) => h === "Retry-After" ? "5" : null } } };
+    const error = { originalResponse: { headers: { get: (h) => (h === "Retry-After" ? "5" : null) } } };
     expect(getRetryDelayMs(error, 0)).toBe(5000);
   });
 
@@ -428,7 +428,7 @@ describe("getRetryDelayMs", () => {
 
   test("caps a large Retry-After header at 30s instead of honoring it verbatim", () => {
     vi.spyOn(Math, "random").mockReturnValue(0);
-    const error = { originalResponse: { headers: { get: (h) => h === "Retry-After" ? "123" : null } } };
+    const error = { originalResponse: { headers: { get: (h) => (h === "Retry-After" ? "123" : null) } } };
     expect(getRetryDelayMs(error, 0)).toBe(30000);
   });
 
@@ -473,11 +473,7 @@ describe("buildDuplicateNameCountMap", () => {
   });
 
   test("counts duplicate names (normalized) correctly", () => {
-    const map = buildDuplicateNameCountMap([
-      { name: "Sprint Name" },
-      { name: "sprint name" },
-      { name: "Sprint-Name" },
-    ]);
+    const map = buildDuplicateNameCountMap([{ name: "Sprint Name" }, { name: "sprint name" }, { name: "Sprint-Name" }]);
     expect(map.get("sprint name")).toBe(3);
   });
 });
@@ -566,7 +562,9 @@ describe("isPlatformProvidedField", () => {
   });
 
   test("returns true for Service Desk fields", () => {
-    expect(isPlatformProvidedField({ customType: "com.atlassian.servicedesk.approvals-plugin:sd-approvals" })).toBe(true);
+    expect(isPlatformProvidedField({ customType: "com.atlassian.servicedesk.approvals-plugin:sd-approvals" })).toBe(
+      true,
+    );
   });
 
   // Deliberately false: this is the namespace ordinary admin-created fields (select lists,
@@ -574,7 +572,9 @@ describe("isPlatformProvidedField", () => {
   // prefix as "built-in" for the Origin filter, but that is a different question from
   // "can an admin still do something about this field."
   test("returns false for the native Jira field-type namespace", () => {
-    expect(isPlatformProvidedField({ customType: "com.atlassian.jira.plugin.system.customfieldtypes:select" })).toBe(false);
+    expect(isPlatformProvidedField({ customType: "com.atlassian.jira.plugin.system.customfieldtypes:select" })).toBe(
+      false,
+    );
   });
 
   test("returns false for third-party app fields", () => {
@@ -643,7 +643,12 @@ describe("buildGovernanceFindings — rule: high-impact broad usage", () => {
   });
 
   test("uses configuredProjectCount when activeProjectCount is 0 (configured-scope mode)", () => {
-    const result = findings(customField, { activeProjectCount: 0, configuredProjectCount: 15, totalIssueCount: 2000, usageStatus: "ready" });
+    const result = findings(customField, {
+      activeProjectCount: 0,
+      configuredProjectCount: 15,
+      totalIssueCount: 2000,
+      usageStatus: "ready",
+    });
     const rule = result.reasons.find((r) => r.title.includes("High-impact"));
     expect(rule).toBeDefined();
     expect(rule.detail).toContain("Configured in 15 projects");
@@ -654,7 +659,12 @@ describe("buildGovernanceFindings — rule: high-impact broad usage", () => {
   // definition -- were flagged "risky" and "admin attention" on every site, with no action
   // an admin could take to de-risk them.
   test("does not fire for a system field no matter how broad its usage is", () => {
-    const result = findings(systemField, { activeProjectCount: 500, totalIssueCount: 1_000_000, usageStatus: "ready", isSystemField: true });
+    const result = findings(systemField, {
+      activeProjectCount: 500,
+      totalIssueCount: 1_000_000,
+      usageStatus: "ready",
+      isSystemField: true,
+    });
     expect(result.reasons.find((r) => r.title.includes("High-impact"))).toBeUndefined();
     expect(result.adminAttention).toBe(false);
   });
@@ -665,8 +675,11 @@ describe("buildGovernanceFindings — rule: high-impact broad usage", () => {
   test("does not fire for a plugin-provided pseudo-field like Rank", () => {
     const rank = { id: "customfield_10019", name: "Rank", customType: "com.pyxis.greenhopper.jira:gh-lexo-rank" };
     const result = findings(rank, {
-      activeProjectCount: 500, totalIssueCount: 1_000_000, usageStatus: "ready",
-      isSystemField: false, isPlatformProvidedField: true,
+      activeProjectCount: 500,
+      totalIssueCount: 1_000_000,
+      usageStatus: "ready",
+      isSystemField: false,
+      isPlatformProvidedField: true,
     });
     expect(result.reasons.find((r) => r.title.includes("High-impact"))).toBeUndefined();
   });
@@ -675,10 +688,17 @@ describe("buildGovernanceFindings — rule: high-impact broad usage", () => {
   // customType under the same "native Jira field type" namespace Rank's check would
   // otherwise be tempted to reuse, and it stays fully actionable.
   test("still fires for an ordinary custom field built from a native Jira field type", () => {
-    const selectField = { id: "customfield_99", name: "Priority Tier", customType: "com.atlassian.jira.plugin.system.customfieldtypes:select" };
+    const selectField = {
+      id: "customfield_99",
+      name: "Priority Tier",
+      customType: "com.atlassian.jira.plugin.system.customfieldtypes:select",
+    };
     const result = findings(selectField, {
-      activeProjectCount: 500, totalIssueCount: 1_000_000, usageStatus: "ready",
-      isSystemField: false, isPlatformProvidedField: false,
+      activeProjectCount: 500,
+      totalIssueCount: 1_000_000,
+      usageStatus: "ready",
+      isSystemField: false,
+      isPlatformProvidedField: false,
     });
     expect(result.reasons.find((r) => r.title.includes("High-impact"))).toBeDefined();
   });
@@ -693,7 +713,11 @@ describe("buildGovernanceFindings — rule: app-provided heavy usage", () => {
   });
 
   test("does not fire for Atlassian system field", () => {
-    const atlField = { id: "customfield_1", name: "F", customType: "com.atlassian.jira.plugin.system.customfieldtypes:textfield" };
+    const atlField = {
+      id: "customfield_1",
+      name: "F",
+      customType: "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+    };
     const result = findings(atlField, { totalIssueCount: 1000, usageStatus: "ready" });
     expect(result.reasons.find((r) => r.title.includes("App-provided"))).toBeUndefined();
   });
@@ -734,25 +758,45 @@ describe("buildGovernanceFindings — rule: orphaned field", () => {
   const orphanField = { id: "customfield_orphan", name: "Orphan", description: "" };
 
   test("fires when no configuration, no issues, no activity, and not app-provided", () => {
-    const result = findings(orphanField, { configuredProjectCount: 0, totalIssueCount: 0, activeProjectCount: 0, usageStatus: "ready" });
+    const result = findings(orphanField, {
+      configuredProjectCount: 0,
+      totalIssueCount: 0,
+      activeProjectCount: 0,
+      usageStatus: "ready",
+    });
     expect(result.reasons.find((r) => r.title.includes("Orphaned"))).toBeDefined();
   });
 
   test("does not fire for app-provided field (even if unused)", () => {
     const appOrphan = { id: "customfield_x", name: "X", customType: "com.vendor:type" };
-    const result = findings(appOrphan, { configuredProjectCount: 0, totalIssueCount: 0, activeProjectCount: 0, usageStatus: "ready" });
+    const result = findings(appOrphan, {
+      configuredProjectCount: 0,
+      totalIssueCount: 0,
+      activeProjectCount: 0,
+      usageStatus: "ready",
+    });
     expect(result.reasons.find((r) => r.title.includes("Orphaned"))).toBeUndefined();
   });
 });
 
 describe("buildGovernanceFindings — rule: configured with no issues", () => {
   test("fires when configured in >= broadScopeMinProjects but zero issues", () => {
-    const result = findings(customField, { configuredProjectCount: 5, totalIssueCount: 0, activeProjectCount: 0, usageStatus: "ready" });
+    const result = findings(customField, {
+      configuredProjectCount: 5,
+      totalIssueCount: 0,
+      activeProjectCount: 0,
+      usageStatus: "ready",
+    });
     expect(result.reasons.find((r) => r.title.includes("no populated issues"))).toBeDefined();
   });
 
   test("does not fire when configured in fewer than broadScopeMinProjects", () => {
-    const result = findings(customField, { configuredProjectCount: 2, totalIssueCount: 0, activeProjectCount: 0, usageStatus: "ready" });
+    const result = findings(customField, {
+      configuredProjectCount: 2,
+      totalIssueCount: 0,
+      activeProjectCount: 0,
+      usageStatus: "ready",
+    });
     expect(result.reasons.find((r) => r.title.includes("no populated issues"))).toBeUndefined();
   });
 });
@@ -819,7 +863,7 @@ describe("buildGovernanceFindings — rule: no field activity in over a year", (
     const result = findings(
       customField,
       { totalIssueCount: 400, usageStatus: "ready", lastFieldChangeAt: daysAgo(200), now: NOW },
-      { staleFieldMaxAgeDays: 180 }
+      { staleFieldMaxAgeDays: 180 },
     );
     expect(rule(result)).toBeDefined();
   });
@@ -943,7 +987,10 @@ describe("buildGovernanceFindings — rule: usage data unavailable", () => {
   });
 
   test("uses usageStatusDetail in the detail message", () => {
-    const result = findings(customField, { usageStatus: USAGE_STATUS_UNAVAILABLE, usageStatusDetail: "Custom detail." });
+    const result = findings(customField, {
+      usageStatus: USAGE_STATUS_UNAVAILABLE,
+      usageStatusDetail: "Custom detail.",
+    });
     const rule = result.reasons.find((r) => r.title.includes("unavailable"));
     expect(rule.detail).toBe("Custom detail.");
   });
@@ -963,7 +1010,13 @@ describe("buildGovernanceFindings — adminAttention and tags", () => {
 
   test("adminAttention is true when priorityScore >= 35 (no high-severity needed)", () => {
     // orphaned field scores 25; add context sprawl (15) = 40 >= 35
-    const result = findings(customField, { contextCount: 8, configuredProjectCount: 0, totalIssueCount: 0, activeProjectCount: 0, usageStatus: "ready" });
+    const result = findings(customField, {
+      contextCount: 8,
+      configuredProjectCount: 0,
+      totalIssueCount: 0,
+      activeProjectCount: 0,
+      usageStatus: "ready",
+    });
     expect(result.priorityScore).toBeGreaterThanOrEqual(35);
     expect(result.adminAttention).toBe(true);
   });
@@ -982,7 +1035,11 @@ describe("buildGovernanceFindings — adminAttention and tags", () => {
 
   test("custom thresholds override defaults", () => {
     // Lower highImpactMinProjects to 3 — should fire with activeProjectCount=5
-    const result = findings(customField, { activeProjectCount: 5, totalIssueCount: 1000, usageStatus: "ready" }, { highImpactMinProjects: 3 });
+    const result = findings(
+      customField,
+      { activeProjectCount: 5, totalIssueCount: 1000, usageStatus: "ready" },
+      { highImpactMinProjects: 3 },
+    );
     expect(result.reasons.find((r) => r.title.includes("High-impact"))).toBeDefined();
   });
 });
@@ -991,8 +1048,12 @@ describe("buildGovernanceFindings — adminAttention and tags", () => {
 
 describe("mergeProjectUsageCounts", () => {
   const makeProject = (id, key, issueCount, extra = {}) => ({
-    projectId: id, projectKey: key, projectName: `Project ${key}`,
-    jql: `project = ${key}`, issueCount, ...extra,
+    projectId: id,
+    projectKey: key,
+    projectName: `Project ${key}`,
+    jql: `project = ${key}`,
+    issueCount,
+    ...extra,
   });
 
   test("returns empty array when both inputs are empty", () => {
@@ -1038,7 +1099,10 @@ describe("mergeProjectUsageCounts", () => {
 
 describe("compareFields", () => {
   const field = (name, totalIssueCount, configuredProjectCount, activeProjectCount, priorityScore) => ({
-    name, totalIssueCount, configuredProjectCount, activeProjectCount,
+    name,
+    totalIssueCount,
+    configuredProjectCount,
+    activeProjectCount,
     findings: { priorityScore: priorityScore ?? 0 },
   });
 
@@ -1077,8 +1141,12 @@ describe("compareFields", () => {
   });
 
   const fieldWithContexts = (name, contextCount, priorityScore) => ({
-    name, totalIssueCount: 0, configuredProjectCount: 0, activeProjectCount: 0,
-    contextCount, findings: { priorityScore: priorityScore ?? 0 },
+    name,
+    totalIssueCount: 0,
+    configuredProjectCount: 0,
+    activeProjectCount: 0,
+    contextCount,
+    findings: { priorityScore: priorityScore ?? 0 },
   });
 
   test("contexts-desc: higher contextCount first", () => {
@@ -1086,7 +1154,9 @@ describe("compareFields", () => {
   });
 
   test("contexts-desc: ties broken by name", () => {
-    expect(compareFields(fieldWithContexts("Bravo", 3), fieldWithContexts("Alpha", 3), "contexts-desc")).toBeGreaterThan(0);
+    expect(
+      compareFields(fieldWithContexts("Bravo", 3), fieldWithContexts("Alpha", 3), "contexts-desc"),
+    ).toBeGreaterThan(0);
   });
 
   test("contexts-asc: lower contextCount first", () => {
@@ -1094,7 +1164,9 @@ describe("compareFields", () => {
   });
 
   test("contexts-asc: ties broken by name", () => {
-    expect(compareFields(fieldWithContexts("Bravo", 3), fieldWithContexts("Alpha", 3), "contexts-asc")).toBeGreaterThan(0);
+    expect(compareFields(fieldWithContexts("Bravo", 3), fieldWithContexts("Alpha", 3), "contexts-asc")).toBeGreaterThan(
+      0,
+    );
   });
 
   test("priority-desc: higher priorityScore first, independent of usage", () => {
@@ -1211,7 +1283,12 @@ describe("filterInventoryFields", () => {
 
     test("minActiveProjects/maxActiveProjects: empty string applies no filter", () => {
       const fields = [makeField({ activeProjectCount: 0 }), makeField({ activeProjectCount: 100 })];
-      expect(filterInventoryFields(fields, "", "all", "all", "", "all", "", { minActiveProjects: "", maxActiveProjects: "" })).toHaveLength(2);
+      expect(
+        filterInventoryFields(fields, "", "all", "all", "", "all", "", {
+          minActiveProjects: "",
+          maxActiveProjects: "",
+        }),
+      ).toHaveLength(2);
     });
 
     test("minActiveProjects/maxActiveProjects: combined range filters within bounds", () => {
@@ -1220,7 +1297,10 @@ describe("filterInventoryFields", () => {
         makeField({ name: "B", activeProjectCount: 5 }),
         makeField({ name: "C", activeProjectCount: 9 }),
       ];
-      const result = filterInventoryFields(fields, "", "all", "all", "", "all", "", { minActiveProjects: "3", maxActiveProjects: "7" });
+      const result = filterInventoryFields(fields, "", "all", "all", "", "all", "", {
+        minActiveProjects: "3",
+        maxActiveProjects: "7",
+      });
       expect(result.map((f) => f.name)).toEqual(["B"]);
     });
 
@@ -1246,12 +1326,17 @@ describe("filterInventoryFields", () => {
 
     test("minContexts/maxContexts: empty string applies no filter", () => {
       const fields = [makeField({ contextCount: 0 }), makeField({ contextCount: 100 })];
-      expect(filterInventoryFields(fields, "", "all", "all", "", "all", "", { minContexts: "", maxContexts: "" })).toHaveLength(2);
+      expect(
+        filterInventoryFields(fields, "", "all", "all", "", "all", "", { minContexts: "", maxContexts: "" }),
+      ).toHaveLength(2);
     });
 
     test("minContexts/maxContexts: boundary values are inclusive", () => {
       const fields = [makeField({ name: "A", contextCount: 4 }), makeField({ name: "B", contextCount: 6 })];
-      const result = filterInventoryFields(fields, "", "all", "all", "", "all", "", { minContexts: "4", maxContexts: "4" });
+      const result = filterInventoryFields(fields, "", "all", "all", "", "all", "", {
+        minContexts: "4",
+        maxContexts: "4",
+      });
       expect(result.map((f) => f.name)).toEqual(["A"]);
     });
 
@@ -1267,7 +1352,9 @@ describe("filterInventoryFields", () => {
 
     test("duplicateNamesOnly: false/omitted applies no filter", () => {
       const fields = [makeField({ duplicateNameCount: 1 }), makeField({ duplicateNameCount: 3 })];
-      expect(filterInventoryFields(fields, "", "all", "all", "", "all", "", { duplicateNamesOnly: false })).toHaveLength(2);
+      expect(
+        filterInventoryFields(fields, "", "all", "all", "", "all", "", { duplicateNamesOnly: false }),
+      ).toHaveLength(2);
       expect(filterInventoryFields(fields, "", "all", "all", "", "all", "", {})).toHaveLength(2);
     });
 
@@ -1377,7 +1464,10 @@ describe("applyFindingsFilter", () => {
     const coded = [
       makeField({ id: "a", findings: { tags: { cleanup: true }, reasons: [{ code: "dead-configuration" }] } }),
       makeField({ id: "b", findings: { tags: { cleanup: true }, reasons: [{ code: "stale" }] } }),
-      makeField({ id: "c", findings: { tags: { cleanup: true }, reasons: [{ code: "dead-configuration" }, { code: "stale" }] } }),
+      makeField({
+        id: "c",
+        findings: { tags: { cleanup: true }, reasons: [{ code: "dead-configuration" }, { code: "stale" }] },
+      }),
     ];
 
     test("matches only fields carrying that exact code, not the whole cleanup bucket", () => {
@@ -1390,7 +1480,7 @@ describe("applyFindingsFilter", () => {
       expect(result).toHaveLength(3);
     });
 
-    test("returns nothing for a code no field carries, rather than falling back to \"all\"", () => {
+    test('returns nothing for a code no field carries, rather than falling back to "all"', () => {
       expect(applyFindingsFilter(coded, "context-sprawl")).toHaveLength(0);
     });
   });
@@ -1450,10 +1540,7 @@ describe("sortInventoryFields", () => {
   });
 
   test("contexts-desc: ties broken by name", () => {
-    const fields = [
-      makeField({ name: "Bravo", contextCount: 3 }),
-      makeField({ name: "Alpha", contextCount: 3 }),
-    ];
+    const fields = [makeField({ name: "Bravo", contextCount: 3 }), makeField({ name: "Alpha", contextCount: 3 })];
     const sorted = sortInventoryFields(fields, "contexts-desc");
     expect(sorted.map((f) => f.name)).toEqual(["Alpha", "Bravo"]);
   });
@@ -1543,5 +1630,24 @@ describe("buildInventoryRecord", () => {
   test("isJiraBuiltin is set from field's customType", () => {
     const record = buildInventoryRecord(rawField, {});
     expect(record.isJiraBuiltin).toBe(true);
+  });
+});
+
+// A field whose data lives only in an archived project has no live issues -- Jira's search
+// cannot see archived ones -- but it is not unused, and must never be flagged as such.
+describe("buildGovernanceFindings — archived data", () => {
+  const codes = (metrics) => findings(customField, { usageStatus: "ready", ...metrics }).reasons.map((r) => r.code);
+
+  test("values counted in an archived project stop the no-data findings", () => {
+    expect(codes({ configuredProjectCount: 0, totalIssueCount: 0, activeProjectCount: 0 })).toContain("orphaned");
+    expect(
+      codes({ configuredProjectCount: 0, totalIssueCount: 0, activeProjectCount: 0, archivedIssueCount: 40 }),
+    ).not.toContain("orphaned");
+    expect(codes({ configuredProjectCount: 20, totalIssueCount: 0, activeProjectCount: 0 })).toContain(
+      "configured-no-issues",
+    );
+    expect(
+      codes({ configuredProjectCount: 20, totalIssueCount: 0, activeProjectCount: 0, archivedIssueCount: 40 }),
+    ).not.toContain("configured-no-issues");
   });
 });

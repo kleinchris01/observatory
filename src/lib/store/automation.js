@@ -80,8 +80,10 @@ export async function clearAutomationAnalysis(scopeKey) {
   // the Fields section render data from a build the estate no longer matches.
   await Promise.all(
     Object.keys(AUTOMATION_PARTS).map((part) =>
-      kvs.delete(keyFor(part, scopeKey)).catch(fallbackOn("automation.part_clear_failed", () => null, { scopeKey, part }))
-    )
+      kvs
+        .delete(keyFor(part, scopeKey))
+        .catch(fallbackOn("automation.part_clear_failed", () => null, { scopeKey, part })),
+    ),
   );
 }
 
@@ -104,9 +106,7 @@ async function replaceRows(scopeKey, table, columns, rows, batchSize) {
   // Replace, never merge. A re-import describes the whole estate as it now stands, so a
   // reference that disappeared from the export must disappear here -- otherwise a rule
   // deleted in Jira keeps blocking a field deletion forever.
-  await withSqlRetry(() =>
-    sql.prepare(`DELETE FROM ${table} WHERE scope_key = ?`).bindParams(scopeKey).execute()
-  );
+  await withSqlRetry(() => sql.prepare(`DELETE FROM ${table} WHERE scope_key = ?`).bindParams(scopeKey).execute());
   if (!rows?.length) return 0;
 
   const placeholder = `(${columns.map(() => "?").join(", ")})`;
@@ -115,10 +115,10 @@ async function replaceRows(scopeKey, table, columns, rows, batchSize) {
     await withSqlRetry(() =>
       sql
         .prepare(
-          `INSERT IGNORE INTO ${table} (${columns.join(", ")}) VALUES ${batch.map(() => placeholder).join(", ")}`
+          `INSERT IGNORE INTO ${table} (${columns.join(", ")}) VALUES ${batch.map(() => placeholder).join(", ")}`,
         )
         .bindParams(...batch.flat())
-        .execute()
+        .execute(),
     );
   }
   return rows.length;
@@ -145,16 +145,16 @@ export function referenceRowsFrom(indexDocument, kind) {
 }
 
 export async function replaceAutomationReferences(scopeKey, { fields, statuses }) {
-  const rows = [
-    ...referenceRowsFrom(fields, "field"),
-    ...referenceRowsFrom(statuses, "status"),
-  ].map((row) => [scopeKey, ...row]);
+  const rows = [...referenceRowsFrom(fields, "field"), ...referenceRowsFrom(statuses, "status")].map((row) => [
+    scopeKey,
+    ...row,
+  ]);
   return replaceRows(
     scopeKey,
     "automation_references",
     ["scope_key", "kind", "label", "rule_id", "direction"],
     rows,
-    REF_BATCH
+    REF_BATCH,
   );
 }
 
@@ -174,7 +174,7 @@ export async function replaceAutomationRules(scopeKey, directory) {
     "automation_rules",
     ["scope_key", "rule_id", "name", "enabled", "trigger_type", "project_count"],
     rows,
-    REF_BATCH
+    REF_BATCH,
   );
 
   // The scope rows, from the same document. Written here rather than as their own import
@@ -188,7 +188,7 @@ export async function replaceAutomationRules(scopeKey, directory) {
     "automation_rule_projects",
     ["scope_key", "rule_id", "project_id"],
     projectRows,
-    REF_BATCH
+    REF_BATCH,
   );
 
   return written + projectsWritten;
@@ -216,13 +216,20 @@ export async function replaceAutomationRules(scopeKey, directory) {
 //      execution log to an app, so proof is not available at any price.
 //
 // It is inference. It is labelled as inference where it renders.
-export async function loadGlobalRulesAffectingProject(scopeKey, version, projectId, { activeSinceDays = 90, limit = 25 } = {}) {
+export async function loadGlobalRulesAffectingProject(
+  scopeKey,
+  version,
+  projectId,
+  { activeSinceDays = 90, limit = 25 } = {},
+) {
   await ensureProjectStoreReady();
   const capped = Math.max(1, Math.min(100, Math.trunc(Number(limit)) || 25));
   const since = new Date(Date.now() - Math.max(1, activeSinceDays) * 24 * 60 * 60 * 1000).toISOString();
 
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT
         r.rule_id, r.name, r.trigger_type,
         COUNT(DISTINCT pu.field_id) AS fields_touched,
@@ -250,7 +257,10 @@ export async function loadGlobalRulesAffectingProject(scopeKey, version, project
       GROUP BY r.rule_id, r.name, r.trigger_type
       ORDER BY issues_touched DESC, r.rule_id ASC
       LIMIT ${capped}
-    `).bindParams(version, String(projectId), scopeKey, since).execute()
+    `,
+      )
+      .bindParams(version, String(projectId), scopeKey, since)
+      .execute(),
   );
 
   return (result.rows || []).map((row) => ({
@@ -274,7 +284,9 @@ export async function loadRulesForProject(scopeKey, projectId, { limit = 100 } =
   const capped = Math.max(1, Math.min(500, Math.trunc(Number(limit)) || 100));
 
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT r.rule_id, r.name, r.enabled, r.trigger_type
       FROM automation_rule_projects p
       JOIN automation_rules r
@@ -282,7 +294,10 @@ export async function loadRulesForProject(scopeKey, projectId, { limit = 100 } =
       WHERE p.scope_key = ? AND p.project_id = ?
       ORDER BY r.enabled DESC, r.name ASC
       LIMIT ${capped}
-    `).bindParams(scopeKey, String(projectId)).execute()
+    `,
+      )
+      .bindParams(scopeKey, String(projectId))
+      .execute(),
   );
 
   return (result.rows || []).map((row) => ({
@@ -340,7 +355,7 @@ export async function replaceAutomationCascades(scopeKey, document) {
     "automation_cascades",
     ["scope_key", "source_rule_id", "target_rule_id", "field", "self_triggering"],
     rows,
-    CASCADE_BATCH
+    CASCADE_BATCH,
   );
 }
 
@@ -351,14 +366,19 @@ export async function replaceAutomationCascades(scopeKey, document) {
 export async function loadCascadeSummary(scopeKey) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT
         COUNT(*) AS edges,
         COUNT(DISTINCT CONCAT(source_rule_id, '>', target_rule_id)) AS pairs,
         COUNT(DISTINCT CASE WHEN self_triggering = 1 THEN source_rule_id END) AS self_rules,
         COUNT(DISTINCT field) AS fields
       FROM automation_cascades WHERE scope_key = ?
-    `).bindParams(scopeKey).execute()
+    `,
+      )
+      .bindParams(scopeKey)
+      .execute(),
   );
   const row = result.rows?.[0] || {};
   return {
@@ -378,15 +398,10 @@ export async function loadCascadeSummary(scopeKey) {
 // `direction` decides which end `ruleId` binds to, which is the difference between "what
 // does this rule wake" and "what wakes this rule" -- the second being the question an admin
 // asks when a rule fires and they cannot see why.
-export async function loadCascades(scopeKey, {
-  search = "",
-  kind = "all",
-  ruleId = null,
-  direction = "source",
-  field = null,
-  limit = 100,
-  offset = 0,
-} = {}) {
+export async function loadCascades(
+  scopeKey,
+  { search = "", kind = "all", ruleId = null, direction = "source", field = null, limit = 100, offset = 0 } = {},
+) {
   await ensureProjectStoreReady();
   // Interpolated, never bound: Forge SQL rejects a placeholder in LIMIT/OFFSET. Coercing to
   // a bounded integer here is the only thing between a caller and an injection, and
@@ -411,7 +426,9 @@ export async function loadCascades(scopeKey, {
   // Matches a rule at either end as well as the field, because "what is Story Points caught
   // up in" and "what is this rule caught up in" are the same search box to a reader.
   if (search.trim()) {
-    where.push("(LOWER(c.field) LIKE LOWER(?) OR LOWER(COALESCE(s.name, '')) LIKE LOWER(?) OR LOWER(COALESCE(t.name, '')) LIKE LOWER(?))");
+    where.push(
+      "(LOWER(c.field) LIKE LOWER(?) OR LOWER(COALESCE(s.name, '')) LIKE LOWER(?) OR LOWER(COALESCE(t.name, '')) LIKE LOWER(?))",
+    );
     const term = `%${search.trim()}%`;
     params.push(term, term, term);
   }
@@ -424,7 +441,9 @@ export async function loadCascades(scopeKey, {
   `;
 
   const rows = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT
         c.source_rule_id, c.target_rule_id, c.self_triggering,
         s.name AS source_name, s.enabled AS source_enabled,
@@ -436,18 +455,26 @@ export async function loadCascades(scopeKey, {
                s.name, s.enabled, t.name, t.enabled
       ORDER BY c.self_triggering DESC, field_count DESC, c.source_rule_id ASC, c.target_rule_id ASC
       LIMIT ${cap} OFFSET ${skip}
-    `).bindParams(...params).execute()
+    `,
+      )
+      .bindParams(...params)
+      .execute(),
   );
 
   // The total is a count of GROUPS, matching what the rows are. Counting edges here would
   // page a reader through a number they can never reach.
   const counted = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT COUNT(*) AS total FROM (
         SELECT 1 ${from}
         GROUP BY c.source_rule_id, c.target_rule_id
       ) grouped
-    `).bindParams(...params).execute()
+    `,
+      )
+      .bindParams(...params)
+      .execute(),
   );
 
   return {
@@ -459,7 +486,9 @@ export async function loadCascades(scopeKey, {
       targetName: row.target_name || row.target_rule_id,
       targetEnabled: row.target_enabled == null ? null : toNumber(row.target_enabled) === 1,
       selfTriggering: toNumber(row.self_triggering) === 1,
-      fields: String(row.fields || "").split("\u001f").filter(Boolean),
+      fields: String(row.fields || "")
+        .split("\u001f")
+        .filter(Boolean),
       fieldCount: toNumber(row.field_count),
     })),
     total: toNumber(counted.rows?.[0]?.total),
@@ -476,13 +505,18 @@ export async function loadCascadeEdges(scopeKey, { limit = 20000 } = {}) {
   await ensureProjectStoreReady();
   const cap = Math.max(1, Math.min(50000, Math.trunc(Number(limit)) || 20000));
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT c.source_rule_id, c.target_rule_id, c.field
       FROM automation_cascades c
       WHERE c.scope_key = ?
       ORDER BY c.source_rule_id, c.target_rule_id, c.field
       LIMIT ${cap}
-    `).bindParams(scopeKey).execute()
+    `,
+      )
+      .bindParams(scopeKey)
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     sourceId: row.source_rule_id,
@@ -502,11 +536,16 @@ export async function loadRuleDirectoryFor(scopeKey, ruleIds = []) {
   for (let i = 0; i < ids.length; i += 100) {
     const batch = ids.slice(i, i + 100);
     const result = await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         SELECT rule_id, name, enabled, trigger_type
         FROM automation_rules
         WHERE scope_key = ? AND rule_id IN (${batch.map(() => "?").join(", ")})
-      `).bindParams(scopeKey, ...batch).execute()
+      `,
+        )
+        .bindParams(scopeKey, ...batch)
+        .execute(),
     );
     for (const row of result.rows || []) {
       out.set(String(row.rule_id), {
@@ -539,7 +578,7 @@ export async function replaceAutomationFindings(scopeKey, findingsDocument) {
     "automation_findings",
     ["scope_key", "rule_id", "code", "severity", "hosts_json", "disabled_days"],
     rows,
-    REF_BATCH
+    REF_BATCH,
   );
 }
 
@@ -574,7 +613,9 @@ export async function loadStatusAutomationReferences(scopeKey, labels = []) {
     const batch = names.slice(i, i + 100);
     const placeholders = batch.map(() => "LOWER(?)").join(", ");
     const result = await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         SELECT LOWER(r.label) AS label,
                COUNT(DISTINCT r.rule_id) AS rule_count,
                COUNT(DISTINCT CASE WHEN a.enabled = 1 THEN r.rule_id END) AS enabled_count
@@ -583,7 +624,10 @@ export async function loadStatusAutomationReferences(scopeKey, labels = []) {
           ON a.scope_key = r.scope_key AND a.rule_id = r.rule_id
         WHERE r.scope_key = ? AND r.kind = 'status' AND LOWER(r.label) IN (${placeholders})
         GROUP BY LOWER(r.label)
-      `).bindParams(scopeKey, ...batch).execute()
+      `,
+        )
+        .bindParams(scopeKey, ...batch)
+        .execute(),
     );
     for (const row of result.rows || []) {
       out[String(row.label)] = {
@@ -616,9 +660,7 @@ export function blastRowsFrom(document) {
       String(rule.tier || "contained").slice(0, 20),
       rule.estimated ? 1 : 0,
       rule.credential ? 1 : 0,
-      rule.factors
-        ? JSON.stringify({ factors: rule.factors, modifiers: rule.modifiers ?? [] }).slice(0, 8000)
-        : null,
+      rule.factors ? JSON.stringify({ factors: rule.factors, modifiers: rule.modifiers ?? [] }).slice(0, 8000) : null,
     ]);
   }
   return rows;
@@ -631,7 +673,7 @@ export async function replaceAutomationBlast(scopeKey, document) {
     "automation_rule_blast",
     ["scope_key", "rule_id", "score", "tier", "estimated", "credential", "factors_json"],
     rows,
-    BLAST_BATCH
+    BLAST_BATCH,
   );
 }
 
@@ -640,7 +682,9 @@ export async function replaceAutomationBlast(scopeKey, document) {
 export async function loadBlastSummary(scopeKey) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT tier,
              COUNT(*) AS n,
              SUM(CASE WHEN estimated = 1 THEN 1 ELSE 0 END) AS estimated_n,
@@ -648,7 +692,10 @@ export async function loadBlastSummary(scopeKey) {
       FROM automation_rule_blast
       WHERE scope_key = ?
       GROUP BY tier
-    `).bindParams(scopeKey).execute()
+    `,
+      )
+      .bindParams(scopeKey)
+      .execute(),
   );
 
   const byTier = { estate: 0, "cross-project": 0, project: 0, contained: 0 };
@@ -715,17 +762,25 @@ export async function loadBlastRules(scopeKey, { tier = null, search = "", limit
   `;
 
   const rows = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT b.rule_id, b.score, b.tier, b.estimated, b.credential, b.factors_json,
              a.name AS rule_name, a.enabled AS rule_enabled, a.trigger_type
       ${from}
       ORDER BY b.score DESC, b.rule_id ASC
       LIMIT ${cap} OFFSET ${skip}
-    `).bindParams(...params).execute()
+    `,
+      )
+      .bindParams(...params)
+      .execute(),
   );
 
   const counted = await withSqlRetry(() =>
-    sql.prepare(`SELECT COUNT(*) AS total ${from}`).bindParams(...params).execute()
+    sql
+      .prepare(`SELECT COUNT(*) AS total ${from}`)
+      .bindParams(...params)
+      .execute(),
   );
 
   return {
@@ -759,20 +814,20 @@ export async function loadAutomationReferencesFor(scopeKey, kind, label, limit =
              ON a.scope_key = r.scope_key AND a.rule_id = r.rule_id
           WHERE r.scope_key = ? AND r.kind = ? AND LOWER(r.label) = LOWER(?)
           ORDER BY r.direction, a.name
-          LIMIT ${cap}`
+          LIMIT ${cap}`,
       )
       .bindParams(scopeKey, kind, label)
-      .execute()
+      .execute(),
   );
   const counted = await withSqlRetry(() =>
     sql
       .prepare(
         `SELECT COUNT(*) AS total, COUNT(DISTINCT rule_id) AS rules
            FROM automation_references
-          WHERE scope_key = ? AND kind = ? AND LOWER(label) = LOWER(?)`
+          WHERE scope_key = ? AND kind = ? AND LOWER(label) = LOWER(?)`,
       )
       .bindParams(scopeKey, kind, label)
-      .execute()
+      .execute(),
   );
   const summary = counted?.rows?.[0] || {};
   return {

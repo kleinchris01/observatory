@@ -52,9 +52,13 @@ import {
 } from "./project-store.js";
 
 const rawFilter = (id) => ({
-  id, name: `Filter ${id}`, jql: "project = ADVEV",
+  id,
+  name: `Filter ${id}`,
+  jql: "project = ADVEV",
   owner: { accountId: "a1", displayName: "Bob", active: true },
-  sharePermissions: [], subscriptions: { size: 0, items: [] }, favouritedCount: 0,
+  sharePermissions: [],
+  subscriptions: { size: 0, items: [] },
+  favouritedCount: 0,
 });
 
 // A page of `size` filters out of `total`, numbered from `startAt` so the test can prove the
@@ -118,9 +122,11 @@ describe("starting a build", () => {
   });
 
   test("allows a rebuild over a build that stopped heartbeating", async () => {
-    readFilterSnapshotMeta.mockResolvedValue(building({
-      updatedAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
-    }));
+    readFilterSnapshotMeta.mockResolvedValue(
+      building({
+        updatedAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+      }),
+    );
 
     expect((await queueFilterSnapshotBuild("inst")).queued).toBe(true);
   });
@@ -153,10 +159,12 @@ describe("running a chunk", () => {
   });
 
   test("resumes from the cursor rather than starting over", async () => {
-    readFilterSnapshotMeta.mockResolvedValue(building({
-      buildCursor: JSON.stringify({ startAt: 500, total: 10_000 }),
-      processed: 500,
-    }));
+    readFilterSnapshotMeta.mockResolvedValue(
+      building({
+        buildCursor: JSON.stringify({ startAt: 500, total: 10_000 }),
+        processed: 500,
+      }),
+    );
 
     await buildFilterSnapshot("inst", { buildToken: "test-token" });
 
@@ -170,8 +178,7 @@ describe("running a chunk", () => {
   test("publishes the version only when the cursor is spent", async () => {
     // 60 filters left: two pages, well inside one chunk.
     readFilterSnapshotMeta.mockResolvedValue(building({ buildCursor: JSON.stringify({ startAt: 0, total: 60 }) }));
-    getFilterPage.mockImplementation(async (startAt) =>
-      page(startAt, Math.min(FILTER_PAGE_SIZE, 60 - startAt), 60));
+    getFilterPage.mockImplementation(async (startAt) => page(startAt, Math.min(FILTER_PAGE_SIZE, 60 - startAt), 60));
 
     const result = await buildFilterSnapshot("inst", { buildToken: "test-token" });
 
@@ -183,16 +190,22 @@ describe("running a chunk", () => {
   });
 
   test("appends rather than replacing, so earlier chunks survive", async () => {
-    readFilterSnapshotMeta.mockResolvedValue(building({ buildCursor: JSON.stringify({ startAt: 500, total: 10_000 }) }));
+    readFilterSnapshotMeta.mockResolvedValue(
+      building({ buildCursor: JSON.stringify({ startAt: 500, total: 10_000 }) }),
+    );
 
     await buildFilterSnapshot("inst", { buildToken: "test-token" });
 
     // A chunked build that cleared its version on every write would delete the pages it had
     // already fetched and never finish, however long it ran. Clearing happens once, at start.
     expect(clearFilterSnapshotVersion).not.toHaveBeenCalled();
-    expect(appendFilterSnapshot).toHaveBeenCalledWith("inst", "v-1", expect.objectContaining({
-      filters: expect.any(Array),
-    }));
+    expect(appendFilterSnapshot).toHaveBeenCalledWith(
+      "inst",
+      "v-1",
+      expect.objectContaining({
+        filters: expect.any(Array),
+      }),
+    );
   });
 });
 

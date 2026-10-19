@@ -55,7 +55,10 @@ export function tokenize(text, { lenient = false } = {}) {
   let i = 0;
   while (i < src.length) {
     const ch = src[i];
-    if (/\s/.test(ch)) { i += 1; continue; }
+    if (/\s/.test(ch)) {
+      i += 1;
+      continue;
+    }
     const start = i;
     if (ch === "(" || ch === ")" || ch === ",") {
       tokens.push({ type: ch === "(" ? "lparen" : ch === ")" ? "rparen" : "comma", value: ch, start, end: i + 1 });
@@ -66,7 +69,11 @@ export function tokenize(text, { lenient = false } = {}) {
       let j = i + 1;
       let value = "";
       while (j < src.length && src[j] !== ch) {
-        if (src[j] === "\\" && j + 1 < src.length) { value += src[j + 1]; j += 2; continue; }
+        if (src[j] === "\\" && j + 1 < src.length) {
+          value += src[j + 1];
+          j += 2;
+          continue;
+        }
         value += src[j];
         j += 1;
       }
@@ -98,7 +105,10 @@ export function tokenize(text, { lenient = false } = {}) {
       i = j;
       continue;
     }
-    if (lenient) { i += 1; continue; }
+    if (lenient) {
+      i += 1;
+      continue;
+    }
     throw new OqlError(`"${ch}" is not part of the language. Put values with punctuation in quotes.`, start, start + 1);
   }
   return tokens;
@@ -150,7 +160,10 @@ function closest(input, candidates) {
   let bestScore = Infinity;
   for (const c of candidates) {
     const d = distance(needle, String(c).toLowerCase());
-    if (d < bestScore) { best = c; bestScore = d; }
+    if (d < bestScore) {
+      best = c;
+      bestScore = d;
+    }
   }
   return best != null && bestScore <= Math.max(2, Math.floor(needle.length / 3)) ? best : null;
 }
@@ -189,7 +202,9 @@ function parseOrThrow(text, catalog, now) {
   const peek = () => tokens[pos];
   const next = () => tokens[pos++];
   const endPos = String(text ?? "").length;
-  const fail = (message, tok) => { throw new OqlError(message, tok?.start ?? endPos, tok?.end ?? endPos); };
+  const fail = (message, tok) => {
+    throw new OqlError(message, tok?.start ?? endPos, tok?.end ?? endPos);
+  };
 
   function parseField() {
     const tok = next();
@@ -198,7 +213,10 @@ function parseOrThrow(text, catalog, now) {
     }
     const field = resolveField(catalog, tok.value);
     if (!field) {
-      const suggestion = closest(tok.value, (catalog?.fields || []).map((f) => f.key));
+      const suggestion = closest(
+        tok.value,
+        (catalog?.fields || []).map((f) => f.key),
+      );
       fail(`Unknown field "${tok.value}".${suggestion ? ` Did you mean "${suggestion}"?` : ""}`, tok);
     }
     return { field, tok };
@@ -228,7 +246,10 @@ function parseOrThrow(text, catalog, now) {
     if (isKeyword(opTok, "IS")) {
       next();
       let negate = false;
-      if (isKeyword(peek(), "NOT")) { next(); negate = true; }
+      if (isKeyword(peek(), "NOT")) {
+        next();
+        negate = true;
+      }
       const emptyTok = next();
       if (!isKeyword(emptyTok, "EMPTY") && !isKeyword(emptyTok, "NULL")) fail("Expected EMPTY after IS.", emptyTok);
       const op = negate ? "IS NOT EMPTY" : "IS EMPTY";
@@ -239,7 +260,8 @@ function parseOrThrow(text, catalog, now) {
     let negateIn = false;
     if (isKeyword(opTok, "NOT")) {
       next();
-      if (!isKeyword(peek(), "IN")) fail("Expected IN after NOT. To negate a clause, put NOT before the field.", peek());
+      if (!isKeyword(peek(), "IN"))
+        fail("Expected IN after NOT. To negate a clause, put NOT before the field.", peek());
       negateIn = true;
     }
     if (isKeyword(peek(), "IN")) {
@@ -249,28 +271,45 @@ function parseOrThrow(text, catalog, now) {
       const open = next();
       if (open?.type !== "lparen") fail("Expected ( after IN, as in IN (a, b).", open);
       const values = [parseValue(field)];
-      while (peek()?.type === "comma") { next(); values.push(parseValue(field)); }
+      while (peek()?.type === "comma") {
+        next();
+        values.push(parseValue(field));
+      }
       const close = next();
       if (close?.type !== "rparen") fail("Expected , or ) in the IN list.", close);
       return { type: "clause", field: field.key, kind: field.kind, op, values, start: fieldTok.start, end: close.end };
     }
 
     if (opTok.type !== "op" || !COMPARATORS.includes(opTok.value)) {
-      fail(`Expected an operator after ${field.key}, found "${opTok.value}". Try ${allowed.slice(0, 4).join(", ")}.`, opTok);
+      fail(
+        `Expected an operator after ${field.key}, found "${opTok.value}". Try ${allowed.slice(0, 4).join(", ")}.`,
+        opTok,
+      );
     }
     next();
     check(opTok.value, opTok);
     const valueTok = peek();
     const value = parseValue(field);
-    if ((field.kind === "level") && value.value === "unmeasured" && [">", ">=", "<", "<="].includes(opTok.value)) {
+    if (field.kind === "level" && value.value === "unmeasured" && [">", ">=", "<", "<="].includes(opTok.value)) {
       fail("unmeasured has no order. Use = or != with it.", valueTok);
     }
-    return { type: "clause", field: field.key, kind: field.kind, op: opTok.value, values: [value], start: fieldTok.start, end: valueTok.end };
+    return {
+      type: "clause",
+      field: field.key,
+      kind: field.kind,
+      op: opTok.value,
+      values: [value],
+      start: fieldTok.start,
+      end: valueTok.end,
+    };
   }
 
   function parseNot() {
     const tok = peek();
-    if (isKeyword(tok, "NOT")) { next(); return { type: "not", expr: parseNot() }; }
+    if (isKeyword(tok, "NOT")) {
+      next();
+      return { type: "not", expr: parseNot() };
+    }
     if (tok?.type === "lparen") {
       next();
       const expr = parseOr();
@@ -283,13 +322,19 @@ function parseOrThrow(text, catalog, now) {
 
   function parseAnd() {
     let left = parseNot();
-    while (isKeyword(peek(), "AND")) { next(); left = { type: "and", left, right: parseNot() }; }
+    while (isKeyword(peek(), "AND")) {
+      next();
+      left = { type: "and", left, right: parseNot() };
+    }
     return left;
   }
 
   function parseOr() {
     let left = parseAnd();
-    while (isKeyword(peek(), "OR")) { next(); left = { type: "or", left, right: parseAnd() }; }
+    while (isKeyword(peek(), "OR")) {
+      next();
+      left = { type: "or", left, right: parseAnd() };
+    }
     return left;
   }
 
@@ -304,7 +349,10 @@ function parseOrThrow(text, catalog, now) {
     const { field } = parseField();
     let dir = "asc";
     if (isKeyword(peek(), "ASC")) next();
-    else if (isKeyword(peek(), "DESC")) { next(); dir = "desc"; }
+    else if (isKeyword(peek(), "DESC")) {
+      next();
+      dir = "desc";
+    }
     orderBy = { field: field.key, kind: field.kind, dir };
   }
 
@@ -352,7 +400,10 @@ function coerceValue(field, tok, now, fail) {
       if (canon == null) {
         const options = field.kind === "level" ? [...LEVELS, "unmeasured"] : field.values || [];
         const suggestion = closest(raw, options);
-        fail(`"${raw}" is not a ${field.key}.${suggestion ? ` Did you mean "${suggestion}"?` : ` Use one of: ${options.join(", ")}.`}`, tok);
+        fail(
+          `"${raw}" is not a ${field.key}.${suggestion ? ` Did you mean "${suggestion}"?` : ` Use one of: ${options.join(", ")}.`}`,
+          tok,
+        );
       }
       return { value: canon, raw };
     }
@@ -404,12 +455,18 @@ function evalClause(clause, entity) {
   if (isEmpty(actual) && kind !== "list") return false;
   const values = clause.values.map((v) => v.value);
   switch (op) {
-    case "=": return equals(kind, actual, values[0]);
-    case "!=": return !equals(kind, actual, values[0]);
-    case "IN": return values.some((v) => equals(kind, actual, v));
-    case "NOT IN": return !values.some((v) => equals(kind, actual, v));
-    case "~": return (Array.isArray(actual) ? actual : [actual]).some((a) => lower(a).includes(lower(values[0])));
-    case "!~": return !(Array.isArray(actual) ? actual : [actual]).some((a) => lower(a).includes(lower(values[0])));
+    case "=":
+      return equals(kind, actual, values[0]);
+    case "!=":
+      return !equals(kind, actual, values[0]);
+    case "IN":
+      return values.some((v) => equals(kind, actual, v));
+    case "NOT IN":
+      return !values.some((v) => equals(kind, actual, v));
+    case "~":
+      return (Array.isArray(actual) ? actual : [actual]).some((a) => lower(a).includes(lower(values[0])));
+    case "!~":
+      return !(Array.isArray(actual) ? actual : [actual]).some((a) => lower(a).includes(lower(values[0])));
     default: {
       const c = compare(kind, actual, values[0]);
       if (c == null) return false;
@@ -424,10 +481,14 @@ function evalClause(clause, entity) {
 export function evaluate(node, entity) {
   if (!node) return true;
   switch (node.type) {
-    case "and": return evaluate(node.left, entity) && evaluate(node.right, entity);
-    case "or": return evaluate(node.left, entity) || evaluate(node.right, entity);
-    case "not": return !evaluate(node.expr, entity);
-    default: return evalClause(node, entity);
+    case "and":
+      return evaluate(node.left, entity) && evaluate(node.right, entity);
+    case "or":
+      return evaluate(node.left, entity) || evaluate(node.right, entity);
+    case "not":
+      return !evaluate(node.expr, entity);
+    default:
+      return evalClause(node, entity);
   }
 }
 
@@ -435,7 +496,10 @@ function sortValue(kind, v) {
   if (isEmpty(v)) return null;
   if (kind === "level") return LEVEL_RANK[v] ?? null;
   if (kind === "number") return Number.isFinite(Number(v)) ? Number(v) : null;
-  if (kind === "date") { const ms = Date.parse(v); return Number.isFinite(ms) ? ms : null; }
+  if (kind === "date") {
+    const ms = Date.parse(v);
+    return Number.isFinite(ms) ? ms : null;
+  }
   if (kind === "boolean") return v ? 1 : 0;
   if (Array.isArray(v)) return v.length;
   return lower(v);
@@ -505,8 +569,16 @@ function valueItems(field) {
     return [...LEVELS, "unmeasured"].map((v) => ({ label: v, insert: v, detail: field.valueDetails?.[v] || "" }));
   }
   if (field.kind === "boolean") return ["true", "false"].map((v) => ({ label: v, insert: v, detail: "" }));
-  if (field.kind === "date") return [{ label: "-30d", insert: "-30d", detail: "30 days ago" }, { label: "-90d", insert: "-90d", detail: "90 days ago" }];
-  return (field.values || []).map((v) => ({ label: String(v), insert: quoteIfNeeded(v), detail: field.valueDetails?.[v] || "" }));
+  if (field.kind === "date")
+    return [
+      { label: "-30d", insert: "-30d", detail: "30 days ago" },
+      { label: "-90d", insert: "-90d", detail: "90 days ago" },
+    ];
+  return (field.values || []).map((v) => ({
+    label: String(v),
+    insert: quoteIfNeeded(v),
+    detail: field.valueDetails?.[v] || "",
+  }));
 }
 
 function fieldItems(catalog) {
@@ -538,8 +610,13 @@ export function suggestOql(text, cursor, catalog) {
     switch (state) {
       case "field":
         if (up === "NOT") state = "field";
-        else if (tok.type === "lparen") { depth += 1; state = "field"; }
-        else if (tok.type === "word") { field = resolveField(catalog, tok.value); state = "op"; }
+        else if (tok.type === "lparen") {
+          depth += 1;
+          state = "field";
+        } else if (tok.type === "word") {
+          field = resolveField(catalog, tok.value);
+          state = "op";
+        }
         break;
       case "op":
         if (tok.type === "op") state = "value";
@@ -571,7 +648,10 @@ export function suggestOql(text, cursor, catalog) {
       case "connector":
         if (up === "AND" || up === "OR") state = "field";
         else if (up === "ORDER") state = "by";
-        else if (tok.type === "rparen") { depth = Math.max(0, depth - 1); state = "connector"; }
+        else if (tok.type === "rparen") {
+          depth = Math.max(0, depth - 1);
+          state = "connector";
+        }
         break;
       case "by":
         state = up === "BY" ? "orderfield" : "connector";
@@ -589,30 +669,64 @@ export function suggestOql(text, cursor, catalog) {
 
   let items;
   switch (state) {
-    case "field": items = [...fieldItems(catalog), ...kw("NOT")]; break;
-    case "orderfield": items = fieldItems(catalog); break;
-    case "op": items = (OPERATORS_BY_KIND[field?.kind] || OPERATORS_BY_KIND.text).map((op) => ({ label: op, insert: op, detail: "" })); break;
-    case "is": items = kw("EMPTY", "NOT EMPTY"); break;
-    case "isnot": items = kw("EMPTY"); break;
-    case "notin": items = kw("IN"); break;
-    case "inopen": items = [{ label: "(", insert: "(", detail: "" }]; break;
+    case "field":
+      items = [...fieldItems(catalog), ...kw("NOT")];
+      break;
+    case "orderfield":
+      items = fieldItems(catalog);
+      break;
+    case "op":
+      items = (OPERATORS_BY_KIND[field?.kind] || OPERATORS_BY_KIND.text).map((op) => ({
+        label: op,
+        insert: op,
+        detail: "",
+      }));
+      break;
+    case "is":
+      items = kw("EMPTY", "NOT EMPTY");
+      break;
+    case "isnot":
+      items = kw("EMPTY");
+      break;
+    case "notin":
+      items = kw("IN");
+      break;
+    case "inopen":
+      items = [{ label: "(", insert: "(", detail: "" }];
+      break;
     case "value":
-    case "listvalue": items = valueItems(field); break;
-    case "listsep": items = [{ label: ",", insert: ",", detail: "" }, { label: ")", insert: ")", detail: "" }]; break;
-    case "connector": items = [...kw("AND", "OR"), ...(depth > 0 ? [{ label: ")", insert: ")", detail: "" }] : kw("ORDER BY"))]; break;
-    case "by": items = kw("BY"); break;
-    case "orderdir": items = kw("ASC", "DESC"); break;
-    default: items = [];
+    case "listvalue":
+      items = valueItems(field);
+      break;
+    case "listsep":
+      items = [
+        { label: ",", insert: ",", detail: "" },
+        { label: ")", insert: ")", detail: "" },
+      ];
+      break;
+    case "connector":
+      items = [...kw("AND", "OR"), ...(depth > 0 ? [{ label: ")", insert: ")", detail: "" }] : kw("ORDER BY"))];
+      break;
+    case "by":
+      items = kw("BY");
+      break;
+    case "orderdir":
+      items = kw("ASC", "DESC");
+      break;
+    default:
+      items = [];
   }
 
   const prefix = prefixTok ? String(prefixTok.value).toLowerCase() : "";
   const filtered = prefix
     ? [
-      ...items.filter((it) => it.label.toLowerCase().startsWith(prefix)),
-      ...items.filter((it) => !it.label.toLowerCase().startsWith(prefix) && it.label.toLowerCase().includes(prefix)),
-    ]
+        ...items.filter((it) => it.label.toLowerCase().startsWith(prefix)),
+        ...items.filter((it) => !it.label.toLowerCase().startsWith(prefix) && it.label.toLowerCase().includes(prefix)),
+      ]
     : items;
   // Don't offer exactly what is already typed as the only option.
-  const useful = filtered.filter((it) => !(prefixTok && it.label.toLowerCase() === prefix && filtered.length === 1 && state !== "value"));
+  const useful = filtered.filter(
+    (it) => !(prefixTok && it.label.toLowerCase() === prefix && filtered.length === 1 && state !== "value"),
+  );
   return { from: prefixTok ? prefixTok.start : at, to: at, items: useful.slice(0, 50) };
 }

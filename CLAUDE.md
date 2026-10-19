@@ -64,6 +64,23 @@ once in the tab header (pillar-scoped) and once per entity row / detail drawer
 (entity-scoped). The label always reads `Ask Rovo about <scope>` and the tooltip always
 names the agent and ends with the read-only reassurance.
 
+## Pillars: every one is wired into everything
+
+A pillar is not done when its tab works. `src/lib/pillar-completeness.test.js` fails CI unless
+every scored pillar has a score weight, a report, search measures, a change-history source, a
+remediation playbook and a quarterly initiative label, and nothing points at a pillar that does
+not exist. When it fails, wire the missing piece rather than exempting the pillar. Usage per
+item (`store/usage.js`) and a Rovo agent are expected too; where a pillar genuinely cannot have
+one, it says "not measured" with the reason, never zero.
+
+## Resolvers: one module per domain
+
+Every resolver lives in its domain module under `src/resolvers/` (Rovo actions in
+`src/resolvers/rovo/<pillar>.js`). `src/resolvers.js` is only the registry: a new resolver is
+written in its module and registered there, in `SHARED_RESOLVER_FUNCTIONS` (macro) or
+`RAW_ADMIN_ONLY_FUNCTIONS` (admin, behind the guard). Modules never import `../resolvers.js`.
+A new pillar gets its own module. History and tools: `docs/resolvers-refactor.md`.
+
 ## Testing
 
 Every new feature or change needs frontend *and* backend tests. Coverage floors are

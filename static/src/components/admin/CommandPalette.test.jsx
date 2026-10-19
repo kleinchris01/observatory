@@ -1,9 +1,6 @@
-import React from "react";
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
-import {
-  CommandPalette, entityIntent, oqlForTerm, buildPaletteItems, readRecent, pushRecent,
-} from "./CommandPalette";
+import { CommandPalette, entityIntent, oqlForTerm, buildPaletteItems, readRecent, pushRecent } from "./CommandPalette";
 
 vi.mock("@forge/bridge", () => ({
   invoke: vi.fn(),
@@ -19,7 +16,17 @@ const TABS = [
   { key: "scans", label: "Scans", icon: "zap", group: "Operate" },
 ];
 
-const row = (over = {}) => ({ uid: "fields:customfield_11412", pillar: "fields", pillarLabel: "Fields", name: "Plant", id: "customfield_11412", kind: null, type: null, rank: 0, ...over });
+const row = (over = {}) => ({
+  uid: "fields:customfield_11412",
+  pillar: "fields",
+  pillarLabel: "Fields",
+  name: "Plant",
+  id: "customfield_11412",
+  kind: null,
+  type: null,
+  rank: 0,
+  ...over,
+});
 
 beforeEach(() => {
   localStorage.clear();
@@ -28,15 +35,27 @@ beforeEach(() => {
 describe("entityIntent", () => {
   test("opens each pillar on the list that holds its items, already searched", () => {
     expect(entityIntent(row())).toEqual({ search: "Plant" });
-    expect(entityIntent(row({ pillar: "workflows", name: "SOLVE WF" }))).toEqual({ search: "SOLVE WF", view: "schemes" });
+    expect(entityIntent(row({ pillar: "workflows", name: "SOLVE WF" }))).toEqual({
+      search: "SOLVE WF",
+      view: "schemes",
+    });
     expect(entityIntent(row({ pillar: "people", name: "Joe" }))).toEqual({ search: "Joe", view: "roster" });
     expect(entityIntent(row({ pillar: "automation", name: "Rule" }))).toEqual({ search: "Rule", section: "blast" });
   });
 
   test("picks the right view for priorities and access by kind and type", () => {
-    expect(entityIntent(row({ pillar: "priorities", kind: "Resolution", name: "Done" }))).toEqual({ search: "Done", view: "resolutions" });
-    expect(entityIntent(row({ pillar: "priorities", kind: "Priority", name: "High" }))).toEqual({ search: "High", view: "priorities" });
-    expect(entityIntent(row({ pillar: "access", type: "Project role", name: "Developers" }))).toEqual({ search: "Developers", view: "roles" });
+    expect(entityIntent(row({ pillar: "priorities", kind: "Resolution", name: "Done" }))).toEqual({
+      search: "Done",
+      view: "resolutions",
+    });
+    expect(entityIntent(row({ pillar: "priorities", kind: "Priority", name: "High" }))).toEqual({
+      search: "High",
+      view: "priorities",
+    });
+    expect(entityIntent(row({ pillar: "access", type: "Project role", name: "Developers" }))).toEqual({
+      search: "Developers",
+      view: "roles",
+    });
     expect(entityIntent(row({ pillar: "access", type: "Unknown", name: "X" }))).toEqual({ search: "X" });
   });
 
@@ -73,7 +92,11 @@ describe("buildPaletteItems", () => {
   });
 
   test("a term shows matching tabs, then results, then the OQL row", () => {
-    const items = buildPaletteItems({ term: "work", tabs: TABS, results: [row({ uid: "w1", pillar: "workflows", name: "Work WF" })] });
+    const items = buildPaletteItems({
+      term: "work",
+      tabs: TABS,
+      results: [row({ uid: "w1", pillar: "workflows", name: "Work WF" })],
+    });
     expect(items.map((i) => `${i.group}:${i.type}`)).toEqual(["Go to:tab", "Items:entity", "Search:oql"]);
     expect(items[2].term).toBe("work");
   });
@@ -146,7 +169,9 @@ describe("CommandPalette", () => {
   });
 
   test("says when nothing matched and names the pillars it could not search", async () => {
-    renderPalette({ load: vi.fn().mockResolvedValue({ ok: true, results: [], unavailable: [{ key: "assets", label: "Assets" }] }) });
+    renderPalette({
+      load: vi.fn().mockResolvedValue({ ok: true, results: [], unavailable: [{ key: "assets", label: "Assets" }] }),
+    });
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "zzz" } });
     expect(await screen.findByText(/No items named "zzz"/)).toBeInTheDocument();
     expect(screen.getByText(/Not searched .*Assets/)).toBeInTheDocument();
@@ -160,8 +185,14 @@ describe("CommandPalette", () => {
 
   test("a stale response never overwrites a newer one", async () => {
     let resolveFirst;
-    const load = vi.fn()
-      .mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }))
+    const load = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve;
+          }),
+      )
       .mockResolvedValueOnce({ ok: true, results: [row({ uid: "new", name: "Newer" })], unavailable: [] });
     renderPalette({ load });
     const input = screen.getByRole("combobox");
@@ -169,7 +200,9 @@ describe("CommandPalette", () => {
     await waitFor(() => expect(load).toHaveBeenCalledTimes(1));
     fireEvent.change(input, { target: { value: "older" } });
     await screen.findByRole("option", { name: /Newer/ });
-    await act(async () => { resolveFirst({ ok: true, results: [row({ uid: "old", name: "Older" })], unavailable: [] }); });
+    await act(async () => {
+      resolveFirst({ ok: true, results: [row({ uid: "old", name: "Older" })], unavailable: [] });
+    });
     expect(screen.queryByRole("option", { name: /^Older/ })).not.toBeInTheDocument();
   });
 

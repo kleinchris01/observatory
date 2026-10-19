@@ -1,7 +1,17 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatRelativeTime, formatNumber, formatTimestamp } from "../utils";
-import { BarList, Chip, EmptyState, FindingRow, Panel, RuleLink, SortFilterBar, StatRow, StatTile } from "../components/ui";
+import {
+  BarList,
+  Chip,
+  EmptyState,
+  FindingRow,
+  Panel,
+  RuleLink,
+  SortFilterBar,
+  StatRow,
+  StatTile,
+} from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useNavIntent, usePersistentState } from "../hooks";
 import { Icon } from "../components/Icons";
@@ -58,8 +68,18 @@ const TRIGGER_LABELS = {
 // colour everywhere it appears. "Writes" is the one that blocks a deletion; the other two
 // break if the field disappears but do not keep it alive.
 export const DIRECTIONS = [
-  { key: "write", label: "Writes", tone: "danger", hint: "Rules that set this. Deleting it breaks them and loses data they maintain." },
-  { key: "read", label: "Reads", tone: "info", hint: "Rules that check this in a condition. They break if it is deleted." },
+  {
+    key: "write",
+    label: "Writes",
+    tone: "danger",
+    hint: "Rules that set this. Deleting it breaks them and loses data they maintain.",
+  },
+  {
+    key: "read",
+    label: "Reads",
+    tone: "info",
+    hint: "Rules that check this in a condition. They break if it is deleted.",
+  },
   { key: "trigger", label: "Triggers", tone: "warning", hint: "Rules that run when this changes." },
 ];
 
@@ -181,11 +201,19 @@ function ReferenceRow({ entry, expanded, onToggle, directory, siteOrigin }) {
         onClick={onToggle}
         aria-expanded={expanded}
       >
-        <span className="ref-row__chevron" aria-hidden="true">{expanded ? "▾" : "▸"}</span>
-        <span className="ref-row__label" title={entry.label}>{entry.label}</span>
+        <span className="ref-row__chevron" aria-hidden="true">
+          {expanded ? "▾" : "▸"}
+        </span>
+        <span className="ref-row__label" title={entry.label}>
+          {entry.label}
+        </span>
         <DirectionBar entry={entry} />
         {DIRECTIONS.map(({ key, label, tone }) => (
-          <span key={key} className={`ref-row__count ref-row__count--${tone}`} title={`${label}: ${entry[`${key}Count`]}`}>
+          <span
+            key={key}
+            className={`ref-row__count ref-row__count--${tone}`}
+            title={`${label}: ${entry[`${key}Count`]}`}
+          >
             {entry[`${key}Count`] || "–"}
           </span>
         ))}
@@ -202,23 +230,37 @@ function ReferenceRow({ entry, expanded, onToggle, directory, siteOrigin }) {
               <div key={key} className="ref-detail__group">
                 <div className="ref-detail__heading">
                   <Chip tone={tone}>{label}</Chip>
-                  <span className="ref-detail__count">{formatNumber(count)} rule{count === 1 ? "" : "s"}</span>
+                  <span className="ref-detail__count">
+                    {formatNumber(count)} rule{count === 1 ? "" : "s"}
+                  </span>
                   <span className="ref-detail__hint">{hint}</span>
                 </div>
                 <ul className="ref-detail__rules">
                   {ids.map((id) => {
                     const rule = directory?.get(id);
                     return (
-                      <li key={id} className={rule && !rule.enabled ? "ref-detail__rule ref-detail__rule--disabled" : "ref-detail__rule"}>
+                      <li
+                        key={id}
+                        className={
+                          rule && !rule.enabled ? "ref-detail__rule ref-detail__rule--disabled" : "ref-detail__rule"
+                        }
+                      >
                         <RuleLink id={id} name={rule?.name} siteOrigin={siteOrigin} className="ref-detail__name" />
-                        {rule ? <span className="ref-detail__meta">{triggerLabel(rule.triggerType)}{rule.enabled ? "" : " · disabled"}</span> : null}
+                        {rule ? (
+                          <span className="ref-detail__meta">
+                            {triggerLabel(rule.triggerType)}
+                            {rule.enabled ? "" : " · disabled"}
+                          </span>
+                        ) : null}
                       </li>
                     );
                   })}
                 </ul>
                 {/* The stored list is capped. Saying so beats implying these are all of them. */}
                 {count > ids.length ? (
-                  <div className="ref-detail__truncation">Showing {ids.length} of {formatNumber(count)}.</div>
+                  <div className="ref-detail__truncation">
+                    Showing {ids.length} of {formatNumber(count)}.
+                  </div>
                 ) : null}
               </div>
             );
@@ -241,8 +283,8 @@ export function sortEntries(entries, sortKey) {
   const rows = [...entries];
   if (sortKey === "label") return rows.sort((a, b) => String(a.label).localeCompare(String(b.label)));
   if (sortKey === "total") {
-    return rows.sort((a, b) =>
-      (b.writeCount + b.readCount + b.triggerCount) - (a.writeCount + a.readCount + a.triggerCount)
+    return rows.sort(
+      (a, b) => b.writeCount + b.readCount + b.triggerCount - (a.writeCount + a.readCount + a.triggerCount),
     );
   }
   return rows.sort((a, b) => b[`${sortKey}Count`] - a[`${sortKey}Count`]);
@@ -263,7 +305,13 @@ function ReferenceExplorer({ noun, index, directory, loading, error, onRetry, si
   if (loading) return <div className="tab-loading">Loading {noun} references…</div>;
   if (error) {
     return (
-      <EmptyState action={<button type="button" className="ui-button" onClick={onRetry}>Retry</button>}>
+      <EmptyState
+        action={
+          <button type="button" className="ui-button" onClick={onRetry}>
+            Retry
+          </button>
+        }
+      >
         <strong>Could not load {noun} references.</strong>
         <div>{error}</div>
       </EmptyState>
@@ -283,7 +331,10 @@ function ReferenceExplorer({ noun, index, directory, loading, error, onRetry, si
           className="ui-input"
           placeholder={`Search ${noun}…`}
           value={search}
-          onChange={(e) => { setSearch(e.target.value); setLimit(50); }}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setLimit(50);
+          }}
           aria-label={`Search ${noun}`}
         />
         <select
@@ -292,18 +343,30 @@ function ReferenceExplorer({ noun, index, directory, loading, error, onRetry, si
           onChange={(e) => setSortKey(e.target.value)}
           aria-label={`Sort ${noun}`}
         >
-          {SORTS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+          {SORTS.map((s) => (
+            <option key={s.key} value={s.key}>
+              {s.label}
+            </option>
+          ))}
         </select>
         <span className="ref-toolbar__count">
-          {search ? `${formatNumber(rows.length)} of ${formatNumber(index.total)}` : `${formatNumber(index.total)} ${noun}`}
+          {search
+            ? `${formatNumber(rows.length)} of ${formatNumber(index.total)}`
+            : `${formatNumber(index.total)} ${noun}`}
         </span>
       </div>
 
       <div className="ref-head" aria-hidden="true">
         <span />
-        <span>{{ fields: "Field", statuses: "Status", "issue types": "Issue type", users: "User" }[noun] || "Name"}</span>
+        <span>
+          {{ fields: "Field", statuses: "Status", "issue types": "Issue type", users: "User" }[noun] || "Name"}
+        </span>
         <span>Mix</span>
-        {DIRECTIONS.map((d) => <span key={d.key} className="ref-head__num">{d.label}</span>)}
+        {DIRECTIONS.map((d) => (
+          <span key={d.key} className="ref-head__num">
+            {d.label}
+          </span>
+        ))}
         <span className="ref-head__num">Total</span>
       </div>
 
@@ -367,13 +430,13 @@ export function CascadeRow({ cascade, siteOrigin, onFocusRule }) {
   return (
     <div className={`cascade${selfTriggering ? " cascade--self" : ""}`}>
       <div className="cascade__head">
-        <Chip tone={selfTriggering ? "warning" : "neutral"}>
-          {selfTriggering ? "Self-triggering" : "Cascade"}
-        </Chip>
+        <Chip tone={selfTriggering ? "warning" : "neutral"}>{selfTriggering ? "Self-triggering" : "Cascade"}</Chip>
         <RuleLink id={sourceId} name={sourceName} siteOrigin={siteOrigin} className="cascade__rule" />
         {!selfTriggering && (
           <>
-            <span className="cascade__arrow" aria-label="triggers">→</span>
+            <span className="cascade__arrow" aria-label="triggers">
+              →
+            </span>
             <RuleLink id={targetId} name={targetName} siteOrigin={siteOrigin} className="cascade__rule" />
           </>
         )}
@@ -392,7 +455,9 @@ export function CascadeRow({ cascade, siteOrigin, onFocusRule }) {
       </div>
       <div className="cascade__fields">
         <span className="cascade__via">via</span>
-        {fields.map((f) => <Chip key={f}>{f}</Chip>)}
+        {fields.map((f) => (
+          <Chip key={f}>{f}</Chip>
+        ))}
       </div>
     </div>
   );
@@ -413,7 +478,10 @@ export function CascadePath({ steps, siteOrigin, loop = false }) {
           {step.enabled === false && <Chip tone="neutral">disabled</Chip>}
           {step.viaFields?.length > 0 && (
             <span className="cascade-path__via">
-              writes {step.viaFields.map((f) => <Chip key={f}>{f}</Chip>)}
+              writes{" "}
+              {step.viaFields.map((f) => (
+                <Chip key={f}>{f}</Chip>
+              ))}
             </span>
           )}
         </li>
@@ -450,18 +518,36 @@ function CascadeRelationships({ siteOrigin, summary, load = invoke, intent = nul
 
   // Any change to what is being asked resets to the first page. Without this, narrowing a
   // filter while on page 12 shows an empty list that looks like "no results".
-  React.useEffect(() => { setPage(1); }, [term, kind, focus]);
+  React.useEffect(() => {
+    setPage(1);
+  }, [term, kind, focus]);
 
   React.useEffect(() => {
     let cancelled = false;
     setLoading(true);
     load("getAutomationCascades", {
-      search: term, kind, page, pageSize: CASCADE_PAGE_SIZE,
-      ruleId: focus?.id ?? null, direction: "source",
+      search: term,
+      kind,
+      page,
+      pageSize: CASCADE_PAGE_SIZE,
+      ruleId: focus?.id ?? null,
+      direction: "source",
     })
-      .then((result) => { if (!cancelled) { setData(result); setLoading(false); } })
-      .catch(() => { if (!cancelled) { setData(null); setLoading(false); } });
-    return () => { cancelled = true; };
+      .then((result) => {
+        if (!cancelled) {
+          setData(result);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setData(null);
+          setLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [term, kind, page, focus, load]);
 
   const total = data?.total ?? 0;
@@ -471,7 +557,12 @@ function CascadeRelationships({ siteOrigin, summary, load = invoke, intent = nul
   return (
     <>
       <StatRow>
-        <StatTile label="Cascade paths" value={formatNumber(summary.edges)} hint={`${formatNumber(summary.pairs)} distinct rule pairs`} icon="activity" />
+        <StatTile
+          label="Cascade paths"
+          value={formatNumber(summary.edges)}
+          hint={`${formatNumber(summary.pairs)} distinct rule pairs`}
+          icon="activity"
+        />
         <StatTile
           label="Self-triggering rules"
           value={formatNumber(summary.selfTriggeringRules)}
@@ -490,13 +581,19 @@ function CascadeRelationships({ siteOrigin, summary, load = invoke, intent = nul
         filters={[{ key: "kind", label: "Kind", value: kind, onChange: setKind, options: CASCADE_KINDS }]}
         resultCount={total}
         totalCount={summary.pairs}
-        onClear={() => { setSearch(""); setKind("all"); setFocus(null); }}
+        onClear={() => {
+          setSearch("");
+          setKind("all");
+          setFocus(null);
+        }}
       />
 
       {focus && (
         <div className="cascade-focus">
           <span>Showing only what</span>
-          <Chip tone="active" onRemove={() => setFocus(null)} removeLabel="Clear rule filter">{focus.name}</Chip>
+          <Chip tone="active" onRemove={() => setFocus(null)} removeLabel="Clear rule filter">
+            {focus.name}
+          </Chip>
           <span>goes on to trigger.</span>
         </div>
       )}
@@ -524,10 +621,20 @@ function CascadeRelationships({ siteOrigin, summary, load = invoke, intent = nul
                 Page {formatNumber(page)} of {formatNumber(pages)} · {formatNumber(total)} relationships
               </span>
               <div className="pagination-bar__actions">
-                <button type="button" className="ghost-button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                >
                   Previous
                 </button>
-                <button type="button" className="ghost-button" onClick={() => setPage((p) => Math.min(pages, p + 1))} disabled={page >= pages}>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() => setPage((p) => Math.min(pages, p + 1))}
+                  disabled={page >= pages}
+                >
                   Next
                 </button>
               </div>
@@ -548,9 +655,21 @@ function CascadeChains({ siteOrigin, load = invoke }) {
   React.useEffect(() => {
     let cancelled = false;
     load("getCascadeGraph", {})
-      .then((result) => { if (!cancelled) { setGraph(result); setLoading(false); } })
-      .catch(() => { if (!cancelled) { setGraph(null); setLoading(false); } });
-    return () => { cancelled = true; };
+      .then((result) => {
+        if (!cancelled) {
+          setGraph(result);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setGraph(null);
+          setLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [load]);
 
   if (loading) return <EmptyState inline>Walking the cascade graph…</EmptyState>;
@@ -570,15 +689,33 @@ function CascadeChains({ siteOrigin, load = invoke }) {
           icon="refreshCw"
           tone={loops.length > 0 ? "warning" : "neutral"}
         />
-        <StatTile label="Multi-rule chains" value={formatNumber(chains.length)} hint={`deepest is ${formatNumber(graph.deepestChain)} rules`} icon="activity" />
-        <StatTile label="Rules in the graph" value={formatNumber(graph.ruleCount)} hint={`${formatNumber(graph.edgeCount)} connections`} icon="layers" />
+        <StatTile
+          label="Multi-rule chains"
+          value={formatNumber(chains.length)}
+          hint={`deepest is ${formatNumber(graph.deepestChain)} rules`}
+          icon="activity"
+        />
+        <StatTile
+          label="Rules in the graph"
+          value={formatNumber(graph.ruleCount)}
+          hint={`${formatNumber(graph.edgeCount)} connections`}
+          icon="layers"
+        />
       </StatRow>
 
       <div className="cascade-views">
-        <button type="button" className={`cascade-view${view === "loops" ? " cascade-view--active" : ""}`} onClick={() => setView("loops")}>
+        <button
+          type="button"
+          className={`cascade-view${view === "loops" ? " cascade-view--active" : ""}`}
+          onClick={() => setView("loops")}
+        >
           Loops <span className="cascade-view__count">{formatNumber(loops.length)}</span>
         </button>
-        <button type="button" className={`cascade-view${view === "chains" ? " cascade-view--active" : ""}`} onClick={() => setView("chains")}>
+        <button
+          type="button"
+          className={`cascade-view${view === "chains" ? " cascade-view--active" : ""}`}
+          onClick={() => setView("chains")}
+        >
           Chains <span className="cascade-view__count">{formatNumber(chains.length)}</span>
         </button>
       </div>
@@ -587,17 +724,16 @@ function CascadeChains({ siteOrigin, load = invoke }) {
         <p className="ui-note">
           <Icon name="info" size={13} />
           <span>
-            Every rule in a loop can reach every other one. Nothing in Jira&apos;s automation
-            admin shows you this — the path below is one concrete way round, and breaking any
-            single hop breaks the loop.
+            Every rule in a loop can reach every other one. Nothing in Jira&apos;s automation admin shows you this — the
+            path below is one concrete way round, and breaking any single hop breaks the loop.
           </span>
         </p>
       ) : (
         <p className="ui-note">
           <Icon name="info" size={13} />
           <span>
-            Chains start at a rule nothing else triggers, which is the end an admin controls.
-            A chain beginning in the middle is a suffix of one that started earlier.
+            Chains start at a rule nothing else triggers, which is the end an admin controls. A chain beginning in the
+            middle is a suffix of one that started earlier.
           </span>
         </p>
       )}
@@ -613,12 +749,18 @@ function CascadeChains({ siteOrigin, load = invoke }) {
               <div className="cascade-chain__head">
                 <Chip tone={view === "loops" ? (entry.selfTriggering ? "warning" : "critical") : "neutral"}>
                   {view === "loops"
-                    ? entry.selfTriggering ? "Self-triggering" : `Loop of ${entry.size}`
+                    ? entry.selfTriggering
+                      ? "Self-triggering"
+                      : `Loop of ${entry.size}`
                     : `${entry.length} rules deep`}
                 </Chip>
                 <span className="cascade-chain__index">#{index + 1}</span>
               </div>
-              <CascadePath steps={view === "loops" ? entry.path : entry.steps} siteOrigin={siteOrigin} loop={view === "loops"} />
+              <CascadePath
+                steps={view === "loops" ? entry.path : entry.steps}
+                siteOrigin={siteOrigin}
+                loop={view === "loops"}
+              />
             </div>
           ))}
         </div>
@@ -628,9 +770,8 @@ function CascadeChains({ siteOrigin, load = invoke }) {
           than a smaller answer that says what it left out. */}
       {graph.truncated && (
         <div className="ui-truncation">
-          The walk hit its bound before every chain was enumerated, so this is a sample rather
-          than the full set. Loops are unaffected — they are found by decomposition, not by
-          walking paths, so every one of them is here.
+          The walk hit its bound before every chain was enumerated, so this is a sample rather than the full set. Loops
+          are unaffected — they are found by decomposition, not by walking paths, so every one of them is here.
         </div>
       )}
     </>
@@ -645,9 +786,21 @@ function CascadeSection({ data, siteOrigin, load = invoke, intent = null }) {
   React.useEffect(() => {
     let cancelled = false;
     load("getAutomationCascades", { page: 1, pageSize: 1 })
-      .then((result) => { if (!cancelled) { setSummary(result); setLoading(false); } })
-      .catch(() => { if (!cancelled) { setSummary(null); setLoading(false); } });
-    return () => { cancelled = true; };
+      .then((result) => {
+        if (!cancelled) {
+          setSummary(result);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSummary(null);
+          setLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [load]);
 
   if (loading) return <EmptyState inline>Loading cascades…</EmptyState>;
@@ -668,17 +821,27 @@ function CascadeSection({ data, siteOrigin, load = invoke, intent = null }) {
   return (
     <>
       <div className="cascade-views cascade-views--top">
-        <button type="button" className={`cascade-view${section === "relationships" ? " cascade-view--active" : ""}`} onClick={() => setSection("relationships")}>
+        <button
+          type="button"
+          className={`cascade-view${section === "relationships" ? " cascade-view--active" : ""}`}
+          onClick={() => setSection("relationships")}
+        >
           Relationships <span className="cascade-view__count">{formatNumber(summary.summary.pairs)}</span>
         </button>
-        <button type="button" className={`cascade-view${section === "chains" ? " cascade-view--active" : ""}`} onClick={() => setSection("chains")}>
+        <button
+          type="button"
+          className={`cascade-view${section === "chains" ? " cascade-view--active" : ""}`}
+          onClick={() => setSection("chains")}
+        >
           Loops and chains
         </button>
       </div>
 
-      {section === "relationships"
-        ? <CascadeRelationships siteOrigin={siteOrigin} summary={summary.summary} load={load} intent={intent} />
-        : <CascadeChains siteOrigin={siteOrigin} load={load} />}
+      {section === "relationships" ? (
+        <CascadeRelationships siteOrigin={siteOrigin} summary={summary.summary} load={load} intent={intent} />
+      ) : (
+        <CascadeChains siteOrigin={siteOrigin} load={load} />
+      )}
     </>
   );
 }
@@ -692,8 +855,16 @@ function CascadeSection({ data, siteOrigin, load = invoke, intent = null }) {
 // number on that difference.
 
 const BLAST_TIER_META = {
-  estate: { label: "Estate-wide", tone: "critical", hint: "Site-scoped, broad trigger, mutating actions — one misfire reaches every project." },
-  "cross-project": { label: "Cross-project", tone: "warning", hint: "Reaches several projects, or carries an exposure that does." },
+  estate: {
+    label: "Estate-wide",
+    tone: "critical",
+    hint: "Site-scoped, broad trigger, mutating actions — one misfire reaches every project.",
+  },
+  "cross-project": {
+    label: "Cross-project",
+    tone: "warning",
+    hint: "Reaches several projects, or carries an exposure that does.",
+  },
   project: { label: "Project", tone: "active", hint: "Contained to one project's issues." },
   contained: { label: "Contained", tone: "neutral", hint: "Narrow scope and light actions." },
 };
@@ -720,13 +891,22 @@ function BlastRow({ rule, siteOrigin, expanded, onToggle }) {
   const meta = BLAST_TIER_META[rule.tier] ?? BLAST_TIER_META.contained;
   return (
     <>
-      <button type="button" className={`blast-row${expanded ? " blast-row--open" : ""}`} onClick={onToggle} aria-expanded={expanded}>
-        <span className="blast-row__chevron" aria-hidden="true">{expanded ? "▾" : "▸"}</span>
+      <button
+        type="button"
+        className={`blast-row${expanded ? " blast-row--open" : ""}`}
+        onClick={onToggle}
+        aria-expanded={expanded}
+      >
+        <span className="blast-row__chevron" aria-hidden="true">
+          {expanded ? "▾" : "▸"}
+        </span>
         <span className="blast-row__name">
           <RuleLink id={rule.ruleId} name={rule.name} siteOrigin={siteOrigin} />
           {rule.enabled === false ? <Chip tone="neutral">disabled</Chip> : null}
         </span>
-        <Chip tone={meta.tone} title={meta.hint}>{meta.label}</Chip>
+        <Chip tone={meta.tone} title={meta.hint}>
+          {meta.label}
+        </Chip>
         <BlastScoreBar score={rule.score} tone={meta.tone} />
       </button>
       {expanded ? (
@@ -734,7 +914,10 @@ function BlastRow({ rule, siteOrigin, expanded, onToggle }) {
           {rule.estimated ? (
             <p className="ui-note">
               <Icon name="info" size={13} />
-              <span>Reach is estimated from project count — no issue-volume scan has run yet, so a scoped rule may read lower than its true blast.</span>
+              <span>
+                Reach is estimated from project count — no issue-volume scan has run yet, so a scoped rule may read
+                lower than its true blast.
+              </span>
             </p>
           ) : null}
           <ul className="blast-factors">
@@ -751,7 +934,9 @@ function BlastRow({ rule, siteOrigin, expanded, onToggle }) {
           </ul>
           {(rule.modifiers ?? []).length > 0 ? (
             <ul className="blast-modifiers">
-              {rule.modifiers.map((m) => <li key={m.key}>{m.detail}</li>)}
+              {rule.modifiers.map((m) => (
+                <li key={m.key}>{m.detail}</li>
+              ))}
             </ul>
           ) : null}
         </div>
@@ -782,15 +967,29 @@ function BlastSection({ data, siteOrigin, load = invoke, intent = null }) {
     const id = setTimeout(() => setTerm(search), 250);
     return () => clearTimeout(id);
   }, [search]);
-  React.useEffect(() => { setPage(1); }, [term, tier]);
+  React.useEffect(() => {
+    setPage(1);
+  }, [term, tier]);
 
   React.useEffect(() => {
     let cancelled = false;
     setLoading(true);
     load("getAutomationBlast", { tier, search: term, page, pageSize: BLAST_PAGE_SIZE })
-      .then((r) => { if (!cancelled) { setResult(r); setLoading(false); } })
-      .catch(() => { if (!cancelled) { setResult(null); setLoading(false); } });
-    return () => { cancelled = true; };
+      .then((r) => {
+        if (!cancelled) {
+          setResult(r);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setResult(null);
+          setLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [tier, term, page, load]);
 
   if (!summary?.available) {
@@ -812,11 +1011,20 @@ function BlastSection({ data, siteOrigin, load = invoke, intent = null }) {
         <StatTile
           label="Estate-wide"
           value={formatNumber(byTier.estate ?? 0)}
-          hint={summary.estateWideCredentialCount > 0 ? `${formatNumber(summary.estateWideCredentialCount)} also store a credential` : "Can move every project at once"}
+          hint={
+            summary.estateWideCredentialCount > 0
+              ? `${formatNumber(summary.estateWideCredentialCount)} also store a credential`
+              : "Can move every project at once"
+          }
           icon="shield"
           tone={(byTier.estate ?? 0) > 0 ? "critical" : "neutral"}
         />
-        <StatTile label="Cross-project" value={formatNumber(byTier["cross-project"] ?? 0)} icon="layers" tone={(byTier["cross-project"] ?? 0) > 0 ? "warning" : "neutral"} />
+        <StatTile
+          label="Cross-project"
+          value={formatNumber(byTier["cross-project"] ?? 0)}
+          icon="layers"
+          tone={(byTier["cross-project"] ?? 0) > 0 ? "warning" : "neutral"}
+        />
         <StatTile label="Project" value={formatNumber(byTier.project ?? 0)} icon="activity" />
         <StatTile label="Contained" value={formatNumber(byTier.contained ?? 0)} icon="checkCircle" tone="success" />
       </StatRow>
@@ -824,9 +1032,8 @@ function BlastSection({ data, siteOrigin, load = invoke, intent = null }) {
       <p className="ui-note">
         <Icon name="info" size={13} />
         <span>
-          Score blends reach (scope × issue volume), trigger cadence, the weight of what the
-          actions do, and fan-out into other rules. A disabled rule keeps a reduced score —
-          it is a latent hazard, not a safe one.
+          Score blends reach (scope × issue volume), trigger cadence, the weight of what the actions do, and fan-out
+          into other rules. A disabled rule keeps a reduced score — it is a latent hazard, not a safe one.
         </span>
       </p>
 
@@ -838,7 +1045,10 @@ function BlastSection({ data, siteOrigin, load = invoke, intent = null }) {
         filters={[{ key: "tier", label: "Tier", value: tier, onChange: setTier, options: BLAST_FILTERS }]}
         resultCount={total}
         totalCount={summary.total}
-        onClear={() => { setSearch(""); setTier("all"); }}
+        onClear={() => {
+          setSearch("");
+          setTier("all");
+        }}
       />
 
       {loading ? (
@@ -860,10 +1070,26 @@ function BlastSection({ data, siteOrigin, load = invoke, intent = null }) {
           </div>
           {pages > 1 ? (
             <section className="pagination-bar">
-              <span className="pagination-bar__status">Page {formatNumber(page)} of {formatNumber(pages)} · {formatNumber(total)} rules</span>
+              <span className="pagination-bar__status">
+                Page {formatNumber(page)} of {formatNumber(pages)} · {formatNumber(total)} rules
+              </span>
               <div className="pagination-bar__actions">
-                <button type="button" className="ghost-button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>Previous</button>
-                <button type="button" className="ghost-button" onClick={() => setPage((p) => Math.min(pages, p + 1))} disabled={page >= pages}>Next</button>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() => setPage((p) => Math.min(pages, p + 1))}
+                  disabled={page >= pages}
+                >
+                  Next
+                </button>
               </div>
             </section>
           ) : null}
@@ -879,7 +1105,10 @@ const PAGE_SIZE = 50;
 
 // Filters the UI can offer without another round trip, because the whole findings list is
 // already in memory. Each is a facet over the same rows rather than a separate query.
-export function filterFindings(findings, { search = "", severity = "all", risk = "all", state = "all", trigger = "all" } = {}) {
+export function filterFindings(
+  findings,
+  { search = "", severity = "all", risk = "all", state = "all", trigger = "all" } = {},
+) {
   const term = search.trim().toLowerCase();
   return findings.filter((row) => {
     if (severity !== "all" && row.topSeverity !== severity) return false;
@@ -898,7 +1127,13 @@ export function filterFindings(findings, { search = "", severity = "all", risk =
 }
 
 function FindingsSection({ data, findings, loading, error, onRetry, siteOrigin, intent = null }) {
-  const [filters, setFilters] = React.useState({ search: "", severity: "all", risk: "all", state: "all", trigger: "all" });
+  const [filters, setFilters] = React.useState({
+    search: "",
+    severity: "all",
+    risk: "all",
+    state: "all",
+    trigger: "all",
+  });
   const [page, setPage] = React.useState(0);
 
   // "86 rules storing a credential in plaintext" opens this section filtered to those 86,
@@ -933,7 +1168,13 @@ function FindingsSection({ data, findings, loading, error, onRetry, siteOrigin, 
   if (loading) return <div className="tab-loading">Loading findings…</div>;
   if (error) {
     return (
-      <EmptyState action={<button type="button" className="ui-button" onClick={onRetry}>Retry</button>}>
+      <EmptyState
+        action={
+          <button type="button" className="ui-button" onClick={onRetry}>
+            Retry
+          </button>
+        }
+      >
         <strong>Could not load findings.</strong>
         <div>{error}</div>
       </EmptyState>
@@ -942,7 +1183,9 @@ function FindingsSection({ data, findings, loading, error, onRetry, siteOrigin, 
   if (!findings?.length) {
     return (
       <EmptyState inline>
-        {data.findingsTotal === 0 ? "No findings." : "Findings have not been indexed. Re-import the export to build this list."}
+        {data.findingsTotal === 0
+          ? "No findings."
+          : "Findings have not been indexed. Re-import the export to build this list."}
       </EmptyState>
     );
   }
@@ -962,25 +1205,53 @@ function FindingsSection({ data, findings, loading, error, onRetry, siteOrigin, 
           onChange={(e) => setFilter("search", e.target.value)}
           aria-label="Search rule names"
         />
-        <select className="ui-input" value={filters.severity} onChange={(e) => setFilter("severity", e.target.value)} aria-label="Filter by severity">
+        <select
+          className="ui-input"
+          value={filters.severity}
+          onChange={(e) => setFilter("severity", e.target.value)}
+          aria-label="Filter by severity"
+        >
           <option value="all">All severities</option>
           <option value="high">High</option>
           <option value="medium">Medium</option>
           <option value="low">Low</option>
           <option value="info">Info</option>
         </select>
-        <select className="ui-input" value={filters.risk} onChange={(e) => setFilter("risk", e.target.value)} aria-label="Filter by finding">
+        <select
+          className="ui-input"
+          value={filters.risk}
+          onChange={(e) => setFilter("risk", e.target.value)}
+          aria-label="Filter by finding"
+        >
           <option value="all">All findings</option>
-          {riskOptions.map((code) => <option key={code} value={code}>{RISK_LABELS[code] ?? code}</option>)}
+          {riskOptions.map((code) => (
+            <option key={code} value={code}>
+              {RISK_LABELS[code] ?? code}
+            </option>
+          ))}
         </select>
-        <select className="ui-input" value={filters.state} onChange={(e) => setFilter("state", e.target.value)} aria-label="Filter by rule state">
+        <select
+          className="ui-input"
+          value={filters.state}
+          onChange={(e) => setFilter("state", e.target.value)}
+          aria-label="Filter by rule state"
+        >
           <option value="all">Enabled and disabled</option>
           <option value="enabled">Enabled only</option>
           <option value="disabled">Disabled only</option>
         </select>
-        <select className="ui-input" value={filters.trigger} onChange={(e) => setFilter("trigger", e.target.value)} aria-label="Filter by trigger">
+        <select
+          className="ui-input"
+          value={filters.trigger}
+          onChange={(e) => setFilter("trigger", e.target.value)}
+          aria-label="Filter by trigger"
+        >
           <option value="all">All triggers</option>
-          {triggerOptions.map(([type, label]) => <option key={type} value={type}>{label}</option>)}
+          {triggerOptions.map(([type, label]) => (
+            <option key={type} value={type}>
+              {label}
+            </option>
+          ))}
         </select>
         <span className="ref-toolbar__count">
           {rows.length === findings.length
@@ -1029,7 +1300,12 @@ export function Pager({ page, pageCount, total, onChange }) {
 
   return (
     <nav className="pager" aria-label="Findings pages">
-      <button type="button" className="ui-button ui-button--quiet" onClick={() => onChange(page - 1)} disabled={page === 0}>
+      <button
+        type="button"
+        className="ui-button ui-button--quiet"
+        onClick={() => onChange(page - 1)}
+        disabled={page === 0}
+      >
         ← Previous
       </button>
       <span className="pager__status">
@@ -1085,25 +1361,30 @@ export function AutomationTab({ siteOrigin, intent = null }) {
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [load]);
 
-  const loadIndex = React.useCallback(async (part) => {
-    setIndexState((s) => ({ ...s, [part]: { loading: true, error: "" } }));
-    try {
-      // The directory rides along with the first index fetched: without it the drill-down
-      // shows numeric rule ids, which is not an answer to "where does this occur".
-      const [doc, dir] = await Promise.all([
-        invoke("getAutomationIndex", { part }),
-        directory ? Promise.resolve(null) : invoke("getAutomationIndex", { part: "directory" }),
-      ]);
-      setIndexes((m) => ({ ...m, [part]: doc }));
-      if (dir?.available) setDirectory(hydrateRuleDirectory({ rules: dir.rules }));
-      setIndexState((s) => ({ ...s, [part]: { loading: false, error: "" } }));
-    } catch (err) {
-      setIndexState((s) => ({ ...s, [part]: { loading: false, error: err?.message || "Failed to load." } }));
-    }
-  }, [directory]);
+  const loadIndex = React.useCallback(
+    async (part) => {
+      setIndexState((s) => ({ ...s, [part]: { loading: true, error: "" } }));
+      try {
+        // The directory rides along with the first index fetched: without it the drill-down
+        // shows numeric rule ids, which is not an answer to "where does this occur".
+        const [doc, dir] = await Promise.all([
+          invoke("getAutomationIndex", { part }),
+          directory ? Promise.resolve(null) : invoke("getAutomationIndex", { part: "directory" }),
+        ]);
+        setIndexes((m) => ({ ...m, [part]: doc }));
+        if (dir?.available) setDirectory(hydrateRuleDirectory({ rules: dir.rules }));
+        setIndexState((s) => ({ ...s, [part]: { loading: false, error: "" } }));
+      } catch (err) {
+        setIndexState((s) => ({ ...s, [part]: { loading: false, error: err?.message || "Failed to load." } }));
+      }
+    },
+    [directory],
+  );
 
   React.useEffect(() => {
     const part = ["fields", "statuses", "issueTypes", "users", "findings"].includes(section) ? section : null;
@@ -1120,7 +1401,7 @@ export function AutomationTab({ siteOrigin, intent = null }) {
   // the filter box.
   const findingRows = React.useMemo(
     () => (indexes.findings ? indexes.findings.findings.map(expandFinding) : null),
-    [indexes.findings]
+    [indexes.findings],
   );
 
   async function handleImport(event) {
@@ -1155,12 +1436,7 @@ export function AutomationTab({ siteOrigin, intent = null }) {
         className="automation-import__input"
         aria-label="Automation rule export file"
       />
-      <button
-        type="button"
-        className="ui-button"
-        onClick={() => fileInputRef.current?.click()}
-        disabled={importing}
-      >
+      <button type="button" className="ui-button" onClick={() => fileInputRef.current?.click()} disabled={importing}>
         {importing ? "Analyzing…" : data?.available ? "Re-import export" : "Import rule export"}
       </button>
       {importError ? <span className="automation-import__error">{importError}</span> : null}
@@ -1183,9 +1459,8 @@ export function AutomationTab({ siteOrigin, intent = null }) {
       <EmptyState action={importControl}>
         <strong>No automation analysis yet.</strong>
         <div>
-          Export your automation rules from Jira (Settings → System → Automation rules → Export)
-          and import the file here. It is read in your browser, so the rules themselves never
-          leave this page — only the summary is stored.
+          Export your automation rules from Jira (Settings → System → Automation rules → Export) and import the file
+          here. It is read in your browser, so the rules themselves never leave this page — only the summary is stored.
         </div>
       </EmptyState>
     );
@@ -1222,9 +1497,11 @@ export function AutomationTab({ siteOrigin, intent = null }) {
       {data.evidence?.stale && (
         <FindingRow
           tone="warning"
-          title={data.evidence.ageDays === null
-            ? "This analysis carries no build date"
-            : `This analysis is ${formatNumber(data.evidence.ageDays)} day${data.evidence.ageDays === 1 ? "" : "s"} old`}
+          title={
+            data.evidence.ageDays === null
+              ? "This analysis carries no build date"
+              : `This analysis is ${formatNumber(data.evidence.ageDays)} day${data.evidence.ageDays === 1 ? "" : "s"} old`
+          }
           detail={`Rules added or changed since the last import are not in it, so this pillar answers "unknown" rather than "no rule touches this" until it is re-imported. The threshold is ${formatNumber(data.evidence.staleAfterDays)} days, on the Governance rules page.`}
         />
       )}
@@ -1234,7 +1511,12 @@ export function AutomationTab({ siteOrigin, intent = null }) {
           <>
             <StatRow>
               <StatTile label="Rules" value={formatNumber(estate.ruleCount ?? 0)} icon="zap" />
-              <StatTile label="Enabled" value={formatNumber(estate.enabledCount ?? 0)} icon="checkCircle" tone="success" />
+              <StatTile
+                label="Enabled"
+                value={formatNumber(estate.enabledCount ?? 0)}
+                icon="checkCircle"
+                tone="success"
+              />
               <StatTile
                 label="Disabled"
                 value={formatNumber(estate.disabledCount ?? 0)}
@@ -1250,9 +1532,22 @@ export function AutomationTab({ siteOrigin, intent = null }) {
                 tone={(data.blast?.estateWideCount ?? 0) > 0 ? "critical" : "neutral"}
               />
               <StatTile label="Fields referenced" value={formatNumber(estate.fieldsReferenced ?? 0)} icon="layers" />
-              <StatTile label="Statuses referenced" value={formatNumber(estate.statusesReferenced ?? 0)} icon="activity" />
-              <StatTile label="Issue types referenced" value={formatNumber(estate.issueTypesReferenced ?? 0)} icon="layers" />
-              <StatTile label="Users referenced" value={formatNumber(estate.usersReferenced ?? 0)} icon="user" hint="Assigned, set or conditioned on by name" />
+              <StatTile
+                label="Statuses referenced"
+                value={formatNumber(estate.statusesReferenced ?? 0)}
+                icon="activity"
+              />
+              <StatTile
+                label="Issue types referenced"
+                value={formatNumber(estate.issueTypesReferenced ?? 0)}
+                icon="layers"
+              />
+              <StatTile
+                label="Users referenced"
+                value={formatNumber(estate.usersReferenced ?? 0)}
+                icon="user"
+                hint="Assigned, set or conditioned on by name"
+              />
             </StatRow>
 
             <Panel
@@ -1264,7 +1559,10 @@ export function AutomationTab({ siteOrigin, intent = null }) {
                 <StatTile
                   label="Event cascades"
                   value={crossRuleValue(data.eventCascadesTotal)}
-                  hint={crossRuleHint(data.eventCascadesTotal, "One rule's action wakes another via a Jira event, not a field write")}
+                  hint={crossRuleHint(
+                    data.eventCascadesTotal,
+                    "One rule's action wakes another via a Jira event, not a field write",
+                  )}
                   icon="refreshCw"
                   tone={(data.eventCascadesTotal ?? 0) > 0 ? "warning" : "neutral"}
                 />
@@ -1285,13 +1583,19 @@ export function AutomationTab({ siteOrigin, intent = null }) {
                 <StatTile
                   label="Competing rules"
                   value={crossRuleValue(data.competingPairsTotal)}
-                  hint={crossRuleHint(data.competingPairsTotal, "Same trigger, overlapping scope -- order decides which one wins")}
+                  hint={crossRuleHint(
+                    data.competingPairsTotal,
+                    "Same trigger, overlapping scope -- order decides which one wins",
+                  )}
                   icon="user"
                 />
                 <StatTile
                   label="Field contradictions"
                   value={crossRuleValue(data.fieldContradictionsTotal)}
-                  hint={crossRuleHint(data.fieldContradictionsTotal, "Two rules set the same field to different literal values")}
+                  hint={crossRuleHint(
+                    data.fieldContradictionsTotal,
+                    "Two rules set the same field to different literal values",
+                  )}
                   icon="layers"
                 />
                 {estate.authorConcentration && (

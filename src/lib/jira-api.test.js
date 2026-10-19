@@ -60,10 +60,15 @@ import {
   getProjectById,
   getFieldContexts,
   getAllJiraProjects,
+  getArchivedJiraProjects,
+  getProjectLeads,
+  countIssues,
+  transitionIssueWithComment,
   getAllStatuses,
   probeEndpoint,
   probeEndpointAsUser,
   probeStargateEndpoint,
+  probeJqlCount,
   requestAtlassianJson,
   getAssetsWorkspaceId,
   getCloudId,
@@ -98,10 +103,10 @@ import {
   getBoardPage,
   getBoardConfiguration,
   createJiraIssue,
+  updateJiraIssue,
+  searchIssuesPage,
   getIssuesStatus,
   getGadgetFilterId,
-  extractFilterId,
-  BASE_JIRA_REQUEST_INTERVAL_MS,
   MAX_JIRA_REQUEST_INTERVAL_MS,
   BASE_JIRA_CONCURRENCY,
   MAX_RETRY_ATTEMPTS,
@@ -168,7 +173,9 @@ describe("incrMetric", () => {
   // surface as an app error.
   test("swallows metric backend failures", async () => {
     const { internalMetrics } = await import("@forge/metrics");
-    internalMetrics.counter.mockImplementationOnce(() => { throw new Error("metrics down"); });
+    internalMetrics.counter.mockImplementationOnce(() => {
+      throw new Error("metrics down");
+    });
     expect(() => incrMetric("boom")).not.toThrow();
   });
 });
@@ -237,8 +244,7 @@ describe("getInstallationKey", () => {
   });
 
   test("sanitizes the normalized key", () => {
-    expect(getInstallationKey({ installContext: "ari:cloud:jira::site/UUID-1" }))
-      .toBe("ari:cloud:::site_UUID-1");
+    expect(getInstallationKey({ installContext: "ari:cloud:jira::site/UUID-1" })).toBe("ari:cloud:::site_UUID-1");
   });
 
   test("throws when installContext is missing", () => {
@@ -362,8 +368,7 @@ describe("setSnapshotLogger", () => {
   test("retrying without a logger attached does not throw", async () => {
     setSnapshotLogger(null);
     const err = Object.assign(new Error("boom"), { status: 500 });
-    await expect(withRetry(vi.fn().mockRejectedValueOnce(err).mockResolvedValue("ok")))
-      .resolves.toBe("ok");
+    await expect(withRetry(vi.fn().mockRejectedValueOnce(err).mockResolvedValue("ok"))).resolves.toBe("ok");
   });
 });
 
@@ -388,7 +393,9 @@ describe("withTimeout", () => {
   test("does not emit an unhandled rejection when the loser rejects late", async () => {
     vi.restoreAllMocks();
     let rejectLate;
-    const slow = new Promise((_, reject) => { rejectLate = reject; });
+    const slow = new Promise((_, reject) => {
+      rejectLate = reject;
+    });
     const raced = withTimeout(slow, 10);
     await expect(raced).rejects.toThrow(/timed out/);
     rejectLate(new Error("late failure"));
@@ -459,16 +466,22 @@ describe("scheduleRateLimitedRequest", () => {
   });
 
   test("propagates callback rejection", async () => {
-    await expect(scheduleRateLimitedRequest(async () => { throw new Error("inner"); }))
-      .rejects.toThrow("inner");
+    await expect(
+      scheduleRateLimitedRequest(async () => {
+        throw new Error("inner");
+      }),
+    ).rejects.toThrow("inner");
   });
 
   // The in-flight counter must decrement on the failure path too, or the limiter
   // leaks slots until every concurrency slot is permanently stuck.
   test("releases its slot after a failure so later requests still run", async () => {
     for (let i = 0; i < BASE_JIRA_CONCURRENCY + 2; i++) {
-      await expect(scheduleRateLimitedRequest(async () => { throw new Error("fail"); }))
-        .rejects.toThrow("fail");
+      await expect(
+        scheduleRateLimitedRequest(async () => {
+          throw new Error("fail");
+        }),
+      ).rejects.toThrow("fail");
     }
     await expect(scheduleRateLimitedRequest(async () => "still works")).resolves.toBe("still works");
   });
@@ -586,9 +599,11 @@ describe("jiraRequestAsUser", () => {
 
 describe("getBrowsableProjectIds", () => {
   test("returns the permitted subset as a Set of strings", async () => {
-    mockRequestJiraAsUser.mockResolvedValue(jiraResponse({
-      body: { projectPermissions: [{ projects: [1, 3] }] },
-    }));
+    mockRequestJiraAsUser.mockResolvedValue(
+      jiraResponse({
+        body: { projectPermissions: [{ projects: [1, 3] }] },
+      }),
+    );
 
     const allowed = await getBrowsableProjectIds("acct-1", ["1", "2", "3"]);
     expect(allowed).toEqual(new Set(["1", "3"]));
@@ -639,7 +654,10 @@ describe("paginate", () => {
       .mockResolvedValueOnce(jiraResponse({ body: { values: [3], total: 3 } }));
 
     const paths = [];
-    await paginate((startAt) => { paths.push(startAt); return `/x?startAt=${startAt}`; });
+    await paginate((startAt) => {
+      paths.push(startAt);
+      return `/x?startAt=${startAt}`;
+    });
     expect(paths).toEqual([0, 2]);
   });
 
@@ -660,15 +678,25 @@ describe("paginate", () => {
 
     const seen = [];
     await paginate((startAt) => `/x?startAt=${startAt}`, "values", {
-      onPage: ({ fetched, total }) => { seen.push([fetched, total]); },
+      onPage: ({ fetched, total }) => {
+        seen.push([fetched, total]);
+      },
     });
-    expect(seen).toEqual([[2, 6], [4, 6], [6, 6]]);
+    expect(seen).toEqual([
+      [2, 6],
+      [4, 6],
+      [6, 6],
+    ]);
 
     mockRequestJira.mockReset();
     mockRequestJira.mockResolvedValue(jiraResponse({ body: { values: [1, 2], total: 500 } }));
-    await expect(paginate(() => "/x", "values", {
-      onPage: () => { throw new Error("out of time"); },
-    })).rejects.toThrow("out of time");
+    await expect(
+      paginate(() => "/x", "values", {
+        onPage: () => {
+          throw new Error("out of time");
+        },
+      }),
+    ).rejects.toThrow("out of time");
     expect(mockRequestJira).toHaveBeenCalledTimes(1);
   });
 
@@ -709,19 +737,28 @@ describe("mapWithConcurrency", () => {
 
   test("passes the index to the iteratee", async () => {
     const seen = [];
-    await mapWithConcurrency(["a", "b"], 1, async (item, idx) => { seen.push([item, idx]); });
-    expect(seen).toEqual([["a", 0], ["b", 1]]);
+    await mapWithConcurrency(["a", "b"], 1, async (item, idx) => {
+      seen.push([item, idx]);
+    });
+    expect(seen).toEqual([
+      ["a", 0],
+      ["b", 1],
+    ]);
   });
 
   test("never exceeds the requested concurrency", async () => {
     let active = 0;
     let peak = 0;
-    await mapWithConcurrency(Array.from({ length: 20 }, (_, i) => i), 3, async () => {
-      active++;
-      peak = Math.max(peak, active);
-      await Promise.resolve();
-      active--;
-    });
+    await mapWithConcurrency(
+      Array.from({ length: 20 }, (_, i) => i),
+      3,
+      async () => {
+        active++;
+        peak = Math.max(peak, active);
+        await Promise.resolve();
+        active--;
+      },
+    );
     expect(peak).toBeLessThanOrEqual(3);
   });
 
@@ -736,8 +773,11 @@ describe("mapWithConcurrency", () => {
   });
 
   test("propagates an iteratee rejection", async () => {
-    await expect(mapWithConcurrency([1, 2], 2, async () => { throw new Error("item failed"); }))
-      .rejects.toThrow("item failed");
+    await expect(
+      mapWithConcurrency([1, 2], 2, async () => {
+        throw new Error("item failed");
+      }),
+    ).rejects.toThrow("item failed");
   });
 });
 
@@ -788,9 +828,11 @@ describe("getAllJiraProjects", () => {
 
 describe("getAllJiraProjectKeys", () => {
   test("returns just the project keys", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({
-      body: { values: [{ key: "AAA" }, { key: "BBB" }], isLast: true },
-    }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        body: { values: [{ key: "AAA" }, { key: "BBB" }], isLast: true },
+      }),
+    );
     await expect(getAllJiraProjectKeys()).resolves.toEqual(["AAA", "BBB"]);
   });
 
@@ -904,6 +946,74 @@ describe("probeEndpoint", () => {
   });
 });
 
+// JSM's experimental endpoints answer 400 without their opt-in header, and the JSM probe
+// must parse a full page to take its next step -- so both are options, off by default.
+describe("probeEndpoint options", () => {
+  test("sends extra headers alongside Accept", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ status: 200, ok: true, text: "{}" }));
+
+    await probeEndpoint("/rest/servicedeskapi/organization", { headers: { "X-ExperimentalApi": "opt-in" } });
+
+    expect(mockRequestJira).toHaveBeenCalledWith(
+      "/rest/servicedeskapi/organization",
+      expect.objectContaining({
+        headers: { Accept: "application/json", "X-ExperimentalApi": "opt-in" },
+      }),
+    );
+  });
+
+  test("returns the full body only when asked", async () => {
+    const text = `{"values":[${"1,".repeat(400)}1]}`;
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ status: 200, ok: true, text }));
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ status: 200, ok: true, text }));
+
+    const kept = await probeEndpoint("/rest/servicedeskapi/servicedesk", { keepBody: true });
+    const plain = await probeEndpoint("/rest/servicedeskapi/servicedesk");
+
+    expect(kept.body).toBe(text);
+    expect(kept.sample).toHaveLength(300);
+    expect(plain).not.toHaveProperty("body");
+  });
+});
+
+describe("probeJqlCount", () => {
+  test("posts the JQL to approximate-count and returns the count", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ status: 200, ok: true, text: '{"count":42}' }));
+
+    const result = await probeJqlCount('project = "SD" AND cf[10030] = breached()');
+
+    expect(mockRequestJira).toHaveBeenCalledWith(
+      "/rest/api/3/search/approximate-count",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ jql: 'project = "SD" AND cf[10030] = breached()' }),
+      }),
+    );
+    expect(result).toMatchObject({ status: 200, ok: true, count: 42 });
+  });
+
+  // A 400 is the answer a probe of JQL functions is looking for: which clause Jira rejected.
+  test("reports a rejected query with Jira's message and no count", async () => {
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({ status: 400, ok: false, text: '{"errorMessages":["Field cf[1] does not exist"]}' }),
+    );
+
+    const result = await probeJqlCount("cf[1] = breached()");
+
+    expect(result).toMatchObject({ status: 400, ok: false, count: null, jql: "cf[1] = breached()" });
+    expect(result.sample).toContain("does not exist");
+  });
+
+  test("returns a null status instead of throwing when the request fails", async () => {
+    mockRequestJira.mockRejectedValueOnce(new Error("socket hang up"));
+
+    const result = await probeJqlCount("project = SD");
+
+    expect(result).toMatchObject({ status: null, ok: false, count: null });
+    expect(result.sample).toContain("socket hang up");
+  });
+});
+
 // The identity question the screen probe exists to settle. Atlassian documents that Jira
 // permissions also control access and are not overridden by scopes, so the same path can
 // answer differently depending on whose token carries it -- and a probe that only ever asks
@@ -953,16 +1063,13 @@ describe("probeEndpointAsUser", () => {
 
     await probeEndpointAsUser("/rest/api/3/screens", { method: "HEAD" });
 
-    expect(mockRequestJiraAsUser).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ method: "HEAD" })
-    );
+    expect(mockRequestJiraAsUser).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ method: "HEAD" }));
   });
 });
 
 describe("probeStargateEndpoint", () => {
   test("routes the /jsm/assets/ path through requestJira's gateway proxy", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({ status: 200, ok: true, text: "{\"objectSchemas\":[]}" }));
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ status: 200, ok: true, text: '{"objectSchemas":[]}' }));
 
     const path = "/jsm/assets/workspace/abc/v1/objectschema/list";
     const result = await probeStargateEndpoint(path);
@@ -987,24 +1094,32 @@ describe("probeStargateEndpoint", () => {
 
 describe("requestAtlassianJson", () => {
   test("parses a 2xx JSON body from the Assets API", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({ status: 200, ok: true, text: "{\"objectSchemas\":[{\"id\":\"1\"}]}" }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({ status: 200, ok: true, text: '{"objectSchemas":[{"id":"1"}]}' }),
+    );
     const body = await requestAtlassianJson("/jsm/assets/workspace/w/v1/objectschema/list");
     expect(body).toEqual({ objectSchemas: [{ id: "1" }] });
   });
 
   test("throws with the status attached on a non-2xx", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({ status: 403, ok: false, text: "app not authorised for Assets" }));
-    await expect(requestAtlassianJson("/jsm/assets/workspace/w/v1/config/statustype"))
-      .rejects.toMatchObject({ status: 403 });
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({ status: 403, ok: false, text: "app not authorised for Assets" }),
+    );
+    await expect(requestAtlassianJson("/jsm/assets/workspace/w/v1/config/statustype")).rejects.toMatchObject({
+      status: 403,
+    });
   });
 });
 
 describe("getAssetsWorkspaceId", () => {
   test("pulls the first workspaceId out of the servicedeskapi payload", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({
-      status: 200, ok: true,
-      body: { values: [{ workspaceId: "c77afb26" }] },
-    }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        status: 200,
+        ok: true,
+        body: { values: [{ workspaceId: "c77afb26" }] },
+      }),
+    );
     expect(await getAssetsWorkspaceId()).toBe("c77afb26");
   });
 
@@ -1049,9 +1164,11 @@ describe("screen fetchers", () => {
   // this install has -- unlike the screen list, which needed two more scopes before it
   // would respond at all.
   test("getAllScreenSchemes paginates and keeps the raw operation object", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({
-      body: { values: [{ id: 5, screens: { default: 100, edit: 101 } }], isLast: true },
-    }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        body: { values: [{ id: 5, screens: { default: 100, edit: 101 } }], isLast: true },
+      }),
+    );
 
     const schemes = await getAllScreenSchemes();
 
@@ -1070,15 +1187,17 @@ describe("screen fetchers", () => {
   });
 
   test("getIssueTypeScreenSchemeMappings returns the default entry alongside explicit ones", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({
-      body: {
-        values: [
-          { issueTypeScreenSchemeId: 9, issueTypeId: "default", screenSchemeId: 5 },
-          { issueTypeScreenSchemeId: 9, issueTypeId: "10001", screenSchemeId: 6 },
-        ],
-        isLast: true,
-      },
-    }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        body: {
+          values: [
+            { issueTypeScreenSchemeId: 9, issueTypeId: "default", screenSchemeId: 5 },
+            { issueTypeScreenSchemeId: 9, issueTypeId: "10001", screenSchemeId: 6 },
+          ],
+          isLast: true,
+        },
+      }),
+    );
 
     const mappings = await getIssueTypeScreenSchemeMappings();
 
@@ -1091,9 +1210,11 @@ describe("screen fetchers", () => {
   // The first live build died here with 400 "At least one projectId has to be provided".
   // This endpoint answers "which scheme governs THESE projects", not "list everything".
   test("getIssueTypeScreenSchemeProjects sends the required projectId parameters", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({
-      body: { values: [{ issueTypeScreenScheme: { id: 9 }, projectIds: ["10000"] }], isLast: true },
-    }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        body: { values: [{ issueTypeScreenScheme: { id: 9 }, projectIds: ["10000"] }], isLast: true },
+      }),
+    );
 
     const rows = await getIssueTypeScreenSchemeProjects(["10000", "10001"]);
 
@@ -1160,9 +1281,14 @@ describe("screen fetchers", () => {
 describe("issue type fetchers", () => {
   // Like /status, /issuetype comes back as a bare array rather than the usual envelope.
   test("getAllIssueTypes returns the flat array", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({
-      body: [{ id: "1", name: "Epic", hierarchyLevel: 1 }, { id: "2", name: "Sub-task", hierarchyLevel: -1 }],
-    }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        body: [
+          { id: "1", name: "Epic", hierarchyLevel: 1 },
+          { id: "2", name: "Sub-task", hierarchyLevel: -1 },
+        ],
+      }),
+    );
     await expect(getAllIssueTypes()).resolves.toEqual([
       { id: "1", name: "Epic", hierarchyLevel: 1 },
       { id: "2", name: "Sub-task", hierarchyLevel: -1 },
@@ -1185,15 +1311,17 @@ describe("issue type fetchers", () => {
   });
 
   test("getIssueTypeSchemeItems paginates the ordered membership", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({
-      body: {
-        values: [
-          { issueTypeSchemeId: "5", issueTypeId: "1" },
-          { issueTypeSchemeId: "5", issueTypeId: "2" },
-        ],
-        isLast: true,
-      },
-    }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        body: {
+          values: [
+            { issueTypeSchemeId: "5", issueTypeId: "1" },
+            { issueTypeSchemeId: "5", issueTypeId: "2" },
+          ],
+          isLast: true,
+        },
+      }),
+    );
 
     const items = await getIssueTypeSchemeItems();
     expect(items).toHaveLength(2);
@@ -1202,9 +1330,11 @@ describe("issue type fetchers", () => {
 
   // Same required-and-repeatable projectId constraint as the screen-scheme /project endpoint.
   test("getIssueTypeSchemeProjects sends the required projectId parameters", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({
-      body: { values: [{ issueTypeScheme: { id: "5" }, projectIds: ["10000"] }], isLast: true },
-    }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        body: { values: [{ issueTypeScheme: { id: "5" }, projectIds: ["10000"] }], isLast: true },
+      }),
+    );
 
     const rows = await getIssueTypeSchemeProjects(["10000", "10001"]);
 
@@ -1229,14 +1359,18 @@ describe("issue type fetchers", () => {
 
 describe("estate config value lists", () => {
   test("getAllResolutions paginates the /resolution/search endpoint", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { values: [{ id: "1", name: "Done" }], isLast: true } }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({ body: { values: [{ id: "1", name: "Done" }], isLast: true } }),
+    );
     const rows = await getAllResolutions();
     expect(rows).toEqual([{ id: "1", name: "Done" }]);
     expect(String(mockRequestJira.mock.calls[0][0])).toContain("/rest/api/3/resolution/search");
   });
 
   test("getAllPriorities paginates the /priority/search endpoint", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { values: [{ id: "10", name: "High" }], isLast: true } }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({ body: { values: [{ id: "10", name: "High" }], isLast: true } }),
+    );
     const rows = await getAllPriorities();
     expect(rows[0].name).toBe("High");
     expect(String(mockRequestJira.mock.calls[0][0])).toContain("/rest/api/3/priority/search");
@@ -1252,35 +1386,53 @@ describe("project roles & the global-permission catalog", () => {
 
   test("getProjectRolesForProject resolves the name->url map then each role's actors", async () => {
     mockRequestJira
-      .mockResolvedValueOnce(jiraResponse({ body: { Administrators: "https://x/rest/api/3/project/10000/role/10002" } }))
-      .mockResolvedValueOnce(jiraResponse({ body: {
-        id: 10002, name: "Administrators",
-        actors: [
-          { type: "atlassian-group-role-actor", actorGroup: { name: "site-admins", groupId: "g-1" } },
-          { type: "atlassian-user-role-actor", displayName: "Ann", actorUser: { accountId: "acc-1" } },
-        ],
-      } }));
+      .mockResolvedValueOnce(
+        jiraResponse({ body: { Administrators: "https://x/rest/api/3/project/10000/role/10002" } }),
+      )
+      .mockResolvedValueOnce(
+        jiraResponse({
+          body: {
+            id: 10002,
+            name: "Administrators",
+            actors: [
+              { type: "atlassian-group-role-actor", actorGroup: { name: "site-admins", groupId: "g-1" } },
+              { type: "atlassian-user-role-actor", displayName: "Ann", actorUser: { accountId: "acc-1" } },
+            ],
+          },
+        }),
+      );
 
     const roles = await getProjectRolesForProject("10000");
     expect(roles).toHaveLength(1);
     expect(roles[0]).toMatchObject({ roleId: "10002", roleName: "Administrators" });
-    expect(roles[0].actors).toEqual(expect.arrayContaining([
-      expect.objectContaining({ type: "group", groupId: "g-1", groupName: "site-admins" }),
-      expect.objectContaining({ type: "user", accountId: "acc-1", displayName: "Ann" }),
-    ]));
+    expect(roles[0].actors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "group", groupId: "g-1", groupName: "site-admins" }),
+        expect.objectContaining({ type: "user", accountId: "acc-1", displayName: "Ann" }),
+      ]),
+    );
   });
 
   test("getPermissionCatalog unwraps the permissions object", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { permissions: { ADMINISTER: { key: "ADMINISTER", type: "GLOBAL" } } } }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({ body: { permissions: { ADMINISTER: { key: "ADMINISTER", type: "GLOBAL" } } } }),
+    );
     await expect(getPermissionCatalog()).resolves.toEqual({ ADMINISTER: { key: "ADMINISTER", type: "GLOBAL" } });
   });
 });
 
 describe("access & routing schemes", () => {
   test("getAllPermissionSchemes unwraps the permissionSchemes array and asks for grants", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({
-      body: { permissionSchemes: [{ id: 1, name: "Prod" }, { id: 2, name: "Default Permission Scheme" }] },
-    }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        body: {
+          permissionSchemes: [
+            { id: 1, name: "Prod" },
+            { id: 2, name: "Default Permission Scheme" },
+          ],
+        },
+      }),
+    );
     const rows = await getAllPermissionSchemes();
     expect(rows).toHaveLength(2);
     expect(String(mockRequestJira.mock.calls[0][0])).toContain("/rest/api/3/permissionscheme?expand=permissions");
@@ -1299,7 +1451,9 @@ describe("access & routing schemes", () => {
   });
 
   test("getAllIssueSecuritySchemes unwraps issueSecuritySchemes", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { issueSecuritySchemes: [{ id: "s1", name: "Restricted" }] } }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({ body: { issueSecuritySchemes: [{ id: "s1", name: "Restricted" }] } }),
+    );
     await expect(getAllIssueSecuritySchemes()).resolves.toEqual([{ id: "s1", name: "Restricted" }]);
   });
 
@@ -1309,28 +1463,36 @@ describe("access & routing schemes", () => {
   });
 
   test("getIssueSecurityLevels paginates the scheme's levels", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { values: [{ id: "L1" }, { id: "L2" }], isLast: true } }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({ body: { values: [{ id: "L1" }, { id: "L2" }], isLast: true } }),
+    );
     const levels = await getIssueSecurityLevels("s1");
     expect(levels.map((l) => l.id)).toEqual(["L1", "L2"]);
     expect(String(mockRequestJira.mock.calls[0][0])).toContain("/rest/api/3/issuesecurityschemes/level?schemeId=s1");
   });
 
   test("getIssueSecurityLevelMembers paginates the scheme's members", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({
-      body: { values: [{ issueSecurityLevelId: "L1", holder: { type: "group", value: "g" } }], isLast: true },
-    }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        body: { values: [{ issueSecurityLevelId: "L1", holder: { type: "group", value: "g" } }], isLast: true },
+      }),
+    );
     const members = await getIssueSecurityLevelMembers("s1");
     expect(members[0].issueSecurityLevelId).toBe("L1");
-    expect(String(mockRequestJira.mock.calls[0][0])).toContain("/rest/api/3/issuesecurityschemes/level/member?schemeId=s1");
+    expect(String(mockRequestJira.mock.calls[0][0])).toContain(
+      "/rest/api/3/issuesecurityschemes/level/member?schemeId=s1",
+    );
   });
 
   test("getIssueSecuritySchemeProjects sends the repeatable projectId parameters and makes no call for none", async () => {
     await expect(getIssueSecuritySchemeProjects([])).resolves.toEqual([]);
     expect(mockRequestJira).not.toHaveBeenCalled();
 
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({
-      body: { values: [{ issueSecuritySchemeId: "s1", projectIds: ["10000"] }], isLast: true },
-    }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        body: { values: [{ issueSecuritySchemeId: "s1", projectIds: ["10000"] }], isLast: true },
+      }),
+    );
     const rows = await getIssueSecuritySchemeProjects(["10000", "10001"]);
     expect(rows[0].issueSecuritySchemeId).toBe("s1");
     const path = String(mockRequestJira.mock.calls[0][0]);
@@ -1346,9 +1508,11 @@ describe("access & routing schemes", () => {
   });
 
   test("getAllNotificationSchemes paginates with expand=all", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({
-      body: { values: [{ id: "n1", name: "Prod", notificationSchemeEvents: [] }], isLast: true },
-    }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        body: { values: [{ id: "n1", name: "Prod", notificationSchemeEvents: [] }], isLast: true },
+      }),
+    );
     const rows = await getAllNotificationSchemes();
     expect(rows[0].id).toBe("n1");
     expect(String(mockRequestJira.mock.calls[0][0])).toContain("/rest/api/3/notificationscheme?expand=all");
@@ -1358,9 +1522,11 @@ describe("access & routing schemes", () => {
     await expect(getNotificationSchemeProjects([])).resolves.toEqual([]);
     expect(mockRequestJira).not.toHaveBeenCalled();
 
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({
-      body: { values: [{ notificationSchemeId: "n1", projectIds: ["10000"] }], isLast: true },
-    }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        body: { values: [{ notificationSchemeId: "n1", projectIds: ["10000"] }], isLast: true },
+      }),
+    );
     const rows = await getNotificationSchemeProjects(["10000", "10001"]);
     expect(rows[0].notificationSchemeId).toBe("n1");
     const path = String(mockRequestJira.mock.calls[0][0]);
@@ -1431,9 +1597,11 @@ describe("issue scan cadence", () => {
 // ---------------------------------------------------------------------------
 describe("callerHasJiraAdmin", () => {
   test("returns true when Jira grants ADMINISTER to the caller", async () => {
-    mockRequestJiraAsUser.mockResolvedValue(jiraResponse({
-      body: { globalPermissions: ["ADMINISTER", "BULK_CHANGE"] },
-    }));
+    mockRequestJiraAsUser.mockResolvedValue(
+      jiraResponse({
+        body: { globalPermissions: ["ADMINISTER", "BULK_CHANGE"] },
+      }),
+    );
 
     await expect(callerHasJiraAdmin("acct-1")).resolves.toBe(true);
   });
@@ -1451,9 +1619,11 @@ describe("callerHasJiraAdmin", () => {
   });
 
   test("returns false when ADMINISTER is absent from the granted list", async () => {
-    mockRequestJiraAsUser.mockResolvedValue(jiraResponse({
-      body: { globalPermissions: ["BULK_CHANGE"] },
-    }));
+    mockRequestJiraAsUser.mockResolvedValue(
+      jiraResponse({
+        body: { globalPermissions: ["BULK_CHANGE"] },
+      }),
+    );
 
     await expect(callerHasJiraAdmin("acct-1")).resolves.toBe(false);
   });
@@ -1509,9 +1679,11 @@ describe("getGadgetFilterId", () => {
   // dozen properties for column widths and refresh intervals, and fetching every one of them
   // would double the cost of the walk for nothing.
   test("does not fetch keys that could not hold a filter", async () => {
-    mockRequestJira.mockResolvedValueOnce(jiraResponse({
-      body: { keys: [{ key: "color" }, { key: "refreshInterval" }, { key: "columnWidths" }] },
-    }));
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        body: { keys: [{ key: "color" }, { key: "refreshInterval" }, { key: "columnWidths" }] },
+      }),
+    );
 
     await expect(getGadgetFilterId("9", "g1")).resolves.toBeNull();
     // Only the list call -- nothing looked plausible enough to fetch.
@@ -1536,7 +1708,9 @@ describe("getGadgetFilterId", () => {
 
 describe("createJiraIssue (remediation: the one write path)", () => {
   test("posts to /rest/api/3/issue and returns the created issue", async () => {
-    mockRequestJiraAsUser.mockResolvedValue(jiraResponse({ body: { id: "10001", key: "OPS-1", self: "https://x/OPS-1" } }));
+    mockRequestJiraAsUser.mockResolvedValue(
+      jiraResponse({ body: { id: "10001", key: "OPS-1", self: "https://x/OPS-1" } }),
+    );
 
     const out = await createJiraIssue({ project: { key: "OPS" }, summary: "Fix it" }, { asUser: true });
 
@@ -1555,7 +1729,9 @@ describe("createJiraIssue (remediation: the one write path)", () => {
   });
 
   test("throws with the status and Jira's message on a non-2xx, and does NOT retry", async () => {
-    mockRequestJiraAsUser.mockResolvedValue(jiraResponse({ ok: false, status: 400, text: '{"errors":{"issuetype":"invalid"}}' }));
+    mockRequestJiraAsUser.mockResolvedValue(
+      jiraResponse({ ok: false, status: 400, text: '{"errors":{"issuetype":"invalid"}}' }),
+    );
 
     await expect(createJiraIssue({}, { asUser: true })).rejects.toMatchObject({
       status: 400,
@@ -1573,56 +1749,95 @@ describe("getIssuesStatus (remediation sync)", () => {
   });
 
   test("maps status and assignee for each issue", async () => {
-    mockRequestJira.mockResolvedValue(jiraResponse({
-      body: {
-        issues: [
-          { key: "OPS-1", fields: { status: { name: "Done", statusCategory: { key: "done" } }, assignee: { accountId: "a1", displayName: "Sam" } } },
-          { key: "OPS-2", fields: { status: { name: "To Do", statusCategory: { key: "new" } }, assignee: null } },
-        ],
-      },
-    }));
+    mockRequestJira.mockResolvedValue(
+      jiraResponse({
+        body: {
+          issues: [
+            {
+              key: "OPS-1",
+              fields: {
+                status: { name: "Done", statusCategory: { key: "done" } },
+                assignee: { accountId: "a1", displayName: "Sam" },
+              },
+            },
+            { key: "OPS-2", fields: { status: { name: "To Do", statusCategory: { key: "new" } }, assignee: null } },
+          ],
+        },
+      }),
+    );
 
     const out = await getIssuesStatus(["OPS-1", "OPS-2", "OPS-1"]);
     expect(out).toEqual([
-      { key: "OPS-1", status: "Done", statusCategory: "done", assigneeAccountId: "a1", assigneeName: "Sam", resolvedAt: null, statusCategoryChangedAt: null },
-      { key: "OPS-2", status: "To Do", statusCategory: "new", assigneeAccountId: null, assigneeName: null, resolvedAt: null, statusCategoryChangedAt: null },
+      {
+        key: "OPS-1",
+        status: "Done",
+        statusCategory: "done",
+        assigneeAccountId: "a1",
+        assigneeName: "Sam",
+        resolvedAt: null,
+        statusCategoryChangedAt: null,
+      },
+      {
+        key: "OPS-2",
+        status: "To Do",
+        statusCategory: "new",
+        assigneeAccountId: null,
+        assigneeName: null,
+        resolvedAt: null,
+        statusCategoryChangedAt: null,
+      },
     ]);
   });
 
   test("asks for the resolution and status-category dates, and normalises them to UTC ISO", async () => {
-    mockRequestJira.mockResolvedValue(jiraResponse({
-      body: {
-        issues: [{
-          key: "OPS-1",
-          fields: {
-            status: { name: "Done", statusCategory: { key: "done" } },
-            assignee: null,
-            resolutiondate: "2026-09-27T10:00:00.000+0200",
-            statuscategorychangedate: "2026-09-27T10:00:05.000+0200",
-          },
-        }, {
-          key: "OPS-2",
-          fields: { status: { name: "To Do", statusCategory: { key: "new" } }, resolutiondate: "not a date" },
-        }],
-      },
-    }));
+    mockRequestJira.mockResolvedValue(
+      jiraResponse({
+        body: {
+          issues: [
+            {
+              key: "OPS-1",
+              fields: {
+                status: { name: "Done", statusCategory: { key: "done" } },
+                assignee: null,
+                resolutiondate: "2026-09-27T10:00:00.000+0200",
+                statuscategorychangedate: "2026-09-27T10:00:05.000+0200",
+              },
+            },
+            {
+              key: "OPS-2",
+              fields: { status: { name: "To Do", statusCategory: { key: "new" } }, resolutiondate: "not a date" },
+            },
+          ],
+        },
+      }),
+    );
 
     const out = await getIssuesStatus(["OPS-1", "OPS-2"]);
-    expect(out[0]).toMatchObject({ resolvedAt: "2026-09-27T08:00:00.000Z", statusCategoryChangedAt: "2026-09-27T08:00:05.000Z" });
+    expect(out[0]).toMatchObject({
+      resolvedAt: "2026-09-27T08:00:00.000Z",
+      statusCategoryChangedAt: "2026-09-27T08:00:05.000Z",
+    });
     expect(out[1]).toMatchObject({ resolvedAt: null });
     const [, options] = mockRequestJira.mock.calls[0];
-    expect(JSON.parse(options.body).fields).toEqual(["status", "assignee", "resolutiondate", "statuscategorychangedate"]);
+    expect(JSON.parse(options.body).fields).toEqual([
+      "status",
+      "assignee",
+      "resolutiondate",
+      "statuscategorychangedate",
+    ]);
   });
 
   // A `key in (...)` search fails outright when any one key is gone, so one deleted ticket
   // used to fail every ticket batched with it. Bulk fetch lists it under issueErrors instead.
   test("reads by bulk fetch, so a deleted key is left out rather than failing the batch", async () => {
-    mockRequestJira.mockResolvedValue(jiraResponse({
-      body: {
-        issues: [{ key: "OPS-1", fields: { status: { name: "Done", statusCategory: { key: "done" } } } }],
-        issueErrors: [{ issueIdsOrKeys: ["OPS-GONE"], errorMessages: ["Issue does not exist"] }],
-      },
-    }));
+    mockRequestJira.mockResolvedValue(
+      jiraResponse({
+        body: {
+          issues: [{ key: "OPS-1", fields: { status: { name: "Done", statusCategory: { key: "done" } } } }],
+          issueErrors: [{ issueIdsOrKeys: ["OPS-GONE"], errorMessages: ["Issue does not exist"] }],
+        },
+      }),
+    );
 
     const out = await getIssuesStatus(["OPS-1", "OPS-GONE"]);
 
@@ -1661,5 +1876,214 @@ describe("site base URL", () => {
   test("resolves null, never throws, when serverInfo fails", async () => {
     mockRequestJira.mockRejectedValueOnce(new Error("boom"));
     expect(await getSiteBaseUrl()).toBeNull();
+  });
+});
+
+describe("updateJiraIssue / searchIssuesPage (remediation hierarchy)", () => {
+  test("updateJiraIssue PUTs the fields as the caller and throws with the status on failure", async () => {
+    mockRequestJiraAsUser.mockResolvedValueOnce(jiraResponse({ status: 204, body: "" }));
+    await updateJiraIssue("OPS-5", { parent: { key: "OPS-1" } }, { asUser: true });
+    const [path, opts] = mockRequestJiraAsUser.mock.calls[0];
+    expect(String(path)).toContain("/rest/api/3/issue/OPS-5");
+    expect(opts.method).toBe("PUT");
+    expect(JSON.parse(opts.body)).toEqual({ fields: { parent: { key: "OPS-1" } } });
+
+    mockRequestJiraAsUser.mockResolvedValueOnce(jiraResponse({ status: 400, ok: false, body: "parent not allowed" }));
+    await expect(updateJiraIssue("OPS-5", {}, { asUser: true })).rejects.toMatchObject({ status: 400 });
+  });
+
+  test("searchIssuesPage returns key, id and the requested fields", async () => {
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({ body: { issues: [{ key: "OPS-9", id: "9", fields: { summary: "S" } }] } }),
+    );
+    const out = await searchIssuesPage('project = "OPS"', ["summary"], 50);
+    expect(out).toEqual([{ key: "OPS-9", id: "9", fields: { summary: "S" } }]);
+    expect(JSON.parse(mockRequestJira.mock.calls[0][1].body)).toEqual({
+      jql: 'project = "OPS"',
+      fields: ["summary"],
+      maxResults: 50,
+    });
+  });
+});
+
+describe("getArchivedJiraProjects", () => {
+  test("asks for archived projects with their issue counts", async () => {
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        body: {
+          values: [
+            {
+              id: 20001,
+              key: "TT",
+              name: "Talent Tracker",
+              archivedDate: "2026-06-01T00:00:00.000+0000",
+              insight: { totalIssueCount: 2340 },
+            },
+            { id: 20002, key: "OLD", name: "Old" },
+          ],
+          total: 2,
+        },
+      }),
+    );
+    await expect(getArchivedJiraProjects()).resolves.toEqual([
+      { id: "20001", key: "TT", name: "Talent Tracker", archivedAt: "2026-06-01T00:00:00.000+0000", issueCount: 2340 },
+      { id: "20002", key: "OLD", name: "Old", archivedAt: null, issueCount: null },
+    ]);
+    const [path] = mockRequestJira.mock.calls[0];
+    expect(String(path)).toContain("status=archived");
+    expect(String(path)).toContain("expand=insight");
+  });
+});
+
+describe("getProjectLeads", () => {
+  test("lists every project with its lead's account id", async () => {
+    mockRequestJira.mockResolvedValueOnce(
+      jiraResponse({
+        body: {
+          values: [
+            { id: 100, key: "TEAM", name: "Team", lead: { accountId: "acc-1" } },
+            { id: 101, key: "OPS", name: "Ops" },
+          ],
+          total: 2,
+        },
+      }),
+    );
+    await expect(getProjectLeads()).resolves.toEqual([
+      { id: "100", key: "TEAM", name: "Team", leadAccountId: "acc-1" },
+      { id: "101", key: "OPS", name: "Ops", leadAccountId: null },
+    ]);
+    expect(String(mockRequestJira.mock.calls[0][0])).toContain("expand=lead");
+  });
+});
+
+describe("countIssues", () => {
+  test("returns the approximate count for a JQL query", async () => {
+    // The suite fires timers immediately; leave the 8 s count timeout pending so it cannot
+    // win the race, as the shared setup does for the hard request deadline.
+    vi.spyOn(globalThis, "setTimeout").mockImplementation((fn, ms) => {
+      if (ms !== 8000 && ms !== JIRA_REQUEST_HARD_TIMEOUT_MS) fn();
+      return 0;
+    });
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { count: 23 } }));
+    await expect(countIssues('assignee = "acc-1"')).resolves.toBe(23);
+    expect(JSON.parse(mockRequestJira.mock.calls[0][1].body)).toEqual({ jql: 'assignee = "acc-1"' });
+  });
+
+  // Unknown, never zero: "no open issues" would tell an admin the opposite of what to check.
+  test("returns null when Jira cannot say", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: {} }));
+    await expect(countIssues("x")).resolves.toBeNull();
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ ok: false, status: 400, text: "bad jql" }));
+    await expect(countIssues("x")).resolves.toBeNull();
+  });
+});
+
+describe("transitionIssueWithComment", () => {
+  const transitions = {
+    transitions: [
+      { id: "11", name: "Start", to: { name: "In Progress", statusCategory: { key: "indeterminate" } } },
+      { id: "21", name: "Reopen", to: { name: "To Do", statusCategory: { key: "new" } } },
+      { id: "31", name: "Done", to: { name: "Done", statusCategory: { key: "done" } } },
+    ],
+  };
+  const body = { type: "doc", version: 1, content: [] };
+
+  test("moves the issue into Done, then comments, as the caller", async () => {
+    mockRequestJiraAsUser
+      .mockResolvedValueOnce(jiraResponse({ body: transitions }))
+      .mockResolvedValueOnce(jiraResponse({ status: 204 }))
+      .mockResolvedValueOnce(jiraResponse({ status: 201, body: {} }));
+
+    const r = await transitionIssueWithComment("OPS-1", { target: "done", commentBody: body, asUser: true });
+
+    expect(r).toEqual({
+      issueKey: "OPS-1",
+      transitioned: true,
+      commented: true,
+      toStatus: "Done",
+      resolution: null,
+      reason: null,
+    });
+    expect(JSON.parse(mockRequestJiraAsUser.mock.calls[1][1].body)).toEqual({ transition: { id: "31" } });
+    expect(mockRequestJiraAsUser.mock.calls[2][0]).toContain("/comment");
+    expect(mockRequestJira).not.toHaveBeenCalled();
+  });
+
+  // Withdrawn advice closes as Won't Do -- by transition name where the workflow has one, and
+  // with the Won't Do resolution where the transition's screen offers it.
+  test("withdraw prefers a Won't Do transition and sets the Won't Do resolution", async () => {
+    const withWontDo = {
+      transitions: [
+        ...transitions.transitions,
+        {
+          id: "41",
+          name: "Won't Do",
+          to: { name: "Closed", statusCategory: { key: "done" } },
+          fields: {
+            resolution: {
+              allowedValues: [
+                { id: "1", name: "Done" },
+                { id: "10000", name: "Won't Do" },
+              ],
+            },
+          },
+        },
+      ],
+    };
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: withWontDo }))
+      .mockResolvedValueOnce(jiraResponse({ status: 204 }));
+    const r = await transitionIssueWithComment("OPS-1", { target: "withdraw" });
+    expect(mockRequestJira.mock.calls[0][0]).toContain("expand=transitions.fields");
+    expect(JSON.parse(mockRequestJira.mock.calls[1][1].body)).toEqual({
+      transition: { id: "41" },
+      fields: { resolution: { id: "10000" } },
+    });
+    expect(r).toMatchObject({ transitioned: true, toStatus: "Closed", resolution: "Won't Do" });
+  });
+
+  test("withdraw still closes on a workflow with no Won't Do, without a resolution", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: transitions }))
+      .mockResolvedValueOnce(jiraResponse({ status: 204 }));
+    const r = await transitionIssueWithComment("OPS-1", { target: "withdraw" });
+    expect(JSON.parse(mockRequestJira.mock.calls[1][1].body)).toEqual({ transition: { id: "31" } });
+    expect(r).toMatchObject({ transitioned: true, toStatus: "Done", resolution: null });
+  });
+
+  test("reopening prefers To Do over In Progress", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: transitions }))
+      .mockResolvedValueOnce(jiraResponse({ status: 204 }));
+    const r = await transitionIssueWithComment("OPS-1", { target: "reopen" });
+    expect(r.toStatus).toBe("To Do");
+    expect(JSON.parse(mockRequestJira.mock.calls[1][1].body)).toEqual({ transition: { id: "21" } });
+  });
+
+  // A workflow with no way back from Done is an answer, not an error -- and no comment is left
+  // claiming a reopen that did not happen.
+  test("reports a workflow with no matching transition without commenting", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { transitions: [transitions.transitions[2]] } }));
+    const r = await transitionIssueWithComment("OPS-1", { target: "reopen", commentBody: body });
+    expect(r).toMatchObject({ transitioned: false, commented: false });
+    expect(r.reason).toMatch(/No transition/);
+    expect(mockRequestJira).toHaveBeenCalledTimes(1);
+  });
+
+  test("a failed move throws before any comment is written", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: transitions }))
+      .mockResolvedValueOnce(jiraResponse({ ok: false, status: 400, text: "a field is required" }));
+    await expect(transitionIssueWithComment("OPS-1", { target: "done", commentBody: body })).rejects.toThrow(/400/);
+    expect(mockRequestJira).toHaveBeenCalledTimes(2);
+  });
+
+  test("a failed comment after a successful move is reported, not thrown", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: transitions }))
+      .mockResolvedValueOnce(jiraResponse({ status: 204 }))
+      .mockResolvedValueOnce(jiraResponse({ ok: false, status: 403, text: "no" }));
+    const r = await transitionIssueWithComment("OPS-1", { target: "done", commentBody: body });
+    expect(r).toMatchObject({ transitioned: true, commented: false });
   });
 });

@@ -33,11 +33,42 @@ const ISSUE_SMART_VALUE_RE = /\{\{\s*(?:issue|triggerIssue)\.([A-Za-z][A-Za-z0-9
 
 // Smart-value suffixes that address a property of a field rather than another field.
 const SMART_VALUE_PROPERTIES = new Set([
-  "key", "id", "summary", "description", "status", "assignee", "reporter", "creator",
-  "created", "updated", "resolution", "resolutiondate", "duedate", "priority", "project",
-  "issuetype", "parent", "labels", "components", "fixVersions", "versions", "watchers",
-  "comments", "attachment", "url", "self", "epic", "sprint", "timetracking", "worklog",
-  "subtasks", "issuelinks", "votes", "environment", "security", "properties",
+  "key",
+  "id",
+  "summary",
+  "description",
+  "status",
+  "assignee",
+  "reporter",
+  "creator",
+  "created",
+  "updated",
+  "resolution",
+  "resolutiondate",
+  "duedate",
+  "priority",
+  "project",
+  "issuetype",
+  "parent",
+  "labels",
+  "components",
+  "fixVersions",
+  "versions",
+  "watchers",
+  "comments",
+  "attachment",
+  "url",
+  "self",
+  "epic",
+  "sprint",
+  "timetracking",
+  "worklog",
+  "subtasks",
+  "issuelinks",
+  "votes",
+  "environment",
+  "security",
+  "properties",
 ]);
 
 function isPlainObject(value) {
@@ -223,7 +254,12 @@ export function extractIssueTypeReferences(rule) {
     const created = value.issueType ?? value.issueTypeId ?? value.targetIssueType;
     if (isPlainObject(created) && typeof created.value === "string" && created.value) {
       const byId = created.type === "ID" || created.type === "id";
-      refs.push({ id: byId ? created.value : null, name: byId ? null : created.value, kind: REF_KIND.WRITE, via: component.type });
+      refs.push({
+        id: byId ? created.value : null,
+        name: byId ? null : created.value,
+        kind: REF_KIND.WRITE,
+        via: component.type,
+      });
     }
 
     // A field operation that sets issuetype (edit actions use operations[]).
@@ -231,11 +267,11 @@ export function extractIssueTypeReferences(rule) {
       for (const operation of value.operations) {
         const field = operation?.field;
         if (
-          isPlainObject(field)
-          && ISSUE_TYPE_FIELD_NAMES.has(String(field.value).toLowerCase())
-          && isPlainObject(operation?.value)
-          && typeof operation.value.value === "string"
-          && operation.value.value
+          isPlainObject(field) &&
+          ISSUE_TYPE_FIELD_NAMES.has(String(field.value).toLowerCase()) &&
+          isPlainObject(operation?.value) &&
+          typeof operation.value.value === "string" &&
+          operation.value.value
         ) {
           refs.push({ id: null, name: operation.value.value, kind: REF_KIND.WRITE, via: component.type });
         }
@@ -253,7 +289,7 @@ export function extractIssueTypeReferences(rule) {
 
   // The trigger's own scope: several trigger types filter to a set of issue types.
   const scope = rule?.trigger?.value?.issueTypes ?? rule?.trigger?.value?.issueType;
-  const scopeList = Array.isArray(scope) ? scope : (scope ? [scope] : []);
+  const scopeList = Array.isArray(scope) ? scope : scope ? [scope] : [];
   for (const entry of scopeList) {
     if (isPlainObject(entry) && typeof entry.value === "string" && entry.value) {
       const byId = entry.type === "ID" || entry.type === "id";
@@ -289,7 +325,8 @@ function parseCompareValues(compareValue) {
 // deactivate the account and the rule quietly stops matching or assigns to nobody.
 const USER_FIELD_NAMES = new Set(["assignee", "reporter", "creator"]);
 // An Atlassian accountId: 24-hex, or the newer "<realm>:<uuid>" form, or a bare uuid.
-const ACCOUNT_ID_RE = /^(?:[0-9a-f]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[a-z0-9]+:[0-9a-f-]{36})$/i;
+const ACCOUNT_ID_RE =
+  /^(?:[0-9a-f]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[a-z0-9]+:[0-9a-f-]{36})$/i;
 
 function looksLikeAccountId(value) {
   return typeof value === "string" && ACCOUNT_ID_RE.test(value.trim());
@@ -321,8 +358,7 @@ export function extractUserReferences(rule) {
     if (Array.isArray(value.operations)) {
       for (const operation of value.operations) {
         const fieldName = String(operation?.field?.value || "").toLowerCase();
-        const isUserField = USER_FIELD_NAMES.has(fieldName)
-          || /user|people|assignee|owner|approver/.test(fieldName);
+        const isUserField = USER_FIELD_NAMES.has(fieldName) || /user|people|assignee|owner|approver/.test(fieldName);
         if (isUserField) add(operation?.value, REF_KIND.WRITE, component.type);
       }
     }
@@ -477,9 +513,7 @@ export function analyzeRuleRisks(rule, { now = Date.now() } = {}) {
     risks.push({
       code: "disabled",
       severity: "info",
-      detail: ageDays === null
-        ? "Rule is disabled."
-        : `Rule is disabled and was last edited ${ageDays} days ago.`,
+      detail: ageDays === null ? "Rule is disabled." : `Rule is disabled and was last edited ${ageDays} days ago.`,
       ageDays,
     });
   }
@@ -494,10 +528,11 @@ export function analyzeRuleRisks(rule, { now = Date.now() } = {}) {
     risks.push({
       code: "unconditional-destructive",
       severity: "medium",
-      detail: `${destructive.length === 1 ? "An action" : `${destructive.length} actions`} `
-        + `(${[...new Set(destructive.map((a) => a.actionType))].join(", ")}) can delete or clear `
-        + "data with no condition distinguishing why -- including a run caused by another rule's "
-        + "own action.",
+      detail:
+        `${destructive.length === 1 ? "An action" : `${destructive.length} actions`} ` +
+        `(${[...new Set(destructive.map((a) => a.actionType))].join(", ")}) can delete or clear ` +
+        "data with no condition distinguishing why -- including a run caused by another rule's " +
+        "own action.",
       actionTypes: [...new Set(destructive.map((a) => a.actionType))],
     });
   }
@@ -510,8 +545,9 @@ export function analyzeRuleRisks(rule, { now = Date.now() } = {}) {
     risks.push({
       code: "silent-failure",
       severity: "low",
-      detail: "Rule calls out over HTTP but notifyOnError is NEVER, so a failed call leaves no "
-        + "trace anyone would see -- the rule's audit log entry is the only record.",
+      detail:
+        "Rule calls out over HTTP but notifyOnError is NEVER, so a failed call leaves no " +
+        "trace anyone would see -- the rule's audit log entry is the only record.",
     });
   }
 
@@ -776,8 +812,12 @@ export function findFieldContradictions(rules = [], options = {}) {
         seen.add(pairKey);
         contradictions.push({
           field: a.fieldLabel,
-          aId: a.summary.id, aName: a.summary.name, aValue: a.value,
-          bId: b.summary.id, bName: b.summary.name, bValue: b.value,
+          aId: a.summary.id,
+          aName: a.summary.name,
+          aValue: a.value,
+          bId: b.summary.id,
+          bName: b.summary.name,
+          bValue: b.value,
         });
       }
     }
@@ -845,11 +885,8 @@ export function summarizeRule(rule, options = {}) {
     // Who owns the rule. Automation exports spell this a few ways; the top-level
     // authorAccountId is the common one, with actor/actingUser as fallbacks. Null when the
     // export does not carry it -- the People pillar treats that as "unknown", not "nobody".
-    authorAccountId: rule?.authorAccountId
-      ?? rule?.actor?.value
-      ?? rule?.actingUser?.accountId
-      ?? rule?.state?.actor?.value
-      ?? null,
+    authorAccountId:
+      rule?.authorAccountId ?? rule?.actor?.value ?? rule?.actingUser?.accountId ?? rule?.state?.actor?.value ?? null,
     triggerType: rule?.trigger?.type ?? null,
     created: rule?.created ?? null,
     updated: rule?.updated ?? null,
@@ -1003,8 +1040,15 @@ export const MAX_PREVIEW_FINDINGS = 20;
 export const MAX_STORED_CROSS_RULE = 100;
 
 export function buildAnalysisDocument({
-  estate, summaries = [], cascades = [], eventCascades = [], competingPairs = [], fieldContradictions = [],
-  blastSummary = null, refreshedAt = Date.now(), source = "unknown",
+  estate,
+  summaries = [],
+  cascades = [],
+  eventCascades = [],
+  competingPairs = [],
+  fieldContradictions = [],
+  blastSummary = null,
+  refreshedAt = Date.now(),
+  source = "unknown",
 }) {
   // Rules with no findings are the majority and carry no information here; the estate
   // counts already say how many there are.
@@ -1047,9 +1091,7 @@ export function buildAnalysisDocument({
 }
 
 function sortByseverity(summaries) {
-  return [...summaries].sort(
-    (a, b) => (SEVERITY_ORDER[a.topSeverity] ?? 99) - (SEVERITY_ORDER[b.topSeverity] ?? 99)
-  );
+  return [...summaries].sort((a, b) => (SEVERITY_ORDER[a.topSeverity] ?? 99) - (SEVERITY_ORDER[b.topSeverity] ?? 99));
 }
 
 // Single-letter keys, and no detail sentences.
@@ -1173,7 +1215,14 @@ export function buildRuleDirectory(summaries = []) {
     // Array of tuples rather than objects: over 1,477 rules the repeated key names cost more
     // than the data. Rehydrated by the UI on load. Position 6 is the author accountId, added
     // for the People pillar -- older documents are 5-tuples and rehydrate with author null.
-    rules: summaries.map((s) => [s.id, s.name, s.enabled ? 1 : 0, s.triggerType ?? "", s.projectIds.length, s.authorAccountId ?? ""]),
+    rules: summaries.map((s) => [
+      s.id,
+      s.name,
+      s.enabled ? 1 : 0,
+      s.triggerType ?? "",
+      s.projectIds.length,
+      s.authorAccountId ?? "",
+    ]),
     // The project ids themselves, which used to be computed on every import and then thrown
     // away -- only their count survived, as the fifth tuple position. That discard is the
     // whole reason the Projects tab could not say a word about automation.
@@ -1181,9 +1230,7 @@ export function buildRuleDirectory(summaries = []) {
     // Rules scoped to the whole site are omitted rather than listed against every project:
     // site-wide is a different fact from "scoped to all 200 of them", and materialising it
     // per project would both lie about that and dwarf the document.
-    projects: summaries
-      .filter((s) => (s.projectIds ?? []).length > 0)
-      .map((s) => [s.id, ...s.projectIds]),
+    projects: summaries.filter((s) => (s.projectIds ?? []).length > 0).map((s) => [s.id, ...s.projectIds]),
   };
 }
 
@@ -1210,7 +1257,11 @@ export function hydrateRuleDirectory(document) {
   const byId = new Map();
   for (const [id, name, enabled, triggerType, projectCount, authorAccountId] of document?.rules ?? []) {
     byId.set(id, {
-      id, name, enabled: enabled === 1, triggerType: triggerType || null, projectCount,
+      id,
+      name,
+      enabled: enabled === 1,
+      triggerType: triggerType || null,
+      projectCount,
       authorAccountId: authorAccountId || null,
     });
   }
@@ -1238,19 +1289,16 @@ export function computeBlastEntries(summaries = [], cascades = [], context = {})
       siteIssueTotal: context.siteIssueTotal ?? 0,
       outDegree: outDegree.get(String(summary.id)) ?? 0,
       inLoop: loopMembers.has(String(summary.id)),
-    })
+    }),
   );
 }
 
 // One call that turns raw rules into every document the tab reads. Wrapping the steps keeps
 // the browser and the backend from drifting into two slightly different pipelines.
-export function analyzeRules(rules = [], {
-  source = "unknown",
-  now = Date.now(),
-  projectCountTotal = 0,
-  projectIssueCounts = null,
-  siteIssueTotal = 0,
-} = {}) {
+export function analyzeRules(
+  rules = [],
+  { source = "unknown", now = Date.now(), projectCountTotal = 0, projectIssueCounts = null, siteIssueTotal = 0 } = {},
+) {
   // Walked once, reused everywhere below.
   const summaries = rules.map((rule) => summarizeRule(rule, { now }));
   const options = { now, summaries };
@@ -1262,12 +1310,23 @@ export function analyzeRules(rules = [], {
   const fieldContradictions = findFieldContradictions(rules, options);
   const enabledById = new Map(summaries.map((s) => [s.id, s.enabled]));
 
-  const blastEntries = computeBlastEntries(summaries, cascades, { projectCountTotal, projectIssueCounts, siteIssueTotal });
+  const blastEntries = computeBlastEntries(summaries, cascades, {
+    projectCountTotal,
+    projectIssueCounts,
+    siteIssueTotal,
+  });
   const blastSummary = summarizeBlastRadius(blastEntries);
 
   return {
     analysis: buildAnalysisDocument({
-      estate: summarizeEstate(rules, { ...options, cascades, eventCascades, competingPairs, fieldContradictions, blastSummary }),
+      estate: summarizeEstate(rules, {
+        ...options,
+        cascades,
+        eventCascades,
+        competingPairs,
+        fieldContradictions,
+        blastSummary,
+      }),
       summaries,
       cascades,
       eventCascades,
@@ -1291,9 +1350,12 @@ export function analyzeRules(rules = [], {
 // The inputs the site health score needs from automation, as rates over the estate rather
 // than raw counts. A site with 5,000 rules and 80 carrying credentials is in better shape
 // than one with 200 rules and 80, and scoring counts would rank them the other way.
-export function summarizeAutomationHealth(summaries = [], cascades = [], blastSummary = null, {
-  eventCascades = [], competingPairs = [], fieldContradictions = [],
-} = {}) {
+export function summarizeAutomationHealth(
+  summaries = [],
+  cascades = [],
+  blastSummary = null,
+  { eventCascades = [], competingPairs = [], fieldContradictions = [] } = {},
+) {
   const ruleCount = summaries.length;
   const hasRisk = (summary, code) => summary.risks.some((r) => r.code === code);
 
@@ -1334,7 +1396,10 @@ function computeAuthorConcentration(summaries) {
   let topAuthorAccountId = null;
   let topAuthorRuleCount = 0;
   for (const [id, count] of counts) {
-    if (count > topAuthorRuleCount) { topAuthorAccountId = id; topAuthorRuleCount = count; }
+    if (count > topAuthorRuleCount) {
+      topAuthorAccountId = id;
+      topAuthorRuleCount = count;
+    }
   }
 
   return {
@@ -1361,7 +1426,8 @@ export function summarizeEstate(rules = [], options = {}) {
     const trigger = summary.triggerType ?? "(none)";
     byTrigger.set(trigger, (byTrigger.get(trigger) || 0) + 1);
     for (const risk of summary.risks) {
-      if (!risksByCode.has(risk.code)) risksByCode.set(risk.code, { code: risk.code, severity: risk.severity, count: 0 });
+      if (!risksByCode.has(risk.code))
+        risksByCode.set(risk.code, { code: risk.code, severity: risk.severity, count: 0 });
       risksByCode.get(risk.code).count += 1;
     }
   }
@@ -1374,7 +1440,9 @@ export function summarizeEstate(rules = [], options = {}) {
     statusesReferenced: statuses.size,
     issueTypesReferenced: issueTypes.size,
     usersReferenced: users.size,
-    triggerBreakdown: [...byTrigger.entries()].map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count),
+    triggerBreakdown: [...byTrigger.entries()]
+      .map(([type, count]) => ({ type, count }))
+      .sort((a, b) => b.count - a.count),
     risks: [...risksByCode.values()].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]),
     cascadeCount: cascades.length,
     eventCascadeCount: eventCascades.length,
@@ -1388,7 +1456,9 @@ export function summarizeEstate(rules = [], options = {}) {
     // Rates for the site health score. Computed here rather than in the score itself so the
     // score never needs the rules, only this summary.
     health: summarizeAutomationHealth(summaries, cascades, options.blastSummary ?? null, {
-      eventCascades, competingPairs, fieldContradictions,
+      eventCascades,
+      competingPairs,
+      fieldContradictions,
     }),
   };
 }
@@ -1471,17 +1541,19 @@ export function assessAutomationEvidence({
   if (stale) {
     blockers.push({
       code: "analysis-stale",
-      message: ageDays === null
-        ? "The automation analysis carries no build date, so its age cannot be established. Re-import the rule export from the Automation tab."
-        : `The automation analysis is ${ageDays} day${ageDays === 1 ? "" : "s"} old (the threshold is ${days}). Rules added or changed since then are not in it. Re-import the rule export from the Automation tab.`,
+      message:
+        ageDays === null
+          ? "The automation analysis carries no build date, so its age cannot be established. Re-import the rule export from the Automation tab."
+          : `The automation analysis is ${ageDays} day${ageDays === 1 ? "" : "s"} old (the threshold is ${days}). Rules added or changed since then are not in it. Re-import the rule export from the Automation tab.`,
     });
   }
   if (indexRequired && !indexComplete) {
     blockers.push({
       code: "index-truncated",
-      message: total === null
-        ? "The reference index does not record how many entries it was built from, so it cannot be confirmed complete."
-        : `The reference index was truncated to ${entries} of ${total} entries, and the entries dropped are the least-referenced ones — which is the population this question is asked about.`,
+      message:
+        total === null
+          ? "The reference index does not record how many entries it was built from, so it cannot be confirmed complete."
+          : `The reference index was truncated to ${entries} of ${total} entries, and the entries dropped are the least-referenced ones — which is the population this question is asked about.`,
     });
   }
 

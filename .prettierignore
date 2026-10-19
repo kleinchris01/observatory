@@ -1,0 +1,21 @@
+# Generated / vendored
+build/
+dist/
+dist-admin/
+coverage/
+node_modules/
+package-lock.json
+
+# Prose and config are left as written: Markdown holds agent prompts and runbooks, and
+# manifest.yml / workflow YAML are reviewed line by line.
+*.md
+*.yml
+*.yaml
+
+# Compared byte-for-byte by scripts/snapshot-rules.mjs.
+rules/
+automation-rules-*.json
+# Agent prompt files are sent verbatim.
+resource/
+# Contains NUL bytes; git treats it as binary (-text). Never rewrite it with a text tool.
+src/lib/drift-engine.js

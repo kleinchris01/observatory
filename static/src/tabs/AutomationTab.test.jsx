@@ -1,8 +1,7 @@
-import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { invoke, router } from "@forge/bridge";
+import { invoke } from "@forge/bridge";
 import {
   AutomationTab,
   DIRECTIONS,
@@ -22,12 +21,31 @@ function exportFile(payload, name = "automation-rules-202608060201.json") {
 }
 
 const RULE = {
-  id: 1, name: "Set due date", state: "ENABLED", canOtherRuleTrigger: false, updated: 1,
-  trigger: { id: "t", component: "TRIGGER", type: "jira.issue.field.changed", value: { fields: [{ type: "fieldName", value: "Actual SEOBD" }] }, children: [], conditions: [] },
-  components: [{
-    id: "a", component: "ACTION", type: "jira.issue.edit", children: [], conditions: [],
-    value: { operations: [{ field: { type: "NAME", value: "Post sourcing cost review" }, type: "SET", value: "{{now}}" }] },
-  }],
+  id: 1,
+  name: "Set due date",
+  state: "ENABLED",
+  canOtherRuleTrigger: false,
+  updated: 1,
+  trigger: {
+    id: "t",
+    component: "TRIGGER",
+    type: "jira.issue.field.changed",
+    value: { fields: [{ type: "fieldName", value: "Actual SEOBD" }] },
+    children: [],
+    conditions: [],
+  },
+  components: [
+    {
+      id: "a",
+      component: "ACTION",
+      type: "jira.issue.edit",
+      children: [],
+      conditions: [],
+      value: {
+        operations: [{ field: { type: "NAME", value: "Post sourcing cost review" }, type: "SET", value: "{{now}}" }],
+      },
+    },
+  ],
   projects: [{ projectId: "10518" }],
 };
 
@@ -37,25 +55,56 @@ function analysis(overrides = {}) {
     refreshedAt: Date.now() - 3600_000,
     source: "export-file",
     estate: {
-      ruleCount: 1477, enabledCount: 874, disabledCount: 603,
-      fieldsReferenced: 735, statusesReferenced: 324,
+      ruleCount: 1477,
+      enabledCount: 874,
+      disabledCount: 603,
+      fieldsReferenced: 735,
+      statusesReferenced: 324,
       triggerBreakdown: [
         { type: "jira.issue.field.changed", count: 401 },
         { type: "jira.jql.scheduled", count: 231 },
       ],
     },
     findings: [
-      { id: 1, name: "Alexandria - Send to Approval", state: "ENABLED", enabled: true,
-        triggerType: "jira.issue.field.changed", projectCount: 2, topSeverity: "high",
-        risks: [{ code: "embedded-credential", severity: "high", detail: "Credential in plaintext." }] },
-      { id: 2, name: "Old cleanup rule", state: "DISABLED", enabled: false,
-        triggerType: "jira.jql.scheduled", projectCount: 0, topSeverity: "info",
-        risks: [{ code: "disabled", severity: "info", detail: "Disabled 200 days ago." }] },
+      {
+        id: 1,
+        name: "Alexandria - Send to Approval",
+        state: "ENABLED",
+        enabled: true,
+        triggerType: "jira.issue.field.changed",
+        projectCount: 2,
+        topSeverity: "high",
+        risks: [{ code: "embedded-credential", severity: "high", detail: "Credential in plaintext." }],
+      },
+      {
+        id: 2,
+        name: "Old cleanup rule",
+        state: "DISABLED",
+        enabled: false,
+        triggerType: "jira.jql.scheduled",
+        projectCount: 0,
+        topSeverity: "info",
+        risks: [{ code: "disabled", severity: "info", detail: "Disabled 200 days ago." }],
+      },
     ],
     findingsTotal: 2,
     cascades: [
-      { sourceId: 1, targetId: 2, sourceName: "Writer", targetName: "Listener", field: "Actual SEOBD", selfTriggering: false },
-      { sourceId: 7, targetId: 7, sourceName: "Loopy rule", targetName: "Loopy rule", field: "Loopy", selfTriggering: true },
+      {
+        sourceId: 1,
+        targetId: 2,
+        sourceName: "Writer",
+        targetName: "Listener",
+        field: "Actual SEOBD",
+        selfTriggering: false,
+      },
+      {
+        sourceId: 7,
+        targetId: 7,
+        sourceName: "Loopy rule",
+        targetName: "Loopy rule",
+        field: "Loopy",
+        selfTriggering: true,
+      },
     ],
     cascadesTotal: 2,
     selfTriggeringTotal: 1,
@@ -74,15 +123,27 @@ function analysis(overrides = {}) {
 }
 
 const FIELD_INDEX = {
-  available: true, part: "fields", total: 735,
+  available: true,
+  part: "fields",
+  total: 735,
   entries: [
-    { label: "ADVEV Vehicle Program", writeCount: 65, readCount: 66, triggerCount: 17, write: [10, 11], read: [12], trigger: [13] },
+    {
+      label: "ADVEV Vehicle Program",
+      writeCount: 65,
+      readCount: 66,
+      triggerCount: 17,
+      write: [10, 11],
+      read: [12],
+      trigger: [13],
+    },
     { label: "Story Points", writeCount: 3, readCount: 1, triggerCount: 0, write: [10], read: [12], trigger: [] },
   ],
 };
 
 const DIRECTORY = {
-  available: true, part: "directory", total: 4,
+  available: true,
+  part: "directory",
+  total: 4,
   rules: [
     [10, "Populate program", 1, "jira.issue.field.changed", 2],
     [11, "Copy to subtasks", 0, "jira.manual.trigger.issue", 1],
@@ -139,8 +200,9 @@ describe("triggerLabel", () => {
 
 describe("findingDetailLine", () => {
   it("reads as one sentence rather than a run of fragments", () => {
-    expect(findingDetailLine({ triggerType: "jira.issue.field.changed", projectCount: 2, enabled: true }))
-      .toBe("Field changed · 2 projects");
+    expect(findingDetailLine({ triggerType: "jira.issue.field.changed", projectCount: 2, enabled: true })).toBe(
+      "Field changed · 2 projects",
+    );
   });
 
   it("singularizes a one-project scope", () => {
@@ -152,7 +214,9 @@ describe("findingDetailLine", () => {
   });
 
   it("appends the disabled state", () => {
-    expect(findingDetailLine({ triggerType: null, projectCount: 0, enabled: false })).toBe("No trigger · site-wide · disabled");
+    expect(findingDetailLine({ triggerType: null, projectCount: 0, enabled: false })).toBe(
+      "No trigger · site-wide · disabled",
+    );
   });
 });
 
@@ -193,8 +257,9 @@ describe("riskDetail", () => {
   });
 
   it("uses the stored parameters where they vary", () => {
-    expect(riskDetail({ code: "external-http", hosts: ["graph.microsoft.com", "login.microsoftonline.com"] }))
-      .toContain("graph.microsoft.com, login.microsoftonline.com");
+    expect(
+      riskDetail({ code: "external-http", hosts: ["graph.microsoft.com", "login.microsoftonline.com"] }),
+    ).toContain("graph.microsoft.com, login.microsoftonline.com");
     expect(riskDetail({ code: "disabled", ageDays: 90 })).toContain("90 days ago");
   });
 
@@ -210,8 +275,24 @@ describe("riskDetail", () => {
 
 describe("filterFindings", () => {
   const rows = [
-    { id: 1, name: "Alpha", enabled: true, triggerType: "t1", topSeverity: "high", writesFields: ["Story Points"], risks: [{ code: "embedded-credential" }] },
-    { id: 2, name: "Beta", enabled: false, triggerType: "t2", topSeverity: "info", writesFields: [], risks: [{ code: "disabled" }] },
+    {
+      id: 1,
+      name: "Alpha",
+      enabled: true,
+      triggerType: "t1",
+      topSeverity: "high",
+      writesFields: ["Story Points"],
+      risks: [{ code: "embedded-credential" }],
+    },
+    {
+      id: 2,
+      name: "Beta",
+      enabled: false,
+      triggerType: "t2",
+      topSeverity: "info",
+      writesFields: [],
+      risks: [{ code: "disabled" }],
+    },
   ];
 
   it("returns everything when no filter is set", () => {
@@ -246,7 +327,17 @@ describe("filterFindings", () => {
 describe("analyzeExportFile", () => {
   it("derives every document from a real export shape", async () => {
     const docs = await analyzeExportFile(exportFile({ cloud: true, rules: [RULE] }));
-    expect(Object.keys(docs).sort()).toEqual(["analysis", "blast", "cascades", "directory", "fields", "findings", "issueTypes", "statuses", "users"]);
+    expect(Object.keys(docs).sort()).toEqual([
+      "analysis",
+      "blast",
+      "cascades",
+      "directory",
+      "fields",
+      "findings",
+      "issueTypes",
+      "statuses",
+      "users",
+    ]);
     expect(docs.analysis.estate).toMatchObject({ ruleCount: 1, enabledCount: 1 });
     expect(docs.fields.entries.map((e) => e.label).sort()).toEqual(["Actual SEOBD", "Post sourcing cost review"]);
   });
@@ -271,23 +362,40 @@ describe("persistAnalysis", () => {
   it("writes the analysis last, after every index", async () => {
     const save = vi.fn().mockResolvedValue({});
     await persistAnalysis(
-      { analysis: { a: 1 }, fields: { f: 1 }, statuses: { s: 1 }, issueTypes: { it: 1 }, users: { u: 1 }, directory: { d: 1 }, findings: { fi: 1 }, cascades: { c: 1 } },
-      { save }
+      {
+        analysis: { a: 1 },
+        fields: { f: 1 },
+        statuses: { s: 1 },
+        issueTypes: { it: 1 },
+        users: { u: 1 },
+        directory: { d: 1 },
+        findings: { fi: 1 },
+        cascades: { c: 1 },
+      },
+      { save },
     );
 
     const order = save.mock.calls.map((c) => (c[0] === "saveAutomationIndex" ? c[1].part : c[0]));
     // Cascades go after the directory, which the cascade views join to for rule names, and
     // before the analysis, which is the commit point.
-    expect(order).toEqual(["fields", "statuses", "issueTypes", "users", "directory", "findings", "cascades", "blast", "saveAutomationAnalysis"]);
+    expect(order).toEqual([
+      "fields",
+      "statuses",
+      "issueTypes",
+      "users",
+      "directory",
+      "findings",
+      "cascades",
+      "blast",
+      "saveAutomationAnalysis",
+    ]);
   });
 
   it("stops before the commit point if an index write fails", async () => {
-    const save = vi.fn()
-      .mockResolvedValueOnce({})
-      .mockRejectedValueOnce(new Error("kvs full"));
+    const save = vi.fn().mockResolvedValueOnce({}).mockRejectedValueOnce(new Error("kvs full"));
 
     await expect(
-      persistAnalysis({ analysis: {}, fields: {}, statuses: {}, directory: {}, findings: {} }, { save })
+      persistAnalysis({ analysis: {}, fields: {}, statuses: {}, directory: {}, findings: {} }, { save }),
     ).rejects.toThrow("kvs full");
     expect(save).not.toHaveBeenCalledWith("saveAutomationAnalysis", expect.anything());
   });
@@ -527,8 +635,12 @@ describe("AutomationTab", () => {
       routeInvoke({
         getAutomationInsights: analysis(),
         "getAutomationIndex:statuses": {
-          available: true, part: "statuses", total: 324,
-          entries: [{ label: "Done", writeCount: 73, readCount: 18, triggerCount: 40, write: [10], read: [12], trigger: [13] }],
+          available: true,
+          part: "statuses",
+          total: 324,
+          entries: [
+            { label: "Done", writeCount: 73, readCount: 18, triggerCount: 40, write: [10], read: [12], trigger: [13] },
+          ],
         },
         "getAutomationIndex:directory": DIRECTORY,
       });
@@ -548,7 +660,9 @@ describe("AutomationTab", () => {
       routeInvoke({
         getAutomationInsights: analysis(),
         "getAutomationIndex:issueTypes": {
-          available: true, part: "issueTypes", total: 2,
+          available: true,
+          part: "issueTypes",
+          total: 2,
           entries: [
             { label: "Incident", writeCount: 30, readCount: 0, triggerCount: 0, write: [10], read: [], trigger: [] },
             { label: "Bug", writeCount: 0, readCount: 12, triggerCount: 0, write: [], read: [11], trigger: [] },
@@ -573,7 +687,9 @@ describe("AutomationTab", () => {
       routeInvoke({
         getAutomationInsights: analysis({ estate: { ...analysis().estate, usersReferenced: 2 } }),
         "getAutomationIndex:users": {
-          available: true, part: "users", total: 2,
+          available: true,
+          part: "users",
+          total: 2,
           entries: [
             { label: "Ann Admin", writeCount: 5, readCount: 0, triggerCount: 0, write: [10], read: [], trigger: [] },
             { label: "acc-gone", writeCount: 0, readCount: 3, triggerCount: 0, write: [], read: [11], trigger: [] },
@@ -600,15 +716,27 @@ describe("AutomationTab", () => {
       summary: { edges: 1457, pairs: 1143, selfTriggeringRules: 123, fields: 214 },
       cascades: [
         {
-          sourceId: "9", sourceName: "Loopy rule", targetId: "9", targetName: "Loopy rule",
-          selfTriggering: true, fields: ["Owner"], fieldCount: 1,
+          sourceId: "9",
+          sourceName: "Loopy rule",
+          targetId: "9",
+          targetName: "Loopy rule",
+          selfTriggering: true,
+          fields: ["Owner"],
+          fieldCount: 1,
         },
         {
-          sourceId: "1", sourceName: "Writer", targetId: "2", targetName: "Listener",
-          selfTriggering: false, fields: ["A", "B", "C"], fieldCount: 3,
+          sourceId: "1",
+          sourceName: "Writer",
+          targetId: "2",
+          targetName: "Listener",
+          selfTriggering: false,
+          fields: ["A", "B", "C"],
+          fieldCount: 3,
         },
       ],
-      total: 2, page: 1, pageSize: 50,
+      total: 2,
+      page: 1,
+      pageSize: 50,
       ...over,
     });
 
@@ -671,7 +799,11 @@ describe("AutomationTab", () => {
       await user.selectOptions(screen.getByLabelText(/kind/i), "self");
 
       await waitFor(() =>
-        expect(invoke).toHaveBeenCalledWith("getAutomationCascades", expect.objectContaining({ kind: "self", page: 1 })));
+        expect(invoke).toHaveBeenCalledWith(
+          "getAutomationCascades",
+          expect.objectContaining({ kind: "self", page: 1 }),
+        ),
+      );
     });
 
     // Neither empty state renders the sub-view switcher, so these cannot wait on it.
@@ -679,7 +811,12 @@ describe("AutomationTab", () => {
       const user = userEvent.setup();
       routeInvoke({
         getAutomationInsights: data,
-        getAutomationCascades: { available: false, summary: { edges: 0, pairs: 0, selfTriggeringRules: 0, fields: 0 }, cascades: [], total: 0 },
+        getAutomationCascades: {
+          available: false,
+          summary: { edges: 0, pairs: 0, selfTriggeringRules: 0, fields: 0 },
+          cascades: [],
+          total: 0,
+        },
         getCascadeGraph: { available: false, reason: "no-cascades" },
       });
       const view = render(<AutomationTab />);
@@ -708,26 +845,38 @@ describe("AutomationTab", () => {
     // truncation did -- so the answer was not "fewer chains", it was "wrong chains".
     const graph = (over = {}) => ({
       available: true,
-      ruleCount: 318, edgeCount: 1143, rulesInLoops: 89, deepestChain: 9, truncated: false, maxDepth: 8,
-      loops: [{
-        size: 3, selfTriggering: false,
-        ruleIds: ["1", "2", "3"], ruleNames: ["Alpha", "Beta", "Gamma"],
-        path: [
-          { id: "1", name: "Alpha", viaFields: ["Owner"], enabled: true },
-          { id: "2", name: "Beta", viaFields: ["Status"], enabled: true },
-          { id: "3", name: "Gamma", viaFields: ["Owner"], enabled: false },
-          { id: "1", name: "Alpha", viaFields: [], enabled: true },
-        ],
-      }],
-      chains: [{
-        length: 4, ruleIds: ["7", "8", "9", "10"],
-        steps: [
-          { id: "7", name: "Start", viaFields: ["Milestone"], enabled: true },
-          { id: "8", name: "Middle", viaFields: ["Checkpoint"], enabled: true },
-          { id: "9", name: "Later", viaFields: ["Fix Version"], enabled: true },
-          { id: "10", name: "End", viaFields: [], enabled: true },
-        ],
-      }],
+      ruleCount: 318,
+      edgeCount: 1143,
+      rulesInLoops: 89,
+      deepestChain: 9,
+      truncated: false,
+      maxDepth: 8,
+      loops: [
+        {
+          size: 3,
+          selfTriggering: false,
+          ruleIds: ["1", "2", "3"],
+          ruleNames: ["Alpha", "Beta", "Gamma"],
+          path: [
+            { id: "1", name: "Alpha", viaFields: ["Owner"], enabled: true },
+            { id: "2", name: "Beta", viaFields: ["Status"], enabled: true },
+            { id: "3", name: "Gamma", viaFields: ["Owner"], enabled: false },
+            { id: "1", name: "Alpha", viaFields: [], enabled: true },
+          ],
+        },
+      ],
+      chains: [
+        {
+          length: 4,
+          ruleIds: ["7", "8", "9", "10"],
+          steps: [
+            { id: "7", name: "Start", viaFields: ["Milestone"], enabled: true },
+            { id: "8", name: "Middle", viaFields: ["Checkpoint"], enabled: true },
+            { id: "9", name: "Later", viaFields: ["Fix Version"], enabled: true },
+            { id: "10", name: "End", viaFields: [], enabled: true },
+          ],
+        },
+      ],
       ...over,
     });
 
@@ -738,7 +887,10 @@ describe("AutomationTab", () => {
         getAutomationCascades: {
           available: true,
           summary: { edges: 1457, pairs: 1143, selfTriggeringRules: 123, fields: 214 },
-          cascades: [], total: 0, page: 1, pageSize: 50,
+          cascades: [],
+          total: 0,
+          page: 1,
+          pageSize: 50,
         },
         getCascadeGraph: graph(over),
       });
@@ -810,8 +962,14 @@ describe("AutomationTab", () => {
       pageSize: 50,
       rules: [
         {
-          ruleId: "1", name: "Site-wide status sweep", enabled: true, triggerType: "jira.jql.scheduled",
-          score: 88, tier: "estate", estimated: true, credential: false,
+          ruleId: "1",
+          name: "Site-wide status sweep",
+          enabled: true,
+          triggerType: "jira.jql.scheduled",
+          score: 88,
+          tier: "estate",
+          estimated: true,
+          credential: false,
           factors: [
             { key: "reach", label: "Reach", weight: 0.4, value: 1, detail: "Scoped to the whole site." },
             { key: "cadence", label: "Trigger cadence", weight: 0.15, value: 1, detail: "Scheduled." },
@@ -821,10 +979,16 @@ describe("AutomationTab", () => {
           modifiers: [],
         },
         {
-          ruleId: "2", name: "One project label tidy", enabled: false, triggerType: "jira.manual.trigger.issue",
-          score: 8, tier: "contained", estimated: true, credential: false, factors: [], modifiers: [
-            { key: "disabled", detail: "Rule is disabled; this is its latent blast radius." },
-          ],
+          ruleId: "2",
+          name: "One project label tidy",
+          enabled: false,
+          triggerType: "jira.manual.trigger.issue",
+          score: 8,
+          tier: "contained",
+          estimated: true,
+          credential: false,
+          factors: [],
+          modifiers: [{ key: "disabled", detail: "Rule is disabled; this is its latent blast radius." }],
         },
       ],
       ...over,
@@ -861,7 +1025,8 @@ describe("AutomationTab", () => {
       await screen.findByText("Site-wide status sweep");
       await user.selectOptions(screen.getByLabelText(/tier/i), "estate");
       await waitFor(() =>
-        expect(invoke).toHaveBeenCalledWith("getAutomationBlast", expect.objectContaining({ tier: "estate", page: 1 })));
+        expect(invoke).toHaveBeenCalledWith("getAutomationBlast", expect.objectContaining({ tier: "estate", page: 1 })),
+      );
     });
 
     it("prompts for a re-import when the analysis predates blast scoring", async () => {
@@ -1038,9 +1203,7 @@ describe("AutomationTab", () => {
 
     it("sends the derived documents, never the raw export", async () => {
       const user = userEvent.setup();
-      invoke
-        .mockResolvedValueOnce({ available: false, reason: "no-analysis" })
-        .mockResolvedValue({ saved: true });
+      invoke.mockResolvedValueOnce({ available: false, reason: "no-analysis" }).mockResolvedValue({ saved: true });
 
       const { container } = render(<AutomationTab />);
       await screen.findByRole("button", { name: /import rule export/i });
@@ -1055,9 +1218,7 @@ describe("AutomationTab", () => {
 
     it("writes every supporting index before the analysis", async () => {
       const user = userEvent.setup();
-      invoke
-        .mockResolvedValueOnce({ available: false, reason: "no-analysis" })
-        .mockResolvedValue({ saved: true });
+      invoke.mockResolvedValueOnce({ available: false, reason: "no-analysis" }).mockResolvedValue({ saved: true });
 
       const { container } = render(<AutomationTab />);
       await screen.findByRole("button", { name: /import rule export/i });
@@ -1065,7 +1226,16 @@ describe("AutomationTab", () => {
 
       await waitFor(() => expect(invoke).toHaveBeenCalledWith("saveAutomationAnalysis", expect.any(Object)));
       const parts = invoke.mock.calls.filter((c) => c[0] === "saveAutomationIndex").map((c) => c[1].part);
-      expect(parts).toEqual(["fields", "statuses", "issueTypes", "users", "directory", "findings", "cascades", "blast"]);
+      expect(parts).toEqual([
+        "fields",
+        "statuses",
+        "issueTypes",
+        "users",
+        "directory",
+        "findings",
+        "cascades",
+        "blast",
+      ]);
     });
 
     it("shows a parse error against the control and keeps it usable", async () => {
@@ -1109,18 +1279,39 @@ describe("AutomationTab — arriving from a finding", () => {
     routeInvoke({ getAutomationInsights: analysis() });
     const { container } = render(<AutomationTab intent={{ section: "cascades", cascadeKind: "self" }} />);
 
-    await waitFor(() =>
-      expect(container.querySelector(".sub-nav__item--active")?.textContent).toMatch(/Cascades/));
+    await waitFor(() => expect(container.querySelector(".sub-nav__item--active")?.textContent).toMatch(/Cascades/));
   });
 
   test("filters the findings list to the risk the finding counted", async () => {
     routeInvoke({
       getAutomationInsights: analysis({ findingsTotal: 2 }),
       "getAutomationIndex:findings": {
-        available: true, part: "findings", total: 2,
+        available: true,
+        part: "findings",
+        total: 2,
         findings: [
-          { id: 1, n: "Leaks a secret", e: 1, t: "jira.jql.scheduled", u: 1, p: 1, w: [], s: "high", r: [{ c: "embedded-credential", s: "high" }] },
-          { id: 2, n: "Merely disabled", e: 0, t: "jira.jql.scheduled", u: 1, p: 1, w: [], s: "info", r: [{ c: "disabled", s: "info", d: 30 }] },
+          {
+            id: 1,
+            n: "Leaks a secret",
+            e: 1,
+            t: "jira.jql.scheduled",
+            u: 1,
+            p: 1,
+            w: [],
+            s: "high",
+            r: [{ c: "embedded-credential", s: "high" }],
+          },
+          {
+            id: 2,
+            n: "Merely disabled",
+            e: 0,
+            t: "jira.jql.scheduled",
+            u: 1,
+            p: 1,
+            w: [],
+            s: "info",
+            r: [{ c: "disabled", s: "info", d: 30 }],
+          },
         ],
       },
       "getAutomationIndex:directory": DIRECTORY,
@@ -1140,7 +1331,10 @@ describe("AutomationTab — arriving from a finding", () => {
       getAutomationCascades: {
         available: true,
         summary: { edges: 1457, pairs: 1143, selfTriggeringRules: 123, fields: 214 },
-        cascades: [], total: 0, page: 1, pageSize: 50,
+        cascades: [],
+        total: 0,
+        page: 1,
+        pageSize: 50,
       },
       getCascadeGraph: { available: false, reason: "no-cascades" },
     });
@@ -1148,7 +1342,8 @@ describe("AutomationTab — arriving from a finding", () => {
     render(<AutomationTab intent={{ section: "cascades", cascadeKind: "self" }} />);
 
     await waitFor(() =>
-      expect(invoke).toHaveBeenCalledWith("getAutomationCascades", expect.objectContaining({ kind: "self" })));
+      expect(invoke).toHaveBeenCalledWith("getAutomationCascades", expect.objectContaining({ kind: "self" })),
+    );
   });
 
   test("opened normally, it filters nothing", async () => {

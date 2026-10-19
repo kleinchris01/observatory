@@ -1,8 +1,16 @@
 import { describe, test, expect } from "vitest";
-import { attachEstateUsage, summarizeEstateInsights, summarizeEstateHealth } from "./estate-insights.js";
+import {
+  attachEstateUsage,
+  summarizeEstateInsights,
+  summarizeEstateHealth,
+  summarizeEstateUsage,
+} from "./estate-insights.js";
 
 describe("attachEstateUsage", () => {
-  const resolutions = [{ id: "1", name: "Done" }, { id: "2", name: "Won't Fix" }];
+  const resolutions = [
+    { id: "1", name: "Done" },
+    { id: "2", name: "Won't Fix" },
+  ];
   const priorities = [{ id: "10", name: "High" }];
 
   test("attaches the crawl's count to each value, and a counted zero to one it never saw", () => {
@@ -35,7 +43,7 @@ describe("summarizeEstateInsights", () => {
     const s = summarizeEstateInsights({
       resolutions: [
         { id: "1", name: "Done", isDefault: true },
-        { id: "2", name: "done" },        // spacing/case dup of "Done"
+        { id: "2", name: "done" }, // spacing/case dup of "Done"
         { id: "3", name: "Complete" },
         { id: "4", name: "Won't Fix" },
       ],
@@ -71,19 +79,67 @@ describe("summarizeEstateInsights", () => {
 
   test("health carries the rate inputs when available", () => {
     const s = summarizeEstateInsights({
-      resolutions: [{ id: "1", name: "Done" }, { id: "2", name: "Done " }],
+      resolutions: [
+        { id: "1", name: "Done" },
+        { id: "2", name: "Done " },
+      ],
       priorities: [{ id: "10", name: "High" }],
     });
     expect(summarizeEstateHealth(s)).toMatchObject({
-      available: true, totalResolutions: 2, totalPriorities: 1, reducibleResolutionCount: 1,
+      available: true,
+      totalResolutions: 2,
+      totalPriorities: 1,
+      reducibleResolutionCount: 1,
     });
   });
 });
 
 describe("summarizeEstateInsights listLimit", () => {
   it("lists every duplicate group for remediation", () => {
-    const priorities = Array.from({ length: 30 }, (_, i) => [{ id: `${i}a`, name: `P${i}` }, { id: `${i}b`, name: `p${i}` }]).flat();
+    const priorities = Array.from({ length: 30 }, (_, i) => [
+      { id: `${i}a`, name: `P${i}` },
+      { id: `${i}b`, name: `p${i}` },
+    ]).flat();
     expect(summarizeEstateInsights({ priorities }).priorityDuplicateGroups).toHaveLength(25);
     expect(summarizeEstateInsights({ priorities, listLimit: Infinity }).priorityDuplicateGroups).toHaveLength(30);
+  });
+});
+
+// Usage and defaults, the inputs to the priority/resolution usage and "Defaults set" checks.
+describe("summarizeEstateUsage and defaults", () => {
+  test("counts values no issue carries, once the crawl has measured usage", () => {
+    const usage = attachEstateUsage({
+      priorities: [
+        { id: "1", name: "High" },
+        { id: "2", name: "Low" },
+      ],
+      resolutions: [{ id: "10", name: "Done" }],
+      totals: [
+        { kind: "priority", valueId: "1", issueCount: 40 },
+        { kind: "resolution", valueId: "10", issueCount: 5 },
+      ],
+    });
+    expect(summarizeEstateUsage(usage)).toEqual({
+      usageMeasured: true,
+      unusedPriorityCount: 1,
+      unusedResolutionCount: 0,
+    });
+  });
+
+  test("reports unmeasured before any crawl, never every value as unused", () => {
+    const usage = attachEstateUsage({ priorities: [{ id: "1", name: "High" }], totals: [] });
+    expect(summarizeEstateUsage(usage)).toEqual({ usageMeasured: false });
+    expect(summarizeEstateUsage(null)).toEqual({ usageMeasured: false });
+  });
+
+  test("health carries whether each list has a default", () => {
+    const summary = summarizeEstateInsights({
+      priorities: [{ id: "1", name: "High", isDefault: false }],
+      resolutions: [{ id: "10", name: "Done", isDefault: true }],
+    });
+    expect(summarizeEstateHealth(summary)).toMatchObject({
+      prioritiesWithoutDefault: true,
+      resolutionsWithoutDefault: false,
+    });
   });
 });

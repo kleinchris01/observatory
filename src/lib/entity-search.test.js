@@ -1,7 +1,10 @@
 import { describe, test, expect } from "vitest";
 import {
-  entityMatchRank, rankEntityMatches, toEntitySearchRow,
-  ENTITY_SEARCH_MIN_TERM, ENTITY_SEARCH_MAX_LIMIT,
+  entityMatchRank,
+  rankEntityMatches,
+  toEntitySearchRow,
+  ENTITY_SEARCH_MIN_TERM,
+  ENTITY_SEARCH_MAX_LIMIT,
 } from "./entity-search.js";
 
 const e = (name, id, over = {}) => ({ uid: `x:${id}`, pillar: "fields", pillarLabel: "Fields", name, id, ...over });
@@ -55,8 +58,12 @@ describe("rankEntityMatches", () => {
       e("Plant", "3", { pillar: "screens" }),
       e("Plant", "4", { pillar: "fields" }),
     ];
-    expect(rankEntityMatches(tied, "plant").results.map((r) => `${r.pillar}:${r.name}`))
-      .toEqual(["fields:Plant", "screens:Plant", "fields:Plant aa", "screens:Plant bb"]);
+    expect(rankEntityMatches(tied, "plant").results.map((r) => `${r.pillar}:${r.name}`)).toEqual([
+      "fields:Plant",
+      "screens:Plant",
+      "fields:Plant aa",
+      "screens:Plant bb",
+    ]);
   });
 
   test("a term shorter than the minimum matches nothing", () => {
@@ -79,7 +86,23 @@ describe("rankEntityMatches", () => {
 
 describe("toEntitySearchRow", () => {
   test("keeps only what the palette needs, including the sub-list kind and type", () => {
-    const row = toEntitySearchRow({ ...e("High", "2", { pillar: "priorities", pillarLabel: "Priorities", kind: "Priority" }), usage: "low", score: 40 }, 1);
-    expect(row).toEqual({ uid: "x:2", pillar: "priorities", pillarLabel: "Priorities", name: "High", id: "2", kind: "Priority", type: null, rank: 1 });
+    const row = toEntitySearchRow(
+      {
+        ...e("High", "2", { pillar: "priorities", pillarLabel: "Priorities", kind: "Priority" }),
+        usage: "low",
+        score: 40,
+      },
+      1,
+    );
+    expect(row).toEqual({
+      uid: "x:2",
+      pillar: "priorities",
+      pillarLabel: "Priorities",
+      name: "High",
+      id: "2",
+      kind: "Priority",
+      type: null,
+      rank: 1,
+    });
   });
 });

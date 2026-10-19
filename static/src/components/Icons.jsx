@@ -34,11 +34,14 @@ import {
   Kanban,
   ClipboardText,
   Wrench,
+  ListChecks,
 } from "@phosphor-icons/react";
 
 export function useLiveDuration(startedAt) {
   const elapsed = Math.floor(useLiveElapsedMs(startedAt) / 1000);
-  const h = Math.floor(elapsed / 3600), m = Math.floor((elapsed % 3600) / 60), s = elapsed % 60;
+  const h = Math.floor(elapsed / 3600),
+    m = Math.floor((elapsed % 3600) / 60),
+    s = elapsed % 60;
   if (h > 0) return `${h}h ${m}m ${s}s`;
   if (m > 0) return `${m}m ${s}s`;
   return `${s}s`;
@@ -49,7 +52,10 @@ export function useLiveDuration(startedAt) {
 export function useLiveElapsedMs(startedAt) {
   const [ms, setMs] = React.useState(0);
   React.useEffect(() => {
-    if (!startedAt) { setMs(0); return; }
+    if (!startedAt) {
+      setMs(0);
+      return;
+    }
     const base = new Date(startedAt).getTime();
     const update = () => setMs(Math.max(0, Date.now() - base));
     update();
@@ -108,6 +114,7 @@ export const ICON_COMPONENTS = {
   kanban: Kanban,
   clipboardText: ClipboardText,
   wrench: Wrench,
+  listChecks: ListChecks,
 };
 
 // Validated categorical palette (dataviz skill's reference instance, references/palette.md) --

@@ -42,7 +42,10 @@ function harness() {
     const entry = { statement: String(statement), params: null };
     issued.push(entry);
     const stub = {
-      bindParams: (...params) => { entry.params = params; return stub; },
+      bindParams: (...params) => {
+        entry.params = params;
+        return stub;
+      },
       execute: () => Promise.resolve({ rows: nextRows }),
     };
     return stub;
@@ -98,12 +101,15 @@ describe("recordHealthSnapshot", () => {
   });
 
   test("stores the raw value alongside the score for a v2 dimension, so the next scan can diff it", async () => {
-    await recordHealthSnapshot("scope-1", health({
-      dimensions: [
-        { key: "board-backing", available: true, score: 65, value: 0.9 },
-        { key: "field-naming", available: true, score: 79 }, // v1, no value
-      ],
-    }));
+    await recordHealthSnapshot(
+      "scope-1",
+      health({
+        dimensions: [
+          { key: "board-backing", available: true, score: 65, value: 0.9 },
+          { key: "field-naming", available: true, score: 79 }, // v1, no value
+        ],
+      }),
+    );
 
     const stored = JSON.parse(issued[0].params.at(-1));
     expect(stored["board-backing"]).toEqual({ s: 65, v: 0.9 });
@@ -120,7 +126,9 @@ describe("recordHealthSnapshot", () => {
   // Bookkeeping attached to a read path. An overview that 500s because a history row could
   // not be written would be strictly worse than one with a gap in a chart.
   test("never throws when the write fails", async () => {
-    sql.prepare.mockImplementation(() => { throw new Error("Unknown SQL execution error"); });
+    sql.prepare.mockImplementation(() => {
+      throw new Error("Unknown SQL execution error");
+    });
 
     await expect(recordHealthSnapshot("scope-1", health())).resolves.toEqual({ recorded: false });
   });
@@ -158,11 +166,14 @@ describe("loadHealthHistory", () => {
   });
 
   test("flattens both stored shapes to { key: score } for the chart", async () => {
-    nextRows = [{
-      measured_on: "2026-08-13", score: 58,
-      // one v1 bare-number entry, one v2 { s, v } entry
-      dimensions_json: JSON.stringify({ "field-naming": 79, "board-backing": { s: 65, v: 0.9 } }),
-    }];
+    nextRows = [
+      {
+        measured_on: "2026-08-13",
+        score: 58,
+        // one v1 bare-number entry, one v2 { s, v } entry
+        dimensions_json: JSON.stringify({ "field-naming": 79, "board-backing": { s: 65, v: 0.9 } }),
+      },
+    ];
     expect((await loadHealthHistory("scope-1"))[0].dimensions).toEqual({ "field-naming": 79, "board-backing": 65 });
   });
 });
@@ -224,12 +235,17 @@ describe("recordFullScanRun", () => {
   });
 
   test("records nothing when there is no run id to key on", async () => {
-    expect(await recordFullScanRun("scope-1", { scanType: "full" })).toEqual({ recorded: false, reason: "nothing to record" });
+    expect(await recordFullScanRun("scope-1", { scanType: "full" })).toEqual({
+      recorded: false,
+      reason: "nothing to record",
+    });
     expect(issued.filter((e) => /INSERT/.test(e.statement))).toHaveLength(0);
   });
 
   test("a write failure degrades to recorded:false rather than throwing", async () => {
-    sql.prepare.mockImplementationOnce(() => ({ bindParams: () => ({ execute: () => Promise.reject(new Error("no table")) }) }));
+    sql.prepare.mockImplementationOnce(() => ({
+      bindParams: () => ({ execute: () => Promise.reject(new Error("no table")) }),
+    }));
     expect(await recordFullScanRun("scope-1", { runId: "x" })).toEqual({ recorded: false });
   });
 });
@@ -237,8 +253,24 @@ describe("recordFullScanRun", () => {
 describe("readRecentFullScanRuns", () => {
   test("maps the rows and parses the JSON columns, newest first as queried", async () => {
     nextRows = [
-      { run_id: "r2", scan_type: "full", state: "ready", completed_at: "t2", duration_ms: 100, stages_json: '[{"key":"filters"}]', summary_json: '{"filters":10}' },
-      { run_id: "r1", scan_type: "full", state: "completed-with-failures", completed_at: "t1", duration_ms: 90, stages_json: "[]", summary_json: "{}" },
+      {
+        run_id: "r2",
+        scan_type: "full",
+        state: "ready",
+        completed_at: "t2",
+        duration_ms: 100,
+        stages_json: '[{"key":"filters"}]',
+        summary_json: '{"filters":10}',
+      },
+      {
+        run_id: "r1",
+        scan_type: "full",
+        state: "completed-with-failures",
+        completed_at: "t1",
+        duration_ms: 90,
+        stages_json: "[]",
+        summary_json: "{}",
+      },
     ];
 
     const runs = await readRecentFullScanRuns("scope-1", { scanType: "full", limit: 5 });

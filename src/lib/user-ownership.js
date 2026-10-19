@@ -5,12 +5,7 @@
 // carry an author only if the imported rule export did -- older exports do not, and this
 // reports that as "unknown", never "nobody".
 
-import {
-  readFilterSnapshotMeta,
-  readDashboardSnapshotMeta,
-  loadFilters,
-  loadDashboards,
-} from "./project-store.js";
+import { readFilterSnapshotMeta, readDashboardSnapshotMeta, loadFilters, loadDashboards } from "./project-store.js";
 // project-store.js re-exports the other store modules but not the automation one, so the
 // automation directory document is read straight from its own store.
 import { readAutomationPart } from "./store/automation.js";
@@ -73,8 +68,12 @@ export function activeRosterIds(users = []) {
 // tally the artifacts whose owner is not -- a deleted or unlicensed account still holding
 // site config. Also returns the total owned-artifact count, which is the rate denominator.
 export function summarizeOrphanedOwnership(ownership, rosterAccountIds) {
-  let orphanFilters = 0, orphanDashboards = 0, orphanRules = 0;
-  let totalFilters = 0, totalDashboards = 0, totalRules = 0;
+  let orphanFilters = 0,
+    orphanDashboards = 0,
+    orphanRules = 0;
+  let totalFilters = 0,
+    totalDashboards = 0,
+    totalRules = 0;
   const orphanOwners = [];
 
   for (const [accountId, owned] of ownership.byAccount) {
@@ -96,4 +95,41 @@ export function summarizeOrphanedOwnership(ownership, rosterAccountIds) {
     orphanedOwners: orphanOwners.length,
     ownedArtifactTotal: totalFilters + totalDashboards + totalRules,
   };
+}
+
+// A year: the line between "idle" and "active" for a licensed seat. Not admin-tunable here --
+// the tolerance on the Governance rules page is what an admin moves.
+export const DORMANT_ACCOUNT_DAYS = 365;
+
+// Which licensed accounts are dormant, from the crawl's last-activity rows. One function, so
+// the score, the roster, the report and remediation can never count a different set.
+//
+// Tri-state on purpose. "No activity recorded" covers both a genuinely idle account and one
+// the crawl never reached, and only the first justifies taking a licence away -- so an
+// account with no row is unmeasured, never dormant. With no rows at all the whole
+// measurement is unavailable rather than "everyone idle". Deactivated accounts are excluded:
+// they are a different finding, and counting them twice would inflate the licence number.
+export function classifyUserActivity(
+  users = [],
+  activityRows = [],
+  { now = Date.now(), dormantDays = DORMANT_ACCOUNT_DAYS } = {},
+) {
+  const byRow = new Map(activityRows.map((a) => [String(a.accountId), a]));
+  const measured = activityRows.length > 0;
+  const cutoff = new Date(now - dormantDays * 86400000).toISOString();
+  const byAccount = new Map();
+  let measuredAccounts = 0;
+  let dormantAccounts = 0;
+  for (const user of users) {
+    const row = byRow.get(String(user.accountId));
+    const lastActivityAt = row?.lastActivityAt || null;
+    const counted = measured && user.active !== false && Boolean(lastActivityAt);
+    const dormant = counted && lastActivityAt < cutoff;
+    if (counted) {
+      measuredAccounts += 1;
+      if (dormant) dormantAccounts += 1;
+    }
+    byAccount.set(String(user.accountId), { lastActivityAt, dormant: counted ? dormant : null });
+  }
+  return { measured, measuredAccounts, dormantAccounts, dormantAfterDays: dormantDays, byAccount };
 }

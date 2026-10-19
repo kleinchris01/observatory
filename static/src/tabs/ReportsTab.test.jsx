@@ -1,6 +1,5 @@
-import React from "react";
 import { describe, test, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@forge/bridge";
 import { ReportsTab } from "./ReportsTab";
@@ -51,8 +50,16 @@ const health = {
   dimensionsTotal: 1,
   pillars: [
     {
-      key: "boards", label: "Boards", available: true, score: 60, grade: "D", scored: 1, total: 1,
-      dimensions: [{ key: "boardBacking", label: "Backing filters", available: true, score: 60, detail: "1 of 2 broken" }],
+      key: "boards",
+      label: "Boards",
+      available: true,
+      score: 60,
+      grade: "D",
+      scored: 1,
+      total: 1,
+      dimensions: [
+        { key: "boardBacking", label: "Backing filters", available: true, score: 60, detail: "1 of 2 broken" },
+      ],
     },
   ],
 };
@@ -66,7 +73,7 @@ function renderTab(props = {}) {
       health={health}
       healthScoredAt="2026-09-24T10:00:00Z"
       {...props}
-    />
+    />,
   );
 }
 
@@ -146,9 +153,20 @@ describe("ReportsTab", () => {
 
   test("an unbuilt pillar shows its reason and cannot be exported", async () => {
     const user = userEvent.setup();
-    invoke.mockImplementation(async (name) => (name === "getPillarReport"
-      ? { ...boardsReport(), status: "unavailable", reason: "No board inventory has been built yet.", rows: [], columns: [], summary: [], notes: [], total: 0 }
-      : { reports: [] }));
+    invoke.mockImplementation(async (name) =>
+      name === "getPillarReport"
+        ? {
+            ...boardsReport(),
+            status: "unavailable",
+            reason: "No board inventory has been built yet.",
+            rows: [],
+            columns: [],
+            summary: [],
+            notes: [],
+            total: 0,
+          }
+        : { reports: [] },
+    );
     renderTab();
     await user.click(within(subNav()).getByText("Boards"));
 
@@ -169,9 +187,11 @@ describe("ReportsTab", () => {
 
   test("a pillar with an agent offers Ask Rovo scoped to the report", async () => {
     const user = userEvent.setup();
-    invoke.mockImplementation(async (name) => (name === "getPillarReport"
-      ? { ...boardsReport(), pillar: "screens", label: "Screens", healthPillars: ["screens"] }
-      : { reports: [] }));
+    invoke.mockImplementation(async (name) =>
+      name === "getPillarReport"
+        ? { ...boardsReport(), pillar: "screens", label: "Screens", healthPillars: ["screens"] }
+        : { reports: [] },
+    );
     renderTab();
     await user.click(within(subNav()).getByText("Screens"));
     expect(await screen.findByRole("button", { name: "Ask Rovo about this report" })).toBeInTheDocument();

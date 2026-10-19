@@ -195,8 +195,8 @@ quarter `high`, the middle half `medium`, and a pillar with no data for a measur
 screen schemes, and fields on the screen) is listed on the page, with the cut-offs from the
 last run. Two more dimensions are absolute: `risk` counts the item's discoveries (none low,
 one medium, two or more high) and `churn` counts its configuration changes in the last 30
-days from the drift change log (none low, 1–2 medium, 3+ high; unmeasured for pillars with
-no change history). `score` is the 0–100 attention score: risk 40%, impact 25%, usage 20%,
+days from the drift change log (none low, 1–2 medium, 3+ high; unmeasured until a drift
+pass has run). Every pillar has a change source. `score` is the 0–100 attention score: risk 40%, impact 25%, usage 20%,
 churn 15%, with unmeasured dimensions left out rather than counted as zero, and no score on
 fewer than two measured dimensions. `discoveries` is the list of discovery codes
 (`findings` still works as an alias). The parser and autocomplete (`src/lib/oql.js`) are shared by the tab and the
@@ -502,7 +502,7 @@ successful build.
 | AI | Atlassian Rovo agents + actions |
 | Tests | Vitest (Node + jsdom projects), `@vitest/coverage-v8` |
 | CSS | Custom design system with CSS variables — no component library |
-| Charts | Recharts |
+| Charts | In-house SVG: `Donut`, `BarList`, `Sparkline` in `ui.jsx`; the remediation charts in `RemediationProgress.jsx` |
 | Icons | Phosphor Icons |
 
 ---

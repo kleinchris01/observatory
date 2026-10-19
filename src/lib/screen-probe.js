@@ -45,7 +45,11 @@ export async function probeScreenEndpoints() {
     { label: "screen tabs", scope: "read:screen-tab:jira", path: "/rest/api/3/screens/1/tabs" },
     { label: "tab fields", scope: "read:screen-field:jira", path: "/rest/api/3/screens/1/tabs/1/fields" },
     { label: "screen schemes", scope: "read:screen-scheme:jira", path: "/rest/api/3/screenscheme?maxResults=1" },
-    { label: "issue type screen schemes", scope: "read:issue-type-screen-scheme:jira", path: "/rest/api/3/issuetypescreenscheme?maxResults=1" },
+    {
+      label: "issue type screen schemes",
+      scope: "read:issue-type-screen-scheme:jira",
+      path: "/rest/api/3/issuetypescreenscheme?maxResults=1",
+    },
   ];
 
   const results = [];
@@ -119,11 +123,13 @@ async function reprobeWithRealIds() {
     return [unresolvedRow("real-id re-probe", reason)];
   }
 
-  const rows = [await probeWithLabel(
-    `screen tabs (real id ${screenId})`,
-    "read:screen-tab:jira",
-    `/rest/api/3/screens/${screenId}/tabs`
-  )];
+  const rows = [
+    await probeWithLabel(
+      `screen tabs (real id ${screenId})`,
+      "read:screen-tab:jira",
+      `/rest/api/3/screens/${screenId}/tabs`,
+    ),
+  ];
 
   // A real tab id needs the tabs call to have worked. Where it did, this is the only probe
   // in the set with nothing fabricated in it, and therefore the only unambiguous read on
@@ -138,13 +144,11 @@ async function reprobeWithRealIds() {
 
   const fieldsPath = tabId ? `/rest/api/3/screens/${screenId}/tabs/${tabId}/fields` : null;
 
-  rows.push(fieldsPath
-    ? await probeWithLabel(
-        `tab fields (real ids ${screenId}/${tabId})`,
-        "read:screen-field:jira",
-        fieldsPath
-      )
-    : unresolvedRow("tab fields (real ids)", reason));
+  rows.push(
+    fieldsPath
+      ? await probeWithLabel(`tab fields (real ids ${screenId}/${tabId})`, "read:screen-field:jira", fieldsPath)
+      : unresolvedRow("tab fields (real ids)", reason),
+  );
 
   // Third pass: the same two rejected endpoints, as the CALLING USER rather than the app.
   //
@@ -157,21 +161,20 @@ async function reprobeWithRealIds() {
   // lives with a different call pattern; if it does not, the closure is established across
   // both identities and can be reported to Atlassian as a gap rather than argued about
   // internally for a third time.
-  rows.push(await probeWithLabel(
-    "screens (as user)",
-    "read:screen:jira",
-    "/rest/api/3/screens?maxResults=1",
-    { asUser: true }
-  ));
+  rows.push(
+    await probeWithLabel("screens (as user)", "read:screen:jira", "/rest/api/3/screens?maxResults=1", { asUser: true }),
+  );
 
-  rows.push(fieldsPath
-    ? await probeWithLabel(
-        `tab fields (as user, real ids ${screenId}/${tabId})`,
-        "read:screen-field:jira",
-        fieldsPath,
-        { asUser: true }
-      )
-    : unresolvedRow("tab fields (as user, real ids)", reason));
+  rows.push(
+    fieldsPath
+      ? await probeWithLabel(
+          `tab fields (as user, real ids ${screenId}/${tabId})`,
+          "read:screen-field:jira",
+          fieldsPath,
+          { asUser: true },
+        )
+      : unresolvedRow("tab fields (as user, real ids)", reason),
+  );
 
   return rows;
 }
@@ -248,13 +251,7 @@ export function sampleScreens(screens, sampleSize, random = Math.random) {
 // Pure and exported so the arithmetic is testable without standing up Jira. Every figure
 // it returns is either measured or explicitly labelled as extrapolated -- the caller
 // should never have to guess which is which.
-export function projectFullPassCost({
-  totalScreens,
-  screenListCalls,
-  tabCounts,
-  measuredCalls,
-  measuredMs,
-}) {
+export function projectFullPassCost({ totalScreens, screenListCalls, tabCounts, measuredCalls, measuredMs }) {
   const sampled = tabCounts.length;
   const sorted = [...tabCounts].sort((a, b) => a - b);
   const totalTabs = tabCounts.reduce((sum, n) => sum + n, 0);

@@ -14,22 +14,15 @@
 // other two did not, for no reason anyone recorded.
 
 import { sql } from "@forge/sql";
-import {
-  chunkArray,
-  deleteScopeInChunks,
-  ensureProjectStoreReady,
-  toNumber,
-  withSqlRetry,
-} from "./core.js";
+import { chunkArray, deleteScopeInChunks, ensureProjectStoreReady, toNumber, withSqlRetry } from "./core.js";
 
 const BATCH = 50;
 
-export async function replaceAccessSnapshot(scopeKey, version, {
-  schemes = [],
-  holders = [],
-  levels = [],
-  schemeProjects = [],
-} = {}) {
+export async function replaceAccessSnapshot(
+  scopeKey,
+  version,
+  { schemes = [], holders = [], levels = [], schemeProjects = [] } = {},
+) {
   await ensureProjectStoreReady();
 
   // Was a single unbounded `DELETE FROM table WHERE scope_key = ?` -- with no version pruning
@@ -54,64 +47,107 @@ export async function replaceAccessSnapshot(scopeKey, version, {
   for (const b of chunkArray(schemes, BATCH)) {
     const valuesSql = b.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = b.flatMap((s) => [
-      scopeKey, version, String(s.schemeType), String(s.id), s.name || null, s.description || null,
-      s.isDefault ? 1 : 0, s.defaultLevelId == null ? null : String(s.defaultLevelId),
+      scopeKey,
+      version,
+      String(s.schemeType),
+      String(s.id),
+      s.name || null,
+      s.description || null,
+      s.isDefault ? 1 : 0,
+      s.defaultLevelId == null ? null : String(s.defaultLevelId),
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_schemes
           (scope_key, version, scheme_type, scheme_id, name, description, is_default, default_level_id)
         VALUES ${valuesSql}
         ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description)
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
   for (const b of chunkArray(holders, BATCH)) {
     const valuesSql = b.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = b.flatMap((h) => [
-      scopeKey, version, String(h.schemeType), String(h.schemeId),
-      String(h.context ?? ""), h.contextLabel || null,
-      String(h.holderType), String(h.holderValue ?? ""), h.holderLabel || null,
+      scopeKey,
+      version,
+      String(h.schemeType),
+      String(h.schemeId),
+      String(h.context ?? ""),
+      h.contextLabel || null,
+      String(h.holderType),
+      String(h.holderValue ?? ""),
+      h.holderLabel || null,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_scheme_holders
           (scope_key, version, scheme_type, scheme_id, context, context_label, holder_type, holder_value, holder_label)
         VALUES ${valuesSql}
         ON DUPLICATE KEY UPDATE context_label = VALUES(context_label), holder_label = VALUES(holder_label)
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
   for (const b of chunkArray(levels, BATCH)) {
     const valuesSql = b.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = b.flatMap((l) => [
-      scopeKey, version, String(l.schemeId), String(l.id), l.name || null, l.description || null, l.isDefault ? 1 : 0,
+      scopeKey,
+      version,
+      String(l.schemeId),
+      String(l.id),
+      l.name || null,
+      l.description || null,
+      l.isDefault ? 1 : 0,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_scheme_levels
           (scope_key, version, scheme_id, level_id, name, description, is_default)
         VALUES ${valuesSql}
         ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description)
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
   for (const b of chunkArray(schemeProjects, BATCH)) {
     const valuesSql = b.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = b.flatMap((p) => [
-      scopeKey, version, String(p.schemeType), String(p.schemeId), String(p.projectId),
-      p.projectKey || null, p.projectName || null,
+      scopeKey,
+      version,
+      String(p.schemeType),
+      String(p.schemeId),
+      String(p.projectId),
+      p.projectKey || null,
+      p.projectName || null,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_scheme_projects
           (scope_key, version, scheme_type, scheme_id, project_id, project_key, project_name)
         VALUES ${valuesSql}
         ON DUPLICATE KEY UPDATE project_key = VALUES(project_key), project_name = VALUES(project_name)
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 }
@@ -121,12 +157,17 @@ export async function replaceAccessSnapshot(scopeKey, version, {
 export async function loadSchemes(scopeKey, version, schemeType) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT scheme_id, name, description, is_default, default_level_id
       FROM snapshot_schemes
       WHERE scope_key = ? AND version = ? AND scheme_type = ?
       ORDER BY name ASC, scheme_id ASC
-    `).bindParams(scopeKey, version, String(schemeType)).execute()
+    `,
+      )
+      .bindParams(scopeKey, version, String(schemeType))
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     id: row.scheme_id,
@@ -140,11 +181,16 @@ export async function loadSchemes(scopeKey, version, schemeType) {
 export async function loadSchemeHolders(scopeKey, version, schemeType) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT scheme_id, context, context_label, holder_type, holder_value, holder_label
       FROM snapshot_scheme_holders
       WHERE scope_key = ? AND version = ? AND scheme_type = ?
-    `).bindParams(scopeKey, version, String(schemeType)).execute()
+    `,
+      )
+      .bindParams(scopeKey, version, String(schemeType))
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     schemeId: row.scheme_id,
@@ -159,12 +205,17 @@ export async function loadSchemeHolders(scopeKey, version, schemeType) {
 export async function loadSchemeLevels(scopeKey, version) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT scheme_id, level_id, name, description, is_default
       FROM snapshot_scheme_levels
       WHERE scope_key = ? AND version = ?
       ORDER BY scheme_id ASC, name ASC
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     schemeId: row.scheme_id,
@@ -178,11 +229,16 @@ export async function loadSchemeLevels(scopeKey, version) {
 export async function loadSchemeProjects(scopeKey, version, schemeType) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT scheme_id, project_id, project_key, project_name
       FROM snapshot_scheme_projects
       WHERE scope_key = ? AND version = ? AND scheme_type = ?
-    `).bindParams(scopeKey, version, String(schemeType)).execute()
+    `,
+      )
+      .bindParams(scopeKey, version, String(schemeType))
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     schemeId: row.scheme_id,
@@ -197,14 +253,19 @@ export async function loadSchemeProjects(scopeKey, version, schemeType) {
 export async function loadSchemesGrantingHolder(scopeKey, version, holderType, holderValue) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT h.scheme_type, h.scheme_id, s.name AS scheme_name, h.context, h.context_label
       FROM snapshot_scheme_holders h
       LEFT JOIN snapshot_schemes s
         ON s.scope_key = h.scope_key AND s.version = h.version
        AND s.scheme_type = h.scheme_type AND s.scheme_id = h.scheme_id
       WHERE h.scope_key = ? AND h.version = ? AND h.holder_type = ? AND h.holder_value = ?
-    `).bindParams(scopeKey, version, String(holderType), String(holderValue)).execute()
+    `,
+      )
+      .bindParams(scopeKey, version, String(holderType), String(holderValue))
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     schemeType: row.scheme_type,
@@ -220,7 +281,9 @@ export async function loadSchemesGrantingHolder(scopeKey, version, holderType, h
 export async function loadProjectRoleActors(scopeKey, version, projectId) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT h.scheme_id, s.name AS role_name, h.holder_type, h.holder_value, h.holder_label
       FROM snapshot_scheme_holders h
       LEFT JOIN snapshot_schemes s
@@ -228,7 +291,10 @@ export async function loadProjectRoleActors(scopeKey, version, projectId) {
        AND s.scheme_type = h.scheme_type AND s.scheme_id = h.scheme_id
       WHERE h.scope_key = ? AND h.version = ? AND h.scheme_type = 'project-role' AND h.context = ?
       ORDER BY s.name ASC
-    `).bindParams(scopeKey, version, String(projectId)).execute()
+    `,
+      )
+      .bindParams(scopeKey, version, String(projectId))
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     roleId: row.scheme_id,
@@ -243,14 +309,19 @@ export async function loadProjectRoleActors(scopeKey, version, projectId) {
 export async function loadProjectSchemes(scopeKey, version, projectId) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT p.scheme_type, p.scheme_id, s.name AS scheme_name, s.is_default, s.default_level_id
       FROM snapshot_scheme_projects p
       LEFT JOIN snapshot_schemes s
         ON s.scope_key = p.scope_key AND s.version = p.version
        AND s.scheme_type = p.scheme_type AND s.scheme_id = p.scheme_id
       WHERE p.scope_key = ? AND p.version = ? AND p.project_id = ?
-    `).bindParams(scopeKey, version, String(projectId)).execute()
+    `,
+      )
+      .bindParams(scopeKey, version, String(projectId))
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     schemeType: row.scheme_type,
@@ -266,12 +337,17 @@ export async function loadProjectSchemes(scopeKey, version, projectId) {
 export async function readAccessSnapshotMeta(scopeKey) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT state, version, started_at, completed_at, refreshed_at,
              total_permission_schemes, total_security_schemes, total_notification_schemes,
              total_project_roles, last_error
       FROM access_snapshot_meta WHERE scope_key = ?
-    `).bindParams(scopeKey).execute()
+    `,
+      )
+      .bindParams(scopeKey)
+      .execute(),
   );
   const row = result.rows?.[0];
   if (!row) return null;
@@ -295,7 +371,9 @@ export async function writeAccessSnapshotMeta(scopeKey, patch = {}) {
   const next = { ...current, ...patch };
 
   await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       INSERT INTO access_snapshot_meta
         (scope_key, state, version, started_at, completed_at, refreshed_at,
          total_permission_schemes, total_security_schemes, total_notification_schemes,
@@ -312,18 +390,21 @@ export async function writeAccessSnapshotMeta(scopeKey, patch = {}) {
         total_notification_schemes = VALUES(total_notification_schemes),
         total_project_roles = VALUES(total_project_roles),
         last_error = VALUES(last_error)
-    `).bindParams(
-      scopeKey,
-      next.state || "idle",
-      next.version || null,
-      next.startedAt || null,
-      next.completedAt || null,
-      next.refreshedAt || null,
-      next.totalPermissionSchemes ?? 0,
-      next.totalSecuritySchemes ?? 0,
-      next.totalNotificationSchemes ?? 0,
-      next.totalProjectRoles ?? 0,
-      next.lastError || null
-    ).execute()
+    `,
+      )
+      .bindParams(
+        scopeKey,
+        next.state || "idle",
+        next.version || null,
+        next.startedAt || null,
+        next.completedAt || null,
+        next.refreshedAt || null,
+        next.totalPermissionSchemes ?? 0,
+        next.totalSecuritySchemes ?? 0,
+        next.totalNotificationSchemes ?? 0,
+        next.totalProjectRoles ?? 0,
+        next.lastError || null,
+      )
+      .execute(),
   );
 }

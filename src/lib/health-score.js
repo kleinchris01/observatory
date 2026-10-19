@@ -18,20 +18,35 @@
 // past the point where a reviewer would call the site untidy -- a 2% duplicate rate is
 // noise on any real Jira, a 10% duplicate rate is a governance problem.
 export const DEFAULT_HEALTH_TOLERANCES = {
-  duplicateFieldNames: 0.10,
+  duplicateFieldNames: 0.1,
   fieldFindings: 0.25,
   duplicateStatuses: 0.15,
-  unreachableStatuses: 0.20,
+  unreachableStatuses: 0.2,
   // Statuses only an automation rule reaches. Tighter than the unreachable bound: an
   // unreachable status is clutter, whereas one of these is a live process step that the
   // workflow does not document, and a handful of them is already a real divergence.
-  ruleOnlyStatuses: 0.10,
-  flaggedSchemes: 0.40,
+  ruleOnlyStatuses: 0.1,
+  // A workflow rule or status property naming a field, group or role that no longer exists.
+  // Tight, like the credential bound: each one is a transition that blocks or a check that
+  // silently stopped checking, and a healthy site has none.
+  brokenWorkflowRefs: 0.02,
+  // Company-managed workflows no project-attached scheme uses. Clutter, so forgiving -- but
+  // every one is a place a field or group reference rots unseen.
+  inactiveWorkflows: 0.25,
+  // Field schemes (or legacy field configurations and their schemes) no project uses.
+  // Clutter, forgiving: a few kept as templates is normal.
+  unusedFieldConfigs: 0.3,
+  // Legacy only: configurations where a field is both required and hidden. A defect, not
+  // untidiness -- every create or edit through that configuration fails -- so it is tight.
+  requiredHiddenConfigs: 0.02,
+  // Schemes or configurations identical to another: every change made twice.
+  duplicateFieldConfigs: 0.2,
+  flaggedSchemes: 0.4,
   irregularProjects: 0.25,
   // Projects with no work, or none in six months. Forgiving: a healthy estate always
   // carries some finished projects, and retiring them is optional. It bottoms out because
   // past a third of the site nobody can tell a finished project from an abandoned one.
-  inactiveProjects: 0.30,
+  inactiveProjects: 0.3,
   // Projects that had a life and lost it, or never got one. Sits between the two: less
   // forgiving than inactivity, because a project people abandoned is configuration nobody
   // owns, and more forgiving than a defect bound, because some projects are meant to end.
@@ -42,11 +57,11 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   credentialRules: 0.02,
   // A rule that writes a field it also triggers on loops on its own. Some sites run a few
   // knowingly, guarded by conditions; past a tenth of the estate it is not deliberate.
-  selfTriggeringRules: 0.10,
+  selfTriggeringRules: 0.1,
   // Disabled rules are clutter rather than danger, so this is the most forgiving bound
   // here. It still bottoms out, because an estate that is half switched off has lost the
   // ability to tell "deliberately retired" from "forgotten".
-  disabledRules: 0.50,
+  disabledRules: 0.5,
   // Rules posting to a non-Atlassian host. Not a defect on its own -- plenty of estates
   // integrate deliberately -- so this is looser than the credential bound. It is scored at
   // all because every one of these is data leaving the tenancy, and an admin who cannot say
@@ -60,10 +75,10 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   // A scheme operation pointing at a screen the catalog does not contain. Tight, like the
   // credential bound: this is a broken mapping rather than an untidy one, and Jira falls
   // back silently when it resolves.
-  danglingScreenRefs: 0.10,
+  danglingScreenRefs: 0.1,
   // Screens carrying no fields, or that no scheme routes to. Clutter, so it is forgiving --
   // but past a third of the catalog nobody can tell which screens are live.
-  unusedScreens: 0.30,
+  unusedScreens: 0.3,
   // Filters that are broken, exposed, or emailing from a search nobody opens. Between the
   // screen bounds and the automation ones: a filter owned by a deleted account takes its
   // boards and dashboards with it, which is worse than clutter and less immediate than a
@@ -71,8 +86,15 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   // Filters, one bound per rule. Ownership is the tightest: a filter without a live owner is
   // on a deletion timer, where an over-shared one is merely untidy.
   orphanedFilters: 0.05,
-  overSharedFilters: 0.20,
-  zombieSubscriptions: 0.10,
+  overSharedFilters: 0.2,
+  // Filters and dashboards shared globally -- readable by anonymous visitors on a site that
+  // allows public access. A data-exposure fact, not untidiness, so the bound is tight: one in
+  // fifty is already a bad day.
+  publicShares: 0.02,
+  // Dashboards with a gadget reading a deleted or unreachable filter. A visible break, not
+  // untidiness -- everyone who opens it sees an error -- so the bound is tight.
+  brokenGadgets: 0.05,
+  zombieSubscriptions: 0.1,
   brokenFilterScope: 0.05,
   // Dashboards that are orphaned, editable by anyone, or empty. Looser than the filter bound:
   // a dashboard breaking is visible the moment somebody opens it, where a filter returns the
@@ -80,7 +102,7 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   // Dashboards. Looser than their filter equivalents throughout: a dashboard breaking is
   // visible the moment somebody opens it, where a filter returns the wrong answer silently
   // and can be wrong for months.
-  orphanedDashboards: 0.10,
+  orphanedDashboards: 0.1,
   editableDashboards: 0.25,
   unusedDashboards: 0.35,
   emptyDashboards: 0.15,
@@ -96,12 +118,12 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   // ignore the flag -- which costs the invisible-data finding its credibility too, since
   // they arrive together.
   invisibleData: 0.05,
-  formClutter: 0.30,
+  formClutter: 0.3,
   // Issue types. A type on no scheme cannot be created anywhere -- a broken state rather than
   // an untidy one, so it is tighter; a scheme assigned to no project is clutter, so it is the
   // most forgiving of the four. Near-duplicate type names sit where duplicate statuses do.
   orphanIssueTypes: 0.12,
-  unusedTypeSchemes: 0.40,
+  unusedTypeSchemes: 0.4,
   duplicateIssueTypeNames: 0.15,
   // Schemes whose type set does not hang together: sub-tasks enabled with no standalone
   // type to hang them off, or a default type that cannot be created on its own.
@@ -110,7 +132,7 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   // a login that should not exist -- tight. An orphaned filter/dashboard/rule is config
   // whose owner is gone; it still works until Jira garbage-collects it, so a touch looser.
   deactivatedLicenceHolders: 0.05,
-  orphanedOwnership: 0.10,
+  orphanedOwnership: 0.1,
   // Seats held by somebody who has not touched an issue in a year. Looser than the
   // deactivated-holder rule on purpose: a deactivated account still in an access group is
   // unambiguously wrong, where a quiet year can be a stakeholder who reads and approves
@@ -121,13 +143,13 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   // type scheme. A concrete object type nobody added an attribute to is unfinished, looser
   // still. A reference attribute pointing at a type that is gone is a broken pointer, tight
   // -- it is the Assets analogue of a filter scoped to a deleted project.
-  deadAssetSchemas: 0.20,
-  bareAssetTypes: 0.30,
-  brokenAssetReferences: 0.10,
+  deadAssetSchemas: 0.2,
+  bareAssetTypes: 0.3,
+  brokenAssetReferences: 0.1,
   // A type with attributes but zero objects ever created against it. As forgiving as a bare
   // type -- a newly modelled type legitimately sits empty until someone starts using it --
   // and only ever scored against the types the AQL crawl actually measured.
-  emptyAssetTypes: 0.30,
+  emptyAssetTypes: 0.3,
   // Access schemes. An unused scheme of any kind is clutter -- forgiving. A security level
   // nobody is in is a data black hole, tight. A notification scheme routing to a named
   // individual is fragile but not dangerous.
@@ -136,17 +158,37 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   // conformance rate to converge on -- rather than only a bad rate to stay under.)
   unusedAccessSchemes: 0.35,
   brokenSecurityLevels: 0.15,
-  fragileNotificationSchemes: 0.30,
+  fragileNotificationSchemes: 0.3,
   // Project roles. A project whose admin role has no group or user in it can only be
   // administered by a site admin -- a real gap, bounded tight. An off-roster account still
   // sitting in a role is licence-adjacent cleanup.
-  projectsWithoutRoleAdmin: 0.10,
+  projectsWithoutRoleAdmin: 0.1,
   offRosterRoleActors: 0.05,
   // Global value lists. A duplicated resolution silently splits every resolution-based
   // report, so it is bounded fairly tight; priorities duplicate far less often and matter
   // less when they do.
   duplicateResolutions: 0.15,
-  duplicatePriorities: 0.20,
+  duplicatePriorities: 0.2,
+  // Anything granted to anonymous users. Exposure, so as tight as the credential bound.
+  publicPermissionSchemes: 0.02,
+  // Delete, move, administer or edit-others granted to every logged-in user.
+  everyoneSensitiveSchemes: 0.1,
+  // Permission grants naming an individual instead of a role or group.
+  directUserGrants: 0.1,
+  // Grants, security-level members and notification recipients naming an account that has
+  // left. Tight: each is access or mail pointing at nobody, and a clean site has none.
+  departedAccounts: 0.02,
+  // Security-level members who are named individuals.
+  directSecurityMembers: 0.25,
+  // Notification recipients that are raw email addresses, outside the directory.
+  externalEmailRecipients: 0.02,
+  // Project-role actors who are individuals rather than groups. Forgiving: small sites fill
+  // roles person by person on purpose.
+  directRoleActors: 0.6,
+  // Project roles with nobody in them in any project.
+  unusedRoles: 0.3,
+  // Priorities or resolutions no issue carries.
+  unusedEstateValues: 0.3,
   // Agile boards. Column hygiene (a column mapping no status, or one that has been removed)
   // drops issues off the board silently: worse than clutter, less immediate than a
   // wrong-scope board.
@@ -158,7 +200,7 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   // site reconfigures a meaningful slice of itself in any given month without anything
   // being wrong. It exists to flag the outlier pass where a fifth of the tracked estate
   // moved and nobody meant it to.
-  configChurn: 0.20,
+  configChurn: 0.2,
 };
 
 // Scoring model v2: dimensions with a definable good state.
@@ -202,8 +244,12 @@ export function resolveHealthTargets(overrides = {}) {
   const out = {};
   for (const [key, def] of Object.entries(DEFAULT_HEALTH_TARGETS)) {
     const o = overrides?.[key] || {};
-    const target = typeof o.target === "number" && Number.isFinite(o.target) && o.target > 0 && o.target <= 1 ? o.target : def.target;
-    const floor = typeof o.floor === "number" && Number.isFinite(o.floor) && o.floor >= 0 && o.floor <= 1 ? o.floor : def.floor;
+    const target =
+      typeof o.target === "number" && Number.isFinite(o.target) && o.target > 0 && o.target <= 1
+        ? o.target
+        : def.target;
+    const floor =
+      typeof o.floor === "number" && Number.isFinite(o.floor) && o.floor >= 0 && o.floor <= 1 ? o.floor : def.floor;
     // If the pair the admin supplied is degenerate for this direction, keep the whole
     // default rather than a half-applied override.
     const ok = def.direction === "up" ? floor < target : floor > target;
@@ -294,10 +340,19 @@ export function directionAdjust(orientedDelta, scale) {
 // `prior` is this dimension's `value` from the previous snapshot, or null on the first
 // scan -- the directional term stays out until there is history to compare against.
 export function targetDimension({
-  key, label, pillar, weight = 1,
-  value, target, floor, direction = "down",
-  affected = null, estate = null, prior = null,
-  detail, action = null,
+  key,
+  label,
+  pillar,
+  weight = 1,
+  value,
+  target,
+  floor,
+  direction = "down",
+  affected = null,
+  estate = null,
+  prior = null,
+  detail,
+  action = null,
 }) {
   const level = scoreAgainstTarget(value, { target, floor, direction });
   if (level === null) {
@@ -316,7 +371,9 @@ export function targetDimension({
 
   const bw = affected !== null && estate !== null ? blastMultiplier(affected, estate) : 1;
   return {
-    key, label, pillar,
+    key,
+    label,
+    pillar,
     available: true,
     weight: Math.round(weight * bw * 100) / 100,
     baseWeight: weight,
@@ -398,6 +455,9 @@ export const PILLAR_WEIGHTS = {
   // score. Same low weight as estate for the same reason: small surface, and a single
   // dimension pillar should not move the headline as much as one with a dozen.
   drift: 0.5,
+  // What Jira enforces on each field per project: required, hidden, which fields a project
+  // has at all. As structural as screens, and the half of a field's story screens do not tell.
+  fieldConfigs: 1,
 };
 
 export const HEALTH_PILLARS = [
@@ -407,6 +467,7 @@ export const HEALTH_PILLARS = [
   { key: "workflows", label: "Workflows and statuses" },
   { key: "screens", label: "Screens" },
   { key: "issueTypes", label: "Issue types" },
+  { key: "fieldConfigs", label: "Field schemes" },
   { key: "users", label: "People" },
   { key: "assets", label: "Assets (CMDB)" },
   { key: "permissions", label: "Permission schemes" },
@@ -442,7 +503,31 @@ export function resolveHealthTolerances(overrides = {}) {
   return out;
 }
 
-export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, screenCross, adoption, filters, dashboards, issueTypes, users, assets, permissions, security, notifications, roles, estate, boards, drift, tolerances, targets, priorValues } = {}) {
+export function computeSiteHealth({
+  fieldUsage,
+  workflow,
+  projects,
+  automation,
+  screens,
+  screenCross,
+  adoption,
+  filters,
+  dashboards,
+  issueTypes,
+  users,
+  assets,
+  permissions,
+  security,
+  notifications,
+  roles,
+  estate,
+  boards,
+  drift,
+  fieldConfigs,
+  tolerances,
+  targets,
+  priorValues,
+} = {}) {
   const TOLERANCE = resolveHealthTolerances(tolerances);
   const TARGET = resolveHealthTargets(targets);
   const dimensions = [];
@@ -468,9 +553,10 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(rate, TOLERANCE.duplicateFieldNames),
-      detail: clusters === 0
-        ? "No duplicate field names."
-        : `${clusters} groups of fields share a name across ${totalFields} fields.`,
+      detail:
+        clusters === 0
+          ? "No duplicate field names."
+          : `${clusters} groups of fields share a name across ${totalFields} fields.`,
       action: clusters > 0 ? "Consolidate duplicate field names in the Field Browser." : null,
     });
   } else {
@@ -491,7 +577,10 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       weight: 1.5,
       score: scoreFromRate(rate, TOLERANCE.fieldFindings),
       detail: `${severity.high || 0} high and ${severity.medium || 0} medium severity findings across ${totalFields} fields.`,
-      action: (severity.high || 0) > 0 ? "Start with the high-severity findings — they affect how fields behave in Jira." : null,
+      action:
+        (severity.high || 0) > 0
+          ? "Start with the high-severity findings — they affect how fields behave in Jira."
+          : null,
     });
   } else {
     dimensions.push(unavailable("field-governance", "Field governance", "fields", "No field snapshot yet."));
@@ -525,12 +614,14 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       // and dashboard built on it breaks at the same moment, with no warning to anyone.
       weight: 1.5,
       score: scoreFromRate(orphaned / filterTotal, TOLERANCE.orphanedFilters),
-      detail: orphaned === 0
-        ? `All ${filterTotal} saved filters have a live owner.`
-        : `${orphaned} of ${filterTotal} filters have no live owner.`,
-      action: orphaned > 0
-        ? "Reassign these before the accounts are removed — the filter goes when the account does, and takes every board built on it."
-        : null,
+      detail:
+        orphaned === 0
+          ? `All ${filterTotal} saved filters have a live owner.`
+          : `${orphaned} of ${filterTotal} filters have no live owner.`,
+      action:
+        orphaned > 0
+          ? "Reassign these before the accounts are removed — the filter goes when the account does, and takes every board built on it."
+          : null,
     });
 
     dimensions.push({
@@ -540,10 +631,34 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(exposed / filterTotal, TOLERANCE.overSharedFilters),
-      detail: exposed === 0
-        ? `No filter is shared with every logged-in user.`
-        : `${exposed} of ${filterTotal} filters are shared with everyone.`,
-      action: exposed > 0 ? "Confirm each is meant to be a site-wide search rather than a personal one shared once and forgotten." : null,
+      detail:
+        exposed === 0
+          ? `No filter is shared with every logged-in user.`
+          : `${exposed} of ${filterTotal} filters are shared with everyone.`,
+      action:
+        exposed > 0
+          ? "Confirm each is meant to be a site-wide search rather than a personal one shared once and forgotten."
+          : null,
+    });
+
+    // Public is scored apart from logged-in sharing, and harder: one is staff seeing a search,
+    // the other is the internet seeing the issues it returns.
+    const publicFilters = Number(filters.sharedPubliclyCount) || 0;
+    dimensions.push({
+      key: "filter-public",
+      label: "Public filters",
+      pillar: "filters",
+      available: true,
+      weight: 1.5,
+      score: scoreFromRate(publicFilters / filterTotal, TOLERANCE.publicShares),
+      detail:
+        publicFilters === 0
+          ? "No filter is shared publicly."
+          : `${publicFilters} of ${filterTotal} filters are shared publicly.`,
+      action:
+        publicFilters > 0
+          ? "On a site that allows anonymous access, anyone with the link can run these and read every issue they return. Narrow each to a group, project or role."
+          : null,
     });
 
     dimensions.push({
@@ -553,10 +668,12 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(zombie / filterTotal, TOLERANCE.zombieSubscriptions),
-      detail: zombie === 0
-        ? "Every subscribed filter is opened by someone."
-        : `${zombie} of ${filterTotal} filters email a search nobody opens.`,
-      action: zombie > 0 ? "Recurring mail from a filter nobody reads is what teaches people to filter Jira to trash." : null,
+      detail:
+        zombie === 0
+          ? "Every subscribed filter is opened by someone."
+          : `${zombie} of ${filterTotal} filters email a search nobody opens.`,
+      action:
+        zombie > 0 ? "Recurring mail from a filter nobody reads is what teaches people to filter Jira to trash." : null,
     });
 
     // Tri-state: the broken-scope rule needs the project catalog to join against. Without it
@@ -570,26 +687,41 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
         available: true,
         weight: 1,
         score: scoreFromRate(broken / filterTotal, TOLERANCE.brokenFilterScope),
-        detail: broken === 0
-          ? `Every filter's project scope resolves.`
-          : `${broken} of ${filterTotal} filters name a project that does not exist.`,
-        action: broken > 0
-          ? "These error rather than returning the wrong answer — the cheapest filter problem to fix and the easiest to prove."
-          : null,
+        detail:
+          broken === 0
+            ? `Every filter's project scope resolves.`
+            : `${broken} of ${filterTotal} filters name a project that does not exist.`,
+        action:
+          broken > 0
+            ? "These error rather than returning the wrong answer — the cheapest filter problem to fix and the easiest to prove."
+            : null,
       });
     } else {
-      dimensions.push(unavailable("filter-scope", "Filter scope", "filters",
-        "Checking a filter's scope needs the project catalog. Run a scan so the two can be joined."));
+      dimensions.push(
+        unavailable(
+          "filter-scope",
+          "Filter scope",
+          "filters",
+          "Checking a filter's scope needs the project catalog. Run a scan so the two can be joined.",
+        ),
+      );
     }
   } else {
     for (const [key, label] of [
       ["filter-ownership", "Filter ownership"],
       ["filter-exposure", "Filter exposure"],
+      ["filter-public", "Public filters"],
       ["filter-subscriptions", "Filter subscriptions"],
       ["filter-scope", "Filter scope"],
     ]) {
-      dimensions.push(unavailable(key, label, "filters",
-        "No saved filter inventory yet. Build one from the Filters tab or run a full scan."));
+      dimensions.push(
+        unavailable(
+          key,
+          label,
+          "filters",
+          "No saved filter inventory yet. Build one from the Filters tab or run a full scan.",
+        ),
+      );
     }
   }
 
@@ -613,12 +745,14 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       // dashboard along with its owner.
       weight: 1.5,
       score: scoreFromRate(orphaned / dashTotal, TOLERANCE.orphanedDashboards),
-      detail: orphaned === 0
-        ? `All ${dashTotal} dashboards have a live owner.`
-        : `${orphaned} of ${dashTotal} dashboards have no live owner.`,
-      action: orphaned > 0
-        ? "A wall-screen dashboard owned by somebody who left has a deletion date nobody has written down."
-        : null,
+      detail:
+        orphaned === 0
+          ? `All ${dashTotal} dashboards have a live owner.`
+          : `${orphaned} of ${dashTotal} dashboards have no live owner.`,
+      action:
+        orphaned > 0
+          ? "A wall-screen dashboard owned by somebody who left has a deletion date nobody has written down."
+          : null,
     });
 
     dimensions.push({
@@ -628,13 +762,62 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(editable / dashTotal, TOLERANCE.editableDashboards),
-      detail: editable === 0
-        ? "No dashboard can be rearranged by any logged-in user."
-        : `${editable} of ${dashTotal} dashboards can be rearranged by anyone.`,
-      action: editable > 0
-        ? "Anyone can rearrange these for everybody who uses them, and the owner is not told. Narrow the edit permission to a role or a group."
-        : null,
+      detail:
+        editable === 0
+          ? "No dashboard can be rearranged by any logged-in user."
+          : `${editable} of ${dashTotal} dashboards can be rearranged by anyone.`,
+      action:
+        editable > 0
+          ? "Anyone can rearrange these for everybody who uses them, and the owner is not told. Narrow the edit permission to a role or a group."
+          : null,
     });
+
+    const publicDashboards = Number(dashboards.sharedPubliclyCount) || 0;
+    dimensions.push({
+      key: "dashboard-public",
+      label: "Public dashboards",
+      pillar: "dashboards",
+      available: true,
+      weight: 1.5,
+      score: scoreFromRate(publicDashboards / dashTotal, TOLERANCE.publicShares),
+      detail:
+        publicDashboards === 0
+          ? "No dashboard is shared publicly."
+          : `${publicDashboards} of ${dashTotal} dashboards are shared publicly.`,
+      action:
+        publicDashboards > 0
+          ? "On a site that allows anonymous access, anyone with the link can open these. Share each with the group or project that uses it."
+          : null,
+    });
+
+    // Only over dashboards whose gadget filters were actually probed: a snapshot from before
+    // the probe has none, and "no broken gadgets" there would be a claim nobody checked.
+    const probed = Number(dashboards.filterGadgetDashboards) || 0;
+    if (probed > 0) {
+      const broken = Number(dashboards.brokenGadgetCount) || 0;
+      dimensions.push({
+        key: "dashboard-gadget-filters",
+        label: "Gadget filters",
+        pillar: "dashboards",
+        available: true,
+        weight: 1,
+        score: scoreFromRate(broken / probed, TOLERANCE.brokenGadgets),
+        detail:
+          broken === 0
+            ? `Every filter behind a gadget, on ${probed} dashboards, can be read.`
+            : `${broken} of ${probed} dashboards with filter gadgets show an error to most viewers: the filter is deleted, or private to its owner.`,
+        action: broken > 0 ? "Point each broken gadget at a filter its viewers can read, or remove it." : null,
+      });
+    } else {
+      dimensions.push(
+        unavailable(
+          "dashboard-gadget-filters",
+          "Gadget filters",
+          "dashboards",
+          "Rebuild the dashboard inventory to check whether each gadget's filter can still be read.",
+        ),
+      );
+    }
 
     dimensions.push({
       key: "dashboard-adoption",
@@ -643,15 +826,17 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(unused / dashTotal, TOLERANCE.unusedDashboards),
-      detail: unused === 0
-        ? "Every shared dashboard has been favourited by somebody."
-        : `${unused} of ${dashTotal} dashboards are shared but favourited by nobody.`,
+      detail:
+        unused === 0
+          ? "Every shared dashboard has been favourited by somebody."
+          : `${unused} of ${dashTotal} dashboards are shared but favourited by nobody.`,
       // Popularity is a favourite count, not a view count, so this bounds a claim about
       // neglect rather than proving one -- and the action says so rather than implying the
       // dashboard is definitely unread.
-      action: unused > 0
-        ? "Favourites are the closest signal Jira gives to use. Not proof nobody opens these, but the place to start asking."
-        : null,
+      action:
+        unused > 0
+          ? "Favourites are the closest signal Jira gives to use. Not proof nobody opens these, but the place to start asking."
+          : null,
     });
 
     // Tri-state. A pass that reached 180 of 200 dashboards can say which of those 180 are
@@ -665,24 +850,39 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
         available: true,
         weight: 1,
         score: scoreFromRate(Number(empty) / dashTotal, TOLERANCE.emptyDashboards),
-        detail: Number(empty) === 0
-          ? "Every dashboard carries at least one gadget."
-          : `${empty} of ${dashTotal} dashboards carry no gadgets at all.`,
+        detail:
+          Number(empty) === 0
+            ? "Every dashboard carries at least one gadget."
+            : `${empty} of ${dashTotal} dashboards carry no gadgets at all.`,
         action: Number(empty) > 0 ? "These render as an empty grid to anyone who opens them." : null,
       });
     } else {
-      dimensions.push(unavailable("dashboard-content", "Dashboard content", "dashboards",
-        "The gadget walk did not complete, so how many dashboards are empty is unknown."));
+      dimensions.push(
+        unavailable(
+          "dashboard-content",
+          "Dashboard content",
+          "dashboards",
+          "The gadget walk did not complete, so how many dashboards are empty is unknown.",
+        ),
+      );
     }
   } else {
     for (const [key, label] of [
       ["dashboard-ownership", "Dashboard ownership"],
       ["dashboard-exposure", "Dashboard exposure"],
+      ["dashboard-public", "Public dashboards"],
+      ["dashboard-gadget-filters", "Gadget filters"],
       ["dashboard-adoption", "Dashboard adoption"],
       ["dashboard-content", "Dashboard content"],
     ]) {
-      dimensions.push(unavailable(key, label, "dashboards",
-        "No dashboard inventory yet. Build one from the Dashboards tab or run a full scan."));
+      dimensions.push(
+        unavailable(
+          key,
+          label,
+          "dashboards",
+          "No dashboard inventory yet. Build one from the Dashboards tab or run a full scan.",
+        ),
+      );
     }
   }
 
@@ -697,9 +897,10 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(rate, TOLERANCE.duplicateStatuses),
-      detail: removable === 0
-        ? "No duplicate statuses."
-        : `${removable} of ${workflow.statusCount} statuses are redundant across ${workflow.duplicateGroupCount} groups.`,
+      detail:
+        removable === 0
+          ? "No duplicate statuses."
+          : `${removable} of ${workflow.statusCount} statuses are redundant across ${workflow.duplicateGroupCount} groups.`,
       action: removable > 0 ? "Consolidate duplicate statuses in the Workflows tab." : null,
     });
   } else {
@@ -734,16 +935,24 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
         : workflow.hasIssueCounts
           ? `${dead} of ${workflow.statusCount} statuses no scheme and no rule reaches, ${workflow.safeToRemoveCount} of them never used.`
           : `${dead} of ${workflow.statusCount} statuses no scheme and no rule reaches. Run a scan to confirm which are unused.`,
-      action: workflow.safeToRemoveCount > 0
-        ? workflow.automationChecked
-          ? `${workflow.safeToRemoveCount} statuses are reached by no scheme, no rule and no issue in history. These are the ones that are actually safe to delete.`
-          : `${workflow.safeToRemoveCount} statuses are unreachable and have never held an issue. No automation analysis has been built, so a rule could still transition into one of these — confirm before deleting.`
-        : ruleOnly > 0
-          ? "Every unreachable status is held open by an automation rule. Nothing here is safe to delete yet."
-          : null,
+      action:
+        workflow.safeToRemoveCount > 0
+          ? workflow.automationChecked
+            ? `${workflow.safeToRemoveCount} statuses are reached by no scheme, no rule and no issue in history. These are the ones that are actually safe to delete.`
+            : `${workflow.safeToRemoveCount} statuses are unreachable and have never held an issue. No automation analysis has been built, so a rule could still transition into one of these — confirm before deleting.`
+          : ruleOnly > 0
+            ? "Every unreachable status is held open by an automation rule. Nothing here is safe to delete yet."
+            : null,
     });
   } else {
-    dimensions.push(unavailable("status-reachability", "Status reachability", "workflows", workflow?.available ? "Jira did not return workflow status data." : "No workflow inventory yet."));
+    dimensions.push(
+      unavailable(
+        "status-reachability",
+        "Status reachability",
+        "workflows",
+        workflow?.available ? "Jira did not return workflow status data." : "No workflow inventory yet.",
+      ),
+    );
   }
 
   // ── Status coverage ───────────────────────────────────────────────────────
@@ -756,7 +965,12 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
   // Only scored once the rules have actually been read. Without an analysis every status
   // would score as fully covered, which is the same false all-clear this whole change is
   // about.
-  if (workflow?.available && workflow.schemeStatusesAvailable && workflow.statusCount > 0 && workflow.automationChecked) {
+  if (
+    workflow?.available &&
+    workflow.schemeStatusesAvailable &&
+    workflow.statusCount > 0 &&
+    workflow.automationChecked
+  ) {
     const ruleOnly = Number(workflow.ruleOnlyStatusCount) || 0;
     const rate = ruleOnly / workflow.statusCount;
     dimensions.push({
@@ -766,18 +980,184 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(rate, TOLERANCE.ruleOnlyStatuses),
-      detail: ruleOnly === 0
-        ? `Every status a rule touches is also in a workflow scheme.`
-        : `${ruleOnly} of ${workflow.statusCount} statuses are reachable only through an automation rule, not through any scheme.`,
-      action: ruleOnly > 0
-        ? "Issues reach these states without any workflow saying so. Add them to the scheme that should own them, or move the rule's transition."
-        : null,
+      detail:
+        ruleOnly === 0
+          ? `Every status a rule touches is also in a workflow scheme.`
+          : `${ruleOnly} of ${workflow.statusCount} statuses are reachable only through an automation rule, not through any scheme.`,
+      action:
+        ruleOnly > 0
+          ? "Issues reach these states without any workflow saying so. Add them to the scheme that should own them, or move the rule's transition."
+          : null,
     });
   } else {
-    dimensions.push(unavailable("status-coverage", "Status coverage", "workflows",
-      workflow?.available && workflow.schemeStatusesAvailable
-        ? "No automation analysis yet, so rule-only statuses cannot be identified."
-        : "No workflow inventory yet."));
+    dimensions.push(
+      unavailable(
+        "status-coverage",
+        "Status coverage",
+        "workflows",
+        workflow?.available && workflow.schemeStatusesAvailable
+          ? "No automation analysis yet, so rule-only statuses cannot be identified."
+          : "No workflow inventory yet.",
+      ),
+    );
+  }
+
+  // ── Field schemes / field configurations ──────────────────────────────────
+  // Three dimensions over one stored summary. Each is scored only on what was measured: usage
+  // needs no contents, duplicates and conflicts need the owner's fields to have been read.
+  const fc = fieldConfigs?.available ? fieldConfigs : null;
+  const fcModel = fc?.source === "field-configurations" ? "field configurations" : "field schemes";
+  if (fc && Number(fc.usageJudged) > 0) {
+    const unused = (Number(fc.unusedSchemes) || 0) + (Number(fc.unusedConfigs) || 0);
+    dimensions.push({
+      key: "fieldconfig-usage",
+      label: "Field scheme usage",
+      pillar: "fieldConfigs",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(unused / Number(fc.usageJudged), TOLERANCE.unusedFieldConfigs),
+      detail:
+        unused === 0
+          ? `Every non-default ${fcModel === "field schemes" ? "field scheme" : "field configuration and scheme"} is used by a project.`
+          : `${unused} of ${fc.usageJudged} non-default ${fcModel === "field schemes" ? "field schemes" : "field configurations and schemes"} are used by no project.`,
+      action:
+        unused > 0
+          ? "Delete the ones nobody uses from the Field schemes tab, keeping any held deliberately as templates."
+          : null,
+    });
+  } else {
+    dimensions.push(
+      unavailable(
+        "fieldconfig-usage",
+        "Field scheme usage",
+        "fieldConfigs",
+        fc ? "Only the default scheme exists, so there is nothing to judge." : "No field scheme inventory yet.",
+      ),
+    );
+  }
+
+  if (fc && fc.source === "field-configurations" && Number(fc.conflictJudged) > 0) {
+    const conflicts = Number(fc.requiredHiddenConfigs) || 0;
+    dimensions.push({
+      key: "fieldconfig-required-hidden",
+      label: "Required but hidden fields",
+      pillar: "fieldConfigs",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(conflicts / Number(fc.conflictJudged), TOLERANCE.requiredHiddenConfigs),
+      detail:
+        conflicts === 0
+          ? "No field configuration requires a field it also hides."
+          : `${conflicts} of ${fc.conflictJudged} field configurations require a field they also hide (${fc.requiredHiddenPairs} fields in all).`,
+      action:
+        conflicts > 0
+          ? "Nobody can fill in a hidden required field, so every create or edit through these configurations fails. Unhide it or make it optional."
+          : null,
+    });
+  } else {
+    dimensions.push(
+      unavailable(
+        "fieldconfig-required-hidden",
+        "Required but hidden fields",
+        "fieldConfigs",
+        !fc
+          ? "No field scheme inventory yet."
+          : fc.source === "field-schemes"
+            ? "Field schemes cannot hide a required field, so this cannot happen on this site."
+            : "No field configuration's contents could be read.",
+      ),
+    );
+  }
+
+  if (fc && Number(fc.duplicateJudged) > 0) {
+    const reducible = Number(fc.reducible) || 0;
+    dimensions.push({
+      key: "fieldconfig-duplicates",
+      label: "Duplicate field schemes",
+      pillar: "fieldConfigs",
+      available: true,
+      weight: 0.5,
+      score: scoreFromRate(reducible / Number(fc.duplicateJudged), TOLERANCE.duplicateFieldConfigs),
+      detail:
+        reducible === 0
+          ? `No two ${fcModel} are identical.`
+          : `${reducible} ${fcModel} duplicate another exactly, across ${fc.duplicateGroups} groups.`,
+      action: reducible > 0 ? "Point the projects on each duplicate at the one to keep, then delete the rest." : null,
+    });
+  } else {
+    dimensions.push(
+      unavailable(
+        "fieldconfig-duplicates",
+        "Duplicate field schemes",
+        "fieldConfigs",
+        fc ? "No scheme's fields could be read, so duplicates cannot be judged." : "No field scheme inventory yet.",
+      ),
+    );
+  }
+
+  // ── Workflow rule references ──────────────────────────────────────────────
+  // Conditions, validators, post-functions and status properties that name a field, group or
+  // role the site no longer has. Only scored once a build has read the rules: a snapshot that
+  // predates rule capture would otherwise score as a site with no broken rules.
+  const ruleIntegrity = workflow?.ruleIntegrity;
+  if (workflow?.available && ruleIntegrity?.available && Number(ruleIntegrity.rules) > 0) {
+    const broken = (Number(ruleIntegrity.brokenRules) || 0) + (Number(ruleIntegrity.brokenProperties) || 0);
+    const rate = broken / Number(ruleIntegrity.rules);
+    dimensions.push({
+      key: "workflow-rule-references",
+      label: "Workflow rule references",
+      pillar: "workflows",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(rate, TOLERANCE.brokenWorkflowRefs),
+      detail:
+        broken === 0
+          ? `Every field, group and role named by ${ruleIntegrity.rules} workflow rules still exists.`
+          : `${broken} workflow rule${broken === 1 ? "" : "s"} or propert${broken === 1 ? "y names" : "ies name"} a field, group or role that no longer exists.`,
+      action:
+        broken > 0
+          ? "A validator requiring a deleted field blocks the transition or stops checking. Repair or remove each one from the Workflows tab's Rules view."
+          : null,
+    });
+  } else {
+    dimensions.push(
+      unavailable(
+        "workflow-rule-references",
+        "Workflow rule references",
+        "workflows",
+        workflow?.available ? "Rebuild the workflow inventory to read transition rules." : "No workflow inventory yet.",
+      ),
+    );
+  }
+
+  // ── Inactive workflows ────────────────────────────────────────────────────
+  const companyManaged = (Number(ruleIntegrity?.workflows) || 0) - (Number(ruleIntegrity?.teamManaged) || 0);
+  if (workflow?.available && ruleIntegrity?.available && companyManaged > 0) {
+    const inactive = Number(ruleIntegrity.inactive) || 0;
+    dimensions.push({
+      key: "inactive-workflows",
+      label: "Inactive workflows",
+      pillar: "workflows",
+      available: true,
+      weight: 0.5,
+      score: scoreFromRate(inactive / companyManaged, TOLERANCE.inactiveWorkflows),
+      detail:
+        inactive === 0
+          ? "Every company-managed workflow is used by a project's scheme."
+          : `${inactive} of ${companyManaged} company-managed workflows are used by no project's scheme.`,
+      action: inactive > 0 ? "Delete inactive workflows you no longer need; each is configuration nobody sees." : null,
+    });
+  } else {
+    dimensions.push(
+      unavailable(
+        "inactive-workflows",
+        "Inactive workflows",
+        "workflows",
+        workflow?.available
+          ? "Rebuild the workflow inventory to list individual workflows."
+          : "No workflow inventory yet.",
+      ),
+    );
   }
 
   // ── Workflow structure ────────────────────────────────────────────────────
@@ -791,8 +1171,10 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       weight: 1,
       score: scoreFromRate(rate, TOLERANCE.flaggedSchemes),
       detail: `${workflow.flaggedSchemeCount} of ${workflow.schemeCount} schemes carry a structural flag.`,
-      action: workflow.flaggedSchemeCount > 0
-        ? "Missing Done statuses and In Progress-heavy schemes are the ones worth looking at first." : null,
+      action:
+        workflow.flaggedSchemeCount > 0
+          ? "Missing Done statuses and In Progress-heavy schemes are the ones worth looking at first."
+          : null,
     });
   } else {
     dimensions.push(unavailable("workflow-structure", "Workflow structure", "workflows", "No workflow inventory yet."));
@@ -805,26 +1187,31 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     const schemeCount = Number(workflow.schemeCount) || 0;
     const shared = Number(workflow.sharedSchemes) || 0;
     const sharedRatio = schemeCount > 0 ? shared / schemeCount : 0;
-    dimensions.push(targetDimension({
-      key: "standardisation",
-      label: "Process standardisation",
-      pillar: "workflows",
-      weight: 1,
-      value: sharedRatio,
-      ...TARGET.schemeReuse,
-      // Blast by issues under a bespoke (single-project) scheme, against every issue with a
-      // status. No per-scheme issue count here yet, so approximate with the single-project
-      // scheme share of the catalogue; a later pass swaps in the real issue tally.
-      affected: schemeCount - shared,
-      estate: schemeCount,
-      prior: prior("standardisation"),
-      detail: `${shared} of ${schemeCount} schemes govern more than one project.`,
-      action: sharedRatio < 0.25
-        ? "Most schemes are used by a single project, so there is little shared process to standardise against."
-        : null,
-    }));
+    dimensions.push(
+      targetDimension({
+        key: "standardisation",
+        label: "Process standardisation",
+        pillar: "workflows",
+        weight: 1,
+        value: sharedRatio,
+        ...TARGET.schemeReuse,
+        // Blast by issues under a bespoke (single-project) scheme, against every issue with a
+        // status. No per-scheme issue count here yet, so approximate with the single-project
+        // scheme share of the catalogue; a later pass swaps in the real issue tally.
+        affected: schemeCount - shared,
+        estate: schemeCount,
+        prior: prior("standardisation"),
+        detail: `${shared} of ${schemeCount} schemes govern more than one project.`,
+        action:
+          sharedRatio < 0.25
+            ? "Most schemes are used by a single project, so there is little shared process to standardise against."
+            : null,
+      }),
+    );
   } else {
-    dimensions.push(unavailable("standardisation", "Process standardisation", "workflows", "No workflow inventory yet."));
+    dimensions.push(
+      unavailable("standardisation", "Process standardisation", "workflows", "No workflow inventory yet."),
+    );
   }
 
   // ── Project consistency ───────────────────────────────────────────────────
@@ -850,17 +1237,21 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(rate, TOLERANCE.irregularProjects),
-      detail: overConfigured === 0
-        ? `No project carries more than ${floor} fields, against a median of ${projects.medianFieldCount}.`
-        : `${overConfigured} of ${totalProjects} projects carry ${floor} or more fields, against a median of ${projects.medianFieldCount}.`,
-      action: idle > 0
-        ? `${idle} of them carry little issue volume too — those are where field cleanup has the least risk.`
-        : overConfigured > 0
-          ? "All of them carry real issue volume, so this is scope to review rather than cleanup to schedule."
-          : null,
+      detail:
+        overConfigured === 0
+          ? `No project carries more than ${floor} fields, against a median of ${projects.medianFieldCount}.`
+          : `${overConfigured} of ${totalProjects} projects carry ${floor} or more fields, against a median of ${projects.medianFieldCount}.`,
+      action:
+        idle > 0
+          ? `${idle} of them carry little issue volume too — those are where field cleanup has the least risk.`
+          : overConfigured > 0
+            ? "All of them carry real issue volume, so this is scope to review rather than cleanup to schedule."
+            : null,
     });
   } else {
-    dimensions.push(unavailable("project-consistency", "Project consistency", "projects", "No project usage data yet."));
+    dimensions.push(
+      unavailable("project-consistency", "Project consistency", "projects", "No project usage data yet."),
+    );
   }
 
   // ── Project activity ──────────────────────────────────────────────────────
@@ -884,12 +1275,14 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(rate, TOLERANCE.inactiveProjects),
-      detail: unused === 0
-        ? `Every one of the ${totalProjects} projects carries at least some work.`
-        : `${unused} of ${totalProjects} projects carry fields but no recorded work at all.`,
-      action: unused > 0
-        ? "Retiring fields from a project nobody has ever used costs nothing and is not reversible by accident."
-        : null,
+      detail:
+        unused === 0
+          ? `Every one of the ${totalProjects} projects carries at least some work.`
+          : `${unused} of ${totalProjects} projects carry fields but no recorded work at all.`,
+      action:
+        unused > 0
+          ? "Retiring fields from a project nobody has ever used costs nothing and is not reversible by accident."
+          : null,
     });
   } else {
     dimensions.push(unavailable("project-activity", "Project activity", "projects", "No project usage data yet."));
@@ -917,20 +1310,28 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(rate, TOLERANCE.unadoptedProjects),
-      detail: fellOff + never === 0
-        ? `All ${adoption.judgeableProjects} projects old enough to judge are being used at a rate that matches their age.`
-        : `${fellOff} projects have fallen well below their own historical rate and ${never} never took off, of ${adoption.judgeableProjects} old enough to judge.`,
-      action: fellOff > 0
-        ? "A project people left is configuration nobody owns. The Projects tab dates each decline — start with the ones that fell off most recently, while somebody still remembers why."
-        : never > 0
-          ? "These were created and never adopted. Worth asking what people used instead before retiring the fields."
-          : null,
+      detail:
+        fellOff + never === 0
+          ? `All ${adoption.judgeableProjects} projects old enough to judge are being used at a rate that matches their age.`
+          : `${fellOff} projects have fallen well below their own historical rate and ${never} never took off, of ${adoption.judgeableProjects} old enough to judge.`,
+      action:
+        fellOff > 0
+          ? "A project people left is configuration nobody owns. The Projects tab dates each decline — start with the ones that fell off most recently, while somebody still remembers why."
+          : never > 0
+            ? "These were created and never adopted. Worth asking what people used instead before retiring the fields."
+            : null,
     });
   } else {
-    dimensions.push(unavailable("project-adoption", "Project adoption", "projects",
-      adoption?.available
-        ? "No project is old enough to judge adoption yet."
-        : "No issue dates captured. Run a Universal Scan to measure adoption."));
+    dimensions.push(
+      unavailable(
+        "project-adoption",
+        "Project adoption",
+        "projects",
+        adoption?.available
+          ? "No project is old enough to judge adoption yet."
+          : "No issue dates captured. Run a Universal Scan to measure adoption.",
+      ),
+    );
   }
 
   // ── Automation security ───────────────────────────────────────────────────
@@ -949,15 +1350,19 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 2,
       score: scoreFromRate(rate, TOLERANCE.credentialRules),
-      detail: withCredentials === 0
-        ? `No credentials stored in the ${automationRules} automation rules.`
-        : `${withCredentials} of ${automationRules} rules store a credential in plaintext.`,
-      action: withCredentials > 0
-        ? "Anyone who can view these rules can read the secret. Rotate them and move to a smart-value reference or an Automation connection."
-        : null,
+      detail:
+        withCredentials === 0
+          ? `No credentials stored in the ${automationRules} automation rules.`
+          : `${withCredentials} of ${automationRules} rules store a credential in plaintext.`,
+      action:
+        withCredentials > 0
+          ? "Anyone who can view these rules can read the secret. Rotate them and move to a smart-value reference or an Automation connection."
+          : null,
     });
   } else {
-    dimensions.push(unavailable("automation-security", "Automation security", "automation", "No automation analysis yet."));
+    dimensions.push(
+      unavailable("automation-security", "Automation security", "automation", "No automation analysis yet."),
+    );
   }
 
   // ── Automation stability ──────────────────────────────────────────────────
@@ -971,15 +1376,19 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1.5,
       score: scoreFromRate(rate, TOLERANCE.selfTriggeringRules),
-      detail: selfTriggering === 0
-        ? "No rule writes a field it also triggers on."
-        : `${selfTriggering} rules write a field they themselves trigger on.`,
-      action: selfTriggering > 0
-        ? "These loop without a second rule involved. Check the conditions guarding them before the next execution-limit surprise."
-        : null,
+      detail:
+        selfTriggering === 0
+          ? "No rule writes a field it also triggers on."
+          : `${selfTriggering} rules write a field they themselves trigger on.`,
+      action:
+        selfTriggering > 0
+          ? "These loop without a second rule involved. Check the conditions guarding them before the next execution-limit surprise."
+          : null,
     });
   } else {
-    dimensions.push(unavailable("automation-stability", "Automation stability", "automation", "No automation analysis yet."));
+    dimensions.push(
+      unavailable("automation-stability", "Automation stability", "automation", "No automation analysis yet."),
+    );
   }
 
   // ── Automation hygiene ────────────────────────────────────────────────────
@@ -995,12 +1404,15 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       weight: 1,
       score: scoreFromRate(rate, TOLERANCE.disabledRules),
       detail: `${disabled} of ${automationRules} rules are disabled${inert > 0 ? `, and ${inert} have a trigger but no actions` : ""}.`,
-      action: rate > 0.25
-        ? "A large disabled estate hides which rules were retired on purpose and which were forgotten. Decide per rule: revive or delete."
-        : null,
+      action:
+        rate > 0.25
+          ? "A large disabled estate hides which rules were retired on purpose and which were forgotten. Decide per rule: revive or delete."
+          : null,
     });
   } else {
-    dimensions.push(unavailable("automation-hygiene", "Automation hygiene", "automation", "No automation analysis yet."));
+    dimensions.push(
+      unavailable("automation-hygiene", "Automation hygiene", "automation", "No automation analysis yet."),
+    );
   }
 
   // ── Automation exposure ───────────────────────────────────────────────────
@@ -1018,15 +1430,19 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(rate, TOLERANCE.externalHttpRules),
-      detail: external === 0
-        ? "No rule sends data outside Atlassian."
-        : `${external} of ${automationRules} rules send data to a non-Atlassian host.`,
-      action: external > 0
-        ? "Each of these moves Jira data out of the tenancy. Confirm every destination is still one you own."
-        : null,
+      detail:
+        external === 0
+          ? "No rule sends data outside Atlassian."
+          : `${external} of ${automationRules} rules send data to a non-Atlassian host.`,
+      action:
+        external > 0
+          ? "Each of these moves Jira data out of the tenancy. Confirm every destination is still one you own."
+          : null,
     });
   } else {
-    dimensions.push(unavailable("automation-exposure", "Automation exposure", "automation", "No automation analysis yet."));
+    dimensions.push(
+      unavailable("automation-exposure", "Automation exposure", "automation", "No automation analysis yet."),
+    );
   }
 
   // ── Automation blast radius ───────────────────────────────────────────────
@@ -1046,15 +1462,24 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1.5,
       score: scoreFromRate(rate, TOLERANCE.estateWideRules),
-      detail: estateWideRules === 0
-        ? `No rule has an estate-wide blast radius across the ${automationRules} rules.`
-        : `${estateWideRules} of ${automationRules} rules can move every project at once${estateWideWithCredential > 0 ? `, and ${estateWideWithCredential} of those also store a credential` : ""}.`,
-      action: estateWideRules > 0
-        ? "Scope what you can to specific projects, and review who can edit the ones that must stay site-wide."
-        : null,
+      detail:
+        estateWideRules === 0
+          ? `No rule has an estate-wide blast radius across the ${automationRules} rules.`
+          : `${estateWideRules} of ${automationRules} rules can move every project at once${estateWideWithCredential > 0 ? `, and ${estateWideWithCredential} of those also store a credential` : ""}.`,
+      action:
+        estateWideRules > 0
+          ? "Scope what you can to specific projects, and review who can edit the ones that must stay site-wide."
+          : null,
     });
   } else {
-    dimensions.push(unavailable("automation-blast", "Automation blast radius", "automation", "No blast-radius analysis yet. Re-import the rule export."));
+    dimensions.push(
+      unavailable(
+        "automation-blast",
+        "Automation blast radius",
+        "automation",
+        "No blast-radius analysis yet. Re-import the rule export.",
+      ),
+    );
   }
 
   // ── Screen scheme integrity ───────────────────────────────────────────────
@@ -1071,16 +1496,24 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1.5,
       score: scoreFromRate(rate, TOLERANCE.danglingScreenRefs),
-      detail: dangling === 0
-        ? `All ${screenOperations} scheme operations resolve to a screen that exists.`
-        : `${dangling} of ${screenOperations} scheme operations point at a screen that no longer exists.`,
-      action: dangling > 0
-        ? "Jira falls back silently when one of these resolves, so the form a user sees is not the one the scheme names. Repoint them in the Screens tab."
-        : null,
+      detail:
+        dangling === 0
+          ? `All ${screenOperations} scheme operations resolve to a screen that exists.`
+          : `${dangling} of ${screenOperations} scheme operations point at a screen that no longer exists.`,
+      action:
+        dangling > 0
+          ? "Jira falls back silently when one of these resolves, so the form a user sees is not the one the scheme names. Repoint them in the Screens tab."
+          : null,
     });
   } else {
-    dimensions.push(unavailable("screen-integrity", "Screen scheme integrity", "screens",
-      screens?.available ? "No screen schemes found." : "No screen inventory yet."));
+    dimensions.push(
+      unavailable(
+        "screen-integrity",
+        "Screen scheme integrity",
+        "screens",
+        screens?.available ? "No screen schemes found." : "No screen inventory yet.",
+      ),
+    );
   }
 
   // ── Screen hygiene ────────────────────────────────────────────────────────
@@ -1127,25 +1560,35 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     // already reports.
     if (reachKnown) {
       const reachable = (measuredScreens - unreached) / measuredScreens;
-      dimensions.push(targetDimension({
-        key: "screen-reachability",
-        label: "Screen reachability",
-        pillar: "screens",
-        weight: 1,
-        value: reachable,
-        ...TARGET.screenReachability,
-        prior: prior("screen-reachability"),
-        detail: unreached === 0
-          ? `Every one of the ${measuredScreens} readable screens is reachable through a scheme or a transition.`
-          : `${unreached} of ${measuredScreens} readable screens are reached by neither a scheme nor a transition.`,
-        action: unreached > 0
-          ? "An unreachable screen routes nothing and carries no field load — the safest cleanup queue there is."
-          : null,
-      }));
+      dimensions.push(
+        targetDimension({
+          key: "screen-reachability",
+          label: "Screen reachability",
+          pillar: "screens",
+          weight: 1,
+          value: reachable,
+          ...TARGET.screenReachability,
+          prior: prior("screen-reachability"),
+          detail:
+            unreached === 0
+              ? `Every one of the ${measuredScreens} readable screens is reachable through a scheme or a transition.`
+              : `${unreached} of ${measuredScreens} readable screens are reached by neither a scheme nor a transition.`,
+          action:
+            unreached > 0
+              ? "An unreachable screen routes nothing and carries no field load — the safest cleanup queue there is."
+              : null,
+        }),
+      );
     }
   } else {
-    dimensions.push(unavailable("screen-hygiene", "Screen hygiene", "screens",
-      screens?.available ? "No screen contents could be read." : "No screen inventory yet."));
+    dimensions.push(
+      unavailable(
+        "screen-hygiene",
+        "Screen hygiene",
+        "screens",
+        screens?.available ? "No screen contents could be read." : "No screen inventory yet.",
+      ),
+    );
   }
 
   // ── The screen cross-signal ───────────────────────────────────────────────
@@ -1170,12 +1613,14 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(invisible / populatedFields, TOLERANCE.invisibleData),
-      detail: invisible === 0
-        ? `Every populated field is reachable on a screen in the projects that hold its values.`
-        : `${invisible} field(s) hold values in projects whose screens do not show them, across ${screenCross.counts.invisibleIssues} issues.`,
-      action: invisible > 0
-        ? "Something outside the UI is writing these — an importer, an integration or a rule. They are harder to remove safely than an unused field, not easier."
-        : null,
+      detail:
+        invisible === 0
+          ? `Every populated field is reachable on a screen in the projects that hold its values.`
+          : `${invisible} field(s) hold values in projects whose screens do not show them, across ${screenCross.counts.invisibleIssues} issues.`,
+      action:
+        invisible > 0
+          ? "Something outside the UI is writing these — an importer, an integration or a rule. They are harder to remove safely than an unused field, not easier."
+          : null,
     });
 
     // Denominator is placements, not fields: the same field on ten create screens is ten
@@ -1189,26 +1634,45 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     // measured -- is unmeasured, not a clean 100. A stored summary carries no flag, so zero
     // judged placements is the signal on both paths.
     if (screenCross.clutterAvailable === false || judged === 0) {
-      dimensions.push(unavailable("form-clutter", "Form clutter", "screens",
-        "Field usage could not be read in full, so no create-screen field can be called never filled."));
-    } else dimensions.push({
-      key: "form-clutter",
-      label: "Form clutter",
-      pillar: "screens",
-      available: true,
-      weight: 1,
-      score: scoreFromRate(clutter / placements, TOLERANCE.formClutter),
-      detail: clutter === 0
-        ? "Every field on a create screen is filled in by somebody in that project."
-        : `${clutter} of ${placements} create-screen placements are never filled in.`,
-      action: clutter > 0
-        ? "Create is the one form nobody can skip. Removing a field from the screens where it is never answered costs no data."
-        : null,
-    });
+      dimensions.push(
+        unavailable(
+          "form-clutter",
+          "Form clutter",
+          "screens",
+          "Field usage could not be read in full, so no create-screen field can be called never filled.",
+        ),
+      );
+    } else
+      dimensions.push({
+        key: "form-clutter",
+        label: "Form clutter",
+        pillar: "screens",
+        available: true,
+        weight: 1,
+        score: scoreFromRate(clutter / placements, TOLERANCE.formClutter),
+        detail:
+          clutter === 0
+            ? "Every field on a create screen is filled in by somebody in that project."
+            : `${clutter} of ${placements} create-screen placements are never filled in.`,
+        action:
+          clutter > 0
+            ? "Create is the one form nobody can skip. Removing a field from the screens where it is never answered costs no data."
+            : null,
+      });
   } else {
-    for (const [key, label] of [["invisible-data", "Invisible data"], ["form-clutter", "Form clutter"]]) {
-      dimensions.push(unavailable(key, label, "screens",
-        screenCross?.reason || "The screen inventory and the field snapshot have not both been built, so neither can be crossed against the other."));
+    for (const [key, label] of [
+      ["invisible-data", "Invisible data"],
+      ["form-clutter", "Form clutter"],
+    ]) {
+      dimensions.push(
+        unavailable(
+          key,
+          label,
+          "screens",
+          screenCross?.reason ||
+            "The screen inventory and the field snapshot have not both been built, so neither can be crossed against the other.",
+        ),
+      );
     }
   }
 
@@ -1227,12 +1691,14 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1.5,
       score: scoreFromRate(orphans / totalIssueTypes, TOLERANCE.orphanIssueTypes),
-      detail: orphans === 0
-        ? `All ${totalIssueTypes} issue types are allowed by at least one scheme.`
-        : `${orphans} of ${totalIssueTypes} issue types are on no scheme — no project can create one.`,
-      action: orphans > 0
-        ? "Add each to the scheme that should own it, or delete it. An issue type nothing can use is pure clutter in every type picker."
-        : null,
+      detail:
+        orphans === 0
+          ? `All ${totalIssueTypes} issue types are allowed by at least one scheme.`
+          : `${orphans} of ${totalIssueTypes} issue types are on no scheme — no project can create one.`,
+      action:
+        orphans > 0
+          ? "Add each to the scheme that should own it, or delete it. An issue type nothing can use is pure clutter in every type picker."
+          : null,
     });
   } else {
     dimensions.push(unavailable("issue-type-reach", "Issue type reach", "issueTypes", "No issue type inventory yet."));
@@ -1249,15 +1715,19 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(unused / totalTypeSchemes, TOLERANCE.unusedTypeSchemes),
-      detail: unused === 0
-        ? `Every one of the ${totalTypeSchemes} issue type schemes is assigned to a project.`
-        : `${unused} of ${totalTypeSchemes} issue type schemes are assigned to no project.`,
-      action: unused > 0
-        ? "A scheme no project uses is a decision nobody made. Delete it, or find the project it was built for."
-        : null,
+      detail:
+        unused === 0
+          ? `Every one of the ${totalTypeSchemes} issue type schemes is assigned to a project.`
+          : `${unused} of ${totalTypeSchemes} issue type schemes are assigned to no project.`,
+      action:
+        unused > 0
+          ? "A scheme no project uses is a decision nobody made. Delete it, or find the project it was built for."
+          : null,
     });
   } else {
-    dimensions.push(unavailable("issue-type-scheme-usage", "Issue type scheme usage", "issueTypes", "No issue type inventory yet."));
+    dimensions.push(
+      unavailable("issue-type-scheme-usage", "Issue type scheme usage", "issueTypes", "No issue type inventory yet."),
+    );
   }
 
   // ── Issue type naming ─────────────────────────────────────────────────────
@@ -1273,15 +1743,19 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(removable / totalIssueTypes, TOLERANCE.duplicateIssueTypeNames),
-      detail: removable === 0
-        ? "No near-duplicate issue type names."
-        : `${removable} of ${totalIssueTypes} issue types duplicate another's name across ${issueTypes.duplicateTypeGroupCount} groups.`,
-      action: removable > 0
-        ? "Consolidate them in Jira's issue type admin — a split like Bug / Defect makes every by-type report wrong by however many issues sit on the wrong one."
-        : null,
+      detail:
+        removable === 0
+          ? "No near-duplicate issue type names."
+          : `${removable} of ${totalIssueTypes} issue types duplicate another's name across ${issueTypes.duplicateTypeGroupCount} groups.`,
+      action:
+        removable > 0
+          ? "Consolidate them in Jira's issue type admin — a split like Bug / Defect makes every by-type report wrong by however many issues sit on the wrong one."
+          : null,
     });
   } else {
-    dimensions.push(unavailable("issue-type-naming", "Issue type naming", "issueTypes", "No issue type inventory yet."));
+    dimensions.push(
+      unavailable("issue-type-naming", "Issue type naming", "issueTypes", "No issue type inventory yet."),
+    );
   }
 
   // ── Issue type hierarchy ──────────────────────────────────────────────────
@@ -1298,15 +1772,19 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(flagged / totalTypeSchemes, TOLERANCE.brokenTypeHierarchy),
-      detail: flagged === 0
-        ? "Every scheme's type set hangs together."
-        : `${flagged} of ${totalTypeSchemes} schemes have a broken type set — sub-tasks with no parent-level type, or an uncreatable default.`,
-      action: flagged > 0
-        ? "Add a standalone type, or change the default. A scheme with only sub-tasks cannot start an issue at all."
-        : null,
+      detail:
+        flagged === 0
+          ? "Every scheme's type set hangs together."
+          : `${flagged} of ${totalTypeSchemes} schemes have a broken type set — sub-tasks with no parent-level type, or an uncreatable default.`,
+      action:
+        flagged > 0
+          ? "Add a standalone type, or change the default. A scheme with only sub-tasks cannot start an issue at all."
+          : null,
     });
   } else {
-    dimensions.push(unavailable("issue-type-hierarchy", "Issue type hierarchy", "issueTypes", "No issue type inventory yet."));
+    dimensions.push(
+      unavailable("issue-type-hierarchy", "Issue type hierarchy", "issueTypes", "No issue type inventory yet."),
+    );
   }
 
   // ── Licence hygiene ───────────────────────────────────────────────────────
@@ -1322,16 +1800,24 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1.5,
       score: scoreFromRate(deactivated / totalLicensed, TOLERANCE.deactivatedLicenceHolders),
-      detail: deactivated === 0
-        ? `All ${totalLicensed} licensed users have an active account.`
-        : `${deactivated} of ${totalLicensed} accounts in a Jira access group are deactivated.`,
-      action: deactivated > 0
-        ? "Remove each from the access group. The seat frees up, and a reactivated account no longer returns with a licence nobody re-granted."
-        : null,
+      detail:
+        deactivated === 0
+          ? `All ${totalLicensed} licensed users have an active account.`
+          : `${deactivated} of ${totalLicensed} accounts in a Jira access group are deactivated.`,
+      action:
+        deactivated > 0
+          ? "Remove each from the access group. The seat frees up, and a reactivated account no longer returns with a licence nobody re-granted."
+          : null,
     });
   } else {
-    dimensions.push(unavailable("user-licence-hygiene", "Licence hygiene", "users",
-      "No licensed-user roster yet. Build one from the People tab or run a full scan."));
+    dimensions.push(
+      unavailable(
+        "user-licence-hygiene",
+        "Licence hygiene",
+        "users",
+        "No licensed-user roster yet. Build one from the People tab or run a full scan.",
+      ),
+    );
   }
 
   // ── Ownership continuity ──────────────────────────────────────────────────
@@ -1348,18 +1834,26 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(orphaned / ownedTotal, TOLERANCE.orphanedOwnership),
-      detail: orphaned === 0
-        ? `Every one of the ${ownedTotal} owned filters, dashboards and rules belongs to a licensed user.`
-        : `${orphaned} of ${ownedTotal} owned filters, dashboards and rules belong to an account not in the roster.`,
-      action: orphaned > 0
-        ? "Reassign these before the accounts are purged — the filter or dashboard goes with the account, and every board built on it goes at the same moment."
-        : null,
+      detail:
+        orphaned === 0
+          ? `Every one of the ${ownedTotal} owned filters, dashboards and rules belongs to a licensed user.`
+          : `${orphaned} of ${ownedTotal} owned filters, dashboards and rules belong to an account not in the roster.`,
+      action:
+        orphaned > 0
+          ? "Reassign these before the accounts are purged — the filter or dashboard goes with the account, and every board built on it goes at the same moment."
+          : null,
     });
   } else {
-    dimensions.push(unavailable("user-ownership", "Ownership continuity", "users",
-      users?.available
-        ? "No filter, dashboard or automation ownership data to join against yet."
-        : "No licensed-user roster yet. Build one from the People tab or run a full scan."));
+    dimensions.push(
+      unavailable(
+        "user-ownership",
+        "Ownership continuity",
+        "users",
+        users?.available
+          ? "No filter, dashboard or automation ownership data to join against yet."
+          : "No licensed-user roster yet. Build one from the People tab or run a full scan.",
+      ),
+    );
   }
 
   // ── Dormant licences ─────────────────────────────────────────────────────
@@ -1378,18 +1872,26 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(dormant / measured, TOLERANCE.dormantLicences),
-      detail: dormant === 0
-        ? `Every one of the ${measured} measured accounts has touched an issue in the last year.`
-        : `${dormant} of ${measured} measured accounts hold a licence and have not touched an issue in a year.`,
-      action: dormant > 0
-        ? "The only finding here with a renewal cost attached. Confirm before revoking — an approver who never files still reads."
-        : null,
+      detail:
+        dormant === 0
+          ? `Every one of the ${measured} measured accounts has touched an issue in the last year.`
+          : `${dormant} of ${measured} measured accounts hold a licence and have not touched an issue in a year.`,
+      action:
+        dormant > 0
+          ? "The only finding here with a renewal cost attached. Confirm before revoking — an approver who never files still reads."
+          : null,
     });
   } else {
-    dimensions.push(unavailable("dormant-licences", "Dormant licences", "users",
-      users?.available
-        ? "No completed issue crawl has measured per-account activity yet, so no seat can be called idle."
-        : "No user roster yet."));
+    dimensions.push(
+      unavailable(
+        "dormant-licences",
+        "Dormant licences",
+        "users",
+        users?.available
+          ? "No completed issue crawl has measured per-account activity yet, so no seat can be called idle."
+          : "No user roster yet.",
+      ),
+    );
   }
 
   // ── Assets (CMDB) ─────────────────────────────────────────────────────────
@@ -1408,18 +1910,26 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(dead / assetSchemaTotal, TOLERANCE.deadAssetSchemas),
-      detail: dead === 0
-        ? `All ${assetSchemaTotal} object schemas contain object types and objects.`
-        : `${dead} of ${assetSchemaTotal} object schemas have no object types or no objects.`,
-      action: dead > 0
-        ? "Delete or repopulate the empty schemas — each one is a namespace in every AQL autocomplete that resolves to nothing."
-        : null,
+      detail:
+        dead === 0
+          ? `All ${assetSchemaTotal} object schemas contain object types and objects.`
+          : `${dead} of ${assetSchemaTotal} object schemas have no object types or no objects.`,
+      action:
+        dead > 0
+          ? "Delete or repopulate the empty schemas — each one is a namespace in every AQL autocomplete that resolves to nothing."
+          : null,
     });
   } else {
-    dimensions.push(unavailable("asset-schema-hygiene", "Schema hygiene", "assets",
-      assetsNotApplicable
-        ? "Assets (JSM Premium/Enterprise) is not enabled on this site."
-        : "No Assets inventory yet. Build one from the Assets tab or run a full scan."));
+    dimensions.push(
+      unavailable(
+        "asset-schema-hygiene",
+        "Schema hygiene",
+        "assets",
+        assetsNotApplicable
+          ? "Assets (JSM Premium/Enterprise) is not enabled on this site."
+          : "No Assets inventory yet. Build one from the Assets tab or run a full scan.",
+      ),
+    );
   }
 
   const assetConcreteTypes = Number(assets?.concreteObjectTypes) || 0;
@@ -1432,18 +1942,26 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(bare / assetConcreteTypes, TOLERANCE.bareAssetTypes),
-      detail: bare === 0
-        ? `Every one of the ${assetConcreteTypes} concrete object types carries at least one attribute someone added.`
-        : `${bare} of ${assetConcreteTypes} concrete object types have no attribute beyond the built-in Name.`,
-      action: bare > 0
-        ? "Give each a defining attribute or retire it — a type with only a name records nothing about the thing it represents."
-        : null,
+      detail:
+        bare === 0
+          ? `Every one of the ${assetConcreteTypes} concrete object types carries at least one attribute someone added.`
+          : `${bare} of ${assetConcreteTypes} concrete object types have no attribute beyond the built-in Name.`,
+      action:
+        bare > 0
+          ? "Give each a defining attribute or retire it — a type with only a name records nothing about the thing it represents."
+          : null,
     });
   } else {
-    dimensions.push(unavailable("asset-type-completeness", "Object type completeness", "assets",
-      assetsNotApplicable
-        ? "Assets (JSM Premium/Enterprise) is not enabled on this site."
-        : "No Assets inventory yet. Build one from the Assets tab or run a full scan."));
+    dimensions.push(
+      unavailable(
+        "asset-type-completeness",
+        "Object type completeness",
+        "assets",
+        assetsNotApplicable
+          ? "Assets (JSM Premium/Enterprise) is not enabled on this site."
+          : "No Assets inventory yet. Build one from the Assets tab or run a full scan.",
+      ),
+    );
   }
 
   const assetRefTotal = Number(assets?.referenceAttributeCount) || 0;
@@ -1456,20 +1974,28 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1.5,
       score: scoreFromRate(broken / assetRefTotal, TOLERANCE.brokenAssetReferences),
-      detail: broken === 0
-        ? `All ${assetRefTotal} object-reference attributes point at an object type that exists.`
-        : `${broken} of ${assetRefTotal} object-reference attributes point at an object type that is gone.`,
-      action: broken > 0
-        ? "Repoint or remove them — the attribute still shows on every object of its type and resolves to nothing."
-        : null,
+      detail:
+        broken === 0
+          ? `All ${assetRefTotal} object-reference attributes point at an object type that exists.`
+          : `${broken} of ${assetRefTotal} object-reference attributes point at an object type that is gone.`,
+      action:
+        broken > 0
+          ? "Repoint or remove them — the attribute still shows on every object of its type and resolves to nothing."
+          : null,
     });
   } else {
-    dimensions.push(unavailable("asset-reference-integrity", "Reference integrity", "assets",
-      assetsNotApplicable
-        ? "Assets (JSM Premium/Enterprise) is not enabled on this site."
-        : assets?.available
-          ? "No object-reference attributes to check."
-          : "No Assets inventory yet. Build one from the Assets tab or run a full scan."));
+    dimensions.push(
+      unavailable(
+        "asset-reference-integrity",
+        "Reference integrity",
+        "assets",
+        assetsNotApplicable
+          ? "Assets (JSM Premium/Enterprise) is not enabled on this site."
+          : assets?.available
+            ? "No object-reference attributes to check."
+            : "No Assets inventory yet. Build one from the Assets tab or run a full scan.",
+      ),
+    );
   }
 
   // Real usage, not structure -- from the separate opt-in AQL crawl. Distinct from object
@@ -1486,50 +2012,69 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(empty / assetMeasuredTypes, TOLERANCE.emptyAssetTypes),
-      detail: empty === 0
-        ? `Every one of the ${assetMeasuredTypes} measured object types holds at least one object.`
-        : `${empty} of ${assetMeasuredTypes} measured object types have never had an object created against them.`,
-      action: empty > 0
-        ? "Populate them or retire them — a type nobody has ever put data into is either unfinished or abandoned."
-        : null,
+      detail:
+        empty === 0
+          ? `Every one of the ${assetMeasuredTypes} measured object types holds at least one object.`
+          : `${empty} of ${assetMeasuredTypes} measured object types have never had an object created against them.`,
+      action:
+        empty > 0
+          ? "Populate them or retire them — a type nobody has ever put data into is either unfinished or abandoned."
+          : null,
     });
   } else {
-    dimensions.push(unavailable("asset-type-usage", "Object type usage", "assets",
-      assetsNotApplicable
-        ? "Assets (JSM Premium/Enterprise) is not enabled on this site."
-        : !assets?.available
-          ? "No Assets inventory yet. Build one from the Assets tab or run a full scan."
-          : "Object counts have never been crawled. Run the object-count build from the Assets tab."));
+    dimensions.push(
+      unavailable(
+        "asset-type-usage",
+        "Object type usage",
+        "assets",
+        assetsNotApplicable
+          ? "Assets (JSM Premium/Enterprise) is not enabled on this site."
+          : !assets?.available
+            ? "No Assets inventory yet. Build one from the Assets tab or run a full scan."
+            : "Object counts have never been crawled. Run the object-count build from the Assets tab.",
+      ),
+    );
   }
 
   // ── Access schemes: permission / issue-security / notification ─────────────
   // Three pillars, one scan stage. "No access inventory yet" is the unmeasured state for all
   // of them; each dimension scores a rate over its own scheme count.
   const noAccess = "No access inventory yet. Run a full scan to populate it.";
+  // Off-roster checks need the People roster: without it every named account would read as
+  // departed. Unmeasured, never scored, until the roster has been built.
+  const noRoster = "Build the People roster (or run a full scan) to check for accounts that have left.";
+  // A rate over a count that may be zero: nothing to judge reads as clean, not as 0/0.
+  const rateOf = (n, d) => (d > 0 ? n / d : 0);
 
   // Permission schemes: least-privilege conformance (v2 target), then unused clutter.
   if (permissions?.available && permissions.totalSchemes > 0) {
     const risky = Number(permissions.riskySchemeCount) || 0;
     const total = Number(permissions.totalSchemes) || 0;
     const conformance = total > 0 ? (total - risky) / total : 1;
-    dimensions.push(targetDimension({
-      key: "permission-least-privilege",
-      label: "Least privilege",
-      pillar: "permissions",
-      weight: 1.5,
-      value: conformance,
-      ...TARGET.leastPrivilegeConformance,
-      // No "users under a risky scheme" count yet, so blast is scaled by scheme share --
-      // still tells a 3-of-40 estate from a 30-of-40 one. A later pass swaps in the
-      // affected-user count once the access overview carries it.
-      affected: risky,
-      estate: total,
-      prior: prior("permission-least-privilege"),
-      detail: risky === 0
-        ? `All ${total} permission schemes keep least privilege — no anyone-browse, no group-level project admin, no named individuals.`
-        : `${risky} of ${total} permission schemes grant browse to anyone, project admin to a whole group, or a permission to a named individual.`,
-      action: risky > 0 ? "Replace direct and blanket grants with project roles; a permission held by an individual is a permission nobody reviews." : null,
-    }));
+    dimensions.push(
+      targetDimension({
+        key: "permission-least-privilege",
+        label: "Least privilege",
+        pillar: "permissions",
+        weight: 1.5,
+        value: conformance,
+        ...TARGET.leastPrivilegeConformance,
+        // No "users under a risky scheme" count yet, so blast is scaled by scheme share --
+        // still tells a 3-of-40 estate from a 30-of-40 one. A later pass swaps in the
+        // affected-user count once the access overview carries it.
+        affected: risky,
+        estate: total,
+        prior: prior("permission-least-privilege"),
+        detail:
+          risky === 0
+            ? `All ${total} permission schemes keep least privilege — no anyone-browse, no group-level project admin, no named individuals.`
+            : `${risky} of ${total} permission schemes grant browse to anyone, project admin to a whole group, or a permission to a named individual.`,
+        action:
+          risky > 0
+            ? "Replace direct and blanket grants with project roles; a permission held by an individual is a permission nobody reviews."
+            : null,
+      }),
+    );
     const unused = Number(permissions.unusedSchemeCount) || 0;
     dimensions.push({
       key: "permission-scheme-sprawl",
@@ -1538,14 +2083,96 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(unused / permissions.totalSchemes, TOLERANCE.unusedAccessSchemes),
-      detail: unused === 0
-        ? `Every permission scheme is assigned to at least one project.`
-        : `${unused} of ${permissions.totalSchemes} permission schemes are assigned to no project.`,
-      action: unused > 0 ? "Delete the unused schemes — each is a decision nobody made that still shows in every scheme picker." : null,
+      detail:
+        unused === 0
+          ? `Every permission scheme is assigned to at least one project.`
+          : `${unused} of ${permissions.totalSchemes} permission schemes are assigned to no project.`,
+      action:
+        unused > 0
+          ? "Delete the unused schemes — each is a decision nobody made that still shows in every scheme picker."
+          : null,
     });
+
+    // Public access. Also one of least privilege's reasons, scored on its own because exposure
+    // to anonymous users is the consequence an admin is actually asked about.
+    const publicSchemes = Number(permissions.publicSchemeCount) || 0;
+    dimensions.push({
+      key: "permission-public-access",
+      label: "Public access",
+      pillar: "permissions",
+      available: true,
+      weight: 1.5,
+      score: scoreFromRate(rateOf(publicSchemes, total), TOLERANCE.publicPermissionSchemes),
+      detail:
+        publicSchemes === 0
+          ? `No permission scheme grants anything to anonymous users.`
+          : `${publicSchemes} of ${total} permission schemes grant a permission to anonymous users — anyone at all, on a site that allows public access.`,
+      action: publicSchemes > 0 ? "Remove the grants to Anyone and give that access to a group or project role." : null,
+    });
+
+    const everyone = Number(permissions.loggedInSensitiveSchemeCount) || 0;
+    dimensions.push({
+      key: "permission-everyone-sensitive",
+      label: "Sensitive grants to everyone",
+      pillar: "permissions",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(rateOf(everyone, total), TOLERANCE.everyoneSensitiveSchemes),
+      detail:
+        everyone === 0
+          ? `No permission scheme gives a sensitive permission (delete, move, administer, edit others' work) to every logged-in user.`
+          : `${everyone} of ${total} permission schemes give a sensitive permission — delete, move, administer, edit others' work — to every logged-in user.`,
+      action: everyone > 0 ? "Narrow those grants to the project roles that need them." : null,
+    });
+
+    const grants = Number(permissions.totalGrantCount) || 0;
+    const direct = Number(permissions.directUserGrantCount) || 0;
+    dimensions.push({
+      key: "permission-direct-grants",
+      label: "Grants to individuals",
+      pillar: "permissions",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(rateOf(direct, grants), TOLERANCE.directUserGrants),
+      detail:
+        direct === 0
+          ? `None of the ${grants} permission grants names an individual.`
+          : `${direct} of ${grants} permission grants name an individual instead of a project role or group.`,
+      action:
+        direct > 0 ? "Move each to a project role; a permission held by one named person is one nobody reviews." : null,
+    });
+
+    if (permissions.rosterMeasured === false) {
+      dimensions.push(
+        unavailable("permission-departed-grants", "Grants to departed accounts", "permissions", noRoster),
+      );
+    } else {
+      const off = Number(permissions.offRosterUserGrantCount) || 0;
+      dimensions.push({
+        key: "permission-departed-grants",
+        label: "Grants to departed accounts",
+        pillar: "permissions",
+        available: true,
+        weight: 1,
+        score: scoreFromRate(rateOf(off, direct), TOLERANCE.departedAccounts),
+        detail:
+          off === 0
+            ? direct === 0
+              ? `No permission is granted to an individual, so none to an account that has left.`
+              : `None of the ${direct} grants to individuals names an account that has left.`
+            : `${off} permission grants name an account no longer on the licensed roster.`,
+        action: off > 0 ? "Remove them. They grant nothing today and hide what the scheme really allows." : null,
+      });
+    }
   } else {
     dimensions.push(unavailable("permission-least-privilege", "Least privilege", "permissions", noAccess));
     dimensions.push(unavailable("permission-scheme-sprawl", "Scheme sprawl", "permissions", noAccess));
+    dimensions.push(unavailable("permission-public-access", "Public access", "permissions", noAccess));
+    dimensions.push(
+      unavailable("permission-everyone-sensitive", "Sensitive grants to everyone", "permissions", noAccess),
+    );
+    dimensions.push(unavailable("permission-direct-grants", "Grants to individuals", "permissions", noAccess));
+    dimensions.push(unavailable("permission-departed-grants", "Grants to departed accounts", "permissions", noAccess));
   }
 
   // Issue security: data black holes, then unused clutter.
@@ -1553,21 +2180,27 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     const broken = Number(security.brokenLevelCount) || 0;
     const denom = Math.max(1, Number(security.totalLevels) || 0);
     const integrity = (denom - broken) / denom;
-    dimensions.push(targetDimension({
-      key: "security-level-integrity",
-      label: "Level integrity",
-      pillar: "security",
-      weight: 1.5,
-      value: integrity,
-      ...TARGET.securityLevelIntegrity,
-      affected: broken,
-      estate: denom,
-      prior: prior("security-level-integrity"),
-      detail: broken === 0
-        ? `Every one of the ${denom} security levels has members and every scheme has a level.`
-        : `${broken} security levels have no members, or belong to a scheme with no levels — an issue set to one is invisible to everyone but a site admin.`,
-      action: broken > 0 ? "Add members or delete the level. An empty security level is a way to lose an issue in plain sight." : null,
-    }));
+    dimensions.push(
+      targetDimension({
+        key: "security-level-integrity",
+        label: "Level integrity",
+        pillar: "security",
+        weight: 1.5,
+        value: integrity,
+        ...TARGET.securityLevelIntegrity,
+        affected: broken,
+        estate: denom,
+        prior: prior("security-level-integrity"),
+        detail:
+          broken === 0
+            ? `Every one of the ${denom} security levels has members and every scheme has a level.`
+            : `${broken} security levels have no members, or belong to a scheme with no levels — an issue set to one is invisible to everyone but a site admin.`,
+        action:
+          broken > 0
+            ? "Add members or delete the level. An empty security level is a way to lose an issue in plain sight."
+            : null,
+      }),
+    );
     const unused = Number(security.unusedSchemeCount) || 0;
     dimensions.push({
       key: "security-scheme-sprawl",
@@ -1576,14 +2209,55 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(unused / security.totalSchemes, TOLERANCE.unusedAccessSchemes),
-      detail: unused === 0
-        ? `Every issue security scheme is assigned to a project.`
-        : `${unused} of ${security.totalSchemes} issue security schemes are assigned to no project.`,
+      detail:
+        unused === 0
+          ? `Every issue security scheme is assigned to a project.`
+          : `${unused} of ${security.totalSchemes} issue security schemes are assigned to no project.`,
       action: unused > 0 ? "Delete the unused schemes." : null,
     });
+
+    const members = Number(security.totalMemberCount) || 0;
+    const userMembers = Number(security.userMemberCount) || 0;
+    dimensions.push({
+      key: "security-direct-members",
+      label: "Levels held by individuals",
+      pillar: "security",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(rateOf(userMembers, members), TOLERANCE.directSecurityMembers),
+      detail:
+        userMembers === 0
+          ? `No security level names an individual; every member is a role, group or field.`
+          : `${userMembers} of ${members} security level members are named individuals rather than a role or group.`,
+      action:
+        userMembers > 0
+          ? "Grant levels to project roles or groups; a level held by named people goes stale as people move."
+          : null,
+    });
+
+    if (security.rosterMeasured === false) {
+      dimensions.push(unavailable("security-departed-members", "Departed members", "security", noRoster));
+    } else {
+      const off = Number(security.offRosterMemberCount) || 0;
+      dimensions.push({
+        key: "security-departed-members",
+        label: "Departed members",
+        pillar: "security",
+        available: true,
+        weight: 1,
+        score: scoreFromRate(rateOf(off, userMembers), TOLERANCE.departedAccounts),
+        detail:
+          off === 0
+            ? `No security level names an account that has left.`
+            : `${off} security level members are accounts no longer on the licensed roster.`,
+        action: off > 0 ? "Remove them, and check the level still has someone who can see its issues." : null,
+      });
+    }
   } else {
     dimensions.push(unavailable("security-level-integrity", "Level integrity", "security", noAccess));
     dimensions.push(unavailable("security-scheme-sprawl", "Scheme sprawl", "security", noAccess));
+    dimensions.push(unavailable("security-direct-members", "Levels held by individuals", "security", noAccess));
+    dimensions.push(unavailable("security-departed-members", "Departed members", "security", noAccess));
   }
 
   // Notification schemes: fragile routing, then unused clutter.
@@ -1596,9 +2270,10 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(fragile / notifications.totalSchemes, TOLERANCE.fragileNotificationSchemes),
-      detail: fragile === 0
-        ? `No notification scheme routes an event to a named individual.`
-        : `${fragile} of ${notifications.totalSchemes} notification schemes send an event to a specific person — the notification stops silently the day they leave.`,
+      detail:
+        fragile === 0
+          ? `No notification scheme routes an event to a named individual.`
+          : `${fragile} of ${notifications.totalSchemes} notification schemes send an event to a specific person — the notification stops silently the day they leave.`,
       action: fragile > 0 ? "Route to a project role or group instead of a named account." : null,
     });
     const unused = Number(notifications.unusedSchemeCount) || 0;
@@ -1609,14 +2284,55 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(unused / notifications.totalSchemes, TOLERANCE.unusedAccessSchemes),
-      detail: unused === 0
-        ? `Every notification scheme is assigned to a project.`
-        : `${unused} of ${notifications.totalSchemes} notification schemes are assigned to no project.`,
+      detail:
+        unused === 0
+          ? `Every notification scheme is assigned to a project.`
+          : `${unused} of ${notifications.totalSchemes} notification schemes are assigned to no project.`,
       action: unused > 0 ? "Delete the unused schemes." : null,
     });
+
+    const recipients = Number(notifications.totalRecipientCount) || 0;
+    const emails = Number(notifications.emailRecipientCount) || 0;
+    dimensions.push({
+      key: "notification-external-email",
+      label: "Raw email recipients",
+      pillar: "notifications",
+      available: true,
+      weight: 1.5,
+      score: scoreFromRate(rateOf(emails, recipients), TOLERANCE.externalEmailRecipients),
+      detail:
+        emails === 0
+          ? `No notification scheme sends to a raw email address.`
+          : `${emails} of ${recipients} notification recipients are raw email addresses — outside the user directory, so issue content goes wherever that mailbox forwards, even after people leave.`,
+      action: emails > 0 ? "Replace each address with a group or project role." : null,
+    });
+
+    if (notifications.rosterMeasured === false) {
+      dimensions.push(
+        unavailable("notification-departed-recipients", "Departed recipients", "notifications", noRoster),
+      );
+    } else {
+      const named = Number(notifications.namedUserRecipientCount) || 0;
+      const off = Number(notifications.offRosterRecipientCount) || 0;
+      dimensions.push({
+        key: "notification-departed-recipients",
+        label: "Departed recipients",
+        pillar: "notifications",
+        available: true,
+        weight: 1,
+        score: scoreFromRate(rateOf(off, named), TOLERANCE.departedAccounts),
+        detail:
+          off === 0
+            ? `No notification goes to an account that has left.`
+            : `${off} notification recipients are accounts no longer on the licensed roster — those events now reach nobody.`,
+        action: off > 0 ? "Send those events to a project role or group instead." : null,
+      });
+    }
   } else {
     dimensions.push(unavailable("notification-routing", "Routing resilience", "notifications", noAccess));
     dimensions.push(unavailable("notification-scheme-sprawl", "Scheme sprawl", "notifications", noAccess));
+    dimensions.push(unavailable("notification-external-email", "Raw email recipients", "notifications", noAccess));
+    dimensions.push(unavailable("notification-departed-recipients", "Departed recipients", "notifications", noAccess));
   }
 
   // ── Project roles & actors ───────────────────────────────────────────────
@@ -1624,40 +2340,92 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     const withRoles = Number(roles.projectsWithRoles) || 0;
     const missing = Number(roles.projectsMissingAdminActorCount) || 0;
     const coverage = withRoles > 0 ? (withRoles - missing) / withRoles : 1;
-    dimensions.push(targetDimension({
-      key: "role-admin-coverage",
-      label: "Admin coverage",
-      pillar: "roles",
-      weight: 1.5,
-      value: coverage,
-      ...TARGET.adminRoleCoverage,
-      // Dependents: the projects left without a manageable admin role, against every project
-      // that has roles at all.
-      affected: missing,
-      estate: withRoles,
-      prior: prior("role-admin-coverage"),
-      detail: missing === 0
-        ? `Every project with roles has a group or user in its administrator role.`
-        : `${missing} of ${withRoles} projects have an empty administrator role — only a site admin can administer them.`,
-      action: missing > 0 ? "Add a group to the project's administrator role; a project only a site admin can manage is a project nobody manages." : null,
-    }));
+    dimensions.push(
+      targetDimension({
+        key: "role-admin-coverage",
+        label: "Admin coverage",
+        pillar: "roles",
+        weight: 1.5,
+        value: coverage,
+        ...TARGET.adminRoleCoverage,
+        // Dependents: the projects left without a manageable admin role, against every project
+        // that has roles at all.
+        affected: missing,
+        estate: withRoles,
+        prior: prior("role-admin-coverage"),
+        detail:
+          missing === 0
+            ? `Every project with roles has a group or user in its administrator role.`
+            : `${missing} of ${withRoles} projects have nobody in any role that can administer them — only a site admin can.`,
+        action:
+          missing > 0
+            ? "Add a group to the project's administrator role; a project only a site admin can manage is a project nobody manages."
+            : null,
+      }),
+    );
     const off = Number(roles.offRosterActorCount) || 0;
     const denom = Math.max(1, Number(roles.directUserActorCount) || 0);
+    if (roles.rosterMeasured === false) {
+      // Without the roster every user actor read as departed: "Actor hygiene 0" on any site
+      // that had not built People yet.
+      dimensions.push(unavailable("role-actor-hygiene", "Actor hygiene", "roles", noRoster));
+    } else
+      dimensions.push({
+        key: "role-actor-hygiene",
+        label: "Actor hygiene",
+        pillar: "roles",
+        available: true,
+        weight: 1,
+        score: scoreFromRate(off / denom, TOLERANCE.offRosterRoleActors),
+        detail:
+          off === 0
+            ? `No project-role actor is an account off the licensed roster.`
+            : `${off} project-role actors are accounts no longer on the licensed roster.`,
+        action: off > 0 ? "Remove the off-roster accounts from their project roles." : null,
+      });
+
+    const users = Number(roles.directUserActorCount) || 0;
+    const groups = Number(roles.groupActorCount) || 0;
     dimensions.push({
-      key: "role-actor-hygiene",
-      label: "Actor hygiene",
+      key: "role-group-actors",
+      label: "Roles held by individuals",
       pillar: "roles",
       available: true,
       weight: 1,
-      score: scoreFromRate(off / denom, TOLERANCE.offRosterRoleActors),
-      detail: off === 0
-        ? `No project-role actor is an account off the licensed roster.`
-        : `${off} project-role actors are accounts no longer on the licensed roster.`,
-      action: off > 0 ? "Remove the off-roster accounts from their project roles." : null,
+      score: scoreFromRate(rateOf(users, users + groups), TOLERANCE.directRoleActors),
+      detail:
+        users === 0
+          ? `Every project-role actor is a group.`
+          : `${users} of ${users + groups} project-role actors are named individuals rather than groups.`,
+      action:
+        users > 0
+          ? "Fill roles with groups where you can; a group is one place to change membership, a person per project is many."
+          : null,
+    });
+
+    const totalRoles = Number(roles.totalRoles) || 0;
+    const emptyRoles = Number(roles.emptyRoleCount) || 0;
+    dimensions.push({
+      key: "role-unused",
+      label: "Roles nobody holds",
+      pillar: "roles",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(rateOf(emptyRoles, totalRoles), TOLERANCE.unusedRoles),
+      detail:
+        emptyRoles === 0
+          ? `Every one of the ${totalRoles} project roles has someone in it somewhere.`
+          : `${emptyRoles} of ${totalRoles} project roles have no user or group in any project.`,
+      action:
+        emptyRoles > 0
+          ? "Delete them, or take them out of permission schemes; a role nobody holds still appears in every picker."
+          : null,
     });
   } else {
     dimensions.push(unavailable("role-admin-coverage", "Admin coverage", "roles", noAccess));
     dimensions.push(unavailable("role-actor-hygiene", "Actor hygiene", "roles", noAccess));
+    dimensions.push(unavailable("role-group-actors", "Roles held by individuals", "roles", noAccess));
+    dimensions.push(unavailable("role-unused", "Roles nobody holds", "roles", noAccess));
   }
 
   // ── Estate config: the global value lists ─────────────────────────────────
@@ -1675,10 +2443,14 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(removable / estate.totalResolutions, TOLERANCE.duplicateResolutions),
-      detail: removable === 0
-        ? `None of the ${estate.totalResolutions} resolutions duplicate another.`
-        : `${removable} of ${estate.totalResolutions} resolutions duplicate another — every resolution-based report is split across the synonyms.`,
-      action: removable > 0 ? "Consolidate the duplicate resolutions; a report grouped by resolution is only as good as the list." : null,
+      detail:
+        removable === 0
+          ? `None of the ${estate.totalResolutions} resolutions duplicate another.`
+          : `${removable} of ${estate.totalResolutions} resolutions duplicate another — every resolution-based report is split across the synonyms.`,
+      action:
+        removable > 0
+          ? "Consolidate the duplicate resolutions; a report grouped by resolution is only as good as the list."
+          : null,
     });
   } else {
     dimensions.push(unavailable("resolution-naming", "Resolution naming", "estate", noEstate));
@@ -1693,13 +2465,66 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(removable / estate.totalPriorities, TOLERANCE.duplicatePriorities),
-      detail: removable === 0
-        ? `None of the ${estate.totalPriorities} priorities duplicate another.`
-        : `${removable} of ${estate.totalPriorities} priorities duplicate another.`,
+      detail:
+        removable === 0
+          ? `None of the ${estate.totalPriorities} priorities duplicate another.`
+          : `${removable} of ${estate.totalPriorities} priorities duplicate another.`,
       action: removable > 0 ? "Consolidate the duplicate priorities." : null,
     });
   } else {
     dimensions.push(unavailable("priority-naming", "Priority naming", "estate", noEstate));
+  }
+
+  // Usage: values no issue carries. Only measured once the issue crawl has run.
+  const noEstateUsage = "Usage comes from the issue crawl. Run a full scan to measure it.";
+  for (const [key, label, totalKey, unusedKey, noun] of [
+    ["priority-usage", "Priority usage", "totalPriorities", "unusedPriorityCount", "priorities"],
+    ["resolution-usage", "Resolution usage", "totalResolutions", "unusedResolutionCount", "resolutions"],
+  ]) {
+    const count = Number(estate?.[totalKey]) || 0;
+    if (!estate?.available || count === 0) {
+      dimensions.push(unavailable(key, label, "estate", noEstate));
+    } else if (!estate.usageMeasured) {
+      dimensions.push(unavailable(key, label, "estate", noEstateUsage));
+    } else {
+      const unusedValues = Number(estate[unusedKey]) || 0;
+      dimensions.push({
+        key,
+        label,
+        pillar: "estate",
+        available: true,
+        weight: 1,
+        score: scoreFromRate(rateOf(unusedValues, count), TOLERANCE.unusedEstateValues),
+        detail:
+          unusedValues === 0
+            ? `Every one of the ${count} ${noun} is on at least one issue.`
+            : `${unusedValues} of ${count} ${noun} are on no issue at all.`,
+        action: unusedValues > 0 ? `Retire the unused ${noun}; each is an option people have to read past.` : null,
+      });
+    }
+  }
+
+  // Defaults: a list with no default makes every create choose, or leaves the value empty.
+  if (estate?.available && (estate.totalPriorities > 0 || estate.totalResolutions > 0)) {
+    const missing = [
+      estate.prioritiesWithoutDefault && "priority",
+      estate.resolutionsWithoutDefault && "resolution",
+    ].filter(Boolean);
+    dimensions.push({
+      key: "estate-defaults",
+      label: "Defaults set",
+      pillar: "estate",
+      available: true,
+      weight: 0.5,
+      score: 100 - 50 * missing.length,
+      detail:
+        missing.length === 0
+          ? `Priorities and resolutions both have a default.`
+          : `No default ${missing.join(" or ")} is set.`,
+      action: missing.length ? `Set a default ${missing.join(" and ")}.` : null,
+    });
+  } else {
+    dimensions.push(unavailable("estate-defaults", "Defaults set", "estate", noEstate));
   }
 
   // ── Agile boards ─────────────────────────────────────────────────────────
@@ -1715,9 +2540,8 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
   const boardsSeen = Number(boards?.total) || 0;
   const boardsUnread = Math.min(boardsSeen, Number(boards?.unreadable) || 0);
   const boardTotal = boards?.readable != null ? Math.max(0, Number(boards.readable) || 0) : boardsSeen;
-  const unreadNote = boardsUnread > 0
-    ? ` ${boardsUnread} more could not be read and are left out, not counted as healthy.`
-    : "";
+  const unreadNote =
+    boardsUnread > 0 ? ` ${boardsUnread} more could not be read and are left out, not counted as healthy.` : "";
   const noReadableBoards = `None of the ${boardsSeen} boards' configuration could be read, so nothing was checked. Team-managed boards often refuse it.`;
   if (boards?.available && boardsSeen > 0 && boardTotal === 0) {
     dimensions.push(unavailable("board-backing", "Board backing filters", "boards", noReadableBoards));
@@ -1725,25 +2549,30 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
   } else if (boards?.available && boardTotal > 0) {
     const broken = (Number(boards.brokenBackingCount) || 0) + (Number(boards.inactiveFilterOwner) || 0);
     const integrity = (boardTotal - broken) / boardTotal;
-    dimensions.push(targetDimension({
-      key: "board-backing",
-      label: "Board backing filters",
-      pillar: "boards",
-      weight: 1.5,
-      value: integrity,
-      ...TARGET.boardBackingIntegrity,
-      // Dependents: the broken boards themselves plus the dashboards that sit on the same
-      // filters, against every board on the site as the estate.
-      affected: broken + (Number(boards.dependentDashboards) || 0),
-      estate: boardTotal,
-      prior: prior("board-backing"),
-      detail: (broken === 0
-        ? `All ${boardTotal} readable boards run on a live, owned backing filter.`
-        : `${broken} of ${boardTotal} readable boards have no backing filter, name one that was deleted, or run on a filter whose owner is deactivated.`) + unreadNote,
-      action: broken > 0
-        ? "A board with no live backing filter shows every issue in the site. Repoint it, or reassign the filter before the account is removed."
-        : null,
-    }));
+    dimensions.push(
+      targetDimension({
+        key: "board-backing",
+        label: "Board backing filters",
+        pillar: "boards",
+        weight: 1.5,
+        value: integrity,
+        ...TARGET.boardBackingIntegrity,
+        // Dependents: the broken boards themselves plus the dashboards that sit on the same
+        // filters, against every board on the site as the estate.
+        affected: broken + (Number(boards.dependentDashboards) || 0),
+        estate: boardTotal,
+        prior: prior("board-backing"),
+        detail:
+          (broken === 0
+            ? `All ${boardTotal} readable boards run on a live, owned backing filter.`
+            : `${broken} of ${boardTotal} readable boards have no backing filter, name one that was deleted, or run on a filter whose owner is deactivated.`) +
+          unreadNote,
+        action:
+          broken > 0
+            ? "A board with no live backing filter shows every issue in the site. Repoint it, or reassign the filter before the account is removed."
+            : null,
+      }),
+    );
 
     const columnIssues = (Number(boards.staleColumnBoards) || 0) + (Number(boards.unmappedColumnBoards) || 0);
     dimensions.push({
@@ -1753,12 +2582,15 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(columnIssues / boardTotal, TOLERANCE.boardsColumnHygiene),
-      detail: (columnIssues === 0
-        ? `Every column on the ${boardTotal} readable boards maps at least one live status.`
-        : `${columnIssues} of ${boardTotal} readable boards have a column that maps no status, or one that has been deleted.`) + unreadNote,
-      action: columnIssues > 0
-        ? "Issues in an unmapped or deleted status vanish from the board with no error. Fix the column mapping in the board's configuration."
-        : null,
+      detail:
+        (columnIssues === 0
+          ? `Every column on the ${boardTotal} readable boards maps at least one live status.`
+          : `${columnIssues} of ${boardTotal} readable boards have a column that maps no status, or one that has been deleted.`) +
+        unreadNote,
+      action:
+        columnIssues > 0
+          ? "Issues in an unmapped or deleted status vanish from the board with no error. Fix the column mapping in the board's configuration."
+          : null,
     });
   } else {
     dimensions.push(unavailable("board-backing", "Board backing filters", "boards", noBoards));
@@ -1781,12 +2613,14 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(rate, TOLERANCE.configChurn),
-      detail: drift.changesInWindow === 0
-        ? `No tracked configuration changed in the last ${drift.windowDays} days.`
-        : `${drift.changesInWindow} of ${drift.trackedEntities} tracked configuration entities changed in the last ${drift.windowDays} days.`,
-      action: rate > TOLERANCE.configChurn
-        ? "Review the Changes tab for what moved recently and confirm it was deliberate."
-        : null,
+      detail:
+        drift.changesInWindow === 0
+          ? `No tracked configuration changed in the last ${drift.windowDays} days.`
+          : `${drift.changesInWindow} of ${drift.trackedEntities} tracked configuration entities changed in the last ${drift.windowDays} days.`,
+      action:
+        rate > TOLERANCE.configChurn
+          ? "Review the Changes tab for what moved recently and confirm it was deliberate."
+          : null,
     });
   } else {
     dimensions.push(unavailable("config-churn", "Configuration churn", "drift", noDrift));
@@ -1804,9 +2638,8 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     const own = dimensions.filter((d) => d.pillar === key);
     const ownScored = own.filter((d) => d.available);
     const ownWeight = ownScored.reduce((sum, d) => sum + d.weight, 0);
-    const pillarScore = ownWeight > 0
-      ? Math.round(ownScored.reduce((sum, d) => sum + d.score * d.weight, 0) / ownWeight)
-      : null;
+    const pillarScore =
+      ownWeight > 0 ? Math.round(ownScored.reduce((sum, d) => sum + d.score * d.weight, 0) / ownWeight) : null;
     return {
       key,
       label,
@@ -1818,7 +2651,7 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       total: own.length,
       // The reason the whole pillar is dark, when it is. Every dimension in an unbuilt
       // pillar reports the same one, so showing it once beats repeating it per bar.
-      reason: ownScored.length === 0 ? own[0]?.reason ?? null : null,
+      reason: ownScored.length === 0 ? (own[0]?.reason ?? null) : null,
     };
   }).filter((p) => p.total > 0);
 
@@ -1834,11 +2667,10 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
   // a site with bad dashboards.
   const scoredPillars = pillars.filter((p) => p.available && p.score !== null);
   const pillarWeight = scoredPillars.reduce((sum, p) => sum + (PILLAR_WEIGHTS[p.key] ?? 1), 0);
-  const score = pillarWeight > 0
-    ? Math.round(
-        scoredPillars.reduce((sum, p) => sum + p.score * (PILLAR_WEIGHTS[p.key] ?? 1), 0) / pillarWeight
-      )
-    : null;
+  const score =
+    pillarWeight > 0
+      ? Math.round(scoredPillars.reduce((sum, p) => sum + p.score * (PILLAR_WEIGHTS[p.key] ?? 1), 0) / pillarWeight)
+      : null;
 
   return {
     score,

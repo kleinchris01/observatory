@@ -18,7 +18,9 @@ import {
   findOrphanedStatuses,
   summarizeWorkflowInsights,
 } from "./workflow-insights.js";
-import { fallbackOn } from "./logger.js";
+import { fallbackOn, logger, errorContext } from "./logger.js";
+import { summarizeRuleInsights } from "./workflow-rules.js";
+import { summarizeFieldConfigHealth, SOURCE_LABEL as FIELD_BEHAVIOUR_SOURCE_LABEL } from "./fieldconfig-insights.js";
 import {
   loadIssueScanProjectTotals,
   loadProjectActivity,
@@ -37,6 +39,9 @@ import {
   readScreenSnapshotMeta,
   readWorkflowSnapshotMeta,
   transitionAwareWorkflowVersion,
+  loadWorkflowsCatalog,
+  loadWorkflowRefsByType,
+  readFieldConfigSnapshotMeta,
   readIssueTypeSnapshotMeta,
   loadIssueTypes,
   readAssetSnapshotMeta,
@@ -72,15 +77,30 @@ import { summarizeFilters, summarizeFilterHealth } from "./filter-insights.js";
 import { summarizeDashboards, summarizeDashboardHealth } from "./dashboard-insights.js";
 import { summarizeIssueTypeInsights, summarizeIssueTypeHealth } from "./issuetype-insights.js";
 import { summarizeAssetInsights, summarizeAssetHealth } from "./asset-insights.js";
-import { attachEstateUsage, summarizeEstateInsights, summarizeEstateHealth } from "./estate-insights.js";
+import {
+  attachEstateUsage,
+  summarizeEstateInsights,
+  summarizeEstateHealth,
+  summarizeEstateUsage,
+} from "./estate-insights.js";
 import { summarizeBoardInsights, summarizeBoardHealth } from "./board-insights.js";
 import {
-  summarizePermissionInsights, summarizePermissionHealth,
-  summarizeSecurityInsights, summarizeSecurityHealth,
-  summarizeNotificationInsights, summarizeNotificationHealth,
-  summarizeRoleInsights, summarizeRoleHealth,
+  summarizePermissionInsights,
+  summarizePermissionHealth,
+  summarizeSecurityInsights,
+  summarizeSecurityHealth,
+  summarizeNotificationInsights,
+  summarizeNotificationHealth,
+  summarizeRoleInsights,
+  summarizeRoleHealth,
 } from "./access-insights.js";
-import { activeRosterIds, buildOwnershipIndex, summarizeOrphanedOwnership } from "./user-ownership.js";
+import {
+  activeRosterIds,
+  buildOwnershipIndex,
+  summarizeOrphanedOwnership,
+  classifyUserActivity,
+  DORMANT_ACCOUNT_DAYS,
+} from "./user-ownership.js";
 
 // Top finding-type/field-type breakdowns are capped -- Overview is a glance-level
 // summary, not the full Field Browser, and shipping ~1500 hydrated fields' worth of
@@ -155,8 +175,9 @@ export function buildFieldUsageInsights(hydratedFields) {
 // as "not measured" and say so, rather than falling back to the fills figure under an
 // issue-shaped label.
 export async function attachUniqueIssueCounts(installationKey, projects) {
-  const totals = await loadIssueScanProjectTotals(installationKey)
-    .catch(fallbackOn("overview.project_totals_load_failed", () => [], { installationKey }));
+  const totals = await loadIssueScanProjectTotals(installationKey).catch(
+    fallbackOn("overview.project_totals_load_failed", () => [], { installationKey }),
+  );
 
   if (!totals.length) return projects.map((p) => ({ ...p, uniqueIssueCount: null }));
 
@@ -212,9 +233,7 @@ export function buildProjectInsights(projects, { listLimit = DASHBOARD_TOP_N } =
   const p90FieldCount = percentile(fieldCounts, 0.9);
   // Sum of field fills across the site. Kept and reported, but never labelled as issues.
   const totalFieldFills = projects.reduce((sum, p) => sum + p.totalIssueCount, 0);
-  const totalUniqueIssues = hasUniqueCounts
-    ? projects.reduce((sum, p) => sum + (p.uniqueIssueCount ?? 0), 0)
-    : null;
+  const totalUniqueIssues = hasUniqueCounts ? projects.reduce((sum, p) => sum + (p.uniqueIssueCount ?? 0), 0) : null;
 
   // Configured well past the site norm. Guarded against a degenerate median: on a site
   // where the median project has one field, "twice the median" is noise, so require an
@@ -243,7 +262,7 @@ export function buildProjectInsights(projects, { listLimit = DASHBOARD_TOP_N } =
   // carrying no work at all, and a partial scan would report most of the site as abandoned.
   // null here means "not measured", and a comparison against null is false, which is the
   // answer we want -- no claim either way.
-  const measuredVolumeOf = (p) => (hasUniqueCounts ? p.uniqueIssueCount ?? null : p.totalIssueCount);
+  const measuredVolumeOf = (p) => (hasUniqueCounts ? (p.uniqueIssueCount ?? null) : p.totalIssueCount);
   const lightVolumeCeiling = Math.max(50, totalVolume / Math.max(1, projects.length) / 4);
   const isIdle = (p) => measuredVolumeOf(p) !== null && measuredVolumeOf(p) < lightVolumeCeiling;
 
@@ -286,14 +305,12 @@ export function buildProjectInsights(projects, { listLimit = DASHBOARD_TOP_N } =
       return p.totalIssueCount > 0 && Number.isFinite(at) && now - at > STALE_MS;
     })
     .sort((a, b) => Date.parse(a.latestIssueUpdatedAt) - Date.parse(b.latestIssueUpdatedAt));
-  const staleProjects = staleProjectsAll
-    .slice(0, listLimit)
-    .map((p) => ({
-      projectKey: p.projectKey,
-      projectName: p.projectName,
-      fieldCount: p.fieldCount,
-      latestIssueUpdatedAt: p.latestIssueUpdatedAt,
-    }));
+  const staleProjects = staleProjectsAll.slice(0, listLimit).map((p) => ({
+    projectKey: p.projectKey,
+    projectName: p.projectName,
+    fieldCount: p.fieldCount,
+    latestIssueUpdatedAt: p.latestIssueUpdatedAt,
+  }));
 
   return {
     totalProjects: projects.length,
@@ -345,7 +362,9 @@ export async function buildWorkflowOverview(installationKey) {
       loadStatusesCatalog(installationKey, meta.version),
       loadWorkflowSchemeStatuses(installationKey, meta.version),
     ]);
-    const issueCounts = await loadStatusIssueCounts(installationKey).catch(fallbackOn("resolver.status_counts_load_failed", () => new Map(), { installationKey }));
+    const issueCounts = await loadStatusIssueCounts(installationKey).catch(
+      fallbackOn("resolver.status_counts_load_failed", () => new Map(), { installationKey }),
+    );
     const hasIssueCounts = issueCounts.size > 0;
     const schemeStatusesAvailable = schemeStatuses.length > 0;
 
@@ -363,20 +382,30 @@ export async function buildWorkflowOverview(installationKey) {
     const automationByStatus = provisionalOrphans.length
       ? await loadStatusAutomationReferences(
           installationKey,
-          provisionalOrphans.map((o) => o.name).filter(Boolean)
+          provisionalOrphans.map((o) => o.name).filter(Boolean),
         ).catch(fallbackOn("overview.status_automation_lookup_failed", () => null, { installationKey }))
       : null;
 
     const orphans = schemeStatusesAvailable
       ? findOrphanedStatuses(statuses, schemeStatuses, hasIssueCounts ? issueCounts : null, automationByStatus)
       : [];
-    const balance = schemeStatusesAvailable
-      ? computeSchemeCategoryBalance(schemes, schemeStatuses, statuses)
-      : [];
+    const balance = schemeStatusesAvailable ? computeSchemeCategoryBalance(schemes, schemeStatuses, statuses) : [];
 
     // Schemes governing more than one project are where standardization has any leverage:
     // a scheme used once is a bespoke process by definition.
     const sharedSchemes = schemes.filter((s) => (s.projectCount ?? 0) > 1).length;
+
+    // Broken rule references and inactive workflows. Only when this snapshot read the rules;
+    // otherwise unavailable, so the dimensions say "rebuild" rather than scoring clean.
+    const ruleIntegrity =
+      meta.workflowRules != null
+        ? await Promise.all([
+            loadWorkflowsCatalog(installationKey, meta.version),
+            loadWorkflowRefsByType(installationKey, meta.version, ["field", "group", "role"]),
+          ])
+            .then(([catalog, refs]) => ({ available: true, ...summarizeRuleInsights({ meta, catalog, refs }).totals }))
+            .catch(fallbackOn("overview.workflow_rules_failed", () => ({ available: false }), { installationKey }))
+        : { available: false };
 
     return {
       available: true,
@@ -385,12 +414,13 @@ export async function buildWorkflowOverview(installationKey) {
       schemeCount: schemes.length,
       statusCount: statuses.length,
       sharedSchemes,
+      ruleIntegrity,
       schemeStatusesAvailable,
       hasIssueCounts,
       ...summarizeWorkflowInsights({ duplicateGroups, orphans, balance }),
     };
   } catch (error) {
-    console.warn("buildWorkflowOverview failed:", error?.message || error);
+    logger.warn("buildWorkflowOverview.failed", errorContext(error));
     return { available: false, state: "error" };
   }
 }
@@ -426,14 +456,16 @@ export async function buildFilterOverview(installationKey, { projectKeys = null,
       brokenProjects: undefined,
       unknownTypeRefs: undefined,
       worst: summary.filters.slice(0, 8).map((f) => ({
-        id: f.id, name: f.name, ownerName: f.ownerName,
+        id: f.id,
+        name: f.name,
+        ownerName: f.ownerName,
         subscriptionCount: f.subscriptionCount,
         code: f.findings[0]?.code ?? null,
       })),
       health: summarizeFilterHealth(summary),
     };
   } catch (error) {
-    console.warn("buildFilterOverview failed:", error?.message || error);
+    logger.warn("buildFilterOverview.failed", errorContext(error));
     return { available: false, state: "error" };
   }
 }
@@ -463,13 +495,16 @@ export async function buildDashboardOverview(installationKey) {
       // The full per-dashboard list stays on the tab.
       dashboards: undefined,
       worst: summary.dashboards.slice(0, 8).map((d) => ({
-        id: d.id, name: d.name, ownerName: d.ownerName,
-        popularity: d.popularity, code: d.findings[0]?.code ?? null,
+        id: d.id,
+        name: d.name,
+        ownerName: d.ownerName,
+        popularity: d.popularity,
+        code: d.findings[0]?.code ?? null,
       })),
       health: summarizeDashboardHealth(summary),
     };
   } catch (error) {
-    console.warn("buildDashboardOverview failed:", error?.message || error);
+    logger.warn("buildDashboardOverview.failed", errorContext(error));
     return { available: false, state: "error" };
   }
 }
@@ -501,11 +536,10 @@ export async function buildScreenOverview(installationKey) {
       })),
     };
   } catch (error) {
-    console.warn("buildScreenOverview failed:", error?.message || error);
+    logger.warn("buildScreenOverview.failed", errorContext(error));
     return { available: false, state: "error" };
   }
 }
-
 
 // Issue type health for the Overview.
 //
@@ -541,17 +575,13 @@ export async function buildIssueTypeOverview(installationKey) {
       health: summarizeIssueTypeHealth(summary),
     };
   } catch (error) {
-    console.warn("buildIssueTypeOverview failed:", error?.message || error);
+    logger.warn("buildIssueTypeOverview.failed", errorContext(error));
     return { available: false, state: "error" };
   }
 }
 
 // The People pillar's health inputs: how many licensed accounts are deactivated, and how
 // much owned config (filters / dashboards / rules) belongs to an account not in the roster.
-// A year, matching the default the People pillar's dormant-seat story specified. Not
-// admin-tunable through this constant -- the tolerance on the Governance rules page is what
-// an admin moves; this is only the line between "active" and "idle" for counting purposes.
-const DORMANT_ACCOUNT_DAYS = 365;
 
 export async function buildUserOverview(installationKey) {
   try {
@@ -562,7 +592,9 @@ export async function buildUserOverview(installationKey) {
       loadUsers(installationKey, meta.version),
       loadUserGovernanceSummary(installationKey, meta.version),
       buildOwnershipIndex(installationKey).catch(() => ({ byAccount: new Map(), available: {} })),
-      Promise.resolve().then(() => readAutomationPart(installationKey, "users")).catch(() => null),
+      Promise.resolve()
+        .then(() => readAutomationPart(installationKey, "users"))
+        .catch(() => null),
     ]);
 
     const rosterIds = activeRosterIds(users);
@@ -577,23 +609,7 @@ export async function buildUserOverview(installationKey) {
     // missing row is never counted as dormant. A crawl that has not completed suppresses the
     // measurement entirely rather than reporting the whole roster as idle.
     const activity = await loadUserActivity(installationKey, [...rosterIds]).catch(() => []);
-    const activityByAccount = new Map(activity.map((a) => [a.accountId, a]));
-    const activityMeasured = activity.length > 0;
-    const dormantCutoff = new Date(Date.now() - DORMANT_ACCOUNT_DAYS * 86400000).toISOString();
-
-    let dormantAccounts = 0;
-    let measuredAccounts = 0;
-    if (activityMeasured) {
-      for (const user of users) {
-        // Deactivated accounts are excluded, not counted: they are a different finding, and
-        // double-reporting them would make the licence number look worse than it is.
-        if (user.active === false) continue;
-        const row = activityByAccount.get(user.accountId);
-        if (!row?.lastActivityAt) continue; // unmeasured, not idle
-        measuredAccounts += 1;
-        if (row.lastActivityAt < dormantCutoff) dormantAccounts += 1;
-      }
-    }
+    const { measured: activityMeasured, measuredAccounts, dormantAccounts } = classifyUserActivity(users, activity);
     const orphaned = summarizeOrphanedOwnership(ownership, rosterIds);
     const totalUsers = Number(summary?.totalUsers) || users.length;
     const deactivatedUsers = Math.max(0, totalUsers - (Number(summary?.activeUsers) || totalUsers));
@@ -636,7 +652,7 @@ export async function buildUserOverview(installationKey) {
       },
     };
   } catch (error) {
-    console.warn("buildUserOverview failed:", error?.message || error);
+    logger.warn("buildUserOverview.failed", errorContext(error));
     return { available: false, state: "error" };
   }
 }
@@ -673,7 +689,7 @@ export async function buildAssetOverview(installationKey) {
       // empty list here reads as "unmeasured", not as "every type is empty" -- summarizeAssetInsights
       // already keeps those apart.
       loadAssetTypeCounts(installationKey).catch(
-        fallbackOn("overview.asset_type_counts_load_failed", () => [], { installationKey })
+        fallbackOn("overview.asset_type_counts_load_failed", () => [], { installationKey }),
       ),
     ]);
     const summary = summarizeAssetInsights({ schemas, objectTypes, attributes, typeCounts, assetsEnabled: true });
@@ -697,7 +713,7 @@ export async function buildAssetOverview(installationKey) {
       },
     };
   } catch (error) {
-    console.warn("buildAssetOverview failed:", error?.message || error);
+    logger.warn("buildAssetOverview.failed", errorContext(error));
     return { available: false, state: "error" };
   }
 }
@@ -720,10 +736,18 @@ export async function buildAccessOverview(installationKey) {
     }
 
     const [
-      permSchemes, permHolders, permProjects,
-      secSchemes, secHolders, secProjects, levels,
-      notifSchemes, notifHolders, notifProjects,
-      roleSchemes, roleHolders,
+      permSchemes,
+      permHolders,
+      permProjects,
+      secSchemes,
+      secHolders,
+      secProjects,
+      levels,
+      notifSchemes,
+      notifHolders,
+      notifProjects,
+      roleSchemes,
+      roleHolders,
     ] = await Promise.all([
       loadSchemes(installationKey, meta.version, "permission"),
       loadSchemeHolders(installationKey, meta.version, "permission"),
@@ -739,10 +763,32 @@ export async function buildAccessOverview(installationKey) {
       loadSchemeHolders(installationKey, meta.version, "project-role"),
     ]);
 
-    const permissions = summarizePermissionInsights({ schemes: permSchemes, holders: permHolders, schemeProjects: permProjects, rosterAccountIds });
-    const security = summarizeSecurityInsights({ schemes: secSchemes, levels, holders: secHolders, schemeProjects: secProjects, rosterAccountIds });
-    const notifications = summarizeNotificationInsights({ schemes: notifSchemes, holders: notifHolders, schemeProjects: notifProjects, rosterAccountIds });
-    const roles = summarizeRoleInsights({ roles: roleSchemes, holders: roleHolders, rosterAccountIds });
+    const permissions = summarizePermissionInsights({
+      schemes: permSchemes,
+      holders: permHolders,
+      schemeProjects: permProjects,
+      rosterAccountIds,
+    });
+    const security = summarizeSecurityInsights({
+      schemes: secSchemes,
+      levels,
+      holders: secHolders,
+      schemeProjects: secProjects,
+      rosterAccountIds,
+    });
+    const notifications = summarizeNotificationInsights({
+      schemes: notifSchemes,
+      holders: notifHolders,
+      schemeProjects: notifProjects,
+      rosterAccountIds,
+    });
+    const roles = summarizeRoleInsights({
+      roles: roleSchemes,
+      holders: roleHolders,
+      rosterAccountIds,
+      permHolders,
+      permProjects,
+    });
 
     return {
       available: true,
@@ -755,7 +801,7 @@ export async function buildAccessOverview(installationKey) {
       roles: { ...roles, health: summarizeRoleHealth(roles) },
     };
   } catch (error) {
-    console.warn("buildAccessOverview failed:", error?.message || error);
+    logger.warn("buildAccessOverview.failed", errorContext(error));
     return { available: false, state: "error" };
   }
 }
@@ -794,10 +840,33 @@ export async function buildEstateOverview(installationKey) {
       state: meta.state || "idle",
       refreshedAt: meta.refreshedAt || null,
       lastError: meta.lastError || null,
-      health: summarizeEstateHealth(summary),
+      health: { ...summarizeEstateHealth(summary), ...summarizeEstateUsage(usage) },
     };
   } catch (error) {
-    console.warn("buildEstateOverview failed:", error?.message || error);
+    logger.warn("buildEstateOverview.failed", errorContext(error));
+    return { available: false, state: "error" };
+  }
+}
+
+// The field behaviour pillar's input: field schemes or legacy field configurations. The
+// findings were computed and stored at build time, so this is one meta read.
+export async function buildFieldConfigOverview(installationKey) {
+  try {
+    const meta = await readFieldConfigSnapshotMeta(installationKey);
+    if (!meta?.version) return { available: false, state: meta?.state || "idle", lastError: meta?.lastError || null };
+    return {
+      available: true,
+      state: meta.state || "idle",
+      refreshedAt: meta.refreshedAt || null,
+      lastError: meta.lastError || null,
+      source: meta.source,
+      sourceLabel: FIELD_BEHAVIOUR_SOURCE_LABEL[meta.source] || meta.source,
+      fallbackReason: meta.fallbackReason || null,
+      summary: meta.summary,
+      health: summarizeFieldConfigHealth(meta, meta.summary),
+    };
+  } catch (error) {
+    logger.warn("buildFieldConfigOverview.failed", errorContext(error));
     return { available: false, state: "error" };
   }
 }
@@ -818,7 +887,8 @@ export async function buildDriftHealthOverview(installationKey) {
     if (!meta?.version) return { available: false, state: meta?.state || "idle", lastError: meta?.lastError || null };
 
     const trackedEntities = await countTrackedEntities(installationKey);
-    if (trackedEntities === 0) return { available: false, state: meta.state || "idle", lastError: meta.lastError || null };
+    if (trackedEntities === 0)
+      return { available: false, state: meta.state || "idle", lastError: meta.lastError || null };
 
     const windowStart = new Date(Date.now() - DRIFT_CHURN_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
     const summary = await loadConfigChangeSummary(installationKey, windowStart);
@@ -833,7 +903,7 @@ export async function buildDriftHealthOverview(installationKey) {
       lastError: meta.lastError || null,
     };
   } catch (error) {
-    console.warn("buildDriftHealthOverview failed:", error?.message || error);
+    logger.warn("buildDriftHealthOverview.failed", errorContext(error));
     return { available: false, state: "error" };
   }
 }
@@ -854,7 +924,9 @@ export async function buildBoardOverview(installationKey) {
     ]);
     const [filters, statusCatalog] = await Promise.all([
       filterMeta?.version ? loadFilters(installationKey, filterMeta.version).catch(() => null) : Promise.resolve(null),
-      workflowMeta?.version ? loadStatusesCatalog(installationKey, workflowMeta.version).catch(() => null) : Promise.resolve(null),
+      workflowMeta?.version
+        ? loadStatusesCatalog(installationKey, workflowMeta.version).catch(() => null)
+        : Promise.resolve(null),
     ]);
     const knownStatusIds = statusCatalog ? new Set(statusCatalog.map((s) => String(s.id ?? s.statusId))) : null;
 
@@ -874,7 +946,7 @@ export async function buildBoardOverview(installationKey) {
       health: summarizeBoardHealth(summary),
     };
   } catch (error) {
-    console.warn("buildBoardOverview failed:", error?.message || error);
+    logger.warn("buildBoardOverview.failed", errorContext(error));
     return { available: false, state: "error" };
   }
 }
@@ -910,7 +982,21 @@ export async function captureSiteHealth(installationKey, deps) {
   }
 
   try {
-    const [meta, config, workflow, screens, issueTypeOverview, userOverview, assetOverview, accessOverview, estateOverview, boardOverview, driftHealth, automationAnalysis] = await Promise.all([
+    const [
+      meta,
+      config,
+      workflow,
+      screens,
+      issueTypeOverview,
+      userOverview,
+      assetOverview,
+      accessOverview,
+      estateOverview,
+      boardOverview,
+      driftHealth,
+      automationAnalysis,
+      fieldConfigOverview,
+    ] = await Promise.all([
       readSnapshotMeta(installationKey),
       readAdminConfig(),
       buildWorkflowOverview(installationKey),
@@ -923,6 +1009,7 @@ export async function captureSiteHealth(installationKey, deps) {
       buildBoardOverview(installationKey),
       buildDriftHealthOverview(installationKey),
       readAutomationAnalysis(installationKey).catch(() => null),
+      buildFieldConfigOverview(installationKey),
     ]);
     let filters = null;
     let dashboards = null;
@@ -938,7 +1025,7 @@ export async function captureSiteHealth(installationKey, deps) {
       const withCounts = await attachUniqueIssueCounts(installationKey, rawProjects);
       const dup = buildDuplicateNameCountMap(fields);
       const hydrated = fields.map((f) =>
-        hydrateFieldForGovernance(f, null, dup.get(normalizeFieldName(f.name)) ?? 1, config.governanceThresholds)
+        hydrateFieldForGovernance(f, null, dup.get(normalizeFieldName(f.name)) ?? 1, config.governanceThresholds),
       );
       fieldUsage = buildFieldUsageInsights(hydrated);
       projects = buildProjectInsights(withCounts);
@@ -947,8 +1034,9 @@ export async function captureSiteHealth(installationKey, deps) {
       // series. Best-effort: a site scanned before issue dates were captured has no
       // activity, and the dimension reports itself unmeasured rather than scoring a rate
       // it could not derive.
-      const activity = await loadProjectActivity(installationKey)
-        .catch(fallbackOn("overview.project_activity_load_failed", () => new Map(), { installationKey }));
+      const activity = await loadProjectActivity(installationKey).catch(
+        fallbackOn("overview.project_activity_load_failed", () => new Map(), { installationKey }),
+      );
       adoption = summarizeAdoption(withCounts, activity);
 
       // The project keys AND names the filter pillar needs for its broken-reference join,
@@ -959,28 +1047,32 @@ export async function captureSiteHealth(installationKey, deps) {
       // the same idea for the JQL issue-type join, reusing what the issue-type overview
       // already loaded.
       const projectKeys = new Set(withCounts.flatMap((p) => [p.projectKey, p.projectName]).filter(Boolean));
-      filters = (await buildFilterOverview(installationKey, { projectKeys, typeNames: issueTypeOverview?.typeNames ?? null })).health ?? null;
+      filters =
+        (await buildFilterOverview(installationKey, { projectKeys, typeNames: issueTypeOverview?.typeNames ?? null }))
+          .health ?? null;
       dashboards = (await buildDashboardOverview(installationKey)).health ?? null;
     }
 
     // The previous snapshot's raw dimension values, for the directional term. Best-effort:
     // no history (first scan) or a read failure both mean "score the level only", which is
     // the right behaviour, not an error.
-    const priorValues = typeof loadPriorHealthDimensions === "function"
-      ? await loadPriorHealthDimensions(installationKey).catch(
-          fallbackOn("health.prior_dimensions_load_failed", () => ({}), { installationKey })
-        )
-      : {};
+    const priorValues =
+      typeof loadPriorHealthDimensions === "function"
+        ? await loadPriorHealthDimensions(installationKey).catch(
+            fallbackOn("health.prior_dimensions_load_failed", () => ({}), { installationKey }),
+          )
+        : {};
 
     // The screen x field cross. Computed here, once per scan, because it is the widest join
     // in the app and the Overview read cannot afford it -- that reads the summary this
     // persists. Best-effort: a missing half leaves two dimensions unavailable, which is
     // excluded from the mean, rather than costing the whole score.
-    const screenCross = typeof computeScreenCross === "function"
-      ? await computeScreenCross(installationKey).catch(
-          fallbackOn("health.screen_cross_failed", () => null, { installationKey })
-        )
-      : null;
+    const screenCross =
+      typeof computeScreenCross === "function"
+        ? await computeScreenCross(installationKey).catch(
+            fallbackOn("health.screen_cross_failed", () => null, { installationKey }),
+          )
+        : null;
 
     const health = computeSiteHealth({
       fieldUsage,
@@ -1002,6 +1094,7 @@ export async function captureSiteHealth(installationKey, deps) {
       estate: estateOverview?.health ?? null,
       boards: boardOverview?.health ?? null,
       drift: driftHealth,
+      fieldConfigs: fieldConfigOverview?.health ?? null,
       tolerances: config?.healthTolerances,
       targets: config?.healthTargets,
       priorValues,
@@ -1010,7 +1103,7 @@ export async function captureSiteHealth(installationKey, deps) {
     await recordHealthSnapshot(installationKey, health);
     return { captured: true, score: health.score };
   } catch (error) {
-    console.warn("captureSiteHealth: failed", error?.message || error);
+    logger.warn("captureSiteHealth.failed", errorContext(error));
     return { captured: false };
   }
 }

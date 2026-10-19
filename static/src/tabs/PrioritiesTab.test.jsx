@@ -1,4 +1,3 @@
-import React from "react";
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -48,12 +47,19 @@ describe("PrioritiesTab", () => {
   // The resolver now attaches the crawl's counts. A counted zero and an uncounted value must
   // read differently: zero is what makes a value look safe to retire.
   test("shows each value's issue count, a counted zero, and unmeasured apart", async () => {
-    invoke.mockImplementation((fn) => fn === "getEstateInventory"
-      ? Promise.resolve(inventory({
-        resolutions: [{ id: "1", name: "Done", issueCount: 1204 }, { id: "3", name: "Won't Fix", issueCount: 0 }],
-        priorities: [{ id: "10", name: "High", issueCount: null }],
-      }))
-      : Promise.resolve({}));
+    invoke.mockImplementation((fn) =>
+      fn === "getEstateInventory"
+        ? Promise.resolve(
+            inventory({
+              resolutions: [
+                { id: "1", name: "Done", issueCount: 1204 },
+                { id: "3", name: "Won't Fix", issueCount: 0 },
+              ],
+              priorities: [{ id: "10", name: "High", issueCount: null }],
+            }),
+          )
+        : Promise.resolve({}),
+    );
     render(<PrioritiesTab />);
 
     await userEvent.click(await screen.findByRole("button", { name: /^Resolutions/ }));
@@ -65,15 +71,25 @@ describe("PrioritiesTab", () => {
   });
 
   test("reports never-built rather than an empty list", async () => {
-    invoke.mockImplementation((fn) => fn === "getEstateInventory"
-      ? Promise.resolve({ neverBuilt: true, state: "idle", resolutions: [], priorities: [], governance: { available: false } })
-      : Promise.resolve({}));
+    invoke.mockImplementation((fn) =>
+      fn === "getEstateInventory"
+        ? Promise.resolve({
+            neverBuilt: true,
+            state: "idle",
+            resolutions: [],
+            priorities: [],
+            governance: { available: false },
+          })
+        : Promise.resolve({}),
+    );
     render(<PrioritiesTab />);
     expect(await screen.findByText(/No priorities & resolutions inventory has been built yet/i)).toBeInTheDocument();
   });
 
   test("shows the totals and the duplicate-name finding", async () => {
-    invoke.mockImplementation((fn) => fn === "getEstateInventory" ? Promise.resolve(inventory()) : Promise.resolve({}));
+    invoke.mockImplementation((fn) =>
+      fn === "getEstateInventory" ? Promise.resolve(inventory()) : Promise.resolve({}),
+    );
     render(<PrioritiesTab />);
 
     expect(await screen.findByText("Priorities & Resolutions")).toBeInTheDocument();
@@ -82,7 +98,9 @@ describe("PrioritiesTab", () => {
   });
 
   test("lists resolutions and flags the near-duplicate", async () => {
-    invoke.mockImplementation((fn) => fn === "getEstateInventory" ? Promise.resolve(inventory()) : Promise.resolve({}));
+    invoke.mockImplementation((fn) =>
+      fn === "getEstateInventory" ? Promise.resolve(inventory()) : Promise.resolve({}),
+    );
     render(<PrioritiesTab />);
     await screen.findByText("Priorities & Resolutions");
     await userEvent.click(screen.getByRole("button", { name: /^Resolutions/ }));
@@ -95,12 +113,25 @@ describe("PrioritiesTab", () => {
   test("shows the estate pillar of the site health score on the overview", async () => {
     invoke.mockImplementation((fn, args) => {
       if (fn === "getEstateInventory") return Promise.resolve(inventory());
-      if (fn === "getPillarHealth" && args?.pillar === "estate") return Promise.resolve({
-        pillar: {
-          key: "estate", available: true, score: 74, grade: "C", total: 2,
-          dimensions: [{ key: "resolution-naming", label: "Resolution naming", available: true, score: 60, detail: "1 of 3 duplicate." }],
-        },
-      });
+      if (fn === "getPillarHealth" && args?.pillar === "estate")
+        return Promise.resolve({
+          pillar: {
+            key: "estate",
+            available: true,
+            score: 74,
+            grade: "C",
+            total: 2,
+            dimensions: [
+              {
+                key: "resolution-naming",
+                label: "Resolution naming",
+                available: true,
+                score: 60,
+                detail: "1 of 3 duplicate.",
+              },
+            ],
+          },
+        });
       return Promise.resolve({});
     });
     render(<PrioritiesTab />);

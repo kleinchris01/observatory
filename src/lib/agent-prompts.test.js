@@ -12,8 +12,7 @@ const MANIFEST = resolve(ROOT, "manifest.yml");
 
 // A distinctive sentence from resource/agent/prompts/_preamble.md. If the preamble is
 // reworded, update this and re-apply the preamble to every prompt file in the same change.
-const PREAMBLE_MARKER =
-  'For any "does anything use / reference / depend on X" question there are three different';
+const PREAMBLE_MARKER = 'For any "does anything use / reference / depend on X" question there are three different';
 
 const promptFiles = () => readdirSync(PROMPT_DIR).filter((f) => f.endsWith(".txt"));
 
@@ -38,12 +37,10 @@ describe("agent prompt files", () => {
 describe("manifest <-> prompt files agree on the agent set", () => {
   const manifestText = readFileSync(MANIFEST, "utf8");
   // Dependency-free: pull the prompt-resource references straight out of the manifest text.
-  const referenced = [
-    ...manifestText.matchAll(/prompt:\s*resource:agent-resources;prompts\/([a-z0-9-]+\.txt)/g),
-  ].map((m) => m[1]);
-  const agentKeys = [
-    ...manifestText.matchAll(/-\s*key:\s*(observatory-[a-z]+-expert)\b/g),
-  ].map((m) => m[1]);
+  const referenced = [...manifestText.matchAll(/prompt:\s*resource:agent-resources;prompts\/([a-z0-9-]+\.txt)/g)].map(
+    (m) => m[1],
+  );
+  const agentKeys = [...manifestText.matchAll(/-\s*key:\s*(observatory-[a-z]+-expert)\b/g)].map((m) => m[1]);
 
   test("every declared agent key is observatory-<pillar>-expert", () => {
     expect(agentKeys.length).toBeGreaterThan(0);

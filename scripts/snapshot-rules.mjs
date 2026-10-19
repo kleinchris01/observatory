@@ -14,12 +14,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  buildManifest,
-  findSecrets,
-  ruleFileName,
-  serializeRule,
-} from "../src/lib/rule-snapshot.js";
+import { buildManifest, findSecrets, ruleFileName, serializeRule } from "../src/lib/rule-snapshot.js";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -66,9 +61,7 @@ function main() {
 
   fs.mkdirSync(outDir, { recursive: true });
 
-  const existing = new Set(
-    fs.readdirSync(outDir).filter((f) => f.endsWith(".json") && f !== "_manifest.json")
-  );
+  const existing = new Set(fs.readdirSync(outDir).filter((f) => f.endsWith(".json") && f !== "_manifest.json"));
 
   let added = 0;
   let changed = 0;
@@ -113,7 +106,9 @@ function main() {
 
   const rel = path.relative(REPO_ROOT, outDir) || outDir;
   console.log(`\nsnapshot-rules${dryRun ? " (dry run)" : ""} -> ${rel}/`);
-  console.log(`  ${rules.length} rules in export (${manifest.enabledCount} enabled, ${manifest.disabledCount} disabled)`);
+  console.log(
+    `  ${rules.length} rules in export (${manifest.enabledCount} enabled, ${manifest.disabledCount} disabled)`,
+  );
   console.log(`  added     ${added}`);
   console.log(`  changed   ${changed}`);
   console.log(`  removed   ${removed.length}`);

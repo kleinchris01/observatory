@@ -28,6 +28,9 @@ vi.mock("./jira-api.js", () => ({
   getAllWorkflowsWithStatuses: vi.fn().mockResolvedValue([]),
   getEverInStatusCounts: vi.fn().mockResolvedValue({ counts: new Map(), failures: [] }),
   getStatusesForProjects: vi.fn().mockResolvedValue({ byProject: new Map(), failures: [] }),
+  getFieldCatalog: vi.fn().mockResolvedValue([]),
+  getGroupsByIds: vi.fn().mockResolvedValue({ byId: new Map(), missing: new Set(), failed: new Set() }),
+  getAllProjectRoles: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("./project-store.js", () => ({
@@ -82,10 +85,13 @@ describe("buildWorkflowSnapshot", () => {
     const result = await buildWorkflowSnapshot("install-1");
 
     expect(writeWorkflowSnapshotMeta).toHaveBeenNthCalledWith(
-      1, "install-1", expect.objectContaining({ state: "building" })
+      1,
+      "install-1",
+      expect.objectContaining({ state: "building" }),
     );
     expect(writeWorkflowSnapshotMeta).toHaveBeenLastCalledWith(
-      "install-1", expect.objectContaining({ state: "ready", totalSchemes: 1 })
+      "install-1",
+      expect.objectContaining({ state: "ready", totalSchemes: 1 }),
     );
     expect(result.schemeCount).toBe(1);
     expect(result.statusCount).toBe(1);
@@ -135,7 +141,8 @@ describe("buildWorkflowSnapshot", () => {
     await expect(buildWorkflowSnapshot("install-1")).rejects.toThrow("Jira API down");
 
     expect(writeWorkflowSnapshotMeta).toHaveBeenLastCalledWith(
-      "install-1", expect.objectContaining({ state: "failed", lastError: expect.stringContaining("Jira API down") })
+      "install-1",
+      expect.objectContaining({ state: "failed", lastError: expect.stringContaining("Jira API down") }),
     );
     expect(replaceWorkflowSnapshot).not.toHaveBeenCalled();
   });
@@ -194,7 +201,7 @@ describe("queueWorkflowSnapshotBuild", () => {
 
     expect(writeWorkflowSnapshotMeta).toHaveBeenCalledWith(
       "install-1",
-      expect.objectContaining({ state: "building", lastError: null })
+      expect.objectContaining({ state: "building", lastError: null }),
     );
     expect(inventorySnapshotQueue.push).toHaveBeenCalledWith({
       body: { jobType: "build-workflow-snapshot", installationKey: "install-1" },
@@ -215,8 +222,17 @@ describe("queueWorkflowSnapshotBuild", () => {
 describe("buildStatusHistorySnapshot", () => {
   test("measures every status in the catalog and stores the counts", async () => {
     readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1" });
-    loadStatusesCatalog.mockResolvedValue([{ id: "1", name: "Done" }, { id: "2", name: "Backlog" }]);
-    getEverInStatusCounts.mockResolvedValue({ counts: new Map([["1", 4000], ["2", 900]]), failures: [] });
+    loadStatusesCatalog.mockResolvedValue([
+      { id: "1", name: "Done" },
+      { id: "2", name: "Backlog" },
+    ]);
+    getEverInStatusCounts.mockResolvedValue({
+      counts: new Map([
+        ["1", 4000],
+        ["2", 900],
+      ]),
+      failures: [],
+    });
 
     const result = await buildStatusHistorySnapshot("install-1");
 
@@ -272,7 +288,6 @@ describe("queueStatusHistoryBuild", () => {
   });
 });
 
-
 // Both workflow-search endpoints 401 on installs that fully declare read:workflow:jira,
 // and `forge install --upgrade` reports the site already current -- so the workflow map is
 // routinely empty through no fault of the caller. Without a second route, every status on
@@ -290,14 +305,16 @@ describe("transition screens", () => {
   it("flattens transition screens out of the workflow list", async () => {
     getAllJiraProjects.mockResolvedValue(projects);
     getWorkflowSchemesForProjects.mockResolvedValue(oneScheme);
-    getAllWorkflowsWithStatuses.mockResolvedValue([{
-      name: "WF",
-      statusIds: ["7"],
-      transitions: [
-        { id: "11", name: "Start", toStatus: "3", screenId: "220" },
-        { id: "12", name: "Resolve", toStatus: "5", screenId: "300" },
-      ],
-    }]);
+    getAllWorkflowsWithStatuses.mockResolvedValue([
+      {
+        name: "WF",
+        statusIds: ["7"],
+        transitions: [
+          { id: "11", name: "Start", toStatus: "3", screenId: "220" },
+          { id: "12", name: "Resolve", toStatus: "5", screenId: "300" },
+        ],
+      },
+    ]);
 
     await buildWorkflowSnapshot("install-1");
 
@@ -350,10 +367,13 @@ describe("transition screens", () => {
   it("falls back to the transition name when it carries no id", async () => {
     getAllJiraProjects.mockResolvedValue(projects);
     getWorkflowSchemesForProjects.mockResolvedValue(oneScheme);
-    getAllWorkflowsWithStatuses.mockResolvedValue([{
-      name: "WF", statusIds: [],
-      transitions: [{ id: null, name: "Edit", screenId: "220" }],
-    }]);
+    getAllWorkflowsWithStatuses.mockResolvedValue([
+      {
+        name: "WF",
+        statusIds: [],
+        transitions: [{ id: null, name: "Edit", screenId: "220" }],
+      },
+    ]);
 
     await buildWorkflowSnapshot("install-1");
 
@@ -373,7 +393,10 @@ describe("transition screens", () => {
 });
 
 describe("scheme statuses via projects", () => {
-  const projects = [{ id: "10", key: "ALPHA", name: "Alpha" }, { id: "11", key: "BRAVO", name: "Bravo" }];
+  const projects = [
+    { id: "10", key: "ALPHA", name: "Alpha" },
+    { id: "11", key: "BRAVO", name: "Bravo" },
+  ];
   const twoProjectScheme = [
     { projectId: "10", scheme: { id: "s1", name: "Shared", defaultWorkflow: "WF" }, error: null },
     { projectId: "11", scheme: { id: "s1", name: "Shared", defaultWorkflow: "WF" }, error: null },
@@ -384,7 +407,10 @@ describe("scheme statuses via projects", () => {
     getWorkflowSchemesForProjects.mockResolvedValue(twoProjectScheme);
     getAllWorkflowsWithStatuses.mockResolvedValue([]);
     getStatusesForProjects.mockResolvedValue({
-      byProject: new Map([["10", ["1", "2"]], ["11", ["2", "3"]]]),
+      byProject: new Map([
+        ["10", ["1", "2"]],
+        ["11", ["2", "3"]],
+      ]),
       failures: [],
     });
 

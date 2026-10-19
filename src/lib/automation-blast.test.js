@@ -59,20 +59,25 @@ describe("scoreRuleBlastRadius — reach", () => {
     const narrow = scoreRuleBlastRadius(summary({ projectIds: ["1"] }));
     const wide = scoreRuleBlastRadius(summary({ projectIds: ["1", "2", "3", "4", "5", "6"] }));
     expect(narrow.estimated).toBe(true);
-    expect(wide.factors.find((f) => f.key === "reach").value)
-      .toBeGreaterThan(narrow.factors.find((f) => f.key === "reach").value);
+    expect(wide.factors.find((f) => f.key === "reach").value).toBeGreaterThan(
+      narrow.factors.find((f) => f.key === "reach").value,
+    );
   });
 
   test("with issue counts, reach is measured against the site total and not flagged estimated", () => {
     const context = {
-      projectIssueCounts: new Map([["1", 900000], ["2", 5]]),
+      projectIssueCounts: new Map([
+        ["1", 900000],
+        ["2", 5],
+      ]),
       siteIssueTotal: 1000000,
     };
     const big = scoreRuleBlastRadius(summary({ projectIds: ["1"] }), context);
     const small = scoreRuleBlastRadius(summary({ projectIds: ["2"] }), context);
     expect(big.estimated).toBe(false);
-    expect(big.factors.find((f) => f.key === "reach").value)
-      .toBeGreaterThan(small.factors.find((f) => f.key === "reach").value);
+    expect(big.factors.find((f) => f.key === "reach").value).toBeGreaterThan(
+      small.factors.find((f) => f.key === "reach").value,
+    );
   });
 });
 
@@ -93,12 +98,15 @@ describe("scoreRuleBlastRadius — cadence", () => {
 describe("scoreRuleBlastRadius — action weight", () => {
   test("transitions and external calls weigh more than a single field write", () => {
     const light = scoreRuleBlastRadius(summary({ writesFields: ["Labels"] }));
-    const heavy = scoreRuleBlastRadius(summary({
-      statusRefs: [{ kind: "write" }, { kind: "write" }],
-      actionKinds: ["outbound-http", "transition"],
-    }));
-    expect(heavy.factors.find((f) => f.key === "writes").value)
-      .toBeGreaterThan(light.factors.find((f) => f.key === "writes").value);
+    const heavy = scoreRuleBlastRadius(
+      summary({
+        statusRefs: [{ kind: "write" }, { kind: "write" }],
+        actionKinds: ["outbound-http", "transition"],
+      }),
+    );
+    expect(heavy.factors.find((f) => f.key === "writes").value).toBeGreaterThan(
+      light.factors.find((f) => f.key === "writes").value,
+    );
   });
 
   test("a rule with no mutating actions scores zero on action weight", () => {
@@ -116,8 +124,9 @@ describe("scoreRuleBlastRadius — fan-out", () => {
   test("fan-out rises with the number of rules woken", () => {
     const one = scoreRuleBlastRadius(summary({ canOtherRuleTrigger: true }), { outDegree: 1 });
     const many = scoreRuleBlastRadius(summary({ canOtherRuleTrigger: true }), { outDegree: 5 });
-    expect(many.factors.find((f) => f.key === "fanout").value)
-      .toBeGreaterThan(one.factors.find((f) => f.key === "fanout").value);
+    expect(many.factors.find((f) => f.key === "fanout").value).toBeGreaterThan(
+      one.factors.find((f) => f.key === "fanout").value,
+    );
   });
 
   test("a rule in a cascade loop maxes fan-out", () => {
@@ -128,19 +137,25 @@ describe("scoreRuleBlastRadius — fan-out", () => {
 
 describe("scoreRuleBlastRadius — modifiers", () => {
   test("a disabled rule is scored down but not to zero — it is a latent hazard", () => {
-    const enabled = scoreRuleBlastRadius(summary({ projectIds: [], triggerType: "jira.jql.scheduled", actionKinds: ["transition"] }));
-    const disabled = scoreRuleBlastRadius(summary({ enabled: false, projectIds: [], triggerType: "jira.jql.scheduled", actionKinds: ["transition"] }));
+    const enabled = scoreRuleBlastRadius(
+      summary({ projectIds: [], triggerType: "jira.jql.scheduled", actionKinds: ["transition"] }),
+    );
+    const disabled = scoreRuleBlastRadius(
+      summary({ enabled: false, projectIds: [], triggerType: "jira.jql.scheduled", actionKinds: ["transition"] }),
+    );
     expect(disabled.score).toBeGreaterThan(0);
     expect(disabled.score).toBeLessThan(enabled.score);
     expect(disabled.modifiers.map((m) => m.key)).toContain("disabled");
   });
 
   test("a credential-bearing rule floors at cross-project even when otherwise contained", () => {
-    const result = scoreRuleBlastRadius(summary({
-      projectIds: ["1"],
-      triggerType: "jira.manual.trigger.issue",
-      risks: [{ code: "embedded-credential" }],
-    }));
+    const result = scoreRuleBlastRadius(
+      summary({
+        projectIds: ["1"],
+        triggerType: "jira.manual.trigger.issue",
+        risks: [{ code: "embedded-credential" }],
+      }),
+    );
     expect(result.score).toBeGreaterThanOrEqual(55);
     expect(result.tier).toBe("cross-project");
     expect(result.credential).toBe(true);
@@ -148,27 +163,33 @@ describe("scoreRuleBlastRadius — modifiers", () => {
   });
 
   test("a big rule already above the floor keeps its real score and records no floor modifier", () => {
-    const result = scoreRuleBlastRadius(summary({
-      projectIds: [],
-      triggerType: "jira.jql.scheduled",
-      statusRefs: [{ kind: "write" }, { kind: "write" }],
-      actionKinds: ["outbound-http", "create-issue"],
-      canOtherRuleTrigger: true,
-      risks: [{ code: "embedded-credential" }],
-    }), { outDegree: 4 });
+    const result = scoreRuleBlastRadius(
+      summary({
+        projectIds: [],
+        triggerType: "jira.jql.scheduled",
+        statusRefs: [{ kind: "write" }, { kind: "write" }],
+        actionKinds: ["outbound-http", "create-issue"],
+        canOtherRuleTrigger: true,
+        risks: [{ code: "embedded-credential" }],
+      }),
+      { outDegree: 4 },
+    );
     expect(result.score).toBeGreaterThan(55);
     expect(result.modifiers.map((m) => m.key)).not.toContain("credential-floor");
   });
 
   test("the worst possible rule lands in the estate tier", () => {
-    const result = scoreRuleBlastRadius(summary({
-      projectIds: [],
-      triggerType: "jira.jql.scheduled",
-      statusRefs: [{ kind: "write" }, { kind: "write" }],
-      writesFields: ["A", "B", "C", "D", "E", "F"],
-      actionKinds: ["outbound-http", "delete-issue", "create-issue", "send-email"],
-      canOtherRuleTrigger: true,
-    }), { inLoop: true });
+    const result = scoreRuleBlastRadius(
+      summary({
+        projectIds: [],
+        triggerType: "jira.jql.scheduled",
+        statusRefs: [{ kind: "write" }, { kind: "write" }],
+        writesFields: ["A", "B", "C", "D", "E", "F"],
+        actionKinds: ["outbound-http", "delete-issue", "create-issue", "send-email"],
+        canOtherRuleTrigger: true,
+      }),
+      { inLoop: true },
+    );
     expect(result.tier).toBe("estate");
     expect(result.score).toBeGreaterThanOrEqual(70);
   });

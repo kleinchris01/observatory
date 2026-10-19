@@ -21,12 +21,7 @@ import {
   getIssueTypeSchemeProjects,
   getAllJiraProjects,
 } from "./jira-api.js";
-import {
-  ensureProjectStoreReady,
-  writeIssueTypeSnapshotMeta,
-  readIssueTypeSnapshotMeta,
-  replaceIssueTypeSnapshot,
-} from "./project-store.js";
+import { ensureProjectStoreReady, writeIssueTypeSnapshotMeta, replaceIssueTypeSnapshot } from "./project-store.js";
 
 // Matches SCREEN_BUILD_STALE_MS and for the same reason: the consumer ceiling is 900s, plus
 // a minute so a build finishing right at the limit is never declared stale out from under
@@ -110,9 +105,7 @@ export async function buildIssueTypeSnapshot(installationKey) {
     // retiring every scheme on the site.
     const schemeProjectRows = await getIssueTypeSchemeProjects(projects.map((p) => p.id));
 
-    const issueTypes = (rawTypes || [])
-      .filter((t) => t?.id != null)
-      .map(normalizeIssueType);
+    const issueTypes = (rawTypes || []).filter((t) => t?.id != null).map(normalizeIssueType);
 
     // Ordered membership. Jira returns the /mapping rows already in an admin's chosen order;
     // item_index is assigned per scheme as they stream past so the order survives the round

@@ -1,4 +1,3 @@
-import React from "react";
 import { describe, test, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -19,34 +18,89 @@ vi.mock("@forge/bridge", () => ({
 }));
 
 const workflow = () => ({
-  available: true, schemeCount: 78, statusCount: 435, sharedSchemes: 14,
-  schemeStatusesAvailable: true, hasIssueCounts: true, automationChecked: true,
-  duplicateGroupCount: 13, reducibleStatusCount: 14, orphanCount: 94,
-  safeToRemoveCount: 8, ruleOnlyStatusCount: 86, flaggedSchemeCount: 8,
+  available: true,
+  schemeCount: 78,
+  statusCount: 435,
+  sharedSchemes: 14,
+  schemeStatusesAvailable: true,
+  hasIssueCounts: true,
+  automationChecked: true,
+  duplicateGroupCount: 13,
+  reducibleStatusCount: 14,
+  orphanCount: 94,
+  safeToRemoveCount: 8,
+  ruleOnlyStatusCount: 86,
+  flaggedSchemeCount: 8,
+  ruleIntegrity: {
+    available: true,
+    workflows: 327,
+    teamManaged: 40,
+    rules: 1200,
+    brokenRules: 6,
+    brokenProperties: 2,
+    inactive: 31,
+  },
+});
+
+const fieldConfigs = () => ({
+  available: true,
+  source: "field-configurations",
+  summary: {
+    requiredHiddenConfigs: 2,
+    requiredHiddenPairs: 5,
+    unusedSchemes: 1,
+    unusedConfigs: 3,
+    reducible: 2,
+    duplicateGroups: 1,
+  },
 });
 
 const screens = () => ({
-  available: true, totalScreens: 746, emptyScreens: 12, unresolvedScreens: 14,
-  unreachedScreens: 252, transitionOnlyScreens: 6, transitionsKnown: true,
-  totalOperations: 1396, danglingOperations: 5, totalSchemes: 60, unusedSchemes: 7,
+  available: true,
+  totalScreens: 746,
+  emptyScreens: 12,
+  unresolvedScreens: 14,
+  unreachedScreens: 252,
+  transitionOnlyScreens: 6,
+  transitionsKnown: true,
+  totalOperations: 1396,
+  danglingOperations: 5,
+  totalSchemes: 60,
+  unusedSchemes: 7,
 });
 
 const automation = () => ({
-  available: true, ruleCount: 1489, disabledCount: 606, credentialRuleCount: 86,
-  externalHttpCount: 79, noActionCount: 3, selfTriggeringCount: 88,
+  available: true,
+  ruleCount: 1489,
+  disabledCount: 606,
+  credentialRuleCount: 86,
+  externalHttpCount: 79,
+  noActionCount: 3,
+  selfTriggeringCount: 88,
 });
 
 const dashboard = () => ({
   fieldUsage: {},
   adoption: {
-    available: true, measuredProjects: 190, judgeableProjects: 180,
-    fellOffCount: 22, neverAdoptedCount: 9, medianIssuesPerDay: 4.4,
+    available: true,
+    measuredProjects: 190,
+    judgeableProjects: 180,
+    fellOffCount: 22,
+    neverAdoptedCount: 9,
+    medianIssuesPerDay: 4.4,
     fellOff: [{ projectKey: "ADVEV", declineFrom: "2023-04" }],
   },
   projects: {
-    totalProjects: 200, medianFieldCount: 38, overConfiguredCount: 64,
-    idleOverConfiguredCount: 9, unusedProjectCount: 12, staleProjectCount: 31,
-    overConfigured: [{}], staleProjects: [{}], topByIssueVolume: [], topByFieldCount: [],
+    totalProjects: 200,
+    medianFieldCount: 38,
+    overConfiguredCount: 64,
+    idleOverConfiguredCount: 9,
+    unusedProjectCount: 12,
+    staleProjectCount: 31,
+    overConfigured: [{}],
+    staleProjects: [{}],
+    topByIssueVolume: [],
+    topByFieldCount: [],
   },
 });
 
@@ -63,10 +117,24 @@ const EXPECTED = [
 
   ["Groups of duplicate statuses", "workflows", { view: "insights", panel: "duplicates" }],
   ["Statuses with no evidence of use", "workflows", { view: "insights", panel: "orphans", statuses: "safe-to-remove" }],
-  ["Statuses only an automation rule can reach", "workflows", { view: "insights", panel: "orphans", statuses: "rule-only" }],
+  [
+    "Statuses only an automation rule can reach",
+    "workflows",
+    { view: "insights", panel: "orphans", statuses: "rule-only" },
+  ],
   ["Workflow schemes with a structural flag", "workflows", { view: "insights", panel: "balance" }],
+  ["Workflow rules naming a deleted field, group or role", "workflows", { view: "rules", filter: "broken" }],
+  ["Inactive workflows", "workflows", { view: "workflow-list", filter: "inactive" }],
 
-  ["Automation rules storing a credential in plaintext", "automation", { section: "findings", risk: "embedded-credential" }],
+  ["Fields required but hidden", "fieldConfigs", { view: "configs", filter: "required-hidden" }],
+  ["Field configurations and schemes no project uses", "fieldConfigs", { view: "configs", filter: "unused" }],
+  ["Identical field configurations or schemes", "fieldConfigs", { view: "configs", filter: "duplicate" }],
+
+  [
+    "Automation rules storing a credential in plaintext",
+    "automation",
+    { section: "findings", risk: "embedded-credential" },
+  ],
   ["Rules that write a field they trigger on", "automation", { section: "cascades", cascadeKind: "self" }],
   ["Rules sending data outside Atlassian", "automation", { section: "findings", risk: "external-http" }],
   ["Rules with a trigger but no actions", "automation", { section: "findings", risk: "no-actions" }],
@@ -82,7 +150,12 @@ const EXPECTED = [
   ["Saved filters with no live owner", "filters", { view: "filters", finding: "orphaned-owner" }],
   ["Filters naming a project that does not exist", "filters", { view: "broken" }],
   ["Email subscriptions on filters nobody opens", "filters", { view: "filters", finding: "subscribed-but-unused" }],
+  ["Filters shared publicly", "filters", { view: "filters", finding: "shared-publicly" }],
+  ["Licensed accounts idle for a year", "people", { view: "roster", filter: "dormant" }],
+  ["Deactivated accounts still holding a licence", "people", { view: "roster", filter: "inactive" }],
   ["Filters shared with every logged-in user", "filters", { view: "filters", finding: "shared-with-everyone" }],
+  ["Dashboards shared publicly", "dashboards", { finding: "shared-publicly" }],
+  ["Dashboards with a gadget reading a missing filter", "dashboards", { finding: "broken-gadget" }],
   ["Duplicate saved filters", "filters", { view: "duplicates" }],
 
   ["Projects people have stopped using", "projects", { filter: "fell-off" }],
@@ -93,26 +166,59 @@ const EXPECTED = [
 ];
 
 const filters = () => ({
-  available: true, total: 412,
-  orphanedCount: 18, sharedWithEveryoneCount: 34, subscribedButUnusedCount: 7,
-  brokenProjectCount: 3, duplicateGroupCount: 22, reducibleCount: 41,
+  available: true,
+  total: 412,
+  orphanedCount: 18,
+  sharedWithEveryoneCount: 34,
+  sharedPubliclyCount: 2,
+  subscribedButUnusedCount: 7,
+  brokenProjectCount: 3,
+  duplicateGroupCount: 22,
+  reducibleCount: 41,
 });
 
 function renderAll(onNavigate) {
-  return render(<OverviewDashboard
-    dashboard={dashboard()}
-    filters={filters()}
-    findingsSummary={{ adminAttention: 123, risky: 88, cleanup: 364, standardize: 129 }}
-    findingsByCode={{
-      "global-context-low-usage": 4, "dead-configuration": 9,
-      orphaned: 3, "configured-no-issues": 2,
-      stale: 11, "context-sprawl": 6, "missing-description": 14,
-    }}
-    workflow={workflow()}
-    screens={screens()}
-    automation={automation()}
-    onNavigate={onNavigate}
-  />);
+  // Every chip is a pillar-view element; the priority view is tested in OverviewDashboard.test.jsx.
+  return render(
+    <OverviewDashboard
+      initialOrder="pillar"
+      dashboard={dashboard()}
+      filters={filters()}
+      users={{
+        available: true,
+        totalUsers: 80,
+        deactivatedUsers: 3,
+        activityMeasured: true,
+        dormantAccounts: 6,
+        dormantAfterDays: 365,
+      }}
+      dashboards={{
+        available: true,
+        total: 90,
+        orphanedCount: 0,
+        editableByEveryoneCount: 0,
+        sharedPubliclyCount: 3,
+        brokenGadgetCount: 2,
+        emptyCount: 0,
+        publishedUnusedCount: 0,
+      }}
+      findingsSummary={{ adminAttention: 123, risky: 88, cleanup: 364, standardize: 129 }}
+      findingsByCode={{
+        "global-context-low-usage": 4,
+        "dead-configuration": 9,
+        orphaned: 3,
+        "configured-no-issues": 2,
+        stale: 11,
+        "context-sprawl": 6,
+        "missing-description": 14,
+      }}
+      workflow={workflow()}
+      fieldConfigs={fieldConfigs()}
+      screens={screens()}
+      automation={automation()}
+      onNavigate={onNavigate}
+    />,
+  );
 }
 
 describe("every finding carries the filter that isolates what it counted", () => {

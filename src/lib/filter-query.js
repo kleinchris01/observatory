@@ -22,6 +22,13 @@ export const FILTER_FINDINGS = [
     match: (f) => f.findings.some((x) => x.code === "orphaned-owner"),
   },
   {
+    key: "shared-publicly",
+    label: "Shared publicly",
+    tone: "danger",
+    hint: "Shared globally. On a site that allows anonymous access, anyone with the link can run these.",
+    match: (f) => f.findings.some((x) => x.code === "shared-publicly"),
+  },
+  {
     key: "shared-with-everyone",
     label: "Shared with everyone",
     tone: "warning",

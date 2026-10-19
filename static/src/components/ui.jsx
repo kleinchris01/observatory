@@ -1,6 +1,13 @@
 import React from "react";
-import { Icon, useLiveDuration } from "./Icons";
-import { buildAutomationRuleUrl, buildIssueUrl, handleJiraLinkClick, ROVO_AGENTS, openRovo } from "../utils";
+import { Icon, useLiveDuration, useChartPalette } from "./Icons";
+import {
+  buildAutomationRuleUrl,
+  buildIssueUrl,
+  buildWorkflowUrl,
+  handleJiraLinkClick,
+  ROVO_AGENTS,
+  openRovo,
+} from "../utils";
 
 // Shared presentation primitives.
 //
@@ -104,7 +111,9 @@ export function Panel({ title, icon, description, action, children, collapsible 
   );
 
   return (
-    <section className={`ui-panel${isCollapsible ? " ui-panel--collapsible" : ""}${isCollapsible && !open ? " ui-panel--collapsed" : ""}`}>
+    <section
+      className={`ui-panel${isCollapsible ? " ui-panel--collapsible" : ""}${isCollapsible && !open ? " ui-panel--collapsed" : ""}`}
+    >
       <div className="ui-panel__head">
         {isCollapsible ? (
           <button
@@ -115,7 +124,9 @@ export function Panel({ title, icon, description, action, children, collapsible 
           >
             {titles}
           </button>
-        ) : titles}
+        ) : (
+          titles
+        )}
         {action}
       </div>
       {open && <div className="ui-panel__body">{children}</div>}
@@ -139,11 +150,17 @@ export function Chip({ children, tone = "neutral", title, onRemove, removeLabel 
         onClick={onRemove}
       >
         <span>{children}</span>
-        <span className="ui-chip__remove" aria-hidden="true">×</span>
+        <span className="ui-chip__remove" aria-hidden="true">
+          ×
+        </span>
       </button>
     );
   }
-  return <span className={`ui-chip ui-chip--${tone}`} title={title}>{children}</span>;
+  return (
+    <span className={`ui-chip ui-chip--${tone}`} title={title}>
+      {children}
+    </span>
+  );
 }
 
 // Empty states are content, not filler: say what is missing and what produces it.
@@ -160,7 +177,14 @@ export function EmptyState({ children, action, inline = false }) {
 // Horizontal bar list. Replaces three near-identical chart cards; kept as bars rather
 // than a charting library because these are always "top N of one measure", where a bar
 // per row reads faster and costs nothing to render.
-export function BarList({ items = [], labelKey, valueKey, formatValue = (v) => v, emptyMessage = "No data yet", tone = "accent" }) {
+export function BarList({
+  items = [],
+  labelKey,
+  valueKey,
+  formatValue = (v) => v,
+  emptyMessage = "No data yet",
+  tone = "accent",
+}) {
   if (!items.length) return <EmptyState inline>{emptyMessage}</EmptyState>;
   const max = Math.max(...items.map((item) => Number(item[valueKey]) || 0), 1);
 
@@ -170,14 +194,118 @@ export function BarList({ items = [], labelKey, valueKey, formatValue = (v) => v
         const value = Number(item[valueKey]) || 0;
         return (
           <div key={item[labelKey]} className="ui-barlist__row">
-            <span className="ui-barlist__label" title={item.projectName || item[labelKey]}>{item[labelKey]}</span>
+            <span className="ui-barlist__label" title={item.projectName || item[labelKey]}>
+              {item[labelKey]}
+            </span>
             <div className="ui-barlist__track">
-              <div className={`ui-barlist__bar ui-barlist__bar--${tone}`} style={{ width: `${(value / max) * 100}%` }} />
+              <div
+                className={`ui-barlist__bar ui-barlist__bar--${tone}`}
+                style={{ width: `${(value / max) * 100}%` }}
+              />
             </div>
             <span className="ui-barlist__value">{formatValue(value)}</span>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// Part-to-whole ring with its legend. Drawn as SVG (one stroked circle per segment, offset
+// along the ring) so the Projects and RQT tabs need no charting library.
+//
+// Colours come from the validated chart palette in slot order, never cycled: past the
+// palette's length the smallest segments fold into one "Other" in the muted ink. Each
+// segment is separated by a 2px surface gap; hovering a segment or its legend row shows
+// that segment in the centre, which otherwise shows the total.
+export function Donut({
+  segments = [],
+  size = 120,
+  thickness = 20,
+  centerLabel = "total",
+  emptyMessage = "No data",
+  label = "Breakdown",
+}) {
+  const palette = useChartPalette();
+  const [active, setActive] = React.useState(null);
+  const clean = segments.filter((s) => Number(s.value) > 0);
+  const total = clean.reduce((sum, s) => sum + Number(s.value), 0);
+  if (!clean.length || !total) return <EmptyState inline>{emptyMessage}</EmptyState>;
+
+  let shown = clean;
+  if (clean.length > palette.length) {
+    const kept = clean.slice(0, palette.length - 1);
+    const rest = clean.slice(palette.length - 1).reduce((sum, s) => sum + Number(s.value), 0);
+    shown = [...kept, { label: "Other", value: rest, other: true }];
+  }
+  const colored = shown.map((s, i) => ({ ...s, color: s.other ? "var(--muted)" : palette[i] }));
+
+  const radius = (size - thickness) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const gap = colored.length > 1 ? 2 : 0;
+  let offset = 0;
+  const arcs = colored.map((s) => {
+    const length = (Number(s.value) / total) * circumference;
+    const arc = { ...s, dash: Math.max(length - gap, 0.5), offset };
+    offset += length;
+    return arc;
+  });
+  const focus = active != null ? arcs[active] : null;
+
+  return (
+    <div className="ui-donut">
+      <div className="ui-donut__ring" style={{ width: size, height: size }}>
+        <svg
+          width={size}
+          height={size}
+          viewBox={`0 0 ${size} ${size}`}
+          role="img"
+          aria-label={`${label}: ${arcs.map((a) => `${a.label} ${a.value}`).join(", ")}`}
+        >
+          <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
+            {arcs.map((a, i) => (
+              <circle
+                key={a.label}
+                className="ui-donut__segment"
+                cx={size / 2}
+                cy={size / 2}
+                r={radius}
+                fill="none"
+                stroke={a.color}
+                strokeWidth={active === i ? thickness + 4 : thickness}
+                strokeDasharray={`${a.dash} ${circumference - a.dash}`}
+                strokeDashoffset={-a.offset}
+                onMouseEnter={() => setActive(i)}
+                onMouseLeave={() => setActive(null)}
+              >
+                <title>{`${a.label}: ${a.value.toLocaleString()}`}</title>
+              </circle>
+            ))}
+          </g>
+        </svg>
+        <div className="ui-donut__center" aria-hidden="true">
+          <span className="ui-donut__value">{(focus ? focus.value : total).toLocaleString()}</span>
+          <span className="ui-donut__label" title={focus ? focus.label : centerLabel}>
+            {focus ? focus.label : centerLabel}
+          </span>
+        </div>
+      </div>
+      <div className="chart-legend">
+        {arcs.map((a, i) => (
+          <div
+            className={`chart-legend-item ${active === i ? "chart-legend-item--active" : ""}`}
+            key={a.label}
+            onMouseEnter={() => setActive(i)}
+            onMouseLeave={() => setActive(null)}
+          >
+            <span className="chart-legend-dot" style={{ background: a.color }} />
+            <span className="chart-legend-label" title={a.label}>
+              {a.label}
+            </span>
+            <span className="chart-legend-count">{a.value.toLocaleString()}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -217,13 +345,121 @@ export function RuleLink({ id, name, siteOrigin, className = "" }) {
       target="_blank"
       rel="noreferrer"
       title={`Open "${label}" in Jira automation`}
-      onClick={(event) => { event.stopPropagation(); handleJiraLinkClick(event, href); }}
+      onClick={(event) => {
+        event.stopPropagation();
+        handleJiraLinkClick(event, href);
+      }}
     >
       {label}
     </a>
   );
 }
 
+// "In Review, On Hold -> Approved": where a workflow transition goes from and to, in the
+// words Jira's own editor uses ("Any status" for a global transition, "Create" for the
+// initial one). The transition name alone is frequently just "Done" on a dozen transitions.
+export function TransitionPath({ transition }) {
+  if (!transition) return null;
+  const from =
+    (transition.from || [])
+      .map((s) => s?.name)
+      .filter(Boolean)
+      .join(", ") || "?";
+  return (
+    <span className="ui-transition">
+      <span className="ui-transition__name">{transition.name || transition.id}</span>
+      <span className="ui-transition__path">
+        {from} <span aria-hidden="true">→</span>
+        <span className="ui-srlabel"> to </span> {transition.to?.name || "?"}
+      </span>
+    </span>
+  );
+}
+
+const RULE_KIND_TONE = {
+  validator: "warning",
+  condition: "active",
+  "post-function": "neutral",
+  trigger: "neutral",
+  property: "neutral",
+};
+const RULE_KIND_LABEL = {
+  validator: "Validator",
+  condition: "Condition",
+  "post-function": "Post-function",
+  trigger: "Trigger",
+  property: "Property",
+};
+
+// Every workflow rule or property that points at one thing -- a field, a group -- as rows of
+// workflow, where (transition path or status) and what (rule or property meaning).
+//
+// Shared because three surfaces ask the same question about different things: the field
+// card ("where is this field validated"), the Workflows tab, and the group lookups in People
+// and Access ("which statuses lock editing to this group"). `result` is the resolver's
+// tri-state answer, rendered as such: unavailable never reads as "nothing found".
+export function WorkflowUsageList({ result, siteOrigin, emptyMessage = "No workflow rule or property names this." }) {
+  if (!result) return <EmptyState inline>Looking up workflow rules…</EmptyState>;
+  if (!result.available) {
+    return (
+      <EmptyState inline>
+        {result.reason === "rules-not-read"
+          ? "The workflow inventory was built before transition rules were captured. Rebuild it in the Workflows tab."
+          : "No workflow inventory has been built, so whether a workflow rule uses this is unknown."}
+      </EmptyState>
+    );
+  }
+  if (!result.usages?.length) return <EmptyState inline>{emptyMessage}</EmptyState>;
+
+  return (
+    <ul className="ui-wfusage">
+      {result.usages.map((usage, i) => {
+        const kind = usage.rule?.kind || "property";
+        return (
+          <li key={`${usage.workflowName}-${i}`} className="ui-wfusage__row">
+            <span className="ui-wfusage__workflow">
+              <JiraLink
+                href={buildWorkflowUrl(siteOrigin, usage.workflowName)}
+                title={`Open ${usage.workflowName} in Jira`}
+              >
+                {usage.workflowName}
+              </JiraLink>
+            </span>
+            <span className="ui-wfusage__where">
+              {usage.transition ? (
+                <TransitionPath transition={usage.transition} />
+              ) : (
+                <span className="ui-transition__name">Status: {usage.status?.name || "?"}</span>
+              )}
+            </span>
+            <span className="ui-wfusage__what">
+              <Chip tone={RULE_KIND_TONE[kind] || "neutral"}>{RULE_KIND_LABEL[kind] || kind}</Chip>
+              <span className="ui-wfusage__label" title={usage.rule?.key || usage.property?.key || ""}>
+                {usage.rule ? usage.rule.label : usage.property?.meaning || usage.property?.key}
+              </span>
+              {usage.rule?.summary && <span className="ui-wfusage__summary">{usage.rule.summary}</span>}
+              {(usage.refs || []).map((ref) => (
+                <Chip
+                  key={`${ref.type}-${ref.id}`}
+                  tone={ref.missing ? "critical" : "neutral"}
+                  title={ref.missing ? `${ref.id} no longer exists on this site` : ref.id}
+                >
+                  {ref.label || ref.id}
+                  {ref.missing ? " (missing)" : ""}
+                </Chip>
+              ))}
+            </span>
+          </li>
+        );
+      })}
+      {result.truncated && (
+        <li className="ui-wfusage__more">
+          Showing the first {result.usages.length}. Narrow the search in the Workflows tab.
+        </li>
+      )}
+    </ul>
+  );
+}
 
 // The generic form of RuleLink, for every other Jira object a pillar lists: a project, a
 // board, a screen, a scheme, an Assets schema. The caller has already decided WHICH url to
@@ -243,13 +479,15 @@ export function JiraLink({ href, children, title, className = "" }) {
       target="_blank"
       rel="noreferrer"
       title={title || "Open in Jira"}
-      onClick={(event) => { event.stopPropagation(); handleJiraLinkClick(event, href); }}
+      onClick={(event) => {
+        event.stopPropagation();
+        handleJiraLinkClick(event, href);
+      }}
     >
       {children}
     </a>
   );
 }
-
 
 // Where a finding's remediation stands, in one line. Shared by the Overview (beside each
 // finding) and the Remediation tab (on each card), so "epic, open of total, which quarter"
@@ -265,15 +503,36 @@ export function RemediationStatus({ group, period, siteOrigin, onOpen, compact =
   const epicKey = group?.epic?.issueKey || null;
   const open = group?.openCount ?? 0;
   const total = group?.taskCount ?? 0;
-  const epicLink = epicKey ? <JiraLink href={buildIssueUrl(siteOrigin, epicKey)} title={`Open ${epicKey} in Jira`}>{epicKey}</JiraLink> : null;
+  const epicLink = epicKey ? (
+    <JiraLink href={buildIssueUrl(siteOrigin, epicKey)} title={`Open ${epicKey} in Jira`}>
+      {epicKey}
+    </JiraLink>
+  ) : null;
+  const progress =
+    total === 0 ? "no tasks yet" : open === 0 ? `all ${total} tasks closed` : `${open} of ${total} tasks open`;
+  // Tasks still open under earlier quarters' epics are open work on this finding too.
+  const earlierOpen = (group?.previousPeriods || []).reduce((n, p) => n + (p.openCount || 0), 0);
+  const earlier = earlierOpen > 0 ? ` · ${earlierOpen} more open from earlier quarters` : "";
 
   let tone = "neutral";
   let body;
   if (group && group.isCurrent) {
-    tone = open === 0 && total > 0 ? "success" : "active";
-    body = <>{epicLink} · {total === 0 ? "no tasks yet" : open === 0 ? `all ${total} tasks closed` : `${open} of ${total} tasks open`}</>;
+    tone = open + earlierOpen === 0 && total > 0 ? "success" : "active";
+    body = (
+      <>
+        {epicLink} · {progress}
+        {earlier}
+      </>
+    );
   } else if (group) {
-    body = <>{group.period} epic {epicLink}{period ? ` · ${period} not started` : ""}</>;
+    if (open + earlierOpen > 0) tone = "active";
+    body = (
+      <>
+        {group.period} epic {epicLink} · {progress}
+        {earlier}
+        {period ? ` · ${period} not started` : ""}
+      </>
+    );
   } else {
     body = <>No remediation epic{period ? ` for ${period}` : ""}</>;
   }
@@ -283,7 +542,14 @@ export function RemediationStatus({ group, period, siteOrigin, onOpen, compact =
       <Icon name="wrench" size={12} aria-hidden="true" />
       <span className="ui-remediation__body">{body}</span>
       {onOpen && (
-        <button type="button" className="ui-remediation__open" onClick={(event) => { event.stopPropagation(); onOpen(); }}>
+        <button
+          type="button"
+          className="ui-remediation__open"
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpen();
+          }}
+        >
           {group?.isCurrent ? "Manage" : "Start remediation"} →
         </button>
       )}
@@ -304,7 +570,11 @@ export function RemediationStatus({ group, period, siteOrigin, onOpen, compact =
 // Urgency bands, in the order they are shown. `clear` is not shown as a band -- it is the
 // absence of one -- but it is a value the derivation can return.
 export const GOVERNANCE_BANDS = [
-  { key: "critical", label: "Act now", description: "Broken or exposed configuration. Someone is relying on these being right." },
+  {
+    key: "critical",
+    label: "Act now",
+    description: "Broken or exposed configuration. Someone is relying on these being right.",
+  },
   { key: "warning", label: "Worth reviewing", description: "Working today, but the cost or the risk is growing." },
   { key: "info", label: "Cleanup when convenient", description: "Safe to leave. Safe to remove, once confirmed." },
 ];
@@ -328,7 +598,11 @@ export function Sparkline({ points = [], width = 56, height = 16, title }) {
   // One point is not a trend. Rendering a flat line through a single dot would assert a
   // stability nobody measured.
   if (measured.length < 2) {
-    return <span className="ui-spark ui-spark--none" title={title || "Not enough history to show a trend"}>—</span>;
+    return (
+      <span className="ui-spark ui-spark--none" title={title || "Not enough history to show a trend"}>
+        —
+      </span>
+    );
   }
 
   const span = Math.max(1, points.length - 1);
@@ -369,7 +643,8 @@ export function TrendDelta({ delta }) {
   const direction = delta > 0 ? "up" : "down";
   return (
     <span className={`ui-trend ui-trend--${direction}`}>
-      {delta > 0 ? "+" : "−"}{Math.abs(delta)}
+      {delta > 0 ? "+" : "−"}
+      {Math.abs(delta)}
     </span>
   );
 }
@@ -398,27 +673,29 @@ export function GovernanceRow({
         {band !== "clear" && <span className={`ui-gov__band ui-gov__band--${band}`}>{BAND_LABELS[band] ?? band}</span>}
       </div>
 
-      <div className="ui-gov__meter">
-        {scored ? (
-          <>
-            <span className="ui-gov__track">
-              <span className={`ui-gov__bar ui-gov__bar--${band}`} style={{ width: `${score}%` }} />
-            </span>
-            <span className="ui-gov__score">{score}</span>
-          </>
-        ) : (
-          // A metric with no score still gets a track, so a mixed card grid does not read as
-          // one card quietly missing its bar.
-          <span className="ui-gov__track ui-gov__track--none" />
-        )}
+      {/* No score and no trend: no meter row at all. An invisible placeholder track used to hold
+          the space, which left an empty band under the title of every unscored card. */}
+      {(scored || trend) && (
+        <div className="ui-gov__meter">
+          {scored ? (
+            <>
+              <span className="ui-gov__track">
+                <span className={`ui-gov__bar ui-gov__bar--${band}`} style={{ width: `${score}%` }} />
+              </span>
+              <span className="ui-gov__score">{score}</span>
+            </>
+          ) : (
+            <span className="ui-gov__track ui-gov__track--none" />
+          )}
 
-        {trend && (
-          <span className="ui-gov__trend">
-            <Sparkline points={trend.points} title={trend.title} />
-            <TrendDelta delta={trend.delta} />
-          </span>
-        )}
-      </div>
+          {trend && (
+            <span className="ui-gov__trend">
+              <Sparkline points={trend.points} title={trend.title} />
+              <TrendDelta delta={trend.delta} />
+            </span>
+          )}
+        </div>
+      )}
 
       <div className="ui-gov__body">
         {detail && <span className="ui-gov__detail">{detail}</span>}
@@ -487,7 +764,9 @@ export function SortFilterBar({
             <span>Sort</span>
             <select value={sort ?? ""} onChange={(event) => onSortChange?.(event.target.value)}>
               {sortOptions.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
               ))}
             </select>
           </label>
@@ -496,10 +775,14 @@ export function SortFilterBar({
         {filters.map((filter) => (
           <label className="ui-controls__field" key={filter.key}>
             <span>{filter.label}</span>
-            <select value={filter.value ?? (filter.allValue ?? "all")} onChange={(event) => filter.onChange?.(event.target.value)}>
+            <select
+              value={filter.value ?? filter.allValue ?? "all"}
+              onChange={(event) => filter.onChange?.(event.target.value)}
+            >
               {filter.options.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label}{option.count === undefined ? "" : ` (${option.count})`}
+                  {option.label}
+                  {option.count === undefined ? "" : ` (${option.count})`}
                 </option>
               ))}
             </select>
@@ -528,7 +811,8 @@ export function SortFilterBar({
               onRemove={() => filter.onChange?.(filter.allValue ?? "all")}
               removeLabel={`Clear ${filter.label} filter`}
             >
-              {filter.label}: {filter.options.find((o) => String(o.value) === String(filter.value))?.label ?? filter.value}
+              {filter.label}:{" "}
+              {filter.options.find((o) => String(o.value) === String(filter.value))?.label ?? filter.value}
             </Chip>
           ))}
 
@@ -539,7 +823,9 @@ export function SortFilterBar({
           )}
 
           {canClear && onClear && (
-            <button type="button" className="ui-controls__clear" onClick={onClear}>Clear all</button>
+            <button type="button" className="ui-controls__clear" onClick={onClear}>
+              Clear all
+            </button>
           )}
         </div>
       )}
@@ -613,7 +899,9 @@ export function PillarHealthPanel({ pillar, onOpenTrends, trendsByDimension = nu
       ) : (
         <>
           <div className="ui-pillar__hero">
-            <span className={`ui-health__score ui-health__score--${(pillar.grade || "e").toLowerCase()}`}>{pillar.score}</span>
+            <span className={`ui-health__score ui-health__score--${(pillar.grade || "e").toLowerCase()}`}>
+              {pillar.score}
+            </span>
             <span className="ui-health__of">/ 100</span>
           </div>
           <div className="ui-gov-list">
@@ -636,11 +924,39 @@ export function PillarHealthPanel({ pillar, onOpenTrends, trendsByDimension = nu
 
 // Text arrow rather than an Icon: the icon set has no chevron, and a missing name renders
 // as nothing at all, which would silently strip the affordance.
+// Two to four views of the same content, one chosen ("By priority / By pillar"). Pressed-state
+// buttons rather than tabs: the content underneath is the same set, ordered or grouped
+// differently, not a different page.
+export function SegmentedToggle({ label, options = [], value, onChange }) {
+  return (
+    <div className="ui-segmented" role="group" aria-label={label}>
+      {options.map((option) => {
+        const active = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            className={`ui-segmented__btn${active ? " ui-segmented__btn--active" : ""}`}
+            aria-pressed={active}
+            onClick={() => {
+              if (!active) onChange?.(option.value);
+            }}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function LinkButton({ children, onClick }) {
   return (
     <button type="button" className="ui-linkbutton" onClick={onClick}>
       {children}
-      <span aria-hidden="true" className="ui-linkbutton__arrow">→</span>
+      <span aria-hidden="true" className="ui-linkbutton__arrow">
+        →
+      </span>
     </button>
   );
 }
@@ -670,7 +986,7 @@ export function AskRovo({ agent, scope, context, buildPrompt, onAsk, disabled = 
   const label = scope ? `Ask Rovo about ${scope}` : "Ask Rovo";
   const tip =
     `Opens ${shortName} in Rovo` +
-    (context ? `, seeded with ${context}` : (meta ? `, seeded with ${meta.reads}` : "")) +
+    (context ? `, seeded with ${context}` : meta ? `, seeded with ${meta.reads}` : "") +
     ". Rovo answers from the latest snapshot and never changes Jira.";
 
   async function handleClick(event) {
@@ -735,11 +1051,12 @@ function StageRailNode({ stage, index, total, isCurrent, isSelected, onSelect })
   const live = useLiveDuration(stage.state === "running" ? stage.startedAt : null);
   const tone = STAGE_RAIL_TONE[stage.state] || "pending";
 
-  const meta = stage.state === "running"
-    ? (live || "running")
-    : stage.state === "pending"
-      ? "queued"
-      : formatDurationMs(stage.durationMs) || (stage.state === "skipped" ? "skipped" : "done");
+  const meta =
+    stage.state === "running"
+      ? live || "running"
+      : stage.state === "pending"
+        ? "queued"
+        : formatDurationMs(stage.durationMs) || (stage.state === "skipped" ? "skipped" : "done");
 
   return (
     <button
@@ -756,7 +1073,9 @@ function StageRailNode({ stage, index, total, isCurrent, isSelected, onSelect })
       <span className="stage-rail__meta">
         {meta}
         {Number(stage.attempts) > 1 && (
-          <span className="stage-rail__retry" title={`${stage.attempts} attempts`}>⟳{stage.attempts}</span>
+          <span className="stage-rail__retry" title={`${stage.attempts} attempts`}>
+            ⟳{stage.attempts}
+          </span>
         )}
       </span>
     </button>
@@ -787,5 +1106,87 @@ export function StageRail({ stages = [], currentStage = null, selectedKey = null
         </React.Fragment>
       ))}
     </div>
+  );
+}
+
+// ── Usage: three numbers per item ─────────────────────────────────────────────
+//
+// Every issue-level pillar shows the same three numbers for each item, counted by the issue
+// crawl: how many issues, how many in the last 90 days, and when last. `usage` is the whole
+// getPillarUsage response (usePillarUsage), so the date basis and window travel with the
+// numbers and the labels can't drift from what was counted.
+//
+// Three states, each said: still loading (nothing), not measured (with the reason), or
+// measured. An item missing from a measured response is a real zero -- the crawl covered every
+// issue and found none -- so it reads "0 issues · never", not "not measured".
+const USAGE_BASIS_WORDS = {
+  created: { recent: "created", last: "last created" },
+  updated: { recent: "active", last: "last activity" },
+  resolved: { recent: "resolved", last: "last resolved" },
+};
+
+export function formatUsageWhen(iso, now = Date.now()) {
+  if (!iso) return "never";
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return "unknown";
+  const days = Math.floor((now - t) / 86400000);
+  if (days < 1) return "today";
+  if (days < 60) return `${days}d ago`;
+  return new Date(t).toLocaleDateString(undefined, { month: "short", year: "numeric" });
+}
+
+// Several items' usage as one, for a thing that is made of them -- a security scheme of its
+// levels, later a scheme of its projects. Totals add, the last date is the latest.
+export function combineUsageItems(usage, entityIds = []) {
+  const out = { total: 0, recent: 0, lastAt: null, projectCount: 0 };
+  for (const id of entityIds) {
+    const it = usage?.items?.[String(id)];
+    if (!it) continue;
+    out.total += it.total || 0;
+    out.recent += it.recent || 0;
+    if (it.lastAt && (!out.lastAt || it.lastAt > out.lastAt)) out.lastAt = it.lastAt;
+  }
+  return out;
+}
+
+// `item` overrides the lookup by entityId, for a combined figure (combineUsageItems).
+export function UsageTriple({ usage, entityId, item: itemOverride = null, totalLabel = "issues", compact = false }) {
+  if (!usage) return null;
+  if (!usage.available) {
+    const why =
+      usage.reason === "no-crawl"
+        ? "No complete issue crawl yet. Run a full scan to measure usage."
+        : usage.reason === "error"
+          ? `Usage could not be read${usage.error ? `: ${usage.error}` : ""}.`
+          : "Usage is not measured for this item.";
+    return (
+      <span className="ui-usage ui-usage--unmeasured" title={why}>
+        usage not measured
+      </span>
+    );
+  }
+  const item = itemOverride ||
+    usage.items?.[String(entityId)] || { total: 0, recent: 0, lastAt: null, projectCount: 0 };
+  const words = USAGE_BASIS_WORDS[usage.basis] || USAGE_BASIS_WORDS.updated;
+  const days = usage.windowDays || 90;
+  const idle = item.recent === 0;
+  const when = formatUsageWhen(item.lastAt);
+  const title =
+    `${item.total.toLocaleString()} ${totalLabel}` +
+    (item.projectCount ? ` across ${item.projectCount} project${item.projectCount === 1 ? "" : "s"}` : "") +
+    `; ${item.recent.toLocaleString()} ${words.recent} in the last ${days} days; ${words.last} ${when}.` +
+    (usage.measuredAt ? ` Counted by the issue crawl, ${formatUsageWhen(usage.measuredAt)}.` : "");
+  return (
+    <span className={`ui-usage${compact ? " ui-usage--compact" : ""}${idle ? " ui-usage--idle" : ""}`} title={title}>
+      <span className="ui-usage__n">
+        <b>{item.total.toLocaleString()}</b> {totalLabel}
+      </span>
+      <span className="ui-usage__n">
+        <b>{item.recent.toLocaleString()}</b> {words.recent} {days}d
+      </span>
+      <span className="ui-usage__n">
+        {words.last} <b>{when}</b>
+      </span>
+    </span>
   );
 }

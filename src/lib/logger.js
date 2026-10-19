@@ -34,10 +34,26 @@ function emit(level, event, data = {}) {
 
 export const logger = {
   debug: (event, data) => emit("debug", event, data),
-  info:  (event, data) => emit("info",  event, data),
-  warn:  (event, data) => emit("warn",  event, data),
+  info: (event, data) => emit("info", event, data),
+  warn: (event, data) => emit("warn", event, data),
   error: (event, data) => emit("error", event, data),
 };
+
+/**
+ * Context fields for a caught error: its message, plus the stack when there is one.
+ * console.error(msg, err) used to print the stack; this keeps it, as a field.
+ *
+ * Usage:
+ *   logger.error("getFieldInventory.failed", errorContext(error));
+ *   logger.warn("scan.option_cache_failed", errorContext(error, { fieldId }));
+ */
+export function errorContext(error, extra = {}) {
+  return {
+    ...extra,
+    error: String(error?.message || error),
+    ...(error?.stack ? { stack: error.stack } : {}),
+  };
+}
 
 /**
  * A catch handler that records the failure and then degrades to a fallback.

@@ -18,7 +18,7 @@ export const ENTITY_SEARCH_MIN_TERM = 2;
 export const ENTITY_SEARCH_DEFAULT_LIMIT = 20;
 export const ENTITY_SEARCH_MAX_LIMIT = 50;
 
-const WORD_START = /[\s\-_/.:(\[]/;
+const WORD_START = /[\s\-_/.:([]/;
 
 function lower(value) {
   return String(value ?? "").toLowerCase();
@@ -78,11 +78,13 @@ export function rankEntityMatches(entities = [], term = "", { limit = ENTITY_SEA
     const rank = entityMatchRank(entity, t);
     if (rank !== null) matches.push({ entity, rank });
   }
-  matches.sort((a, b) =>
-    a.rank - b.rank
-    || String(a.entity.name ?? "").length - String(b.entity.name ?? "").length
-    || String(a.entity.name ?? "").localeCompare(String(b.entity.name ?? ""))
-    || String(a.entity.pillar).localeCompare(String(b.entity.pillar)));
+  matches.sort(
+    (a, b) =>
+      a.rank - b.rank ||
+      String(a.entity.name ?? "").length - String(b.entity.name ?? "").length ||
+      String(a.entity.name ?? "").localeCompare(String(b.entity.name ?? "")) ||
+      String(a.entity.pillar).localeCompare(String(b.entity.pillar)),
+  );
 
   return {
     total: matches.length,

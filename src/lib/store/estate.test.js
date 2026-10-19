@@ -17,12 +17,7 @@ vi.mock("@forge/sql", () => {
 });
 
 import { sql } from "@forge/sql";
-import {
-  replaceEstateSnapshot,
-  loadEstateValues,
-  readEstateSnapshotMeta,
-  writeEstateSnapshotMeta,
-} from "./estate.js";
+import { replaceEstateSnapshot, loadEstateValues, readEstateSnapshotMeta, writeEstateSnapshotMeta } from "./estate.js";
 
 let issued = [];
 let nextRows = [];
@@ -33,7 +28,10 @@ function harness() {
     const entry = { statement: String(statement), params: null };
     issued.push(entry);
     const stub = {
-      bindParams: (...params) => { entry.params = params; return stub; },
+      bindParams: (...params) => {
+        entry.params = params;
+        return stub;
+      },
       execute: () => Promise.resolve({ rows: nextRows }),
     };
     return stub;
@@ -41,7 +39,9 @@ function harness() {
 }
 
 const find = (match) => issued.find((e) => e.statement.includes(match));
-const mockRows = (rows) => { nextRows = rows; };
+const mockRows = (rows) => {
+  nextRows = rows;
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -53,7 +53,10 @@ describe("replaceEstateSnapshot", () => {
   test("deletes only this scope, then inserts resolutions and priorities with 8 columns each", async () => {
     await replaceEstateSnapshot("inst", "v1", {
       resolutions: [{ id: "1", name: "Done", isDefault: true }],
-      priorities: [{ id: "10", name: "High" }, { id: "11", name: "Low" }],
+      priorities: [
+        { id: "10", name: "High" },
+        { id: "11", name: "Low" },
+      ],
     });
 
     const del = find("DELETE FROM snapshot_estate_values");

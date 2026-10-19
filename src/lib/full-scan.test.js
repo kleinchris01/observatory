@@ -47,8 +47,9 @@ describe("stage order", () => {
   test("every stage declaring a dependency has it earlier in the order", () => {
     for (const stage of FULL_SCAN_STAGES) {
       for (const need of stage.needs) {
-        expect(FULL_SCAN_STAGE_KEYS.indexOf(need), `${stage.key} needs ${need}`)
-          .toBeLessThan(FULL_SCAN_STAGE_KEYS.indexOf(stage.key));
+        expect(FULL_SCAN_STAGE_KEYS.indexOf(need), `${stage.key} needs ${need}`).toBeLessThan(
+          FULL_SCAN_STAGE_KEYS.indexOf(stage.key),
+        );
       }
     }
   });
@@ -118,8 +119,19 @@ describe("quick scan stages", () => {
       // pillar that never joins the pipeline now fails here rather than going unnoticed for
       // two months. Automation is the one deliberate exception -- Jira publishes no API to
       // enumerate rules, so a stage for it would claim coverage the app does not have.
-      const buildable = ["workflows", "screens", "filters", "dashboards", "fields",
-        "issue-types", "access", "estate", "boards", "people", "assets"];
+      const buildable = [
+        "workflows",
+        "screens",
+        "filters",
+        "dashboards",
+        "fields",
+        "issue-types",
+        "access",
+        "estate",
+        "boards",
+        "people",
+        "assets",
+      ];
       for (const key of buildable) {
         expect(FULL_SCAN_STAGE_KEYS, `${key} is scored but never refreshed by a scan`).toContain(key);
       }
@@ -183,7 +195,8 @@ describe("nextStage", () => {
     stages = markStage(stages, "workflows", { state: "failed", error: "401" });
     // Every independent stage ahead of the blocked one has to be out of the way, or this
     // asserts stage ORDER rather than dependency blocking.
-    for (const key of ["screens", "filters", "dashboards", "fields"]) stages = markStage(stages, key, { state: "done" });
+    for (const key of ["screens", "filters", "dashboards", "fields"])
+      stages = markStage(stages, key, { state: "done" });
 
     const next = nextStage(stages);
     expect(next.key).toBe("status-history");
@@ -192,7 +205,8 @@ describe("nextStage", () => {
 
   test("does not block a stage whose dependencies all succeeded", () => {
     let stages = initialStages();
-    for (const key of ["workflows", "screens", "filters", "dashboards", "fields"]) stages = markStage(stages, key, { state: "done" });
+    for (const key of ["workflows", "screens", "filters", "dashboards", "fields"])
+      stages = markStage(stages, key, { state: "done" });
 
     expect(nextStage(stages).blockedBy).toBeUndefined();
   });
@@ -218,7 +232,8 @@ describe("nextStage", () => {
   // ran and completed while the field snapshot they score was still in flight.
   test("returns null rather than a later stage while an earlier one is still running", () => {
     let stages = initialStages();
-    for (const key of ["workflows", "screens", "filters", "dashboards"]) stages = markStage(stages, key, { state: "done" });
+    for (const key of ["workflows", "screens", "filters", "dashboards"])
+      stages = markStage(stages, key, { state: "done" });
     stages = markStage(stages, "fields", { state: "running" });
     // status-history and health are still pending and their listed deps are all satisfied --
     // the ONLY thing that should stop them is that fields has not finished.
@@ -227,7 +242,8 @@ describe("nextStage", () => {
 
   test("resumes at the running stage's successor once it finishes, in order", () => {
     let stages = initialStages();
-    for (const key of ["workflows", "screens", "filters", "dashboards", "fields"]) stages = markStage(stages, key, { state: "done" });
+    for (const key of ["workflows", "screens", "filters", "dashboards", "fields"])
+      stages = markStage(stages, key, { state: "done" });
     expect(nextStage(stages).key).toBe("status-history");
   });
 

@@ -42,16 +42,15 @@ export const SECRET_MATCHERS = [
     // Inbound webhook triggers authenticate the caller with this token. Anyone holding it
     // can fire the rule.
     label: "Inbound webhook token",
-    test: (key, value) =>
-      /^webhooktoken$/i.test(key) && typeof value === "string" && unredacted(value).length > 0,
+    test: (key, value) => /^webhooktoken$/i.test(key) && typeof value === "string" && unredacted(value).length > 0,
   },
   {
     name: "incoming-webhook-url",
     // Slack/Teams style webhook URLs are bearer credentials: the secret IS the path.
     label: "Slack or Teams webhook URL",
     test: (key, value) =>
-      typeof value === "string"
-      && /^https:\/\/(hooks\.slack\.com|[a-z0-9-]+\.webhook\.office\.com)\/./i.test(unredacted(value)),
+      typeof value === "string" &&
+      /^https:\/\/(hooks\.slack\.com|[a-z0-9-]+\.webhook\.office\.com)\/./i.test(unredacted(value)),
   },
   {
     name: "form-encoded-secret",
@@ -115,10 +114,12 @@ function isPlainObject(value) {
 }
 
 export function isSecretTag(node) {
-  return isPlainObject(node)
-    && SECRET_TAG_TYPES.has(node.tagType)
-    && typeof node.tagValue === "string"
-    && unredacted(node.tagValue).length > 0;
+  return (
+    isPlainObject(node) &&
+    SECRET_TAG_TYPES.has(node.tagType) &&
+    typeof node.tagValue === "string" &&
+    unredacted(node.tagValue).length > 0
+  );
 }
 
 // A global regex advances lastIndex on every .test(), so the next call starts partway

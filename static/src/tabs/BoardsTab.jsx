@@ -3,7 +3,15 @@ import { invoke } from "@forge/bridge";
 import { formatNumber, formatRelativeTime, buildBoardUrl, buildProjectUrl } from "../utils";
 import { Icon } from "../components/Icons";
 import {
-  StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar, FindingRow, JiraLink,
+  StatTile,
+  StatRow,
+  Panel,
+  EmptyState,
+  Chip,
+  PageHeader,
+  SortFilterBar,
+  FindingRow,
+  JiraLink,
 } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useNavIntent, useVisiblePolling, usePersistentState } from "../hooks";
@@ -18,11 +26,12 @@ const BUILD_POLL_MS = 3000;
 const TYPE_TONE = { scrum: "active", kanban: "success", simple: "neutral" };
 
 function BoardRow({ board, siteOrigin }) {
-  const loc = board.locationType === "user"
-    ? `personal · ${board.locationName || board.locationId || "unknown owner"}`
-    : board.locationKey
-      ? `${board.locationKey}${board.locationName ? ` · ${board.locationName}` : ""}`
-      : "no project";
+  const loc =
+    board.locationType === "user"
+      ? `personal · ${board.locationName || board.locationId || "unknown owner"}`
+      : board.locationKey
+        ? `${board.locationKey}${board.locationName ? ` · ${board.locationName}` : ""}`
+        : "no project";
 
   // A board only has a deep link when it sits under a project: the board URL is a path
   // beneath the project key. Personal boards have no project, so they stay plain text --
@@ -38,7 +47,9 @@ function BoardRow({ board, siteOrigin }) {
         </JiraLink>
         {projectHref ? (
           <span className="issue-type-row__desc">
-            <JiraLink href={projectHref} title={`Open ${board.locationKey} in Jira`}>{board.locationKey}</JiraLink>
+            <JiraLink href={projectHref} title={`Open ${board.locationKey} in Jira`}>
+              {board.locationKey}
+            </JiraLink>
             {board.locationName ? ` · ${board.locationName}` : ""}
           </span>
         ) : (
@@ -48,12 +59,23 @@ function BoardRow({ board, siteOrigin }) {
       <div className="issue-type-row__meta">
         {board.type && <Chip tone={TYPE_TONE[board.type] || "neutral"}>{board.type}</Chip>}
         {!board.configReadable && (
-          <Chip tone="warning" title="This board's configuration endpoint returned 404 — team-managed boards often do. Its columns and backing filter are unknown.">config unreadable</Chip>
+          <Chip
+            tone="warning"
+            title="This board's configuration endpoint returned 404 — team-managed boards often do. Its columns and backing filter are unknown."
+          >
+            config unreadable
+          </Chip>
         )}
         {board.configReadable && !board.filterId && (
-          <Chip tone="warning" title="Config was readable but named no backing filter.">no backing filter</Chip>
+          <Chip tone="warning" title="Config was readable but named no backing filter.">
+            no backing filter
+          </Chip>
         )}
-        {board.filterId && <Chip tone="neutral" title={`Backing saved filter ${board.filterId}`}>filter {board.filterId}</Chip>}
+        {board.filterId && (
+          <Chip tone="neutral" title={`Backing saved filter ${board.filterId}`}>
+            filter {board.filterId}
+          </Chip>
+        )}
         {board.configReadable && (
           <Chip tone={board.unmappedColumns > 0 ? "warning" : "neutral"}>
             {formatNumber(board.columnCount)} {board.columnCount === 1 ? "column" : "columns"}
@@ -93,7 +115,9 @@ export function BoardsTab({ intent, siteOrigin }) {
     }
   }, []);
 
-  React.useEffect(() => { load(); }, [load]);
+  React.useEffect(() => {
+    load();
+  }, [load]);
 
   const isBuilding = ["building", "queued"].includes(data?.state) && !data?.staleBuild;
   useVisiblePolling(isBuilding, load, BUILD_POLL_MS);
@@ -141,14 +165,26 @@ export function BoardsTab({ intent, siteOrigin }) {
 
   const banners = (
     <>
-      {error && <div className="danger-zone__error" role="alert">{error}</div>}
-      {notice && !error && <p className="admin-config-row__hint" role="status">{notice}</p>}
-      {isBuilding && <p className="admin-config-row__hint">Walking every board's configuration… this page refreshes itself.</p>}
+      {error && (
+        <div className="danger-zone__error" role="alert">
+          {error}
+        </div>
+      )}
+      {notice && !error && (
+        <p className="admin-config-row__hint" role="status">
+          {notice}
+        </p>
+      )}
+      {isBuilding && (
+        <p className="admin-config-row__hint">Walking every board's configuration… this page refreshes itself.</p>
+      )}
       {data?.staleBuild && (
         <p className="admin-config-row__hint">A build was started but is no longer running. Rebuild to recover it.</p>
       )}
       {data?.lastError && !isBuilding && (
-        <div className="danger-zone__error" role="alert">Last build failed: {data.lastError}</div>
+        <div className="danger-zone__error" role="alert">
+          Last build failed: {data.lastError}
+        </div>
       )}
     </>
   );
@@ -159,27 +195,42 @@ export function BoardsTab({ intent, siteOrigin }) {
         {header}
         {banners}
         <EmptyState action={buildAction}>
-          No board inventory has been built yet. It is also produced by every full and quick
-          scan — or build it on its own here.
+          No board inventory has been built yet. It is also produced by every full and quick scan — or build it on its
+          own here.
         </EmptyState>
       </div>
     );
   }
 
-  const summary = data?.summary || { total: 0, byType: {}, personal: 0, unreadable: 0, missingFilter: 0, totalColumns: 0 };
+  const summary = data?.summary || {
+    total: 0,
+    byType: {},
+    personal: 0,
+    unreadable: 0,
+    missingFilter: 0,
+    totalColumns: 0,
+  };
   const boards = data?.boards || [];
   const term = search.trim().toLowerCase();
   const filtered = boards.filter((b) => {
     if (typeFilter !== "all" && (b.type || "unknown") !== typeFilter) return false;
     if (!term) return true;
-    return String(b.name).toLowerCase().includes(term)
-      || String(b.locationKey || "").toLowerCase().includes(term)
-      || String(b.locationName || "").toLowerCase().includes(term);
+    return (
+      String(b.name).toLowerCase().includes(term) ||
+      String(b.locationKey || "")
+        .toLowerCase()
+        .includes(term) ||
+      String(b.locationName || "")
+        .toLowerCase()
+        .includes(term)
+    );
   });
 
   const typeOptions = [
     { value: "all", label: "All types" },
-    ...Object.keys(summary.byType).sort().map((t) => ({ value: t, label: t })),
+    ...Object.keys(summary.byType)
+      .sort()
+      .map((t) => ({ value: t, label: t })),
   ];
 
   const items = [
@@ -219,34 +270,94 @@ export function BoardsTab({ intent, siteOrigin }) {
 
       <SubNavLayout items={items} activeKey={view} onSelect={setView}>
         {view === "overview" && (
-          <Panel title="What needs attention" icon="alertTriangle" description="Boards break silently — a deleted backing filter shows every issue in the site, an unmapped column drops issues off the wall.">
+          <Panel
+            title="What needs attention"
+            icon="alertTriangle"
+            description="Boards break silently — a deleted backing filter shows every issue in the site, an unmapped column drops issues off the wall."
+          >
             {(() => {
               const g = data?.insights || {};
               const rows = [];
-              if (g.missingFilter > 0) rows.push({ tone: "critical", count: g.missingFilter, title: "Backing filter deleted", detail: "The board's saved filter no longer exists, so it falls back to every issue in the site." });
-              if (g.noFilter > 0) rows.push({ tone: "warning", count: g.noFilter, title: "No backing filter", detail: "Config was readable but named no saved filter." });
-              if (g.inactiveFilterOwner > 0) rows.push({ tone: "warning", count: g.inactiveFilterOwner, title: "Backing filter owned by an inactive user", detail: "One departure from breaking — Jira deletes a filter with its owner." });
-              if (g.staleColumnBoards > 0) rows.push({ tone: "warning", count: g.staleColumnBoards, title: "Column maps a status that no longer exists", detail: "Issues in that status vanish from the board with no error anywhere." });
-              if (g.unmappedColumnBoards > 0) rows.push({ tone: "info", count: g.unmappedColumnBoards, title: "Column with no status mapped", detail: "A column issues can never land in." });
-              if (g.joinedFilters === false) rows.push({ tone: "info", title: "Backing-filter checks did not run", detail: "Build the Saved Filters inventory to check for deleted filters and inactive owners." });
-              if (g.joinedStatuses === false) rows.push({ tone: "info", title: "Column-status checks did not run", detail: "Build the Workflow inventory to check for columns mapping deleted statuses." });
-              return rows.length === 0
-                ? <EmptyState inline>Nothing flagged. Every board has a live backing filter and every column maps a status.</EmptyState>
-                : rows.map((r) => <FindingRow key={r.title} tone={r.tone} title={r.title} detail={r.detail} count={r.count} />);
+              if (g.missingFilter > 0)
+                rows.push({
+                  tone: "critical",
+                  count: g.missingFilter,
+                  title: "Backing filter deleted",
+                  detail: "The board's saved filter no longer exists, so it falls back to every issue in the site.",
+                });
+              if (g.noFilter > 0)
+                rows.push({
+                  tone: "warning",
+                  count: g.noFilter,
+                  title: "No backing filter",
+                  detail: "Config was readable but named no saved filter.",
+                });
+              if (g.inactiveFilterOwner > 0)
+                rows.push({
+                  tone: "warning",
+                  count: g.inactiveFilterOwner,
+                  title: "Backing filter owned by an inactive user",
+                  detail: "One departure from breaking — Jira deletes a filter with its owner.",
+                });
+              if (g.staleColumnBoards > 0)
+                rows.push({
+                  tone: "warning",
+                  count: g.staleColumnBoards,
+                  title: "Column maps a status that no longer exists",
+                  detail: "Issues in that status vanish from the board with no error anywhere.",
+                });
+              if (g.unmappedColumnBoards > 0)
+                rows.push({
+                  tone: "info",
+                  count: g.unmappedColumnBoards,
+                  title: "Column with no status mapped",
+                  detail: "A column issues can never land in.",
+                });
+              if (g.joinedFilters === false)
+                rows.push({
+                  tone: "info",
+                  title: "Backing-filter checks did not run",
+                  detail: "Build the Saved Filters inventory to check for deleted filters and inactive owners.",
+                });
+              if (g.joinedStatuses === false)
+                rows.push({
+                  tone: "info",
+                  title: "Column-status checks did not run",
+                  detail: "Build the Workflow inventory to check for columns mapping deleted statuses.",
+                });
+              return rows.length === 0 ? (
+                <EmptyState inline>
+                  Nothing flagged. Every board has a live backing filter and every column maps a status.
+                </EmptyState>
+              ) : (
+                rows.map((r) => (
+                  <FindingRow key={r.title} tone={r.tone} title={r.title} detail={r.detail} count={r.count} />
+                ))
+              );
             })()}
           </Panel>
         )}
 
         {view === "overview" && (
-          <Panel title="By type" icon="barChart" description="Scrum, kanban and team-managed (simple) boards on this site.">
+          <Panel
+            title="By type"
+            icon="barChart"
+            description="Scrum, kanban and team-managed (simple) boards on this site."
+          >
             {summary.total === 0 ? (
               <EmptyState inline>No boards in this snapshot.</EmptyState>
             ) : (
               <StatRow>
-                {Object.entries(summary.byType).sort().map(([type, count]) => (
-                  <StatTile key={type} label={type} value={formatNumber(count)} tone={TYPE_TONE[type] || "neutral"} />
-                ))}
-                <StatTile label="Columns total" value={formatNumber(summary.totalColumns)} hint="Across every readable board" />
+                {Object.entries(summary.byType)
+                  .sort()
+                  .map(([type, count]) => (
+                    <StatTile key={type} label={type} value={formatNumber(count)} tone={TYPE_TONE[type] || "neutral"} />
+                  ))}
+                <StatTile
+                  label="Columns total"
+                  value={formatNumber(summary.totalColumns)}
+                  hint="Across every readable board"
+                />
               </StatRow>
             )}
           </Panel>
@@ -259,16 +370,32 @@ export function BoardsTab({ intent, siteOrigin }) {
               onSearchChange={setSearch}
               searchLabel="Search boards"
               searchPlaceholder="Board name or project…"
-              filters={[{ key: "type", label: "Type", value: typeFilter, onChange: setTypeFilter, options: typeOptions, allValue: "all" }]}
+              filters={[
+                {
+                  key: "type",
+                  label: "Type",
+                  value: typeFilter,
+                  onChange: setTypeFilter,
+                  options: typeOptions,
+                  allValue: "all",
+                },
+              ]}
               resultCount={filtered.length}
               totalCount={boards.length}
-              onClear={() => { setSearch(""); setTypeFilter("all"); }}
+              onClear={() => {
+                setSearch("");
+                setTypeFilter("all");
+              }}
             />
             {filtered.length === 0 ? (
-              <EmptyState inline>{term || typeFilter !== "all" ? "No board matches these filters." : "No boards in this snapshot."}</EmptyState>
+              <EmptyState inline>
+                {term || typeFilter !== "all" ? "No board matches these filters." : "No boards in this snapshot."}
+              </EmptyState>
             ) : (
               <div className="issue-type-list">
-                {filtered.map((board) => <BoardRow key={board.boardId} board={board} siteOrigin={siteOrigin} />)}
+                {filtered.map((board) => (
+                  <BoardRow key={board.boardId} board={board} siteOrigin={siteOrigin} />
+                ))}
               </div>
             )}
           </Panel>

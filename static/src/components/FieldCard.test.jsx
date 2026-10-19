@@ -17,6 +17,8 @@ import {
   PeopleUsageSection,
   FilterUsageSection,
   DeletionSafetySection,
+  WorkflowRulesSection,
+  FieldBehaviourSection,
 } from "./FieldCard";
 
 // ---------------------------------------------------------------------------
@@ -24,14 +26,22 @@ import {
 // ---------------------------------------------------------------------------
 describe("CollapsibleSection", () => {
   it("renders open by default", () => {
-    render(<CollapsibleSection title="Contexts"><p>inner</p></CollapsibleSection>);
+    render(
+      <CollapsibleSection title="Contexts">
+        <p>inner</p>
+      </CollapsibleSection>,
+    );
     expect(screen.getByText("inner")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /contexts/i })).toHaveAttribute("aria-expanded", "true");
   });
 
   it("hides its body when collapsed", async () => {
     const user = userEvent.setup();
-    render(<CollapsibleSection title="Contexts"><p>inner</p></CollapsibleSection>);
+    render(
+      <CollapsibleSection title="Contexts">
+        <p>inner</p>
+      </CollapsibleSection>,
+    );
 
     await user.click(screen.getByRole("button", { name: /contexts/i }));
 
@@ -40,7 +50,11 @@ describe("CollapsibleSection", () => {
   });
 
   it("can start collapsed", () => {
-    render(<CollapsibleSection title="Contexts" defaultOpen={false}><p>inner</p></CollapsibleSection>);
+    render(
+      <CollapsibleSection title="Contexts" defaultOpen={false}>
+        <p>inner</p>
+      </CollapsibleSection>,
+    );
     expect(screen.queryByText("inner")).not.toBeInTheDocument();
   });
 
@@ -50,9 +64,16 @@ describe("CollapsibleSection", () => {
     const user = userEvent.setup();
     const onAction = vi.fn();
     render(
-      <CollapsibleSection title="Findings" actions={<button type="button" onClick={onAction}>Refresh</button>}>
+      <CollapsibleSection
+        title="Findings"
+        actions={
+          <button type="button" onClick={onAction}>
+            Refresh
+          </button>
+        }
+      >
         <p>inner</p>
-      </CollapsibleSection>
+      </CollapsibleSection>,
     );
 
     const toggle = screen.getByRole("button", { name: /findings/i });
@@ -65,7 +86,11 @@ describe("CollapsibleSection", () => {
   });
 
   it("shows a badge beside the title when given one", () => {
-    render(<CollapsibleSection title="Contexts" badge={7}><p>inner</p></CollapsibleSection>);
+    render(
+      <CollapsibleSection title="Contexts" badge={7}>
+        <p>inner</p>
+      </CollapsibleSection>,
+    );
     expect(screen.getByText("7")).toBeInTheDocument();
   });
 
@@ -73,9 +98,13 @@ describe("CollapsibleSection", () => {
     const user = userEvent.setup();
     render(
       <>
-        <CollapsibleSection title="One"><p>first body</p></CollapsibleSection>
-        <CollapsibleSection title="Two"><p>second body</p></CollapsibleSection>
-      </>
+        <CollapsibleSection title="One">
+          <p>first body</p>
+        </CollapsibleSection>
+        <CollapsibleSection title="Two">
+          <p>second body</p>
+        </CollapsibleSection>
+      </>,
     );
 
     await user.click(screen.getByRole("button", { name: /one/i }));
@@ -126,7 +155,12 @@ describe("ScreenUsageSection", () => {
 
   // The distinction the whole section turns on.
   it("never says a field is on no screen when no inventory has been built", () => {
-    render(<ScreenUsageSection result={{ available: false, reason: "No screen inventory has been built yet.", screens: [] }} loading={false} />);
+    render(
+      <ScreenUsageSection
+        result={{ available: false, reason: "No screen inventory has been built yet.", screens: [] }}
+        loading={false}
+      />,
+    );
 
     expect(screen.getByText(/No screen inventory has been built yet/i)).toBeInTheDocument();
     expect(screen.queryByText(/no user can fill it/i)).not.toBeInTheDocument();
@@ -161,10 +195,14 @@ describe("ScreenUsageSection", () => {
 
 describe("IssueTypeUsageSection", () => {
   it("lists each issue type the field carries a value on, biggest first", () => {
-    render(<IssueTypeUsageSection usage={[
-      { issueTypeId: "10001", issueTypeName: "Bug", issueCount: 40 },
-      { issueTypeId: "10002", issueTypeName: "Task", issueCount: 5 },
-    ]} />);
+    render(
+      <IssueTypeUsageSection
+        usage={[
+          { issueTypeId: "10001", issueTypeName: "Bug", issueCount: 40 },
+          { issueTypeId: "10002", issueTypeName: "Task", issueCount: 5 },
+        ]}
+      />,
+    );
 
     expect(screen.getByText("Bug")).toBeInTheDocument();
     expect(screen.getByText("Task")).toBeInTheDocument();
@@ -186,13 +224,18 @@ describe("IssueTypeUsageSection", () => {
 
 describe("PeopleUsageSection", () => {
   it("lists the top holders with a distinct-user badge and flags an unlicensed account", () => {
-    render(<PeopleUsageSection usage={{
-      distinctUsers: 42, issueTotal: 500,
-      top: [
-        { accountId: "acc-1", displayName: "Ann Admin", issueCount: 30, onRoster: true },
-        { accountId: "acc-gone", displayName: "Ghost", issueCount: 4, onRoster: false },
-      ],
-    }} />);
+    render(
+      <PeopleUsageSection
+        usage={{
+          distinctUsers: 42,
+          issueTotal: 500,
+          top: [
+            { accountId: "acc-1", displayName: "Ann Admin", issueCount: 30, onRoster: true },
+            { accountId: "acc-gone", displayName: "Ghost", issueCount: 4, onRoster: false },
+          ],
+        }}
+      />,
+    );
 
     expect(screen.getByText("Ann Admin")).toBeInTheDocument();
     expect(screen.getByText("42 distinct")).toBeInTheDocument();
@@ -206,6 +249,166 @@ describe("PeopleUsageSection", () => {
   });
 });
 
+describe("FieldBehaviourSection", () => {
+  const field = { id: "customfield_1", name: "Total Cost" };
+  beforeEach(() => {
+    invoke.mockReset();
+  });
+
+  it("on field schemes, names where the field is required and where it does not exist", async () => {
+    invoke.mockResolvedValue({
+      available: true,
+      source: "field-schemes",
+      requiredIn: 1,
+      missingFrom: [{ id: "fs:3", name: "Ops" }],
+      owners: [
+        {
+          ownerKind: "scheme",
+          id: "fs:2",
+          name: "Build",
+          projectCount: 1,
+          projectKeys: ["BLD"],
+          measured: true,
+          associated: true,
+          required: true,
+          restrictedTo: ["Build Deviation"],
+          overrides: [{ workTypeName: "Bug", required: false }],
+        },
+        {
+          ownerKind: "scheme",
+          id: "fs:3",
+          name: "Ops",
+          projectCount: 2,
+          projectKeys: ["OPS"],
+          measured: true,
+          associated: false,
+        },
+      ],
+    });
+    render(<FieldBehaviourSection field={field} />);
+    expect(await screen.findByText("Build")).toBeInTheDocument();
+    expect(invoke).toHaveBeenCalledWith("getFieldBehaviour", { fieldId: "customfield_1" });
+    expect(screen.getByText("required")).toBeInTheDocument();
+    expect(screen.getByText("only Build Deviation")).toBeInTheDocument();
+    expect(screen.getByText("Bug: optional")).toBeInTheDocument();
+    expect(screen.getByText("not in this scheme")).toBeInTheDocument();
+    expect(screen.getByText("required in 1 · absent from 1")).toBeInTheDocument();
+  });
+
+  it("on legacy configurations, warns about a required field that is hidden", async () => {
+    invoke.mockResolvedValue({
+      available: true,
+      source: "field-configurations",
+      requiredIn: 1,
+      hiddenIn: 1,
+      conflicts: [{ id: "fc:2", name: "Build fields" }],
+      owners: [
+        {
+          ownerKind: "config",
+          id: "fc:2",
+          name: "Build fields",
+          measured: true,
+          required: true,
+          hidden: true,
+          routes: [{ schemeName: "Build scheme", workTypeName: "Default" }],
+        },
+      ],
+    });
+    render(<FieldBehaviourSection field={field} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Required but hidden in Build fields/);
+    expect(screen.getByText("hidden")).toHaveClass("ui-chip--critical");
+    expect(screen.getByRole("button", { name: /Field Configurations/ })).toBeInTheDocument();
+  });
+
+  it("an unbuilt or failed lookup is unknown, never 'nothing'", async () => {
+    invoke.mockRejectedValueOnce(new Error("down"));
+    render(<FieldBehaviourSection field={field} />);
+    expect(await screen.findByText(/where this field is required or hidden is unknown/)).toBeInTheDocument();
+  });
+
+  it("does not query until the card is expanded", () => {
+    render(<FieldBehaviourSection field={field} enabled={false} />);
+    expect(invoke).not.toHaveBeenCalled();
+  });
+});
+
+describe("WorkflowRulesSection", () => {
+  const field = { id: "customfield_15731", name: "Onsite Modification" };
+  const usage = {
+    available: true,
+    total: 2,
+    workflowCount: 2,
+    refType: "field",
+    refId: "customfield_15731",
+    usages: [
+      {
+        workflowName: "Build Deviation WF",
+        source: "rule",
+        transition: {
+          id: "21",
+          name: "Approve",
+          from: [{ id: "3", name: "In Review" }],
+          to: { id: "4", name: "Approved" },
+        },
+        status: null,
+        rule: {
+          kind: "validator",
+          key: "system:validate-field-value",
+          label: "Field value check",
+          summary: "fieldRequired",
+        },
+        property: null,
+      },
+      {
+        workflowName: "Other WF",
+        source: "property",
+        transition: null,
+        status: { id: "3", name: "In Review" },
+        rule: null,
+        property: {
+          key: "jira.permission.edit.groupCF",
+          value: "customfield_15731",
+          meaning: "Edit: only group in field customfield_15731",
+        },
+      },
+    ],
+  };
+
+  beforeEach(() => {
+    invoke.mockReset();
+  });
+
+  it("asks by field id and names the transition, its statuses and the rule", async () => {
+    invoke.mockResolvedValue(usage);
+    render(<WorkflowRulesSection field={field} siteOrigin="https://acme.atlassian.net" />);
+
+    expect(await screen.findByText("Approve")).toBeInTheDocument();
+    expect(invoke).toHaveBeenCalledWith("getWorkflowRuleUsage", { refType: "field", refId: "customfield_15731" });
+    expect(screen.getByText("Field value check")).toBeInTheDocument();
+    expect(screen.getByText("Status: In Review")).toBeInTheDocument();
+    expect(screen.getByText("Edit: only group in field customfield_15731")).toBeInTheDocument();
+    expect(screen.getByText("2 in 2 workflows")).toBeInTheDocument();
+  });
+
+  it("does not query until the card is expanded", () => {
+    render(<WorkflowRulesSection field={field} enabled={false} />);
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it("says nothing was found only when it looked", async () => {
+    invoke.mockResolvedValueOnce({ ...usage, total: 0, workflowCount: 0, usages: [] });
+    const { unmount } = render(<WorkflowRulesSection field={field} />);
+    expect(
+      await screen.findByText(/No workflow validator, condition, post-function or status property names this field/),
+    ).toBeInTheDocument();
+    unmount();
+
+    invoke.mockRejectedValueOnce(new Error("down"));
+    render(<WorkflowRulesSection field={field} />);
+    expect(await screen.findByText(/whether a workflow rule uses this is unknown/)).toBeInTheDocument();
+  });
+});
+
 describe("AutomationUsageSection", () => {
   const field = { id: "customfield_10001", name: "Story Points" };
 
@@ -213,7 +416,13 @@ describe("AutomationUsageSection", () => {
     available: true,
     referenced: true,
     label: "Story Points",
-    write: { count: 2, rules: [{ id: 10, name: "Populate points", enabled: true }, { id: 11, name: "Copy to subtasks", enabled: false }] },
+    write: {
+      count: 2,
+      rules: [
+        { id: 10, name: "Populate points", enabled: true },
+        { id: 11, name: "Copy to subtasks", enabled: false },
+      ],
+    },
     read: { count: 1, rules: [{ id: 12, name: "Check points set", enabled: true }] },
     trigger: { count: 0, rules: [] },
     ...over,
@@ -229,7 +438,8 @@ describe("AutomationUsageSection", () => {
 
     await screen.findByText("Populate points");
     expect(invoke).toHaveBeenCalledWith("getAutomationFieldUsage", {
-      fieldId: "customfield_10001", fieldName: "Story Points",
+      fieldId: "customfield_10001",
+      fieldName: "Story Points",
     });
   });
 
@@ -577,7 +787,7 @@ describe("FieldCard", () => {
     // tone is applied on any non-zero count and withheld at zero.
     it("tones the active count only when rules actually run", () => {
       const { container, rerender } = render(
-        <FieldCard {...defaultProps} automationCounts={{ enabled: 3, disabled: 0, total: 3 }} />
+        <FieldCard {...defaultProps} automationCounts={{ enabled: 3, disabled: 0, total: 3 }} />,
       );
       expect(container.querySelector(".metric-chip--danger")).toBeTruthy();
 
@@ -590,8 +800,7 @@ describe("FieldCard", () => {
     it("renders an em dash rather than zero when no analysis has been built", () => {
       const { container } = render(<FieldCard {...defaultProps} automationCounts={undefined} />);
 
-      const chips = [...container.querySelectorAll(".metric-chip")]
-        .filter((c) => /rules/i.test(c.textContent));
+      const chips = [...container.querySelectorAll(".metric-chip")].filter((c) => /rules/i.test(c.textContent));
       expect(chips).toHaveLength(2);
       for (const chip of chips) expect(chip.textContent).toContain("—");
     });
@@ -608,15 +817,29 @@ describe("FieldCard", () => {
       configuredProjectCount: 3,
       activeProjectCount: 2,
       totalIssueCount: 1200,
-      fieldJql: 'cf[10001] is not EMPTY',
+      fieldJql: "cf[10001] is not EMPTY",
       refreshedAt: 1754400000000,
       projectUsagePage: 1,
       projectUsageTotalPages: 1,
       contexts: [
-        { id: "ctx-1", name: "Global context", isGlobalContext: true, isAnyIssueType: true, issueTypeCount: 5, projects: [], description: "" },
+        {
+          id: "ctx-1",
+          name: "Global context",
+          isGlobalContext: true,
+          isAnyIssueType: true,
+          issueTypeCount: 5,
+          projects: [],
+          description: "",
+        },
       ],
       projects: [
-        { projectId: "10015", projectKey: "CAVPSE", projectName: "Advanced Connected Vehicle", issueCount: 900, jql: "project = CAVPSE" },
+        {
+          projectId: "10015",
+          projectKey: "CAVPSE",
+          projectName: "Advanced Connected Vehicle",
+          issueCount: 900,
+          jql: "project = CAVPSE",
+        },
       ],
       findings: { tags: {}, reasons: [] },
     };
@@ -631,7 +854,10 @@ describe("FieldCard", () => {
       // Field-Wide Query is deliberately absent: it is one link and a count, promoted to the
       // top of the card rather than hidden behind a header, a chevron and a collapsed state.
       for (const title of ["Governance Findings", "Automation Usage", "Contexts", "Project Usage"]) {
-        expect(await screen.findByRole("button", { name: new RegExp(title, "i") })).toHaveAttribute("aria-expanded", "true");
+        expect(await screen.findByRole("button", { name: new RegExp(title, "i") })).toHaveAttribute(
+          "aria-expanded",
+          "true",
+        );
       }
     });
 
@@ -665,7 +891,7 @@ describe("FieldCard", () => {
         expect(invoke).toHaveBeenCalledWith("getAutomationFieldUsage", {
           fieldId: "customfield_10001",
           fieldName: "Test Field",
-        })
+        }),
       );
     });
 
@@ -767,7 +993,7 @@ describe("CopyableFieldId", () => {
     render(
       <div onClick={onParentClick}>
         <CopyableFieldId fieldId="customfield_10001" />
-      </div>
+      </div>,
     );
 
     await user.click(screen.getByRole("button", { name: /copy field id/i }));
@@ -838,7 +1064,7 @@ describe("FieldCard copy affordance", () => {
         onAskProject={vi.fn()}
         siteOrigin="https://example.atlassian.net"
         rovoEnabled={false}
-      />
+      />,
     );
     expect(screen.getByRole("button", { name: /copy field id customfield_10001/i })).toBeInTheDocument();
     expect(screen.getByText("customfield_10001")).toBeInTheDocument();
@@ -852,7 +1078,7 @@ describe("FieldCard — header metrics and the field-wide query", () => {
     configuredProjectCount: undefined, // the payload that caused the blank
     activeProjectCount: 129,
     totalIssueCount: 319776,
-    fieldJql: 'cf[11322] is not EMPTY',
+    fieldJql: "cf[11322] is not EMPTY",
     contexts: [],
     projects: [],
     projectUsagePage: 1,
@@ -866,34 +1092,38 @@ describe("FieldCard — header metrics and the field-wide query", () => {
   // expanded, the ternary switched to details.configuredProjectCount and rendered nothing,
   // so opening a card removed a number that had been on screen a moment earlier.
   it("keeps the configured-project count when the details payload omits it", () => {
-    render(<FieldCard
-      field={field}
-      details={details}
-      expanded
-      onToggle={vi.fn()}
-      onSelectChange={vi.fn()}
-      onProjectUsagePageChange={vi.fn()}
-      onRefreshProjectUsage={vi.fn()}
-      onAskField={vi.fn()}
-      onAskProject={vi.fn()}
-    />);
+    render(
+      <FieldCard
+        field={field}
+        details={details}
+        expanded
+        onToggle={vi.fn()}
+        onSelectChange={vi.fn()}
+        onProjectUsagePageChange={vi.fn()}
+        onRefreshProjectUsage={vi.fn()}
+        onAskField={vi.fn()}
+        onAskProject={vi.fn()}
+      />,
+    );
 
     const chip = screen.getByText("Configured projects").closest(".metric-chip");
     expect(chip).toHaveTextContent("138");
   });
 
   it("shows the field-wide JQL at the top without a section to open first", () => {
-    const { container } = render(<FieldCard
-      field={field}
-      details={details}
-      expanded
-      onToggle={vi.fn()}
-      onSelectChange={vi.fn()}
-      onProjectUsagePageChange={vi.fn()}
-      onRefreshProjectUsage={vi.fn()}
-      onAskField={vi.fn()}
-      onAskProject={vi.fn()}
-    />);
+    const { container } = render(
+      <FieldCard
+        field={field}
+        details={details}
+        expanded
+        onToggle={vi.fn()}
+        onSelectChange={vi.fn()}
+        onProjectUsagePageChange={vi.fn()}
+        onRefreshProjectUsage={vi.fn()}
+        onAskField={vi.fn()}
+        onAskProject={vi.fn()}
+      />,
+    );
 
     expect(container.querySelector(".field-query-bar")).not.toBeNull();
     expect(screen.getByText("cf[11322] is not EMPTY")).toBeInTheDocument();
@@ -904,9 +1134,15 @@ describe("FieldCard — header metrics and the field-wide query", () => {
 // The badge said the opposite of the numbers beside it, then vanished on expand.
 describe("ProjectUsageBuildBadge — never contradict the counts on the same row", () => {
   it("stays silent when the snapshot has already measured the usage", () => {
-    const { container } = render(<ProjectUsageBuildBadge field={{
-      totalIssueCount: 303233, activeProjectCount: 128, projectUsageState: "unbuilt",
-    }} />);
+    const { container } = render(
+      <ProjectUsageBuildBadge
+        field={{
+          totalIssueCount: 303233,
+          activeProjectCount: 128,
+          projectUsageState: "unbuilt",
+        }}
+      />,
+    );
     // "Usage Not Built" beside "128 active projects" is a contradiction, not a caveat.
     expect(container).toBeEmptyDOMElement();
   });
@@ -920,16 +1156,28 @@ describe("ProjectUsageBuildBadge — never contradict the counts on the same row
   });
 
   it("still reports a genuinely unmeasured field", () => {
-    render(<ProjectUsageBuildBadge field={{
-      totalIssueCount: 500, activeProjectCount: 0, projectUsageState: "unbuilt",
-    }} />);
+    render(
+      <ProjectUsageBuildBadge
+        field={{
+          totalIssueCount: 500,
+          activeProjectCount: 0,
+          projectUsageState: "unbuilt",
+        }}
+      />,
+    );
     expect(screen.getByText(/Usage Not Built/i)).toBeInTheDocument();
   });
 
   it("still reports a build in flight", () => {
-    render(<ProjectUsageBuildBadge field={{
-      totalIssueCount: 500, activeProjectCount: 0, projectUsageState: "building",
-    }} />);
+    render(
+      <ProjectUsageBuildBadge
+        field={{
+          totalIssueCount: 500,
+          activeProjectCount: 0,
+          projectUsageState: "building",
+        }}
+      />,
+    );
     expect(screen.getByText(/Usage Building/i)).toBeInTheDocument();
   });
 });
@@ -942,7 +1190,10 @@ describe("FilterUsageSection", () => {
 
   test("names the filters that would break, and says how they break", async () => {
     invoke.mockResolvedValue({
-      available: true, label: "Story Points", kind: "field", total: 2,
+      available: true,
+      label: "Story Points",
+      kind: "field",
+      total: 2,
       filters: [
         { id: "1", name: "Sprint readiness", ownerName: "Bob", ownerActive: true, subscriptionCount: 0 },
         { id: "2", name: "Weekly rollup", ownerName: "Ann", ownerActive: false, subscriptionCount: 3 },
@@ -977,7 +1228,9 @@ describe("FilterUsageSection", () => {
     invoke.mockResolvedValue({ available: true, total: 0, filters: [] });
     render(<FilterUsageSection field={field} />);
 
-    await waitFor(() => expect(invoke).toHaveBeenCalledWith("getFilterUsage", { kind: "field", label: "Story Points" }));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("getFilterUsage", { kind: "field", label: "Story Points" }),
+    );
   });
 
   test("does not fetch while the card is collapsed", () => {
@@ -998,14 +1251,19 @@ describe("DeletionSafetySection", () => {
 
   const answer = (over = {}) => ({
     available: true,
-    fields: [{
-      fieldId: "customfield_1", fieldName: "Vendor Ref",
-      verdict: "no-evidence-of-use",
-      headline: "No evidence of use in anything this app can see.",
-      blockers: [], gaps: [], checked: ["field usage", "screens"],
-      caveat: "Observatory cannot read Marketplace app configuration (ScriptRunner listeners, JMWE post-functions).",
-      ...over,
-    }],
+    fields: [
+      {
+        fieldId: "customfield_1",
+        fieldName: "Vendor Ref",
+        verdict: "no-evidence-of-use",
+        headline: "No evidence of use in anything this app can see.",
+        blockers: [],
+        gaps: [],
+        checked: ["field usage", "screens"],
+        caveat: "Observatory cannot read Marketplace app configuration (ScriptRunner listeners, JMWE post-functions).",
+        ...over,
+      },
+    ],
   });
 
   // Collapsed by default, and the check is behind a further click inside it: this reads five
@@ -1043,22 +1301,33 @@ describe("DeletionSafetySection", () => {
   });
 
   it("lists each blocker with what it costs", async () => {
-    await run(answer({
-      verdict: "in-use",
-      headline: "In use — 1 reason not to delete this yet.",
-      blockers: [{ source: "automation", severity: "high", summary: "2 automation rules write to this field.", detail: "Those rules break on deletion." }],
-    }));
+    await run(
+      answer({
+        verdict: "in-use",
+        headline: "In use — 1 reason not to delete this yet.",
+        blockers: [
+          {
+            source: "automation",
+            severity: "high",
+            summary: "2 automation rules write to this field.",
+            detail: "Those rules break on deletion.",
+          },
+        ],
+      }),
+    );
 
     expect(await screen.findByText(/2 automation rules write to this field/)).toBeInTheDocument();
     expect(screen.getByText(/Those rules break on deletion/)).toBeInTheDocument();
   });
 
   it("keeps what could not be checked separate from what was checked and found clean", async () => {
-    await run(answer({
-      verdict: "unknown",
-      headline: "No evidence of use, but 1 source could not be checked.",
-      gaps: [{ source: "automation rules", reason: "No automation analysis has been imported." }],
-    }));
+    await run(
+      answer({
+        verdict: "unknown",
+        headline: "No evidence of use, but 1 source could not be checked.",
+        gaps: [{ source: "automation rules", reason: "No automation analysis has been imported." }],
+      }),
+    );
 
     expect(await screen.findByText("Could not be checked")).toBeInTheDocument();
     expect(screen.getByText(/no automation analysis has been imported/i)).toBeInTheDocument();

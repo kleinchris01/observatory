@@ -6,6 +6,7 @@ import {
   isSharedWithEveryone,
   summarizeDashboards,
   summarizeDashboardHealth,
+  isSharedPublicly,
 } from "./dashboard-insights.js";
 
 // A dashboard is the most visible thing in Jira and the least owned. The failure modes worth
@@ -35,11 +36,31 @@ describe("classifyOwner", () => {
 });
 
 describe("share classification", () => {
-  test("recognises every spelling Jira has used for everyone", () => {
-    for (const type of ["global", "authenticated", "loggedin"]) {
+  // Per the published spec: `global` is shared globally (the public), `loggedin` /
+  // `authenticated` every logged-in user. Two different claims, so two findings.
+  test("tells a public share from a logged-in one", () => {
+    for (const type of ["authenticated", "loggedin"]) {
       expect(isSharedWithEveryone([{ type }])).toBe(true);
-      expect(isEditableByEveryone([{ type }])).toBe(true);
+      expect(isSharedPublicly([{ type }])).toBe(false);
     }
+    expect(isSharedPublicly([{ type: "global" }])).toBe(true);
+    expect(isSharedWithEveryone([{ type: "global" }])).toBe(false);
+    for (const type of ["global", "authenticated", "loggedin"]) expect(isEditableByEveryone([{ type }])).toBe(true);
+  });
+
+  test("a public dashboard is a high finding, and counts toward published-unused", () => {
+    const findings = analyzeDashboard({
+      owner: { active: true },
+      shares: [{ type: "global" }],
+      popularity: 0,
+      gadgetCount: 3,
+    });
+    expect(findings[0]).toMatchObject({ code: "shared-publicly", severity: "high" });
+    expect(findings.map((f) => f.code)).toContain("published-unused");
+    expect(
+      summarizeDashboards([{ id: "1", owner: { active: true }, shares: [{ type: "global" }], gadgetCount: 1 }])
+        .sharedPubliclyCount,
+    ).toBe(1);
   });
 
   test("a project or group share is not everyone", () => {
@@ -116,8 +137,12 @@ describe("summarizeDashboards", () => {
 
   test("counts each finding separately", () => {
     expect(summarizeDashboards(estate)).toMatchObject({
-      available: true, total: 5,
-      orphanedCount: 1, editableByEveryoneCount: 1, publishedUnusedCount: 1, emptyCount: 1,
+      available: true,
+      total: 5,
+      orphanedCount: 1,
+      editableByEveryoneCount: 1,
+      publishedUnusedCount: 1,
+      emptyCount: 1,
     });
   });
 
@@ -147,9 +172,15 @@ describe("summarizeDashboards", () => {
 });
 
 describe("summarizeDashboardHealth", () => {
-  const build = (over) => summarizeDashboardHealth(summarizeDashboards(
-    Array.from({ length: 100 }, (_, i) => dashboard({ id: String(i) })).map((d, i) => ({ ...d, ...(over(i) || {}) }))
-  ));
+  const build = (over) =>
+    summarizeDashboardHealth(
+      summarizeDashboards(
+        Array.from({ length: 100 }, (_, i) => dashboard({ id: String(i) })).map((d, i) => ({
+          ...d,
+          ...(over(i) || {}),
+        })),
+      ),
+    );
 
   // computeSiteHealth scores four dashboard dimensions from these raw counts directly. What
   // this owes it is the counts; the old combined `defectRate` had no consumer after the
@@ -164,7 +195,10 @@ describe("summarizeDashboardHealth", () => {
   // content dimension being unavailable rather than scoring a shortfall in the build as a
   // defect in the estate.
   test("carries a null empty count through unchanged on a partial walk", () => {
-    const partial = summarizeDashboards([dashboard({ gadgetCount: null }), dashboard({ id: "2", owner: null, gadgetCount: null })]);
+    const partial = summarizeDashboards([
+      dashboard({ gadgetCount: null }),
+      dashboard({ id: "2", owner: null, gadgetCount: null }),
+    ]);
     const health = summarizeDashboardHealth(partial);
     expect(health.emptyCount).toBeNull();
     expect(health.orphanedCount).toBe(1);
@@ -172,5 +206,41 @@ describe("summarizeDashboardHealth", () => {
 
   test("reports unavailable when there is no estate to rate", () => {
     expect(summarizeDashboardHealth(summarizeDashboards([]))).toEqual({ available: false });
+  });
+});
+
+// A gadget whose filter nobody but its owner can read shows everyone else an error.
+describe("broken gadgets", () => {
+  const base = { owner: { active: true }, popularity: 3, gadgetCount: 2 };
+  const gadget = (filterState, over = {}) => ({ id: "g", title: "Open bugs", filterId: "500", filterState, ...over });
+
+  test("a missing filter is high, on any dashboard", () => {
+    const f = analyzeDashboard({ ...base, shares: [], gadgets: [gadget("missing")] }).find(
+      (x) => x.code === "broken-gadget",
+    );
+    expect(f).toMatchObject({ severity: "high", gadgets: [{ filterState: "missing" }] });
+    expect(f.detail).toMatch(/1 gadget reads a filter that no longer exists/);
+  });
+
+  test("a private filter only counts when the dashboard is shared", () => {
+    expect(
+      analyzeDashboard({ ...base, shares: [], gadgets: [gadget("private")] }).some((x) => x.code === "broken-gadget"),
+    ).toBe(false);
+    const f = analyzeDashboard({ ...base, shares: [{ type: "group" }], gadgets: [gadget("private")] }).find(
+      (x) => x.code === "broken-gadget",
+    );
+    expect(f).toMatchObject({ severity: "medium" });
+  });
+
+  test("readable and unknown filters raise nothing, and only probed dashboards are counted", () => {
+    const dashboards = [
+      { id: "1", ...base, shares: [], gadgets: [gadget("readable")] },
+      { id: "2", ...base, shares: [], gadgets: [gadget("unknown")] },
+      { id: "3", ...base, shares: [], gadgets: [gadget("missing")] },
+      { id: "4", ...base, shares: [], gadgets: [gadget(null, { filterId: null })] },
+    ];
+    const s = summarizeDashboards(dashboards);
+    expect(s.brokenGadgetCount).toBe(1);
+    expect(s.filterGadgetDashboards).toBe(2);
   });
 });

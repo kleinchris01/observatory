@@ -1,11 +1,13 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
 import { EmptyState } from "../components/ui";
-import { useNavIntent } from "../hooks";
+import { useNavIntent, usePillarUsage } from "../hooks";
 
 // Per-project field usage view.
 
-const ProjectsTabView = React.lazy(() => import("../components/ProjectsTab").then((m) => ({ default: m.ProjectsTabView })));
+const ProjectsTabView = React.lazy(() =>
+  import("../components/ProjectsTab").then((m) => ({ default: m.ProjectsTabView })),
+);
 
 export function ProjectUsageTab({ siteOrigin, intent = null, onBuildFieldReport }) {
   const [projectQuery, setProjectQuery] = React.useState("");
@@ -23,6 +25,7 @@ export function ProjectUsageTab({ siteOrigin, intent = null, onBuildFieldReport 
   // the rail already holds every project the reader may browse, and the thresholds are a
   // function of that list.
   const [projectFilter, setProjectFilter] = React.useState("all");
+  const usage = usePillarUsage("project");
 
   useNavIntent(intent, (nav) => {
     setProjectFilter(nav.filter ?? "all");
@@ -31,12 +34,17 @@ export function ProjectUsageTab({ siteOrigin, intent = null, onBuildFieldReport 
   });
 
   React.useEffect(() => {
-    const t = setTimeout(() => { setDeferredProjectQuery(projectQuery); }, 350);
+    const t = setTimeout(() => {
+      setDeferredProjectQuery(projectQuery);
+    }, 350);
     return () => clearTimeout(t);
   }, [projectQuery]);
 
   React.useEffect(() => {
-    const t = setTimeout(() => { setDeferredFieldQuery(fieldQuery); setPage(1); }, 350);
+    const t = setTimeout(() => {
+      setDeferredFieldQuery(fieldQuery);
+      setPage(1);
+    }, 350);
     return () => clearTimeout(t);
   }, [fieldQuery]);
 
@@ -51,39 +59,50 @@ export function ProjectUsageTab({ siteOrigin, intent = null, onBuildFieldReport 
       fieldType,
       sortBy: fieldSort,
       page,
-    }).then((result) => {
-      // No auto-adopt: the old rail always had a project selected, so the resolver returns a
-      // default one and the container used to sync to it. With the browse list, "" (nothing
-      // expanded) is a real state -- adopting the default here reopened a card the moment the
-      // user closed it.
-      if (!cancelled) setData(result);
-    }).catch((err) => {
-      if (!cancelled) setLoadError(err.message || "Failed to load project usage.");
-    }).finally(() => {
-      if (!cancelled) setLoading(false);
-    });
-    return () => { cancelled = true; };
+    })
+      .then((result) => {
+        // No auto-adopt: the old rail always had a project selected, so the resolver returns a
+        // default one and the container used to sync to it. With the browse list, "" (nothing
+        // expanded) is a real state -- adopting the default here reopened a card the moment the
+        // user closed it.
+        if (!cancelled) setData(result);
+      })
+      .catch((err) => {
+        if (!cancelled) setLoadError(err.message || "Failed to load project usage.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedProjectId, deferredProjectQuery, deferredFieldQuery, fieldType, fieldSort, page]);
-
 
   // Everything that touches the selected project, across every pillar. Its own call rather
   // than folded into getProjectsView: that resolver pages a field list and is re-run on
   // every keystroke of the field search, and none of those re-runs change the pillars.
   const [overview, setOverview] = React.useState(null);
   const [overviewLoading, setOverviewLoading] = React.useState(false);
-  const selectedProjectKey = data?.selectedProject?.projectId === selectedProjectId
-    ? data?.selectedProject?.projectKey
-    : null;
+  const selectedProjectKey =
+    data?.selectedProject?.projectId === selectedProjectId ? data?.selectedProject?.projectKey : null;
 
   React.useEffect(() => {
     if (!selectedProjectId) return undefined;
     let cancelled = false;
     setOverviewLoading(true);
     invoke("getProjectOverview", { projectId: selectedProjectId, projectKey: selectedProjectKey || undefined })
-      .then((result) => { if (!cancelled) setOverview(result); })
-      .catch(() => { if (!cancelled) setOverview(null); })
-      .finally(() => { if (!cancelled) setOverviewLoading(false); });
-    return () => { cancelled = true; };
+      .then((result) => {
+        if (!cancelled) setOverview(result);
+      })
+      .catch(() => {
+        if (!cancelled) setOverview(null);
+      })
+      .finally(() => {
+        if (!cancelled) setOverviewLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedProjectId, selectedProjectKey]);
 
   // "" collapses the open card. The browse list is always visible now, so selecting nothing
@@ -98,6 +117,7 @@ export function ProjectUsageTab({ siteOrigin, intent = null, onBuildFieldReport 
       {loadError && <div className="error-banner">{loadError}</div>}
       <React.Suspense fallback={<EmptyState>Loading…</EmptyState>}>
         <ProjectsTabView
+          usage={usage}
           data={data}
           loading={loading}
           siteOrigin={siteOrigin}
@@ -106,11 +126,19 @@ export function ProjectUsageTab({ siteOrigin, intent = null, onBuildFieldReport 
           projectQuery={projectQuery}
           onProjectQueryChange={setProjectQuery}
           fieldQuery={fieldQuery}
-          onFieldQueryChange={(v) => { setFieldQuery(v); }}
+          onFieldQueryChange={(v) => {
+            setFieldQuery(v);
+          }}
           fieldType={fieldType}
-          onFieldTypeChange={(v) => { setFieldType(v); setPage(1); }}
+          onFieldTypeChange={(v) => {
+            setFieldType(v);
+            setPage(1);
+          }}
           fieldSort={fieldSort}
-          onFieldSortChange={(v) => { setFieldSort(v); setPage(1); }}
+          onFieldSortChange={(v) => {
+            setFieldSort(v);
+            setPage(1);
+          }}
           onChangePage={setPage}
           overview={overview}
           overviewLoading={overviewLoading}

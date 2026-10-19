@@ -6,7 +6,9 @@ import {
   buildPillarReport,
   finalizeReport,
   isPillarReportKey,
-  unavailableReport, countScreenProjects } from "./pillar-reports.js";
+  unavailableReport,
+  countScreenProjects,
+} from "./pillar-reports.js";
 
 describe("registry", () => {
   test("every registered pillar has a builder, and every builder is registered", () => {
@@ -100,7 +102,14 @@ describe("finalizeReport", () => {
 describe("unavailableReport", () => {
   test("is explicit, never an empty ok report", () => {
     const report = unavailableReport("boards", "No board inventory.");
-    expect(report).toMatchObject({ pillar: "boards", status: "unavailable", reason: "No board inventory.", rows: [], total: 0, healthPillars: ["boards"] });
+    expect(report).toMatchObject({
+      pillar: "boards",
+      status: "unavailable",
+      reason: "No board inventory.",
+      rows: [],
+      total: 0,
+      healthPillars: ["boards"],
+    });
   });
 
   test("falls back to a generic reason", () => {
@@ -113,8 +122,24 @@ describe("builders", () => {
     const report = buildPillarReport("fields", {
       refreshedAt: "2026-09-01T00:00:00Z",
       fields: [
-        { id: "customfield_1", name: "A", type: "select", isSystemField: false, configuredProjectCount: 3, activeProjectCount: 0, totalIssueCount: 0, findings: { reasons: [{ code: "orphaned" }] } },
-        { id: "summary", name: "Summary", type: "string", isSystemField: true, totalIssueCount: 0, findings: { reasons: [] } },
+        {
+          id: "customfield_1",
+          name: "A",
+          type: "select",
+          isSystemField: false,
+          configuredProjectCount: 3,
+          activeProjectCount: 0,
+          totalIssueCount: 0,
+          findings: { reasons: [{ code: "orphaned" }] },
+        },
+        {
+          id: "summary",
+          name: "Summary",
+          type: "string",
+          isSystemField: true,
+          totalIssueCount: 0,
+          findings: { reasons: [] },
+        },
       ],
     });
     expect(report.rows[0]).toMatchObject({ id: "customfield_1", configuredProjects: 3, findings: ["orphaned"] });
@@ -169,7 +194,11 @@ describe("builders", () => {
         { id: "4", name: "Epic", hierarchyLevel: 1 },
         { id: "5", name: "Sub-task", subtask: true, hierarchyLevel: -1 },
       ],
-      schemeItems: [{ schemeId: "s", issueTypeId: "1" }, { schemeId: "s", issueTypeId: "4" }, { schemeId: "s", issueTypeId: "5" }],
+      schemeItems: [
+        { schemeId: "s", issueTypeId: "1" },
+        { schemeId: "s", issueTypeId: "4" },
+        { schemeId: "s", issueTypeId: "5" },
+      ],
       usage: { measurement: "not-measured" },
     });
     const byId = Object.fromEntries(report.rows.map((r) => [r.id, r]));
@@ -181,10 +210,59 @@ describe("builders", () => {
     expect(report.notes[0]).toMatch(/not fully measured/);
   });
 
+  test("fieldConfigs: schemes and configurations, with the stored finding codes and projects through routes", () => {
+    const report = buildPillarReport("fieldConfigs", {
+      sourceLabel: "Field configurations (legacy)",
+      summary: { unmeasured: 1 },
+      schemes: [
+        {
+          id: "fcs:default",
+          source: "field-configurations",
+          name: "Default",
+          isDefault: true,
+          projectCount: 4,
+          codes: [],
+        },
+        { id: "fcs:5", source: "field-configurations", sourceId: "5", name: "Old", projectCount: 0, codes: ["unused"] },
+      ],
+      configs: [
+        {
+          id: "fc:2",
+          sourceId: "2",
+          name: "Build",
+          itemsRead: true,
+          requiredCount: 3,
+          totalFieldCount: 900,
+          codes: ["required-hidden"],
+          routes: [{ schemeId: "fcs:default" }],
+        },
+        { id: "fc:3", sourceId: "3", name: "Unread", itemsRead: false, codes: ["unused", "unmeasured"], routes: [] },
+      ],
+    });
+    expect(report.total).toBe(4);
+    const byId = Object.fromEntries(report.rows.map((r) => [r.id, r]));
+    expect(byId["fc:2"]).toMatchObject({
+      kind: "Field configuration",
+      projects: 4,
+      required: 3,
+      fields: 900,
+      findings: ["required-hidden"],
+    });
+    // Unread is "not measured", never a finding and never zero.
+    expect(byId["fc:3"]).toMatchObject({ required: null, fields: null, findings: ["unused"] });
+    expect(report.summary).toEqual(
+      expect.arrayContaining([{ label: "Model", value: "Field configurations (legacy)" }]),
+    );
+    expect(report.notes[0]).toMatch(/1 could not be read/);
+  });
+
   test("priorities: both lists in one report, near-duplicates flagged per list", () => {
     const report = buildPillarReport("priorities", {
       priorities: [{ id: "1", name: "High", isDefault: true }],
-      resolutions: [{ id: "10", name: "Done" }, { id: "11", name: "done" }],
+      resolutions: [
+        { id: "10", name: "Done" },
+        { id: "11", name: "done" },
+      ],
     });
     expect(report.total).toBe(3);
     expect(report.flaggedCount).toBe(2);
@@ -201,10 +279,30 @@ describe("builders", () => {
     expect(report.rows.find((r) => r.name === "Done").issues).toBeNull();
   });
 
+  test("people: a dormant licence is a finding, with the last activity date beside it", () => {
+    const report = buildPillarReport("people", {
+      users: [
+        { displayName: "Idle", accountId: "a", active: true, lastActivityAt: "2025-01-01T00:00:00Z", dormant: true },
+        { displayName: "Unseen", accountId: "b", active: true, lastActivityAt: null, dormant: null },
+      ],
+    });
+    const byName = Object.fromEntries(report.rows.map((r) => [r.name, r]));
+    expect(byName.Idle.findings).toEqual(["dormant-licence"]);
+    expect(byName.Unseen.findings).toEqual([]);
+    expect(report.columns.some((c) => c.key === "lastActivity")).toBe(true);
+  });
+
   test("people: only inactive accounts that still own things are flagged", () => {
     const report = buildPillarReport("people", {
       users: [
-        { accountId: "a", displayName: "Ann", active: true, ownedFilters: 3, applications: [{ name: "Jira" }], groups: [{}] },
+        {
+          accountId: "a",
+          displayName: "Ann",
+          active: true,
+          ownedFilters: 3,
+          applications: [{ name: "Jira" }],
+          groups: [{}],
+        },
         { accountId: "b", displayName: "Bob", active: false, ownedDashboards: 1, automationRefs: 2 },
         { accountId: "c", displayName: "Cy", active: false },
       ],
@@ -247,7 +345,10 @@ describe("builders", () => {
     const report = buildPillarReport("access", {
       inventory: {
         permissions: {
-          schemes: [{ id: "p1", name: "Default", isDefault: true, projectCount: 0 }, { id: "p2", name: "Spare", projectCount: 0 }],
+          schemes: [
+            { id: "p1", name: "Default", isDefault: true, projectCount: 0 },
+            { id: "p2", name: "Spare", projectCount: 0 },
+          ],
           holders: [{ schemeId: "p1" }, { schemeId: "p1" }],
         },
         security: null,
@@ -283,9 +384,16 @@ describe("builders", () => {
       { screenId: "1", name: "A", tabCount: 1, fieldCount: 3, tabsResolved: "resolved" },
       { screenId: "2", name: "B", tabCount: 1, fieldCount: 3, tabsResolved: "resolved" },
     ];
-    const withReach = buildPillarReport("screens", { screens, unreachedIds: new Set(), projectsByScreen: new Map([["1", 4]]) });
+    const withReach = buildPillarReport("screens", {
+      screens,
+      unreachedIds: new Set(),
+      projectsByScreen: new Map([["1", 4]]),
+    });
     expect(withReach.columns.map((c) => c.key)).toContain("projects");
-    expect(withReach.rows.map((r) => [r.id, r.projects])).toEqual([["1", 4], ["2", 0]]);
+    expect(withReach.rows.map((r) => [r.id, r.projects])).toEqual([
+      ["1", 4],
+      ["2", 0],
+    ]);
     expect(buildPillarReport("screens", { screens, unreachedIds: new Set() }).rows[0].projects).toBeNull();
   });
 
@@ -305,8 +413,10 @@ describe("builders", () => {
         { itssId: "i2", screenSchemeId: null },
       ],
       itssProjects: [
-        { itssId: "i1", projectId: "P1" }, { itssId: "i1", projectId: "P2" },
-        { itssId: "i2", projectId: "P2" }, { itssId: "i2", projectId: "P3" },
+        { itssId: "i1", projectId: "P1" },
+        { itssId: "i1", projectId: "P2" },
+        { itssId: "i2", projectId: "P2" },
+        { itssId: "i2", projectId: "P3" },
       ],
     });
     expect(Object.fromEntries(reach)).toEqual({ 10: 3, 11: 2, 12: 0 });
@@ -315,14 +425,30 @@ describe("builders", () => {
 
   test("filters: findings are the analysis codes", () => {
     const report = buildPillarReport("filters", {
-      filters: [{ id: "1", name: "F", ownerName: "Ann", ownerActive: false, subscriptionCount: 2, findings: [{ code: "orphaned-owner" }] }],
+      filters: [
+        {
+          id: "1",
+          name: "F",
+          ownerName: "Ann",
+          ownerActive: false,
+          subscriptionCount: 2,
+          findings: [{ code: "orphaned-owner" }],
+        },
+      ],
     });
-    expect(report.rows[0]).toMatchObject({ owner: "Ann", ownerActive: false, subscriptions: 2, findings: ["orphaned-owner"] });
+    expect(report.rows[0]).toMatchObject({
+      owner: "Ann",
+      ownerActive: false,
+      subscriptions: 2,
+      findings: ["orphaned-owner"],
+    });
   });
 
   test("dashboards: findings come from analyzeDashboard", () => {
     const report = buildPillarReport("dashboards", {
-      dashboards: [{ id: "1", name: "Empty", gadgetCount: 0, owner: { accountId: "a", active: true }, shares: [], editShares: [] }],
+      dashboards: [
+        { id: "1", name: "Empty", gadgetCount: 0, owner: { accountId: "a", active: true }, shares: [], editShares: [] },
+      ],
     });
     expect(report.rows[0].findings).toContain("empty");
   });
@@ -341,7 +467,10 @@ describe("builders", () => {
 
   test("automation: risks only for previewed rules, with a caveat when the preview is partial", () => {
     const report = buildPillarReport("automation", {
-      rules: [{ id: 1, name: "R1", enabled: true }, { id: 2, name: "R2", enabled: false }],
+      rules: [
+        { id: 1, name: "R1", enabled: true },
+        { id: 2, name: "R2", enabled: false },
+      ],
       findingsPreview: [{ id: 1, r: [{ c: "plaintext-secret" }] }],
       findingsTotal: 5,
     });
@@ -354,7 +483,14 @@ describe("builders", () => {
   test("changes: one row per change with a kind breakdown and the window noted", () => {
     const report = buildPillarReport("changes", {
       changes: [
-        { detectedAt: "2026-09-02", pillar: "fields", entityType: "field", entityId: "cf1", label: "Team", changeKind: "added" },
+        {
+          detectedAt: "2026-09-02",
+          pillar: "fields",
+          entityType: "field",
+          entityId: "cf1",
+          label: "Team",
+          changeKind: "added",
+        },
         { detectedAt: "2026-09-01", pillar: "fields", entityType: "field", entityId: "cf2", changeKind: "modified" },
       ],
       windowDays: 30,

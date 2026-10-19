@@ -1,10 +1,15 @@
 import { describe, test, expect } from "vitest";
 import { computeSiteHealth } from "./health-score.js";
 import {
-  summarizePermissionInsights, summarizePermissionHealth,
-  summarizeSecurityInsights, summarizeSecurityHealth,
-  summarizeNotificationInsights, summarizeNotificationHealth,
-  summarizeRoleInsights, summarizeRoleHealth,
+  summarizePermissionInsights,
+  summarizePermissionHealth,
+  summarizeSecurityInsights,
+  summarizeSecurityHealth,
+  summarizeNotificationInsights,
+  summarizeNotificationHealth,
+  summarizeRoleInsights,
+  summarizeRoleHealth,
+  adminCapabilityByProject,
 } from "./access-insights.js";
 
 const roster = new Set(["acc-1", "acc-2"]);
@@ -39,7 +44,12 @@ describe("summarizePermissionInsights", () => {
 
   test("health carries the rate inputs", () => {
     const s = summarizePermissionInsights({ schemes, holders, schemeProjects, rosterAccountIds: roster });
-    expect(summarizePermissionHealth(s)).toMatchObject({ available: true, totalSchemes: 3, riskySchemeCount: 2, unusedSchemeCount: 1 });
+    expect(summarizePermissionHealth(s)).toMatchObject({
+      available: true,
+      totalSchemes: 3,
+      riskySchemeCount: 2,
+      unusedSchemeCount: 1,
+    });
   });
 });
 
@@ -68,7 +78,12 @@ describe("summarizeSecurityInsights", () => {
 
   test("health folds empty levels and no-level schemes into one broken count", () => {
     const s = summarizeSecurityInsights({ schemes, levels, holders, schemeProjects, rosterAccountIds: roster });
-    expect(summarizeSecurityHealth(s)).toMatchObject({ available: true, totalLevels: 2, brokenLevelCount: 2, unusedSchemeCount: 1 });
+    expect(summarizeSecurityHealth(s)).toMatchObject({
+      available: true,
+      totalLevels: 2,
+      brokenLevelCount: 2,
+      unusedSchemeCount: 1,
+    });
   });
 });
 
@@ -103,8 +118,22 @@ describe("summarizeRoleInsights", () => {
   ];
   // holders: user|group actors, plus an "empty" sentinel for a (role, project) with nobody.
   const holders = [
-    { schemeId: "10002", context: "1", contextLabel: "OPS", holderType: "group", holderValue: "g-admins", holderLabel: "admins" },
-    { schemeId: "10002", context: "2", contextLabel: "DEV", holderType: "empty", holderValue: "", holderLabel: "Administrators" },
+    {
+      schemeId: "10002",
+      context: "1",
+      contextLabel: "OPS",
+      holderType: "group",
+      holderValue: "g-admins",
+      holderLabel: "admins",
+    },
+    {
+      schemeId: "10002",
+      context: "2",
+      contextLabel: "DEV",
+      holderType: "empty",
+      holderValue: "",
+      holderLabel: "Administrators",
+    },
     { schemeId: "10003", context: "1", contextLabel: "OPS", holderType: "user", holderValue: "acc-1" },
     { schemeId: "10003", context: "2", contextLabel: "DEV", holderType: "user", holderValue: "acc-gone" },
   ];
@@ -113,16 +142,20 @@ describe("summarizeRoleInsights", () => {
     const s = summarizeRoleInsights({ roles, holders, rosterAccountIds: roster });
     expect(s.available).toBe(true);
     expect(s.totalRoles).toBe(2);
-    expect(s.projectsWithRoles).toBe(2);            // OPS, DEV
+    expect(s.projectsWithRoles).toBe(2); // OPS, DEV
     expect(s.projectsMissingAdminActorCount).toBe(1); // DEV's Administrators is the empty sentinel
     expect(s.projectsMissingAdminActor[0]).toMatchObject({ projectKey: "DEV", role: "Administrators" });
     expect(s.directUserActorCount).toBe(2);
-    expect(s.offRosterActorCount).toBe(1);          // acc-gone
+    expect(s.offRosterActorCount).toBe(1); // acc-gone
   });
 
   test("health carries the coverage inputs, and unavailable follows an empty input", () => {
     const s = summarizeRoleInsights({ roles, holders, rosterAccountIds: roster });
-    expect(summarizeRoleHealth(s)).toMatchObject({ available: true, projectsWithRoles: 2, projectsMissingAdminActorCount: 1 });
+    expect(summarizeRoleHealth(s)).toMatchObject({
+      available: true,
+      projectsWithRoles: 2,
+      projectsMissingAdminActorCount: 1,
+    });
     expect(summarizeRoleInsights({}).available).toBe(false);
     expect(summarizeRoleHealth(summarizeRoleInsights({}))).toEqual({ available: false });
   });
@@ -163,5 +196,285 @@ describe("listLimit", () => {
     expect(full.unusedSchemes).toHaveLength(40);
     // The counts never depended on the limit.
     expect(full.unusedSchemeCount).toBe(40);
+  });
+});
+
+// Public and logged-in grants, as the spec defines them: `anyone` is anonymous users, and an
+// applicationRole grant with no application is "any logged-in user".
+describe("public and logged-in grants", () => {
+  const scheme = { id: "1", name: "Open scheme" };
+  const grant = (context, holderType, holderValue = "") => ({ schemeId: "1", context, holderType, holderValue });
+
+  test("any permission open to anonymous users is a risky reason, browse or not", () => {
+    const s = summarizePermissionInsights({
+      schemes: [scheme],
+      holders: [grant("CREATE_ISSUES", "anyone"), grant("ADD_COMMENTS", "anyone")],
+      schemeProjects: [{ schemeId: "1" }],
+    });
+    expect(s.riskySchemes[0].reasons).toEqual([
+      "2 other permissions open to anonymous users (public): CREATE_ISSUES, ADD_COMMENTS",
+    ]);
+    expect(s.publicSchemeCount).toBe(1);
+  });
+
+  test("a sensitive permission for every logged-in user is risky; browse for everyone is only counted", () => {
+    const s = summarizePermissionInsights({
+      schemes: [scheme],
+      holders: [
+        grant("BROWSE_PROJECTS", "applicationRole"),
+        grant("DELETE_ISSUES", "applicationRole"),
+        grant("EDIT_ISSUES", "applicationRole", "jira-software"),
+      ],
+    });
+    expect(s.riskySchemes[0].reasons).toEqual([
+      "1 sensitive permission granted to every logged-in user: DELETE_ISSUES",
+    ]);
+    expect(s.loggedInSensitiveSchemeCount).toBe(1);
+    // The grant naming an application is not "every logged-in user".
+    expect(s.loggedInGrantCount).toBe(2);
+  });
+
+  test("notifications to a raw email address make a scheme fragile; groups are counted", () => {
+    const s = summarizeNotificationInsights({
+      schemes: [{ id: "n1", name: "Mailer" }],
+      holders: [
+        { schemeId: "n1", holderType: "emailAddress", holderValue: "ops@vendor.example" },
+        { schemeId: "n1", holderType: "group", holderValue: "g1" },
+      ],
+    });
+    expect(s.fragileSchemes).toEqual([
+      { id: "n1", name: "Mailer", namedUserCount: 0, emailAddressCount: 1, groupRecipientCount: 1 },
+    ]);
+    expect(s).toMatchObject({ fragileSchemeCount: 1, emailRecipientCount: 1, groupRecipientCount: 1 });
+  });
+});
+
+// Reported 7 Oct 2026: projects with several people in "Administrators" were flagged because
+// "Administrators-EXTERNAL" was empty. Both roles hold Administer Projects; one filled is enough.
+describe("projects nobody can administer", () => {
+  const roles = [
+    { id: "10002", name: "Administrators" },
+    { id: "10010", name: "Administrators-EXTERNAL" },
+    { id: "10003", name: "Members" },
+  ];
+  const holder = (roleId, projectId, key, type, value = "") => ({
+    schemeId: roleId,
+    context: projectId,
+    contextLabel: key,
+    holderType: type,
+    holderValue: value,
+  });
+  const holders = [
+    // OPS: Administrators full, EXTERNAL empty -> administered
+    holder("10002", "1", "OPS", "user", "acc-1"),
+    holder("10002", "1", "OPS", "user", "acc-2"),
+    holder("10010", "1", "OPS", "empty"),
+    holder("10003", "1", "OPS", "user", "acc-3"),
+    // EXT: only EXTERNAL filled -> administered
+    holder("10002", "2", "EXT", "empty"),
+    holder("10010", "2", "EXT", "group", "g-vendor"),
+    // DEV: both empty -> nobody can administer
+    holder("10002", "3", "DEV", "empty"),
+    holder("10010", "3", "DEV", "empty"),
+    holder("10003", "3", "DEV", "user", "acc-4"),
+  ];
+  const grant = (schemeId, type, value = "") => ({
+    schemeId,
+    context: "ADMINISTER_PROJECTS",
+    holderType: type,
+    holderValue: value,
+  });
+
+  test("by role name, any one filled admin role is enough", () => {
+    const s = summarizeRoleInsights({
+      roles,
+      holders,
+      rosterAccountIds: new Set(["acc-1", "acc-2", "acc-3", "acc-4"]),
+    });
+    expect(s.projectsMissingAdminActorCount).toBe(1);
+    expect(s.projectsMissingAdminActor).toEqual([
+      {
+        projectId: "3",
+        projectKey: "DEV",
+        role: "Administrators, Administrators-EXTERNAL",
+        roles: ["Administrators", "Administrators-EXTERNAL"],
+      },
+    ]);
+  });
+
+  test("with permission data, the roles granted Administer Projects decide, whatever their name", () => {
+    const permHolders = [grant("P1", "projectRole", "10010"), grant("P1", "projectRole", "10003")];
+    const permProjects = [
+      { schemeId: "P1", projectId: "1" },
+      { schemeId: "P1", projectId: "2" },
+      { schemeId: "P1", projectId: "3" },
+    ];
+    const s = summarizeRoleInsights({ roles, holders, permHolders, permProjects });
+    // Scheme P1 grants admin to EXTERNAL and Members, not to "Administrators". OPS has a Member,
+    // EXT has an EXTERNAL group, DEV has a Member -- all administered.
+    expect(s.projectsMissingAdminActorCount).toBe(0);
+  });
+
+  test("a direct grant (group, lead) means the project is administered even with every role empty", () => {
+    const permHolders = [
+      grant("P1", "projectRole", "10002"),
+      grant("P2", "projectRole", "10002"),
+      grant("P2", "projectLead"),
+    ];
+    const permProjects = [
+      { schemeId: "P1", projectId: "3" },
+      { schemeId: "P2", projectId: "2" },
+    ];
+    const s = summarizeRoleInsights({ roles, holders, permHolders, permProjects });
+    // DEV (P1): only Administrators can administer and it is empty. EXT (P2): the lead can.
+    expect(s.projectsMissingAdminActor.map((p) => p.projectKey)).toEqual(["DEV"]);
+    expect(s.projectsMissingAdminActor[0].role).toBe("Administrators");
+  });
+
+  test("a scheme that grants Administer Projects to nobody leaves the project unadministered", () => {
+    const permHolders = [{ schemeId: "P1", context: "BROWSE_PROJECTS", holderType: "anyone", holderValue: "" }];
+    const s = summarizeRoleInsights({
+      roles,
+      holders,
+      permHolders,
+      permProjects: [{ schemeId: "P1", projectId: "1" }],
+    });
+    // OPS (on P1) despite its full Administrators role; DEV still by name (no permission data).
+    expect(s.projectsMissingAdminActor.map((p) => p.projectKey)).toEqual(["OPS", "DEV"]);
+    expect(s.projectsMissingAdminActor[0]).toEqual({
+      projectId: "1",
+      projectKey: "OPS",
+      role: "no role is granted Administer Projects",
+      roles: [],
+    });
+  });
+
+  test("adminCapabilityByProject reads roles and direct grants per scheme", () => {
+    const cap = adminCapabilityByProject(
+      [
+        grant("P1", "projectRole", "10002"),
+        grant("P1", "group", "g1"),
+        { schemeId: "P1", context: "BROWSE_PROJECTS", holderType: "projectRole", holderValue: "10003" },
+      ],
+      [
+        { schemeId: "P1", projectId: "7" },
+        { schemeId: "P9", projectId: "8" },
+      ],
+    );
+    expect([...cap.get("7").roleIds]).toEqual(["10002"]);
+    expect(cap.get("7").direct).toBe(true);
+    expect(cap.get("8")).toEqual({ roleIds: new Set(), direct: false });
+  });
+});
+
+// The counts the thin-pillar checks score from (14 Oct 2026), and the roster flag that keeps the
+// departed-account checks honest on a site whose People roster was never built.
+describe("counts behind the new access checks", () => {
+  test("permissions: every grant counted, and the health carries the new inputs", () => {
+    const holders = [
+      { schemeId: "1", context: "BROWSE_PROJECTS", holderType: "anyone", holderValue: "" },
+      { schemeId: "1", context: "DELETE_ISSUES", holderType: "applicationRole", holderValue: "" },
+      { schemeId: "1", context: "EDIT_ISSUES", holderType: "user", holderValue: "acc-gone" },
+      { schemeId: "1", context: "CREATE_ISSUES", holderType: "projectRole", holderValue: "10002" },
+    ];
+    const s = summarizePermissionInsights({
+      schemes: [{ id: "1", name: "Prod" }],
+      holders,
+      schemeProjects: [{ schemeId: "1", projectId: "10" }],
+      rosterAccountIds: roster,
+    });
+    expect(s.totalGrantCount).toBe(4);
+    expect(s.rosterMeasured).toBe(true);
+    expect(summarizePermissionHealth(s)).toMatchObject({
+      publicSchemeCount: 1,
+      loggedInSensitiveSchemeCount: 1,
+      directUserGrantCount: 1,
+      offRosterUserGrantCount: 1,
+      totalGrantCount: 4,
+      rosterMeasured: true,
+    });
+  });
+
+  test("security: user members and every member, with the roster flag", () => {
+    const s = summarizeSecurityInsights({
+      schemes: [{ id: "s1", name: "Secure" }],
+      levels: [{ schemeId: "s1", id: "l1", name: "Internal" }],
+      holders: [
+        { schemeId: "s1", context: "l1", holderType: "user", holderValue: "acc-1" },
+        { schemeId: "s1", context: "l1", holderType: "user", holderValue: "acc-gone" },
+        { schemeId: "s1", context: "l1", holderType: "group", holderValue: "g-1" },
+      ],
+      schemeProjects: [{ schemeId: "s1", projectId: "10" }],
+      rosterAccountIds: roster,
+    });
+    expect(summarizeSecurityHealth(s)).toMatchObject({
+      userMemberCount: 2,
+      totalMemberCount: 3,
+      offRosterMemberCount: 1,
+      rosterMeasured: true,
+    });
+  });
+
+  test("notifications: named users and every recipient, raw emails carried through", () => {
+    const s = summarizeNotificationInsights({
+      schemes: [{ id: "n1", name: "Prod" }],
+      holders: [
+        { schemeId: "n1", context: "1", holderType: "user", holderValue: "acc-gone" },
+        { schemeId: "n1", context: "1", holderType: "emailAddress", holderValue: "x@example.com" },
+        { schemeId: "n1", context: "2", holderType: "projectRole", holderValue: "10002" },
+      ],
+      schemeProjects: [{ schemeId: "n1", projectId: "10" }],
+      rosterAccountIds: roster,
+    });
+    expect(summarizeNotificationHealth(s)).toMatchObject({
+      namedUserRecipientCount: 1,
+      totalRecipientCount: 3,
+      emailRecipientCount: 1,
+      offRosterRecipientCount: 1,
+      rosterMeasured: true,
+    });
+  });
+
+  test("roles: group actors and roles nobody holds anywhere", () => {
+    const s = summarizeRoleInsights({
+      roles: [
+        { id: "a", name: "Administrators" },
+        { id: "b", name: "Members" },
+        { id: "c", name: "Viewers" },
+      ],
+      holders: [
+        { schemeId: "a", context: "1", contextLabel: "OPS", holderType: "group", holderValue: "g" },
+        { schemeId: "b", context: "1", contextLabel: "OPS", holderType: "user", holderValue: "acc-1" },
+        { schemeId: "c", context: "1", contextLabel: "OPS", holderType: "empty", holderValue: "" },
+      ],
+      rosterAccountIds: roster,
+    });
+    expect(summarizeRoleHealth(s)).toMatchObject({
+      groupActorCount: 1,
+      directUserActorCount: 1,
+      emptyRoleCount: 1,
+      rosterMeasured: true,
+    });
+  });
+
+  // Without a roster every named account looked departed. The flag lets the score say
+  // "not measured" instead.
+  test("an empty roster is reported as unmeasured on every summary", () => {
+    const empty = new Set();
+    expect(summarizePermissionInsights({ schemes: [{ id: "1" }], rosterAccountIds: empty }).rosterMeasured).toBe(false);
+    expect(summarizeSecurityInsights({ schemes: [{ id: "1" }], rosterAccountIds: empty }).rosterMeasured).toBe(false);
+    expect(summarizeNotificationInsights({ schemes: [{ id: "1" }], rosterAccountIds: empty }).rosterMeasured).toBe(
+      false,
+    );
+    const roles = summarizeRoleInsights({
+      roles: [{ id: "a", name: "Members" }],
+      holders: [{ schemeId: "a", context: "1", holderType: "user", holderValue: "acc-1" }],
+      rosterAccountIds: empty,
+    });
+    expect(roles.rosterMeasured).toBe(false);
+    const dim = computeSiteHealth({ roles: summarizeRoleHealth(roles) }).dimensions.find(
+      (d) => d.key === "role-actor-hygiene",
+    );
+    expect(dim.available).toBe(false);
   });
 });

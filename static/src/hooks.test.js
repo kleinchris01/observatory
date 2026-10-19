@@ -1,7 +1,7 @@
-import React from "react";
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import { useVisiblePolling, useRefreshOnVisible, useNavIntent, usePersistentState } from "./hooks";
+import { useVisiblePolling, useRefreshOnVisible, useNavIntent, usePersistentState, usePillarUsage } from "./hooks";
+import { invoke } from "@forge/bridge";
 
 const setVisibility = (state) => {
   Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
@@ -26,22 +26,30 @@ describe("useRefreshOnVisible", () => {
   test("creates no timer, so idle cost is zero", () => {
     const fn = vi.fn();
     renderHook(() => useRefreshOnVisible(fn));
-    act(() => { vi.advanceTimersByTime(10 * 60 * 1000); });
+    act(() => {
+      vi.advanceTimersByTime(10 * 60 * 1000);
+    });
     expect(fn).not.toHaveBeenCalled();
   });
 
   test("fires when the page becomes visible again", () => {
     const fn = vi.fn();
     renderHook(() => useRefreshOnVisible(fn));
-    act(() => { setVisibility("hidden"); });
-    act(() => { setVisibility("visible"); });
+    act(() => {
+      setVisibility("hidden");
+    });
+    act(() => {
+      setVisibility("visible");
+    });
     expect(fn).toHaveBeenCalledTimes(1);
   });
 
   test("does not fire on becoming hidden", () => {
     const fn = vi.fn();
     renderHook(() => useRefreshOnVisible(fn));
-    act(() => { setVisibility("hidden"); });
+    act(() => {
+      setVisibility("hidden");
+    });
     expect(fn).not.toHaveBeenCalled();
   });
 
@@ -49,7 +57,10 @@ describe("useRefreshOnVisible", () => {
     const fn = vi.fn();
     const { unmount } = renderHook(() => useRefreshOnVisible(fn));
     unmount();
-    act(() => { setVisibility("hidden"); setVisibility("visible"); });
+    act(() => {
+      setVisibility("hidden");
+      setVisibility("visible");
+    });
     expect(fn).not.toHaveBeenCalled();
   });
 });
@@ -59,7 +70,9 @@ describe("useVisiblePolling still guards the Scans panels", () => {
     const fn = vi.fn();
     renderHook(() => useVisiblePolling(true, fn, 1000));
     fn.mockClear();
-    act(() => { vi.advanceTimersByTime(3000); });
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
     expect(fn).toHaveBeenCalledTimes(3);
   });
 });
@@ -108,7 +121,11 @@ describe("useNavIntent", () => {
   test("a new handler identity does not re-apply the intent", () => {
     const intent = { filter: "empty" };
     let calls = 0;
-    const { rerender } = renderHook(() => useNavIntent(intent, () => { calls += 1; }));
+    const { rerender } = renderHook(() =>
+      useNavIntent(intent, () => {
+        calls += 1;
+      }),
+    );
     rerender();
     rerender();
     expect(calls).toBe(1);
@@ -132,5 +149,33 @@ describe("usePersistentState", () => {
     expect(result.current[0]).toBe("rqt");
     unmount();
     expect(window.localStorage.getItem("observatory.section.test")).toBe("rqt");
+  });
+});
+
+describe("usePillarUsage", () => {
+  test("fetches one pillar once and returns the response", async () => {
+    invoke.mockResolvedValueOnce({
+      available: true,
+      basis: "created",
+      items: { 1: { total: 1, recent: 0, lastAt: null } },
+    });
+    const { result } = renderHook(() => usePillarUsage("issuetype"));
+    await act(async () => {});
+    expect(invoke).toHaveBeenCalledWith("getPillarUsage", { pillar: "issuetype" });
+    expect(result.current.available).toBe(true);
+  });
+
+  test("a failed read becomes not measured with its reason, never zeros", async () => {
+    invoke.mockRejectedValueOnce(new Error("timed out"));
+    const { result } = renderHook(() => usePillarUsage("field"));
+    await act(async () => {});
+    expect(result.current).toEqual({ available: false, reason: "error", error: "timed out", items: {} });
+  });
+
+  test("a null pillar fetches nothing", async () => {
+    invoke.mockClear();
+    renderHook(() => usePillarUsage(null));
+    await act(async () => {});
+    expect(invoke).not.toHaveBeenCalled();
   });
 });

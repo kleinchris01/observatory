@@ -1,10 +1,15 @@
-import React from "react";
 import { describe, test, expect, vi } from "vitest";
 import { render, screen, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
-  Toggle, ConfigSection, ConfigRow, ThresholdInput,
-  InlineThresholdInput, JobStatusBadge, SubNavLayout, ActivitySection,
+  Toggle,
+  ConfigSection,
+  ConfigRow,
+  ThresholdInput,
+  InlineThresholdInput,
+  JobStatusBadge,
+  SubNavLayout,
+  ActivitySection,
 } from "./primitives";
 
 // These lived inside admin.jsx and could not be rendered without mounting the whole app,
@@ -133,7 +138,7 @@ describe("SubNavLayout", () => {
     const { container } = render(
       <SubNavLayout items={items} activeKey="universe" onSelect={() => {}}>
         <p>panel body</p>
-      </SubNavLayout>
+      </SubNavLayout>,
     );
 
     expect(screen.getByText("Snapshot")).toBeInTheDocument();
@@ -144,7 +149,11 @@ describe("SubNavLayout", () => {
 
   test("reports the selected key", async () => {
     const onSelect = vi.fn();
-    render(<SubNavLayout items={items} activeKey="snapshot" onSelect={onSelect}><p>x</p></SubNavLayout>);
+    render(
+      <SubNavLayout items={items} activeKey="snapshot" onSelect={onSelect}>
+        <p>x</p>
+      </SubNavLayout>,
+    );
 
     await userEvent.click(screen.getByText("Universe Scan"));
     expect(onSelect).toHaveBeenCalledWith("universe");
@@ -163,7 +172,7 @@ describe("SubNavLayout", () => {
         onSelect={() => {}}
       >
         <p>x</p>
-      </SubNavLayout>
+      </SubNavLayout>,
     );
     const headings = [...container.querySelectorAll(".sub-nav__group")].map((n) => n.textContent);
     expect(headings).toEqual(["Site", "Pillars"]);
@@ -172,7 +181,11 @@ describe("SubNavLayout", () => {
   });
 
   test("marks the active item with aria-current", () => {
-    render(<SubNavLayout items={items} activeKey="universe" onSelect={() => {}}><p>x</p></SubNavLayout>);
+    render(
+      <SubNavLayout items={items} activeKey="universe" onSelect={() => {}}>
+        <p>x</p>
+      </SubNavLayout>,
+    );
     expect(screen.getByRole("button", { name: "Universe Scan" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("button", { name: "Snapshot" })).not.toHaveAttribute("aria-current");
   });
@@ -180,21 +193,43 @@ describe("SubNavLayout", () => {
   test("an active key that names no section falls back to the first enabled one", () => {
     const onSelect = vi.fn();
     render(
-      <SubNavLayout items={[{ key: "a", label: "A", disabled: true }, { key: "b", label: "B" }]} activeKey="renamed-away" onSelect={onSelect}>
+      <SubNavLayout
+        items={[
+          { key: "a", label: "A", disabled: true },
+          { key: "b", label: "B" },
+        ]}
+        activeKey="renamed-away"
+        onSelect={onSelect}
+      >
         <p>x</p>
-      </SubNavLayout>
+      </SubNavLayout>,
     );
     expect(onSelect).toHaveBeenCalledWith("b");
   });
 
   test("a known active key is left alone, even a disabled one", () => {
     const onSelect = vi.fn();
-    render(<SubNavLayout items={[{ key: "a", label: "A", disabled: true }, { key: "b", label: "B" }]} activeKey="a" onSelect={onSelect}><p>x</p></SubNavLayout>);
+    render(
+      <SubNavLayout
+        items={[
+          { key: "a", label: "A", disabled: true },
+          { key: "b", label: "B" },
+        ]}
+        activeKey="a"
+        onSelect={onSelect}
+      >
+        <p>x</p>
+      </SubNavLayout>,
+    );
     expect(onSelect).not.toHaveBeenCalled();
   });
 
   test("renders with no items rather than crashing", () => {
-    render(<SubNavLayout items={[]} activeKey={null} onSelect={() => {}}><p>only body</p></SubNavLayout>);
+    render(
+      <SubNavLayout items={[]} activeKey={null} onSelect={() => {}}>
+        <p>only body</p>
+      </SubNavLayout>,
+    );
     expect(screen.getByText("only body")).toBeInTheDocument();
   });
 });
@@ -204,24 +239,29 @@ describe("ActivitySection", () => {
     const { rerender } = render(
       <ActivitySection title="Scan" subtitle="last run" open={false} onToggle={() => {}}>
         <p>details</p>
-      </ActivitySection>
+      </ActivitySection>,
     );
     expect(screen.queryByText("details")).not.toBeInTheDocument();
 
     rerender(
       <ActivitySection title="Scan" subtitle="last run" open onToggle={() => {}}>
         <p>details</p>
-      </ActivitySection>
+      </ActivitySection>,
     );
     expect(screen.getByText("details")).toBeInTheDocument();
   });
 
   test("renders its title, subtitle and actions", () => {
     render(
-      <ActivitySection title="Scan" subtitle="last run 2h ago" open onToggle={() => {}}
-        actions={<button type="button">Start</button>}>
+      <ActivitySection
+        title="Scan"
+        subtitle="last run 2h ago"
+        open
+        onToggle={() => {}}
+        actions={<button type="button">Start</button>}
+      >
         <p>details</p>
-      </ActivitySection>
+      </ActivitySection>,
     );
 
     expect(screen.getByText("Scan")).toBeInTheDocument();
@@ -231,7 +271,11 @@ describe("ActivitySection", () => {
 
   test("toggles when the header is activated", async () => {
     const onToggle = vi.fn();
-    render(<ActivitySection title="Scan" open={false} onToggle={onToggle}><p>d</p></ActivitySection>);
+    render(
+      <ActivitySection title="Scan" open={false} onToggle={onToggle}>
+        <p>d</p>
+      </ActivitySection>,
+    );
 
     await userEvent.click(screen.getByText("Scan"));
     expect(onToggle).toHaveBeenCalled();
@@ -240,7 +284,11 @@ describe("ActivitySection", () => {
 
 describe("ConfigSection / ConfigRow", () => {
   test("ConfigSection renders its title and children", () => {
-    render(<ConfigSection title="Thresholds"><p>inner</p></ConfigSection>);
+    render(
+      <ConfigSection title="Thresholds">
+        <p>inner</p>
+      </ConfigSection>,
+    );
     expect(screen.getByText("Thresholds")).toBeInTheDocument();
     expect(screen.getByText("inner")).toBeInTheDocument();
   });
@@ -249,7 +297,7 @@ describe("ConfigSection / ConfigRow", () => {
     const { container } = render(
       <ConfigRow label="Read-only mode" hint="Blocks every mutating action">
         <button type="button">toggle</button>
-      </ConfigRow>
+      </ConfigRow>,
     );
 
     expect(screen.getByText("Read-only mode")).toBeInTheDocument();
@@ -258,7 +306,11 @@ describe("ConfigSection / ConfigRow", () => {
   });
 
   test("ConfigRow omits the hint when there is none", () => {
-    const { container } = render(<ConfigRow label="Read-only mode"><span>c</span></ConfigRow>);
+    const { container } = render(
+      <ConfigRow label="Read-only mode">
+        <span>c</span>
+      </ConfigRow>,
+    );
     expect(container.querySelector(".admin-config-row__hint")).toBeNull();
   });
 });

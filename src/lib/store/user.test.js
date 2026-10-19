@@ -30,7 +30,10 @@ function harness() {
     const entry = { statement: String(statement).replace(/\s+/g, " ").trim(), params: null };
     issued.push(entry);
     const stub = {
-      bindParams: (...params) => { entry.params = params; return stub; },
+      bindParams: (...params) => {
+        entry.params = params;
+        return stub;
+      },
       execute: () => Promise.resolve({ rows: rowsFor(entry) }),
     };
     return stub;
@@ -49,7 +52,15 @@ describe("replaceUserSnapshot", () => {
   test("scopes every delete and inserts users then access rows with matching arity", async () => {
     await replaceUserSnapshot("inst", "v1", {
       users: [{ accountId: "a1", displayName: "Ann", active: true, accountType: "atlassian", avatarUrl: "u" }],
-      access: [{ accountId: "a1", applicationKey: "jira-software", applicationName: "Jira Software", viaGroupId: "g1", viaGroupName: "sw-users" }],
+      access: [
+        {
+          accountId: "a1",
+          applicationKey: "jira-software",
+          applicationName: "Jira Software",
+          viaGroupId: "g1",
+          viaGroupName: "sw-users",
+        },
+      ],
     });
 
     const deletes = writes().filter((e) => e.statement.startsWith("DELETE"));
@@ -73,10 +84,28 @@ describe("replaceUserSnapshot", () => {
 describe("loadUsers", () => {
   test("collapses the user x access join into one row per account", async () => {
     rowsFor = () => [
-      { account_id: "a1", display_name: "Ann", active: 1, account_type: "atlassian", avatar_url: null,
-        application_key: "jira-software", application_name: "Jira Software", via_group_id: "g1", via_group_name: "sw" },
-      { account_id: "a1", display_name: "Ann", active: 1, account_type: "atlassian", avatar_url: null,
-        application_key: "jira-servicedesk", application_name: "JSM", via_group_id: "g2", via_group_name: "sd" },
+      {
+        account_id: "a1",
+        display_name: "Ann",
+        active: 1,
+        account_type: "atlassian",
+        avatar_url: null,
+        application_key: "jira-software",
+        application_name: "Jira Software",
+        via_group_id: "g1",
+        via_group_name: "sw",
+      },
+      {
+        account_id: "a1",
+        display_name: "Ann",
+        active: 1,
+        account_type: "atlassian",
+        avatar_url: null,
+        application_key: "jira-servicedesk",
+        application_name: "JSM",
+        via_group_id: "g2",
+        via_group_name: "sd",
+      },
     ];
 
     const users = await loadUsers("inst", "v1");
@@ -89,9 +118,10 @@ describe("loadUsers", () => {
 
 describe("loadUserGovernanceSummary", () => {
   test("reads the aggregate counts", async () => {
-    rowsFor = (entry) => /COUNT\(DISTINCT application_key\)/.test(entry.statement)
-      ? [{ multi: 4 }]
-      : [{ total: 20, active_count: 18, app_count: 2 }];
+    rowsFor = (entry) =>
+      /COUNT\(DISTINCT application_key\)/.test(entry.statement)
+        ? [{ multi: 4 }]
+        : [{ total: 20, active_count: 18, app_count: 2 }];
 
     const g = await loadUserGovernanceSummary("inst", "v1");
     expect(g).toEqual({ totalUsers: 20, activeUsers: 18, appUsers: 2, multiProductUsers: 4 });
@@ -102,17 +132,28 @@ describe("user_snapshot_meta", () => {
   test("round-trips the application summary as JSON", async () => {
     rowsFor = () => [];
     await writeUserSnapshotMeta("inst", {
-      state: "ready", version: "v1", totalUsers: 5, activeUsers: 5,
+      state: "ready",
+      version: "v1",
+      totalUsers: 5,
+      activeUsers: 5,
       applicationSummary: [{ key: "jira-software", numberOfSeats: 10, userCount: 5 }],
     });
     const insert = issued.find((e) => /INSERT INTO user_snapshot_meta/.test(e.statement));
     expect(insert.params).toContain('[{"key":"jira-software","numberOfSeats":10,"userCount":5}]');
 
-    rowsFor = () => [{
-      state: "ready", version: "v1", started_at: null, completed_at: null, refreshed_at: null,
-      total_users: 5, active_users: 5,
-      application_summary: '[{"key":"jira-software","numberOfSeats":10,"userCount":5}]', last_error: null,
-    }];
+    rowsFor = () => [
+      {
+        state: "ready",
+        version: "v1",
+        started_at: null,
+        completed_at: null,
+        refreshed_at: null,
+        total_users: 5,
+        active_users: 5,
+        application_summary: '[{"key":"jira-software","numberOfSeats":10,"userCount":5}]',
+        last_error: null,
+      },
+    ];
     const meta = await readUserSnapshotMeta("inst");
     expect(meta.applicationSummary).toEqual([{ key: "jira-software", numberOfSeats: 10, userCount: 5 }]);
   });

@@ -1,14 +1,38 @@
 import { describe, it, expect } from "vitest";
-import { render, screen, act } from "@testing-library/react";
+import { render, act } from "@testing-library/react";
 import { renderHook } from "@testing-library/react";
-import { Icon, ICON_COMPONENTS, CHART_PALETTE, useColorTheme, useChartPalette, useLiveDuration, useLiveElapsedMs } from "./Icons";
+import {
+  Icon,
+  ICON_COMPONENTS,
+  CHART_PALETTE,
+  useColorTheme,
+  useChartPalette,
+  useLiveDuration,
+  useLiveElapsedMs,
+} from "./Icons";
 
 describe("ICON_COMPONENTS", () => {
   it("has an entry for every icon name actually used in the app", () => {
     for (const name of [
-      "layers", "activity", "zap", "folder", "barChart", "alertTriangle", "alertCircle",
-      "info", "scissors", "checkCircle", "check", "x", "settings", "refreshCw", "lock", "clock", "sliders",
-      "caretLeft", "caretRight",
+      "layers",
+      "activity",
+      "zap",
+      "folder",
+      "barChart",
+      "alertTriangle",
+      "alertCircle",
+      "info",
+      "scissors",
+      "checkCircle",
+      "check",
+      "x",
+      "settings",
+      "refreshCw",
+      "lock",
+      "clock",
+      "sliders",
+      "caretLeft",
+      "caretRight",
     ]) {
       expect(ICON_COMPONENTS).toHaveProperty(name);
     }
@@ -25,7 +49,10 @@ describe("ICON_COMPONENTS", () => {
 
   it("each value is a renderable component, not a raw path string", () => {
     for (const [key, Component] of Object.entries(ICON_COMPONENTS)) {
-      expect(typeof Component === "function" || typeof Component === "object", `ICON_COMPONENTS.${key} should be a component`).toBe(true);
+      expect(
+        typeof Component === "function" || typeof Component === "object",
+        `ICON_COMPONENTS.${key} should be a component`,
+      ).toBe(true);
     }
   });
 });

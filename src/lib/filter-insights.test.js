@@ -61,18 +61,23 @@ describe("analyzeFilter", () => {
   });
 
   test("flags a filter shared with every logged-in user", () => {
-    for (const type of ["global", "authenticated", "loggedin"]) {
+    for (const type of ["authenticated", "loggedin"]) {
       expect(codes(filter({ shares: [{ type }] }))).toContain("shared-with-everyone");
     }
-    expect(codes(filter({ shares: [{ type: "project", project: { id: "1" } }] })))
-      .not.toContain("shared-with-everyone");
+    expect(codes(filter({ shares: [{ type: "project", project: { id: "1" } }] }))).not.toContain(
+      "shared-with-everyone",
+    );
+  });
+
+  test("flags a globally shared filter as public, high, and only as public", () => {
+    const found = codes(filter({ shares: [{ type: "global" }, { type: "loggedin" }] }));
+    expect(found).toContain("shared-publicly");
+    expect(found).not.toContain("shared-with-everyone");
   });
 
   test("flags a subscription on a filter nobody opens", () => {
-    expect(codes(filter({ subscriptionCount: 2, lastUsedAt: daysAgo(500) })))
-      .toContain("subscribed-but-unused");
-    expect(codes(filter({ subscriptionCount: 2, lastUsedAt: null })))
-      .toContain("subscribed-but-unused");
+    expect(codes(filter({ subscriptionCount: 2, lastUsedAt: daysAgo(500) }))).toContain("subscribed-but-unused");
+    expect(codes(filter({ subscriptionCount: 2, lastUsedAt: null }))).toContain("subscribed-but-unused");
   });
 
   // Filters are seasonal -- a release-readiness filter is untouched for ten months and
@@ -98,10 +103,14 @@ describe("analyzeFilter", () => {
   test("suppresses every last-used finding when the tenant does not track last-used", () => {
     const opts = { now: NOW, lastUsedTracked: false };
     expect(analyzeFilter(filter({ lastUsedAt: null }), opts).map((x) => x.code)).not.toContain("never-used");
-    expect(analyzeFilter(filter({ lastUsedAt: null, subscriptionCount: 3 }), opts).map((x) => x.code)).not.toContain("subscribed-but-unused");
+    expect(analyzeFilter(filter({ lastUsedAt: null, subscriptionCount: 3 }), opts).map((x) => x.code)).not.toContain(
+      "subscribed-but-unused",
+    );
     expect(analyzeFilter(filter({ lastUsedAt: daysAgo(500) }), opts).map((x) => x.code)).not.toContain("stale");
     // Owner / share findings are unaffected -- those do not depend on last-used.
-    expect(analyzeFilter(filter({ lastUsedAt: null, owner: null }), opts).map((x) => x.code)).toContain("orphaned-owner");
+    expect(analyzeFilter(filter({ lastUsedAt: null, owner: null }), opts).map((x) => x.code)).toContain(
+      "orphaned-owner",
+    );
   });
 
   test("survives a filter shaped nothing like a filter", () => {
@@ -191,7 +200,7 @@ describe("summarizeFilters", () => {
   const estate = [
     filter({ id: "1", name: "Fine" }),
     filter({ id: "2", name: "Orphan", owner: { active: false } }),
-    filter({ id: "3", name: "Everyone", shares: [{ type: "global" }] }),
+    filter({ id: "3", name: "Everyone", shares: [{ type: "loggedin" }] }),
     filter({ id: "4", name: "Zombie", subscriptionCount: 2, lastUsedAt: daysAgo(500) }),
     filter({ id: "5", name: "Broken", projectRefs: ["GHOST"] }),
   ];
@@ -199,8 +208,13 @@ describe("summarizeFilters", () => {
   test("counts each finding separately", () => {
     const s = summarizeFilters(estate, { now: NOW, projectKeys: new Set(["X"]) });
     expect(s).toMatchObject({
-      available: true, total: 5,
-      orphanedCount: 1, sharedWithEveryoneCount: 1, subscribedButUnusedCount: 1, brokenProjectCount: 1,
+      available: true,
+      total: 5,
+      orphanedCount: 1,
+      sharedWithEveryoneCount: 1,
+      sharedPubliclyCount: 0,
+      subscribedButUnusedCount: 1,
+      brokenProjectCount: 1,
     });
   });
 
@@ -222,7 +236,7 @@ describe("summarizeFilters", () => {
   test("reports lastUsedTracked, and stops counting stale/never-used, when no filter carries a date", () => {
     const untracked = summarizeFilters(
       [filter({ id: "a", lastUsedAt: null }), filter({ id: "b", lastUsedAt: null, subscriptionCount: 2 })],
-      { now: NOW }
+      { now: NOW },
     );
     expect(untracked.lastUsedTracked).toBe(false);
     expect(untracked.neverUsedCount).toBe(0);
@@ -231,7 +245,7 @@ describe("summarizeFilters", () => {
 
     const tracked = summarizeFilters(
       [filter({ id: "a", lastUsedAt: null }), filter({ id: "b", lastUsedAt: daysAgo(3) })],
-      { now: NOW }
+      { now: NOW },
     );
     expect(tracked.lastUsedTracked).toBe(true);
     expect(tracked.neverUsedCount).toBe(1);
@@ -241,11 +255,15 @@ describe("summarizeFilters", () => {
 describe("summarizeFilterHealth", () => {
   // projectRefs has to agree with the jql, or every filter reads as naming a project that
   // does not exist and the rate is pinned at its ceiling before any other finding lands.
-  const build = (over) => summarizeFilterHealth(summarizeFilters(
-    Array.from({ length: 100 }, (_, i) => filter({ id: String(i), jql: `project = P${i}`, projectRefs: [`P${i}`] }))
-      .map((f, i) => ({ ...f, ...(over(i) || {}) })),
-    { now: NOW, projectKeys: new Set(Array.from({ length: 100 }, (_, i) => `P${i}`)) }
-  ));
+  const build = (over) =>
+    summarizeFilterHealth(
+      summarizeFilters(
+        Array.from({ length: 100 }, (_, i) =>
+          filter({ id: String(i), jql: `project = P${i}`, projectRefs: [`P${i}`] }),
+        ).map((f, i) => ({ ...f, ...(over(i) || {}) })),
+        { now: NOW, projectKeys: new Set(Array.from({ length: 100 }, (_, i) => `P${i}`)) },
+      ),
+    );
 
   // computeSiteHealth scores four filter dimensions from these raw counts directly. What this
   // function owes it is the counts, not a pre-combined rate -- the old `defectRate` was a
@@ -261,9 +279,9 @@ describe("summarizeFilterHealth", () => {
   // brokenProjectCount never reached the score.
   test("carries projectsChecked so the scope dimension can be scored", () => {
     expect(build(() => null).projectsChecked).toBe(true);
-    const noCatalog = summarizeFilterHealth(summarizeFilters(
-      [filter({ id: "1", jql: "project = P1", projectRefs: ["P1"] })], { now: NOW }
-    ));
+    const noCatalog = summarizeFilterHealth(
+      summarizeFilters([filter({ id: "1", jql: "project = P1", projectRefs: ["P1"] })], { now: NOW }),
+    );
     expect(noCatalog.projectsChecked).toBe(false);
   });
 
@@ -272,7 +290,7 @@ describe("summarizeFilterHealth", () => {
   test("does not surface a duplicate figure among the scored counts", () => {
     const identical = summarizeFilters(
       Array.from({ length: 50 }, (_, i) => filter({ id: String(i), jql: "project = SAME" })),
-      { now: NOW }
+      { now: NOW },
     );
     expect(identical.reducibleCount).toBe(49);
     const health = summarizeFilterHealth(identical);

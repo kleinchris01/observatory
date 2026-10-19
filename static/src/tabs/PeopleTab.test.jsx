@@ -1,4 +1,3 @@
-import React from "react";
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -18,21 +17,64 @@ const roster = (over = {}) => ({
   version: "v1",
   refreshedAt: new Date().toISOString(),
   governance: {
-    totalUsers: 3, activeUsers: 3, appUsers: 1, multiProductUsers: 1,
-    orphanedOwners: 1, orphanedFilters: 4, orphanedDashboards: 1, orphanedRules: 0,
+    totalUsers: 3,
+    activeUsers: 3,
+    appUsers: 1,
+    multiProductUsers: 1,
+    orphanedOwners: 1,
+    orphanedFilters: 4,
+    orphanedDashboards: 1,
+    orphanedRules: 0,
   },
   applicationSummary: [
-    { key: "jira-software", name: "Jira Software", numberOfSeats: 5, remainingSeats: 2, userCount: 3, hasUnlimitedSeats: false },
-    { key: "jira-servicedesk", name: "Jira Service Management", numberOfSeats: 2, remainingSeats: 1, userCount: 1, hasUnlimitedSeats: false },
+    {
+      key: "jira-software",
+      name: "Jira Software",
+      numberOfSeats: 5,
+      remainingSeats: 2,
+      userCount: 3,
+      hasUnlimitedSeats: false,
+    },
+    {
+      key: "jira-servicedesk",
+      name: "Jira Service Management",
+      numberOfSeats: 2,
+      remainingSeats: 1,
+      userCount: 1,
+      hasUnlimitedSeats: false,
+    },
   ],
   users: [
-    { accountId: "a1", displayName: "Ann Admin", active: true, accountType: "atlassian",
-      applications: [{ key: "jira-software", name: "Jira Software" }, { key: "jira-servicedesk", name: "JSM" }],
-      groups: [{ id: "g1", name: "jira-software-users" }, { id: "g2", name: "jsm-users" }],
-      ownedFilters: 2, ownedDashboards: 1, authoredRules: 0, automationRefs: 3 },
-    { accountId: "a2", displayName: "Bot Account", active: true, accountType: "app",
-      applications: [{ key: "jira-software", name: "Jira Software" }], groups: [{ id: "g1", name: "jira-software-users" }],
-      ownedFilters: 0, ownedDashboards: 0, authoredRules: 0, automationRefs: 0 },
+    {
+      accountId: "a1",
+      displayName: "Ann Admin",
+      active: true,
+      accountType: "atlassian",
+      applications: [
+        { key: "jira-software", name: "Jira Software" },
+        { key: "jira-servicedesk", name: "JSM" },
+      ],
+      groups: [
+        { id: "g1", name: "jira-software-users" },
+        { id: "g2", name: "jsm-users" },
+      ],
+      ownedFilters: 2,
+      ownedDashboards: 1,
+      authoredRules: 0,
+      automationRefs: 3,
+    },
+    {
+      accountId: "a2",
+      displayName: "Bot Account",
+      active: true,
+      accountType: "app",
+      applications: [{ key: "jira-software", name: "Jira Software" }],
+      groups: [{ id: "g1", name: "jira-software-users" }],
+      ownedFilters: 0,
+      ownedDashboards: 0,
+      authoredRules: 0,
+      automationRefs: 0,
+    },
   ],
   ...over,
 });
@@ -41,7 +83,7 @@ beforeEach(() => vi.clearAllMocks());
 
 describe("PeopleTab", () => {
   test("Ctrl+K lands on the roster with the person already searched", async () => {
-    invoke.mockImplementation((fn) => fn === "getUserInventory" ? Promise.resolve(roster()) : Promise.resolve({}));
+    invoke.mockImplementation((fn) => (fn === "getUserInventory" ? Promise.resolve(roster()) : Promise.resolve({})));
     render(<PeopleTab intent={{ view: "roster", search: "Ann" }} />);
 
     expect(await screen.findByText("Ann Admin")).toBeInTheDocument();
@@ -55,7 +97,7 @@ describe("PeopleTab", () => {
   });
 
   test("shows the seat summary and licensed-user count", async () => {
-    invoke.mockImplementation((fn) => fn === "getUserInventory" ? Promise.resolve(roster()) : Promise.resolve({}));
+    invoke.mockImplementation((fn) => (fn === "getUserInventory" ? Promise.resolve(roster()) : Promise.resolve({})));
     render(<PeopleTab />);
 
     expect(await screen.findByText("People")).toBeInTheDocument();
@@ -67,7 +109,7 @@ describe("PeopleTab", () => {
   });
 
   test("lists each user with their products and access groups on the Roster view", async () => {
-    invoke.mockImplementation((fn) => fn === "getUserInventory" ? Promise.resolve(roster()) : Promise.resolve({}));
+    invoke.mockImplementation((fn) => (fn === "getUserInventory" ? Promise.resolve(roster()) : Promise.resolve({})));
     render(<PeopleTab />);
 
     await screen.findByText("People");
@@ -81,7 +123,7 @@ describe("PeopleTab", () => {
   });
 
   test("the roster toolbar filters by search and by the Show select", async () => {
-    invoke.mockImplementation((fn) => fn === "getUserInventory" ? Promise.resolve(roster()) : Promise.resolve({}));
+    invoke.mockImplementation((fn) => (fn === "getUserInventory" ? Promise.resolve(roster()) : Promise.resolve({})));
     render(<PeopleTab />);
     await screen.findByText("People");
     await userEvent.click(screen.getByRole("button", { name: /^Roster/ }));
@@ -103,12 +145,52 @@ describe("PeopleTab", () => {
     expect(screen.getByText("Bot Account")).toBeInTheDocument();
   });
 
+  // Offboarding starts from the person: the handover report is offered on their row, and only
+  // read when asked for, because it reads every project's lead from Jira.
+  test("offers a handover report on an expanded person, loaded only on request", async () => {
+    invoke.mockImplementation((fn, payload) => {
+      if (fn === "getUserInventory") return Promise.resolve(roster());
+      if (fn === "getUserDetails")
+        return Promise.resolve({
+          available: true,
+          inRoster: true,
+          user: roster().users[0],
+          ownedFilters: [],
+          ownedDashboards: [],
+          authoredRules: [],
+          ownershipAvailable: {},
+        });
+      if (fn === "getHandoverReport" && payload.accountId === "a1") {
+        return Promise.resolve({
+          available: true,
+          person: { displayName: "Ann Admin" },
+          summary: "Nothing is deleted with this account and no work is routed to it.",
+          beforeRemoval: 0,
+          sections: [],
+        });
+      }
+      return Promise.resolve({});
+    });
+    render(<PeopleTab siteOrigin="https://acme.atlassian.net" />);
+    await screen.findByText("People");
+    await userEvent.click(screen.getByRole("button", { name: /^Roster/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /Ann Admin/ }));
+
+    const prepare = await screen.findByRole("button", { name: "Prepare handover report" });
+    expect(invoke).not.toHaveBeenCalledWith("getHandoverReport", expect.anything());
+    await userEvent.click(prepare);
+    expect(
+      await screen.findByText("Nothing is deleted with this account and no work is routed to it."),
+    ).toBeInTheDocument();
+  });
+
   test("shows an owns-summary chip and expands to the owned artifacts on click", async () => {
     invoke.mockImplementation((fn, payload) => {
       if (fn === "getUserInventory") return Promise.resolve(roster());
       if (fn === "getUserDetails" && payload.accountId === "a1") {
         return Promise.resolve({
-          available: true, inRoster: true,
+          available: true,
+          inRoster: true,
           user: roster().users[0],
           ownedFilters: [{ id: "10", name: "My board filter", viewUrl: "https://x/f/10" }],
           ownedDashboards: [{ id: "20", name: "Ops dashboard", viewUrl: null }],
@@ -122,8 +204,20 @@ describe("PeopleTab", () => {
             { fieldId: "assignee", fieldName: "Assignee", issueCount: 900 },
           ],
           grantedBySchemes: [
-            { schemeType: "permission", schemeId: "1", schemeName: "Prod permissions", context: "ADMINISTER_PROJECTS", contextLabel: "Administer Projects" },
-            { schemeType: "notification", schemeId: "n1", schemeName: "Prod notifications", context: "1", contextLabel: "Issue Created" },
+            {
+              schemeType: "permission",
+              schemeId: "1",
+              schemeName: "Prod permissions",
+              context: "ADMINISTER_PROJECTS",
+              contextLabel: "Administer Projects",
+            },
+            {
+              schemeType: "notification",
+              schemeId: "n1",
+              schemeName: "Prod notifications",
+              context: "1",
+              contextLabel: "Issue Created",
+            },
           ],
           accessGrantsAvailable: true,
           automationRefsAvailable: true,
@@ -160,7 +254,7 @@ describe("PeopleTab", () => {
   });
 
   test("surfaces orphaned ownership on the overview", async () => {
-    invoke.mockImplementation((fn) => fn === "getUserInventory" ? Promise.resolve(roster()) : Promise.resolve({}));
+    invoke.mockImplementation((fn) => (fn === "getUserInventory" ? Promise.resolve(roster()) : Promise.resolve({})));
     render(<PeopleTab />);
     expect(await screen.findByText("Orphaned ownership")).toBeInTheDocument();
     // 4 filters + 1 dashboard owned by an account not in the roster.
@@ -168,9 +262,16 @@ describe("PeopleTab", () => {
   });
 
   test("surfaces the cross-pillar automation reference counts on the overview", async () => {
-    invoke.mockImplementation((fn) => fn === "getUserInventory"
-      ? Promise.resolve(roster({ governance: { ...roster().governance, automationRefUsers: 40, orphanedAutomationRefUsers: 3 }, automationRefsAvailable: true }))
-      : Promise.resolve({}));
+    invoke.mockImplementation((fn) =>
+      fn === "getUserInventory"
+        ? Promise.resolve(
+            roster({
+              governance: { ...roster().governance, automationRefUsers: 40, orphanedAutomationRefUsers: 3 },
+              automationRefsAvailable: true,
+            }),
+          )
+        : Promise.resolve({}),
+    );
     render(<PeopleTab />);
     expect(await screen.findByText("Cross-pillar references")).toBeInTheDocument();
     expect(screen.getByText("Named in automation")).toBeInTheDocument();
@@ -180,15 +281,32 @@ describe("PeopleTab", () => {
   test("shows the People pillar of the site health score on the overview", async () => {
     invoke.mockImplementation((fn) => {
       if (fn === "getUserInventory") return Promise.resolve(roster());
-      if (fn === "getPillarHealth") return Promise.resolve({
-        pillar: {
-          key: "users", available: true, score: 74, grade: "C", total: 2,
-          dimensions: [
-            { key: "user-licence-hygiene", label: "Licence hygiene", available: true, score: 60, detail: "12 of 500 accounts are deactivated." },
-            { key: "user-ownership", label: "Ownership continuity", available: true, score: 88, detail: "5 of 300 owned artifacts are orphaned." },
-          ],
-        },
-      });
+      if (fn === "getPillarHealth")
+        return Promise.resolve({
+          pillar: {
+            key: "users",
+            available: true,
+            score: 74,
+            grade: "C",
+            total: 2,
+            dimensions: [
+              {
+                key: "user-licence-hygiene",
+                label: "Licence hygiene",
+                available: true,
+                score: 60,
+                detail: "12 of 500 accounts are deactivated.",
+              },
+              {
+                key: "user-ownership",
+                label: "Ownership continuity",
+                available: true,
+                score: 88,
+                detail: "5 of 300 owned artifacts are orphaned.",
+              },
+            ],
+          },
+        });
       return Promise.resolve({});
     });
     render(<PeopleTab />);
@@ -212,5 +330,89 @@ describe("PeopleTab", () => {
 
     await waitFor(() => expect(invoke).toHaveBeenCalledWith("buildUserInventory", {}));
     expect(await screen.findByText(/Build queued/i)).toBeInTheDocument();
+  });
+});
+
+describe("PeopleTab -- dormant licences and group grants", () => {
+  const withDormant = () =>
+    roster({
+      governance: {
+        ...roster().governance,
+        activityMeasured: true,
+        measuredAccounts: 2,
+        dormantAccounts: 1,
+        dormantAfterDays: 365,
+      },
+      users: [
+        { ...roster().users[0], lastActivityAt: "2025-01-01T00:00:00Z", dormant: true },
+        { ...roster().users[1], lastActivityAt: null, dormant: null },
+      ],
+    });
+
+  test("an Overview intent opens the roster filtered to dormant licences", async () => {
+    invoke.mockImplementation((fn) =>
+      fn === "getUserInventory" ? Promise.resolve(withDormant()) : Promise.resolve({}),
+    );
+    render(<PeopleTab intent={{ view: "roster", filter: "dormant" }} />);
+    expect(await screen.findByText("Ann Admin")).toBeInTheDocument();
+    expect(screen.queryByText("Bot Account")).not.toBeInTheDocument();
+    expect(screen.getByText(/^idle since/)).toBeInTheDocument();
+  });
+
+  test("the dormant tile counts only what the crawl measured", async () => {
+    invoke.mockImplementation((fn) =>
+      fn === "getUserInventory" ? Promise.resolve(withDormant()) : Promise.resolve({}),
+    );
+    render(<PeopleTab />);
+    const tile = (await screen.findByText("Dormant licences")).closest(".ui-stat");
+    expect(tile).toHaveTextContent("1");
+    expect(tile).toHaveTextContent(/of 2 measured/);
+  });
+
+  test("the drawer lists grants earned through each group", async () => {
+    invoke.mockImplementation((fn, payload) => {
+      if (fn === "getUserInventory") return Promise.resolve(withDormant());
+      if (fn === "getUserDetails" && payload.accountId === "a1") {
+        return Promise.resolve({
+          available: true,
+          inRoster: true,
+          user: roster().users[0],
+          ownedFilters: [],
+          ownedDashboards: [],
+          authoredRules: [],
+          referencedInRules: [],
+          fieldAppearances: [],
+          grantedBySchemes: [],
+          grantedByGroups: [
+            {
+              schemeType: "permission",
+              schemeId: "1",
+              schemeName: "Prod permissions",
+              context: "ADMINISTER_PROJECTS",
+              contextLabel: "Administer Projects",
+              viaGroup: "jira-administrators",
+            },
+            {
+              schemeType: "notification",
+              schemeId: "n1",
+              schemeName: "Prod notifications",
+              context: "1",
+              contextLabel: "Issue Created",
+              viaGroup: "jira-software-users",
+            },
+          ],
+          accessGrantsAvailable: true,
+          automationRefsAvailable: true,
+          fieldAppearancesAvailable: true,
+          ownershipAvailable: { filters: true, dashboards: true, rules: true },
+        });
+      }
+      return Promise.resolve({});
+    });
+    render(<PeopleTab intent={{ view: "roster" }} />);
+    await userEvent.click(await screen.findByRole("button", { name: /Ann Admin/ }));
+    expect(await screen.findByText("jira-administrators")).toBeInTheDocument();
+    expect(screen.getByText("permission: Administer Projects")).toBeInTheDocument();
+    expect(screen.getByText("notification: Issue Created")).toBeInTheDocument();
   });
 });

@@ -4,12 +4,7 @@
 // carrying build state. Imports only from core.js, so there is one arrow and no cycle.
 
 import { sql } from "@forge/sql";
-import {
-  chunkArray,
-  ensureProjectStoreReady,
-  toNumber,
-  withSqlRetry,
-} from "./core.js";
+import { chunkArray, ensureProjectStoreReady, toNumber, withSqlRetry } from "./core.js";
 
 const DASHBOARD_BATCH = 25;
 const CHILD_BATCH = 60;
@@ -17,12 +12,17 @@ const CHILD_BATCH = 60;
 export async function readDashboardSnapshotMeta(scopeKey) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT version, state, started_at, completed_at, refreshed_at,
              total_dashboards, gadgets_walked, last_error,
              building_version, build_token, build_cursor, processed, total_expected, updated_at
       FROM dashboard_snapshot_meta WHERE scope_key = ?
-    `).bindParams(scopeKey).execute()
+    `,
+      )
+      .bindParams(scopeKey)
+      .execute(),
   );
   const row = result.rows?.[0];
   if (!row) return null;
@@ -52,7 +52,9 @@ export async function writeDashboardSnapshotMeta(scopeKey, patch = {}) {
   const next = { ...current, ...patch };
 
   await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       INSERT INTO dashboard_snapshot_meta
         (scope_key, version, state, started_at, completed_at, refreshed_at,
          total_dashboards, gadgets_walked, last_error,
@@ -73,23 +75,26 @@ export async function writeDashboardSnapshotMeta(scopeKey, patch = {}) {
         processed = VALUES(processed),
         total_expected = VALUES(total_expected),
         updated_at = VALUES(updated_at)
-    `).bindParams(
-      scopeKey,
-      next.version || null,
-      next.state || "idle",
-      next.startedAt || null,
-      next.completedAt || null,
-      next.refreshedAt || null,
-      Number(next.totalDashboards) || 0,
-      Number(next.gadgetsWalked) || 0,
-      next.lastError || null,
-      next.buildingVersion || null,
-      next.buildToken || null,
-      next.buildCursor || null,
-      Number(next.processed) || 0,
-      Number(next.totalExpected) || 0,
-      next.updatedAt || null
-    ).execute()
+    `,
+      )
+      .bindParams(
+        scopeKey,
+        next.version || null,
+        next.state || "idle",
+        next.startedAt || null,
+        next.completedAt || null,
+        next.refreshedAt || null,
+        Number(next.totalDashboards) || 0,
+        Number(next.gadgetsWalked) || 0,
+        next.lastError || null,
+        next.buildingVersion || null,
+        next.buildToken || null,
+        next.buildCursor || null,
+        Number(next.processed) || 0,
+        Number(next.totalExpected) || 0,
+        next.updatedAt || null,
+      )
+      .execute(),
   );
   return next;
 }
@@ -106,24 +111,31 @@ export async function clearDashboardSnapshotVersion(scopeKey, version) {
 
   for (const table of ["snapshot_dashboards", "snapshot_dashboard_gadgets", "snapshot_dashboard_shares"]) {
     await withSqlRetry(() =>
-      sql.prepare(`DELETE FROM ${table} WHERE scope_key = ? AND version = ?`)
-        .bindParams(scopeKey, version).execute()
+      sql.prepare(`DELETE FROM ${table} WHERE scope_key = ? AND version = ?`).bindParams(scopeKey, version).execute(),
     );
   }
 }
 
 // Append one chunk's rows to a version. INSERT IGNORE throughout, so a redelivered queue
 // message cannot double-count.
-export async function appendDashboardSnapshot(scopeKey, version, { dashboards = [], gadgets = [], shares = [], gadgetCounts = [] }) {
+export async function appendDashboardSnapshot(
+  scopeKey,
+  version,
+  { dashboards = [], gadgets = [], shares = [], gadgetCounts = [] },
+) {
   await ensureProjectStoreReady();
 
   for (const batch of chunkArray(dashboards, DASHBOARD_BATCH)) {
     const values = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((d) => [
-      scopeKey, version, String(d.id),
-      d.name ?? null, d.description ?? null,
-      d.ownerAccountId ?? null, d.ownerName ?? null,
-      d.ownerActive === null || d.ownerActive === undefined ? null : (d.ownerActive ? 1 : 0),
+      scopeKey,
+      version,
+      String(d.id),
+      d.name ?? null,
+      d.description ?? null,
+      d.ownerAccountId ?? null,
+      d.ownerName ?? null,
+      d.ownerActive === null || d.ownerActive === undefined ? null : d.ownerActive ? 1 : 0,
       Number(d.popularity) || 0,
       // NULL, not 0: the gadget walk not reaching a dashboard is a different fact from it
       // having no gadgets, and only one of them is a finding.
@@ -134,45 +146,70 @@ export async function appendDashboardSnapshot(scopeKey, version, { dashboards = 
       d.viewUrl ?? null,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT IGNORE INTO snapshot_dashboards
           (scope_key, version, dashboard_id, name, description, owner_account_id, owner_name,
            owner_active, popularity, gadget_count, shared_with_everyone, editable_by_everyone,
            share_count, view_url)
         VALUES ${values}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
   for (const batch of chunkArray(gadgets, CHILD_BATCH)) {
     const values = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((g) => [
-      scopeKey, version, String(g.dashboardId), String(g.id),
-      g.title ?? null, g.moduleKey ?? null,
+      scopeKey,
+      version,
+      String(g.dashboardId),
+      String(g.id),
+      g.title ?? null,
+      g.moduleKey ?? null,
       g.row === null || g.row === undefined ? null : Number(g.row),
       g.column === null || g.column === undefined ? null : Number(g.column),
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT IGNORE INTO snapshot_dashboard_gadgets
           (scope_key, version, dashboard_id, gadget_id, title, module_key, position_row, position_column)
         VALUES ${values}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
   for (const batch of chunkArray(shares, CHILD_BATCH)) {
     const values = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((s) => [
-      scopeKey, version, String(s.dashboardId), s.kind, Number(s.index) || 0,
-      s.type ?? "unknown", s.targetId ?? null, s.targetName ?? null,
+      scopeKey,
+      version,
+      String(s.dashboardId),
+      s.kind,
+      Number(s.index) || 0,
+      s.type ?? "unknown",
+      s.targetId ?? null,
+      s.targetName ?? null,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT IGNORE INTO snapshot_dashboard_shares
           (scope_key, version, dashboard_id, permission_kind, share_index, share_type, target_id, target_name)
         VALUES ${values}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
@@ -182,13 +219,20 @@ export async function appendDashboardSnapshot(scopeKey, version, { dashboards = 
   // walked" (also null, but with no UPDATE having happened) via gadgets_walked in meta.
   for (const entry of gadgetCounts) {
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         UPDATE snapshot_dashboards SET gadget_count = ?, gadget_walk_done = 1
         WHERE scope_key = ? AND version = ? AND dashboard_id = ?
-      `).bindParams(
-        entry.gadgetCount === null || entry.gadgetCount === undefined ? null : Number(entry.gadgetCount),
-        scopeKey, version, String(entry.id)
-      ).execute()
+      `,
+        )
+        .bindParams(
+          entry.gadgetCount === null || entry.gadgetCount === undefined ? null : Number(entry.gadgetCount),
+          scopeKey,
+          version,
+          String(entry.id),
+        )
+        .execute(),
     );
   }
 
@@ -204,12 +248,17 @@ export async function loadGadgetsNeedingConfig(scopeKey, version, limit = 40) {
   await ensureProjectStoreReady();
   const safeLimit = Math.max(1, Math.min(500, Number(limit) || 40));
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT dashboard_id, gadget_id FROM snapshot_dashboard_gadgets
       WHERE scope_key = ? AND version = ? AND config_walk_done = 0
       ORDER BY dashboard_id, gadget_id
       LIMIT ${safeLimit}
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
   return (result.rows || []).map((r) => ({
     dashboardId: String(r.dashboard_id),
@@ -223,14 +272,23 @@ export async function recordGadgetConfigs(scopeKey, version, entries = []) {
   await ensureProjectStoreReady();
   for (const entry of entries) {
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         UPDATE snapshot_dashboard_gadgets
-        SET filter_id = ?, config_walk_done = 1
+        SET filter_id = ?, filter_state = ?, config_walk_done = 1
         WHERE scope_key = ? AND version = ? AND dashboard_id = ? AND gadget_id = ?
-      `).bindParams(
-        entry.filterId ? String(entry.filterId) : null,
-        scopeKey, version, String(entry.dashboardId), String(entry.gadgetId)
-      ).execute()
+      `,
+        )
+        .bindParams(
+          entry.filterId ? String(entry.filterId) : null,
+          entry.filterId && entry.filterState ? String(entry.filterState) : null,
+          scopeKey,
+          version,
+          String(entry.dashboardId),
+          String(entry.gadgetId),
+        )
+        .execute(),
     );
   }
   return { recorded: entries.length };
@@ -250,14 +308,19 @@ export async function loadDashboardsForFilters(scopeKey, version, filterIds = []
   for (const batch of chunkArray(ids, 50)) {
     const placeholders = batch.map(() => "?").join(", ");
     const result = await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         SELECT g.filter_id, g.dashboard_id, g.gadget_id, g.title AS gadget_title,
                d.name AS dashboard_name, d.view_url, d.owner_name, d.popularity
         FROM snapshot_dashboard_gadgets g
         JOIN snapshot_dashboards d
           ON d.scope_key = g.scope_key AND d.version = g.version AND d.dashboard_id = g.dashboard_id
         WHERE g.scope_key = ? AND g.version = ? AND g.filter_id IN (${placeholders})
-      `).bindParams(scopeKey, version, ...batch).execute()
+      `,
+        )
+        .bindParams(scopeKey, version, ...batch)
+        .execute(),
     );
     rows.push(...(result.rows || []));
   }
@@ -277,10 +340,15 @@ export async function loadDashboardsForFilters(scopeKey, version, filterIds = []
 export async function countGadgetConfigCoverage(scopeKey, version) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT COUNT(*) AS total, SUM(config_walk_done) AS walked
       FROM snapshot_dashboard_gadgets WHERE scope_key = ? AND version = ?
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
   const row = result.rows?.[0] || {};
   return { total: toNumber(row.total), walked: toNumber(row.walked) };
@@ -299,12 +367,17 @@ export async function loadDashboardIdsNeedingGadgets(scopeKey, version, limit = 
   await ensureProjectStoreReady();
   const safeLimit = Math.max(1, Math.min(500, Number(limit) || 60));
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT dashboard_id FROM snapshot_dashboards
       WHERE scope_key = ? AND version = ? AND gadget_walk_done = 0
       ORDER BY dashboard_id
       LIMIT ${safeLimit}
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
   return (result.rows || []).map((r) => String(r.dashboard_id));
 }
@@ -324,21 +397,42 @@ export async function loadDashboards(scopeKey, version) {
   await ensureProjectStoreReady();
 
   const [dashboardRows, shareRows, gadgetRows] = await Promise.all([
-    withSqlRetry(() => sql.prepare(`
+    withSqlRetry(() =>
+      sql
+        .prepare(
+          `
       SELECT dashboard_id, name, description, owner_account_id, owner_name, owner_active,
              popularity, gadget_count, shared_with_everyone, editable_by_everyone,
              share_count, view_url
       FROM snapshot_dashboards WHERE scope_key = ? AND version = ?
       ORDER BY popularity DESC, name ASC
-    `).bindParams(scopeKey, version).execute()),
-    withSqlRetry(() => sql.prepare(`
+    `,
+        )
+        .bindParams(scopeKey, version)
+        .execute(),
+    ),
+    withSqlRetry(() =>
+      sql
+        .prepare(
+          `
       SELECT dashboard_id, permission_kind, share_type, target_id, target_name
       FROM snapshot_dashboard_shares WHERE scope_key = ? AND version = ?
-    `).bindParams(scopeKey, version).execute()),
-    withSqlRetry(() => sql.prepare(`
-      SELECT dashboard_id, gadget_id, title, module_key, filter_id
+    `,
+        )
+        .bindParams(scopeKey, version)
+        .execute(),
+    ),
+    withSqlRetry(() =>
+      sql
+        .prepare(
+          `
+      SELECT dashboard_id, gadget_id, title, module_key, filter_id, filter_state
       FROM snapshot_dashboard_gadgets WHERE scope_key = ? AND version = ?
-    `).bindParams(scopeKey, version).execute()),
+    `,
+        )
+        .bindParams(scopeKey, version)
+        .execute(),
+    ),
   ]);
 
   const sharesByDashboard = new Map();
@@ -355,8 +449,11 @@ export async function loadDashboards(scopeKey, version) {
     const id = String(row.dashboard_id);
     if (!gadgetsByDashboard.has(id)) gadgetsByDashboard.set(id, []);
     gadgetsByDashboard.get(id).push({
-      id: String(row.gadget_id), title: row.title || null, moduleKey: row.module_key || null,
+      id: String(row.gadget_id),
+      title: row.title || null,
+      moduleKey: row.module_key || null,
       filterId: row.filter_id ? String(row.filter_id) : null,
+      filterState: row.filter_state || null,
     });
   }
 
@@ -370,9 +467,14 @@ export async function loadDashboards(scopeKey, version) {
       ownerName: row.owner_name || null,
       // Rebuilt into the shape dashboard-insights.js reads, so that module needs no knowledge
       // of how a row is stored.
-      owner: row.owner_account_id === null && row.owner_name === null
-        ? null
-        : { accountId: row.owner_account_id, displayName: row.owner_name, active: row.owner_active === null ? true : toNumber(row.owner_active) === 1 },
+      owner:
+        row.owner_account_id === null && row.owner_name === null
+          ? null
+          : {
+              accountId: row.owner_account_id,
+              displayName: row.owner_name,
+              active: row.owner_active === null ? true : toNumber(row.owner_active) === 1,
+            },
       ownerActive: row.owner_active === null ? null : toNumber(row.owner_active) === 1,
       popularity: toNumber(row.popularity),
       // Preserved as null rather than coerced: "not walked" is not "no gadgets".
@@ -393,8 +495,10 @@ export async function pruneDashboardSnapshots(scopeKey, keepVersion) {
   await ensureProjectStoreReady();
   for (const table of ["snapshot_dashboards", "snapshot_dashboard_gadgets", "snapshot_dashboard_shares"]) {
     await withSqlRetry(() =>
-      sql.prepare(`DELETE FROM ${table} WHERE scope_key = ? AND version <> ?`)
-        .bindParams(scopeKey, keepVersion).execute()
+      sql
+        .prepare(`DELETE FROM ${table} WHERE scope_key = ? AND version <> ?`)
+        .bindParams(scopeKey, keepVersion)
+        .execute(),
     );
   }
 }
@@ -414,12 +518,17 @@ export async function loadGadgetCountsForFilterIds(scopeKey, version, filterIds 
   for (const batch of chunkArray(ids, 100)) {
     const placeholders = batch.map(() => "?").join(", ");
     const result = await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         SELECT filter_id, COUNT(DISTINCT gadget_id) AS gadget_count
         FROM snapshot_dashboard_gadgets
         WHERE scope_key = ? AND version = ? AND filter_id IN (${placeholders})
         GROUP BY filter_id
-      `).bindParams(scopeKey, version, ...batch).execute()
+      `,
+        )
+        .bindParams(scopeKey, version, ...batch)
+        .execute(),
     );
     for (const row of result.rows || []) byFilter.set(String(row.filter_id), toNumber(row.gadget_count));
   }

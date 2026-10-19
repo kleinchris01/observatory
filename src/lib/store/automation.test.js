@@ -41,9 +41,17 @@ const estate = { ruleCount: 3, enabledCount: 2, disabledCount: 1 };
 
 function summary(id, topSeverity, risks = [{ code: "x", severity: topSeverity }]) {
   return {
-    id, name: `rule ${id}`, state: "ENABLED", enabled: true, triggerType: "t",
-    updated: 1, actionCount: 1, projectIds: ["10015"], writesFields: ["A"],
-    topSeverity, risks,
+    id,
+    name: `rule ${id}`,
+    state: "ENABLED",
+    enabled: true,
+    triggerType: "t",
+    updated: 1,
+    actionCount: 1,
+    projectIds: ["10015"],
+    writesFields: ["A"],
+    topSeverity,
+    risks,
   };
 }
 
@@ -80,7 +88,11 @@ describe("buildAnalysisDocument", () => {
 
   it("keeps self-triggering loops ahead of cross-rule edges when truncating", () => {
     const cascades = [
-      ...Array.from({ length: MAX_STORED_CASCADES }, (_, i) => ({ sourceId: i, targetId: i + 1, selfTriggering: false })),
+      ...Array.from({ length: MAX_STORED_CASCADES }, (_, i) => ({
+        sourceId: i,
+        targetId: i + 1,
+        selfTriggering: false,
+      })),
       { sourceId: 999, targetId: 999, selfTriggering: true },
     ];
     const doc = buildAnalysisDocument({ estate, cascades });
@@ -176,7 +188,15 @@ describe("automation storage parts", () => {
   });
 
   it("exposes every part the pipeline writes", () => {
-    expect(Object.keys(AUTOMATION_PARTS).sort()).toEqual(["analysis", "directory", "fields", "findings", "issueTypes", "statuses", "users"]);
+    expect(Object.keys(AUTOMATION_PARTS).sort()).toEqual([
+      "analysis",
+      "directory",
+      "fields",
+      "findings",
+      "issueTypes",
+      "statuses",
+      "users",
+    ]);
   });
 
   it("refuses an unknown part rather than writing to a computed key", async () => {
@@ -204,8 +224,6 @@ describe("automation storage parts", () => {
     await expect(readAutomationPart("s1", "fields")).resolves.toBeNull();
   });
 });
-
-
 
 // referenceRowsFrom is where the KVS caps stop applying. The document it reads carried at
 // most 50 rule ids per direction and 1,000 labels; rows have no such ceiling, so these
@@ -274,7 +292,14 @@ describe("referenceRowsFrom", () => {
 describe("cascadeRowsFrom", () => {
   it("flattens the wire tuples into rows", async () => {
     const { cascadeRowsFrom } = await import("./automation.js");
-    expect(cascadeRowsFrom({ edges: [["1", "2", "Owner", 0], ["9", "9", "Status", 1]] })).toEqual([
+    expect(
+      cascadeRowsFrom({
+        edges: [
+          ["1", "2", "Owner", 0],
+          ["9", "9", "Status", 1],
+        ],
+      }),
+    ).toEqual([
       ["1", "2", "Owner", 0],
       ["9", "9", "Status", 1],
     ]);
@@ -283,18 +308,39 @@ describe("cascadeRowsFrom", () => {
   it("keeps one row per field, because the field is the hop", async () => {
     // Two rules linked by three fields are one relationship and three ways to break it.
     const { cascadeRowsFrom } = await import("./automation.js");
-    const rows = cascadeRowsFrom({ edges: [["1", "2", "A", 0], ["1", "2", "B", 0], ["1", "2", "C", 0]] });
+    const rows = cascadeRowsFrom({
+      edges: [
+        ["1", "2", "A", 0],
+        ["1", "2", "B", 0],
+        ["1", "2", "C", 0],
+      ],
+    });
     expect(rows).toHaveLength(3);
   });
 
   it("drops a duplicate tuple rather than letting it distort the batches", async () => {
     const { cascadeRowsFrom } = await import("./automation.js");
-    expect(cascadeRowsFrom({ edges: [["1", "2", "A", 0], ["1", "2", "A", 0]] })).toHaveLength(1);
+    expect(
+      cascadeRowsFrom({
+        edges: [
+          ["1", "2", "A", 0],
+          ["1", "2", "A", 0],
+        ],
+      }),
+    ).toHaveLength(1);
   });
 
   it("skips an edge with no usable field or endpoint", async () => {
     const { cascadeRowsFrom } = await import("./automation.js");
-    expect(cascadeRowsFrom({ edges: [["1", "2", "", 0], [null, "2", "A", 0], ["1", null, "A", 0]] })).toEqual([]);
+    expect(
+      cascadeRowsFrom({
+        edges: [
+          ["1", "2", "", 0],
+          [null, "2", "A", 0],
+          ["1", null, "A", 0],
+        ],
+      }),
+    ).toEqual([]);
   });
 
   it("normalises the self-triggering flag to the column's type", async () => {
@@ -321,7 +367,15 @@ describe("blastRowsFrom", () => {
     const { blastRowsFrom } = await import("./automation.js");
     const rows = blastRowsFrom({
       rules: [
-        { id: "1", score: 88, tier: "estate", estimated: 1, credential: 0, factors: [{ key: "reach", value: 1 }], modifiers: [] },
+        {
+          id: "1",
+          score: 88,
+          tier: "estate",
+          estimated: 1,
+          credential: 0,
+          factors: [{ key: "reach", value: 1 }],
+          modifiers: [],
+        },
       ],
     });
     expect(rows).toHaveLength(1);
@@ -331,7 +385,12 @@ describe("blastRowsFrom", () => {
 
   it("clamps the score to 0..100 and defaults an unknown tier", async () => {
     const { blastRowsFrom } = await import("./automation.js");
-    const rows = blastRowsFrom({ rules: [{ id: "1", score: 500 }, { id: "2", score: -3, tier: null }] });
+    const rows = blastRowsFrom({
+      rules: [
+        { id: "1", score: 500 },
+        { id: "2", score: -3, tier: null },
+      ],
+    });
     expect(rows[0][1]).toBe(100);
     expect(rows[1][1]).toBe(0);
     expect(rows[1][2]).toBe("contained");
@@ -383,7 +442,21 @@ describe("loadBlastRules", () => {
         bindParams: () => ({
           execute: async () =>
             n++ === 0
-              ? { rows: [{ rule_id: "1", score: 88, tier: "estate", estimated: 1, credential: 0, factors_json: JSON.stringify({ factors: [{ key: "reach" }], modifiers: [] }), rule_name: "Sweep", rule_enabled: 1, trigger_type: "jira.jql.scheduled" }] }
+              ? {
+                  rows: [
+                    {
+                      rule_id: "1",
+                      score: 88,
+                      tier: "estate",
+                      estimated: 1,
+                      credential: 0,
+                      factors_json: JSON.stringify({ factors: [{ key: "reach" }], modifiers: [] }),
+                      rule_name: "Sweep",
+                      rule_enabled: 1,
+                      trigger_type: "jira.jql.scheduled",
+                    },
+                  ],
+                }
               : { rows: [{ total: 1 }] },
         }),
       };
@@ -402,7 +475,21 @@ describe("loadBlastRules", () => {
       bindParams: () => ({
         execute: async () =>
           n++ === 0
-            ? { rows: [{ rule_id: "1", score: 10, tier: "contained", estimated: 0, credential: 0, factors_json: "{not json", rule_name: null, rule_enabled: null, trigger_type: null }] }
+            ? {
+                rows: [
+                  {
+                    rule_id: "1",
+                    score: 10,
+                    tier: "contained",
+                    estimated: 0,
+                    credential: 0,
+                    factors_json: "{not json",
+                    rule_name: null,
+                    rule_enabled: null,
+                    trigger_type: null,
+                  },
+                ],
+              }
             : { rows: [{ total: 1 }] },
       }),
     }));
@@ -443,17 +530,32 @@ describe("loadCascades", () => {
 
   it("splits the concatenated fields back into a list", async () => {
     const { loadCascades } = await import("./automation.js");
-    stubSql([{
-      source_rule_id: "1", target_rule_id: "2", self_triggering: 0,
-      source_name: "Writer", target_name: "Listener", source_enabled: 1, target_enabled: 0,
-      field_count: 3, fields: ["A", "B", "C"].join(""),
-    }], 1);
+    stubSql(
+      [
+        {
+          source_rule_id: "1",
+          target_rule_id: "2",
+          self_triggering: 0,
+          source_name: "Writer",
+          target_name: "Listener",
+          source_enabled: 1,
+          target_enabled: 0,
+          field_count: 3,
+          fields: ["A", "B", "C"].join(""),
+        },
+      ],
+      1,
+    );
 
     const { cascades } = await loadCascades("scope");
     expect(cascades[0]).toMatchObject({
-      sourceName: "Writer", targetName: "Listener",
-      fields: ["A", "B", "C"], fieldCount: 3,
-      selfTriggering: false, sourceEnabled: true, targetEnabled: false,
+      sourceName: "Writer",
+      targetName: "Listener",
+      fields: ["A", "B", "C"],
+      fieldCount: 3,
+      selfTriggering: false,
+      sourceEnabled: true,
+      targetEnabled: false,
     });
   });
 
@@ -510,7 +612,11 @@ describe("loadCascadeEdges", () => {
     let asked = "";
     sql.prepare.mockImplementation((text) => {
       asked = text;
-      return { bindParams: () => ({ execute: async () => ({ rows: [{ source_rule_id: "1", target_rule_id: "2", field: "A" }] }) }) };
+      return {
+        bindParams: () => ({
+          execute: async () => ({ rows: [{ source_rule_id: "1", target_rule_id: "2", field: "A" }] }),
+        }),
+      };
     });
 
     const edges = await loadCascadeEdges("scope");
@@ -551,14 +657,19 @@ describe("loadRuleDirectoryFor", () => {
       return { bindParams: () => ({ execute: async () => ({ rows: [] }) }) };
     });
 
-    await loadRuleDirectoryFor("scope", Array.from({ length: 250 }, (_, i) => String(i)));
+    await loadRuleDirectoryFor(
+      "scope",
+      Array.from({ length: 250 }, (_, i) => String(i)),
+    );
     expect(statements).toBe(3);
   });
 
   it("keys by rule id and carries the enabled state", async () => {
     const { loadRuleDirectoryFor } = await import("./automation.js");
     sql.prepare.mockImplementation(() => ({
-      bindParams: () => ({ execute: async () => ({ rows: [{ rule_id: "5", name: "Alpha", enabled: 0, trigger_type: "t" }] }) }),
+      bindParams: () => ({
+        execute: async () => ({ rows: [{ rule_id: "5", name: "Alpha", enabled: 0, trigger_type: "t" }] }),
+      }),
     }));
 
     const directory = await loadRuleDirectoryFor("scope", ["5"]);

@@ -1,4 +1,3 @@
-import React from "react";
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, within, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -17,13 +16,21 @@ vi.mock("@forge/bridge", () => ({
 }));
 
 const filter = (over = {}) => ({
-  id: "1", name: "Open bugs", jql: "project = ADVEV AND status = Open",
+  id: "1",
+  name: "Open bugs",
+  jql: "project = ADVEV AND status = Open",
   owner: { accountId: "a1", displayName: "Bob", active: true },
-  ownerName: "Bob", ownerActive: true,
-  shares: [], sharedWithEveryone: false, shareCount: 0,
-  subscriptionCount: 0, favouritedCount: 0,
+  ownerName: "Bob",
+  ownerActive: true,
+  shares: [],
+  sharedWithEveryone: false,
+  shareCount: 0,
+  subscriptionCount: 0,
+  favouritedCount: 0,
   lastUsedAt: "2026-08-01T00:00:00.000Z",
-  fieldRefs: ["project", "status"], projectRefs: ["ADVEV"], statusRefs: ["Open"],
+  fieldRefs: ["project", "status"],
+  projectRefs: ["ADVEV"],
+  statusRefs: ["Open"],
   findings: [],
   ...over,
 });
@@ -34,8 +41,10 @@ const filter = (over = {}) => ({
 // rather than filtering a full list it no longer holds.
 const allThreeFilters = [
   filter({ id: "1", name: "Open bugs" }),
-  { ...filter({ id: "2", name: "Orphan", owner: null, ownerActive: null }),
-    findings: [{ code: "orphaned-owner", severity: "high", detail: "The owning account no longer exists." }] },
+  {
+    ...filter({ id: "2", name: "Orphan", owner: null, ownerActive: null }),
+    findings: [{ code: "orphaned-owner", severity: "high", detail: "The owning account no longer exists." }],
+  },
   filter({ id: "3", name: "Everyone", sharedWithEveryone: true }),
 ];
 
@@ -45,17 +54,32 @@ const allThreeFilters = [
 // `allFilters` any more -- shipping the whole inventory in one response is the bug this
 // contract exists to fix.
 const inventory = (over = {}) => ({
-  available: true, state: "ready", version: "v1",
+  available: true,
+  state: "ready",
+  version: "v1",
   refreshedAt: "2026-08-20T00:00:00.000Z",
   total: 3,
-  orphanedCount: 1, sharedWithEveryoneCount: 1, subscribedButUnusedCount: 0,
-  staleCount: 0, neverUsedCount: 0, subscriptionTotal: 5,
-  duplicateGroupCount: 1, reducibleCount: 1, brokenProjectCount: 1,
+  orphanedCount: 1,
+  sharedWithEveryoneCount: 1,
+  subscribedButUnusedCount: 0,
+  staleCount: 0,
+  neverUsedCount: 0,
+  subscriptionTotal: 5,
+  duplicateGroupCount: 1,
+  reducibleCount: 1,
+  brokenProjectCount: 1,
   projectsChecked: true,
-  duplicateGroups: [{
-    key: "project=advev", jql: "project = ADVEV", count: 2,
-    filters: [{ id: "1", name: "Mine", ownerName: "Bob" }, { id: "2", name: "Yours", ownerName: "Ann" }],
-  }],
+  duplicateGroups: [
+    {
+      key: "project=advev",
+      jql: "project = ADVEV",
+      count: 2,
+      filters: [
+        { id: "1", name: "Mine", ownerName: "Bob" },
+        { id: "2", name: "Yours", ownerName: "Ann" },
+      ],
+    },
+  ],
   brokenProjects: [{ id: "9", name: "Ghost filter", ownerName: "Bob", missing: ["GHOST"] }],
   findingCounts: { all: 3, "orphaned-owner": 1, "shared-with-everyone": 1, "subscribed-but-unused": 0, stale: 0 },
   matchedTotal: 3,
@@ -107,7 +131,10 @@ describe("sortFilters", () => {
   const rows = [
     { ...filter({ id: "1", name: "Bravo", lastUsedAt: "2026-01-01T00:00:00Z", subscriptionCount: 1 }), findings: [] },
     { ...filter({ id: "2", name: "Alpha", lastUsedAt: null, subscriptionCount: 5 }), findings: [{ code: "x" }] },
-    { ...filter({ id: "3", name: "Charlie", lastUsedAt: "2025-01-01T00:00:00Z", subscriptionCount: 0 }), findings: [{ code: "x" }, { code: "y" }] },
+    {
+      ...filter({ id: "3", name: "Charlie", lastUsedAt: "2025-01-01T00:00:00Z", subscriptionCount: 0 }),
+      findings: [{ code: "x" }, { code: "y" }],
+    },
   ];
 
   test("leads with the most findings by default", () => {
@@ -170,10 +197,9 @@ describe("FiltersTab", () => {
     route({ getFilterInventory: inventory() });
     render(<FiltersTab intent={{ view: "filters", finding: "orphaned-owner" }} />);
 
-    await waitFor(() => expect(invoke).toHaveBeenCalledWith(
-      "getFilterInventory",
-      expect.objectContaining({ finding: "orphaned-owner" })
-    ));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("getFilterInventory", expect.objectContaining({ finding: "orphaned-owner" })),
+    );
   });
 
   test("opens the duplicates view from an intent", async () => {
@@ -220,7 +246,10 @@ describe("FiltersTab", () => {
 
   test("surfaces a read-only refusal instead of silently doing nothing", async () => {
     const user = userEvent.setup();
-    route({ getFilterInventory: inventory(), buildFilterInventory: { queued: false, error: "Read-only mode is enabled." } });
+    route({
+      getFilterInventory: inventory(),
+      buildFilterInventory: { queued: false, error: "Read-only mode is enabled." },
+    });
     render(<FiltersTab />);
 
     await screen.findByRole("heading", { name: "Saved filters" });
@@ -260,15 +289,14 @@ describe("server-side search, sort, and paging", () => {
     // Nothing sent yet -- still inside the debounce window.
     expect(invoke).not.toHaveBeenCalled();
 
-    act(() => { vi.advanceTimersByTime(350); });
-    await waitFor(() => expect(invoke).toHaveBeenCalledWith(
-      "getFilterInventory",
-      expect.objectContaining({ search: "open" })
-    ));
-    // One request for the whole word, not one per character.
-    const searchCalls = invoke.mock.calls.filter(
-      ([name, args]) => name === "getFilterInventory" && args?.search
+    act(() => {
+      vi.advanceTimersByTime(350);
+    });
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("getFilterInventory", expect.objectContaining({ search: "open" })),
     );
+    // One request for the whole word, not one per character.
+    const searchCalls = invoke.mock.calls.filter(([name, args]) => name === "getFilterInventory" && args?.search);
     expect(searchCalls).toHaveLength(1);
   });
 
@@ -280,12 +308,13 @@ describe("server-side search, sort, and paging", () => {
     invoke.mockClear();
 
     await user.type(screen.getByPlaceholderText(/Name, owner, or anything in the query/i), "x");
-    act(() => { vi.advanceTimersByTime(350); });
+    act(() => {
+      vi.advanceTimersByTime(350);
+    });
 
-    await waitFor(() => expect(invoke).toHaveBeenCalledWith(
-      "getFilterInventory",
-      expect.objectContaining({ page: 1 })
-    ));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("getFilterInventory", expect.objectContaining({ page: 1 })),
+    );
   });
 
   test("asks for the next page rather than slicing a list it does not hold", async () => {
@@ -297,10 +326,9 @@ describe("server-side search, sort, and paging", () => {
 
     await user.click(screen.getByRole("button", { name: "Next" }));
 
-    await waitFor(() => expect(invoke).toHaveBeenCalledWith(
-      "getFilterInventory",
-      expect.objectContaining({ page: 2 })
-    ));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("getFilterInventory", expect.objectContaining({ page: 2 })),
+    );
   });
 
   // The rail has to describe the WHOLE matched set, not the page in hand -- a page can hold
@@ -308,10 +336,18 @@ describe("server-side search, sort, and paging", () => {
   // findingCounts that deliberately disagree with what the delivered page contains: if the
   // rail were counting the page instead of trusting the server's numbers, this would render 0.
   test("renders finding-rail counts from the server, not by counting the current page", async () => {
-    route({ getFilterInventory: inventory({
-      filters: [filter({ id: "9", name: "CleanPageOnly", findings: [] })],
-      findingCounts: { all: 400, "orphaned-owner": 37, "shared-with-everyone": 12, "subscribed-but-unused": 0, stale: 5 },
-    }) });
+    route({
+      getFilterInventory: inventory({
+        filters: [filter({ id: "9", name: "CleanPageOnly", findings: [] })],
+        findingCounts: {
+          all: 400,
+          "orphaned-owner": 37,
+          "shared-with-everyone": 12,
+          "subscribed-but-unused": 0,
+          stale: 5,
+        },
+      }),
+    });
     render(<FiltersTab />);
 
     const button = await screen.findByRole("button", { name: /No live owner/i });
@@ -327,10 +363,12 @@ describe("server-side search, sort, and paging", () => {
 
     await user.click(screen.getByRole("button", { name: /Shared with everyone/i }));
 
-    await waitFor(() => expect(invoke).toHaveBeenCalledWith(
-      "getFilterInventory",
-      expect.objectContaining({ finding: "shared-with-everyone" })
-    ));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith(
+        "getFilterInventory",
+        expect.objectContaining({ finding: "shared-with-everyone" }),
+      ),
+    );
   });
 
   test("never asks for the whole inventory in one call", async () => {
@@ -356,7 +394,10 @@ describe("server-side search, sort, and paging", () => {
 describe("a build that is no longer running", () => {
   test("offers the rebuild button instead of a permanent spinner", async () => {
     invoke.mockResolvedValue({
-      available: false, neverBuilt: true, state: "building", staleBuild: true,
+      available: false,
+      neverBuilt: true,
+      state: "building",
+      staleBuild: true,
     });
 
     render(<FiltersTab />);
@@ -369,7 +410,10 @@ describe("a build that is no longer running", () => {
 
   test("still shows a spinner for a build that genuinely is running", async () => {
     invoke.mockResolvedValue({
-      available: false, neverBuilt: true, state: "building", staleBuild: false,
+      available: false,
+      neverBuilt: true,
+      state: "building",
+      staleBuild: false,
     });
 
     render(<FiltersTab />);
@@ -385,9 +429,7 @@ describe("a build that is no longer running", () => {
 
     render(<FiltersTab />);
 
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Rebuild" })).toBeEnabled()
-    );
+    await waitFor(() => expect(screen.getByRole("button", { name: "Rebuild" })).toBeEnabled());
   });
 });
 
@@ -404,9 +446,7 @@ describe("clearer labels and honest last-used", () => {
     route({
       getFilterInventory: inventory({
         lastUsedTracked: false,
-        filters: [
-          { ...filter({ id: "1", name: "Untracked one", lastUsedAt: null }), findings: [] },
-        ],
+        filters: [{ ...filter({ id: "1", name: "Untracked one", lastUsedAt: null }), findings: [] }],
         findingCounts: { all: 1, "orphaned-owner": 0, "shared-with-everyone": 0, "subscribed-but-unused": 0, stale: 0 },
       }),
     });
@@ -430,5 +470,26 @@ describe("clearer labels and honest last-used", () => {
     await screen.findByText("Real never");
     expect(screen.getByText("never opened")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Not opened in a year/i })).toBeInTheDocument();
+  });
+});
+
+describe("FiltersTab -- public sharing", () => {
+  test("a publicly shared filter carries a critical 'public' chip, not 'everyone'", async () => {
+    const internet = {
+      ...filter({ id: "4", name: "Internet", jql: "project = SECRET" }),
+      findings: [{ code: "shared-publicly", severity: "high" }],
+    };
+    route({
+      getFilterInventory: inventory({ sharedPubliclyCount: 1, filters: [internet], matchedTotal: 1, total: 1 }),
+    });
+    render(<FiltersTab />);
+    const row = (await screen.findByText("Internet")).closest(".filter-row");
+    expect(within(row).getByText("public")).toHaveClass("ui-chip--critical");
+    expect(within(row).queryByText("everyone")).not.toBeInTheDocument();
+    const tile = screen
+      .getAllByText("Shared publicly")
+      .map((el) => el.closest(".ui-stat"))
+      .find(Boolean);
+    expect(tile).toHaveClass("ui-stat--critical");
   });
 });

@@ -22,12 +22,7 @@
 
 import { findDuplicateTypeNames, findOrphanTypes } from "./issuetype-insights.js";
 import { findDuplicateStatusGroups } from "./workflow-insights.js";
-import {
-  findBareTypes,
-  findBrokenHierarchy,
-  findBrokenReferences,
-  findEmptyObjectTypes,
-} from "./asset-insights.js";
+import { findBareTypes, findBrokenHierarchy, findBrokenReferences, findEmptyObjectTypes } from "./asset-insights.js";
 import { analyzeDashboard } from "./dashboard-insights.js";
 
 // A report is a download, not a page -- but it still crosses the Forge invoke boundary as
@@ -43,10 +38,16 @@ export const PILLAR_REPORTS = [
   { key: "projects", label: "Projects", entity: "projects", health: ["projects"] },
   { key: "workflows", label: "Workflows", entity: "workflow schemes", health: ["workflows"] },
   { key: "issueTypes", label: "Issue types", entity: "issue types", health: ["issueTypes"] },
+  { key: "fieldConfigs", label: "Field schemes", entity: "schemes and configurations", health: ["fieldConfigs"] },
   { key: "priorities", label: "Priorities & resolutions", entity: "values", health: ["estate"] },
   { key: "people", label: "People", entity: "licensed users", health: ["users"] },
   { key: "assets", label: "Assets", entity: "object types", health: ["assets"] },
-  { key: "access", label: "Access", entity: "schemes and roles", health: ["permissions", "security", "notifications", "roles"] },
+  {
+    key: "access",
+    label: "Access",
+    entity: "schemes and roles",
+    health: ["permissions", "security", "notifications", "roles"],
+  },
   { key: "screens", label: "Screens", entity: "screens", health: ["screens"] },
   { key: "filters", label: "Saved filters", entity: "filters", health: ["filters"] },
   { key: "dashboards", label: "Dashboards", entity: "dashboards", health: ["dashboards"] },
@@ -89,13 +90,19 @@ export function unavailableReport(key, reason) {
   };
 }
 
-export function finalizeReport(key, { refreshedAt = null, columns = [], rows = [], summary = [], notes = [] }, { limit = REPORT_ROW_LIMIT } = {}) {
+export function finalizeReport(
+  key,
+  { refreshedAt = null, columns = [], rows = [], summary = [], notes = [] },
+  { limit = REPORT_ROW_LIMIT } = {},
+) {
   const def = describe(key);
   const hasFindings = def.findings !== false;
 
-  const normalized = rows.map((row) => (hasFindings
-    ? { ...row, findings: Array.isArray(row.findings) ? [...new Set(row.findings.filter(Boolean))] : [] }
-    : row));
+  const normalized = rows.map((row) =>
+    hasFindings
+      ? { ...row, findings: Array.isArray(row.findings) ? [...new Set(row.findings.filter(Boolean))] : [] }
+      : row,
+  );
 
   // Stable: within the flagged and unflagged halves, the builder's own order stands.
   const ordered = hasFindings
@@ -129,7 +136,11 @@ export function finalizeReport(key, { refreshedAt = null, columns = [], rows = [
     ],
     notes: [
       ...notes,
-      ...(truncated ? [`Showing the first ${limit.toLocaleString("en-US")} of ${ordered.length.toLocaleString("en-US")} ${def.entity}, flagged rows first.`] : []),
+      ...(truncated
+        ? [
+            `Showing the first ${limit.toLocaleString("en-US")} of ${ordered.length.toLocaleString("en-US")} ${def.entity}, flagged rows first.`,
+          ]
+        : []),
     ],
   };
 }
@@ -179,9 +190,7 @@ function buildFieldsReport({ refreshedAt, fields = [] }) {
       { key: "issues", label: "Issues with values", kind: "number" },
     ],
     rows,
-    summary: [
-      { label: "Never populated", value: count(rows, (r) => !r.system && r.issues === 0), tone: "warning" },
-    ],
+    summary: [{ label: "Never populated", value: count(rows, (r) => !r.system && r.issues === 0), tone: "warning" }],
   };
 }
 
@@ -201,14 +210,12 @@ function buildProjectsReport({ refreshedAt, projects = [], adoption = null }) {
       issuesPerDay: a?.measured ? round(a.issuesPerDay, 2) : null,
       adoption: a?.score ?? null,
       lastIssueCreated: a?.lastIssueCreatedAt ?? null,
-      findings: [
-        judgeable && a.fellOff ? "fell-off" : null,
-        judgeable && a.neverAdopted ? "never-adopted" : null,
-      ],
+      findings: [judgeable && a.fellOff ? "fell-off" : null, judgeable && a.neverAdopted ? "never-adopted" : null],
     };
   });
   const notes = [];
-  if (!adoption?.available) notes.push("Adoption is unmeasured: no issue activity has been captured. Run a Universal Scan.");
+  if (!adoption?.available)
+    notes.push("Adoption is unmeasured: no issue activity has been captured. Run a Universal Scan.");
   else if (adoption.dataStale) notes.push("Adoption flags are suppressed: the activity data behind them is stale.");
   return {
     refreshedAt,
@@ -231,7 +238,8 @@ function buildWorkflowsReport({ refreshedAt, schemes = [], statusCount = null })
     id: s.id,
     name: s.name,
     defaultWorkflow: s.defaultWorkflow || null,
-    mappedIssueTypes: s.issueTypeMapping && typeof s.issueTypeMapping === "object" ? Object.keys(s.issueTypeMapping).length : 0,
+    mappedIssueTypes:
+      s.issueTypeMapping && typeof s.issueTypeMapping === "object" ? Object.keys(s.issueTypeMapping).length : 0,
     projects: Number(s.projectCount) || 0,
     findings: [(Number(s.projectCount) || 0) === 0 ? "unused-scheme" : null],
   }));
@@ -267,7 +275,8 @@ function buildIssueTypesReport({ refreshedAt, issueTypes = [], schemeItems = [],
     ],
   }));
   const notes = [];
-  if (usage && usage.measurement !== "measured") notes.push("Issue counts are not fully measured yet; blank means unmeasured, not zero.");
+  if (usage && usage.measurement !== "measured")
+    notes.push("Issue counts are not fully measured yet; blank means unmeasured, not zero.");
   return {
     refreshedAt,
     columns: [
@@ -280,6 +289,65 @@ function buildIssueTypesReport({ refreshedAt, issueTypes = [], schemeItems = [],
     ],
     rows,
     notes,
+  };
+}
+
+// Field schemes, or -- on a legacy site -- configuration schemes and field configurations,
+// one row each. Findings are the codes the build stored; nothing is re-judged here.
+function buildFieldConfigsReport({ refreshedAt, sourceLabel = null, schemes = [], configs = [], summary = null }) {
+  const configProjects = new Map();
+  const schemeProjects = new Map(schemes.map((s) => [s.id, Number(s.projectCount) || 0]));
+  for (const c of configs) {
+    const schemeIds = new Set((c.routes || []).map((r) => r.schemeId));
+    configProjects.set(
+      c.id,
+      [...schemeIds].reduce((n, id) => n + (schemeProjects.get(id) || 0), 0),
+    );
+  }
+  const rows = [
+    ...schemes.map((s) => ({
+      kind: s.source === "field-configurations" ? "Configuration scheme" : "Field scheme",
+      // The prefixed id (fs:, fcs:, fc:): a legacy scheme and a configuration can share a
+      // numeric id, and the change log keys on this one.
+      id: s.id,
+      name: s.name,
+      isDefault: Boolean(s.isDefault),
+      projects: Number(s.projectCount) || 0,
+      fields: s.fieldCount ?? null,
+      required: s.source === "field-configurations" ? null : (s.requiredCount ?? null),
+      findings: (s.codes || []).filter((c) => c !== "unmeasured"),
+    })),
+    ...configs.map((c) => ({
+      kind: "Field configuration",
+      id: c.id,
+      name: c.name,
+      isDefault: Boolean(c.isDefault),
+      projects: configProjects.get(c.id) ?? 0,
+      fields: c.totalFieldCount ?? null,
+      required: c.itemsRead ? c.requiredCount : null,
+      findings: (c.codes || []).filter((code) => code !== "unmeasured"),
+    })),
+  ];
+  return {
+    refreshedAt,
+    columns: [
+      { key: "kind", label: "Kind", kind: "text" },
+      { key: "id", label: "ID", kind: "text" },
+      { key: "name", label: "Name", kind: "text" },
+      { key: "isDefault", label: "Default", kind: "boolean" },
+      { key: "projects", label: "Projects", kind: "number" },
+      { key: "fields", label: "Fields", kind: "number" },
+      { key: "required", label: "Required fields", kind: "number" },
+    ],
+    rows,
+    summary: [
+      { label: "Model", value: sourceLabel || "unknown" },
+      { label: "Schemes", value: schemes.length },
+      ...(configs.length ? [{ label: "Field configurations", value: configs.length }] : []),
+    ],
+    notes: summary?.unmeasured
+      ? [`${summary.unmeasured} could not be read on the last build; their field counts are blank.`]
+      : [],
   };
 }
 
@@ -307,7 +375,10 @@ function buildPrioritiesReport({ refreshedAt, resolutions = [], priorities = [] 
       { key: "issues", label: "Issues", kind: "number" },
       { key: "description", label: "Description", kind: "text" },
     ],
-    rows: [...priorities.map(toRow("Priority", dupPriorities)), ...resolutions.map(toRow("Resolution", dupResolutions))],
+    rows: [
+      ...priorities.map(toRow("Priority", dupPriorities)),
+      ...resolutions.map(toRow("Resolution", dupResolutions)),
+    ],
     summary: [
       { label: "Priorities", value: priorities.length },
       { label: "Resolutions", value: resolutions.length },
@@ -326,11 +397,13 @@ function buildPeopleReport({ refreshedAt, users = [] }) {
     ownedFilters: Number(u.ownedFilters) || 0,
     ownedDashboards: Number(u.ownedDashboards) || 0,
     automationRefs: Number(u.automationRefs) || 0,
+    lastActivity: u.lastActivityAt || null,
     // A deactivated account that still owns things is the pillar's orphaned-ownership
     // finding at the row level: everything it owns disappears if the account is deleted.
     findings: [
       !u.active && (Number(u.ownedFilters) || 0) + (Number(u.ownedDashboards) || 0) > 0 ? "inactive-owner" : null,
       !u.active && (Number(u.automationRefs) || 0) > 0 ? "inactive-in-automation" : null,
+      u.dormant === true ? "dormant-licence" : null,
     ],
   }));
   return {
@@ -345,6 +418,7 @@ function buildPeopleReport({ refreshedAt, users = [] }) {
       { key: "ownedFilters", label: "Owned filters", kind: "number" },
       { key: "ownedDashboards", label: "Owned dashboards", kind: "number" },
       { key: "automationRefs", label: "Automation references", kind: "number" },
+      { key: "lastActivity", label: "Last issue activity", kind: "date" },
     ],
     rows,
     summary: [{ label: "Inactive", value: count(rows, (r) => !r.active), tone: "neutral" }],
@@ -394,7 +468,9 @@ function buildAssetsReport({ refreshedAt, schemas = [], objectTypes = [], attrib
     ],
     rows,
     summary: [{ label: "Schemas", value: schemas.length }],
-    notes: typeCounts.length ? [] : ["Object counts have not been crawled; the Objects column is blank rather than zero."],
+    notes: typeCounts.length
+      ? []
+      : ["Object counts have not been crawled; the Objects column is blank rather than zero."],
   };
 }
 
@@ -506,7 +582,8 @@ function buildFiltersReport({ refreshedAt, filters = [] }) {
     name: f.name,
     owner: f.ownerName || null,
     ownerActive: f.ownerActive,
-    sharedWithEveryone: Boolean(f.sharedWithEveryone),
+    sharedWithEveryone: (f.findings || []).some((x) => x.code === "shared-with-everyone"),
+    sharedPublicly: (f.findings || []).some((x) => x.code === "shared-publicly"),
     subscriptions: Number(f.subscriptionCount) || 0,
     favourites: Number(f.favouritedCount) || 0,
     lastUsed: f.lastUsedAt || null,
@@ -519,6 +596,7 @@ function buildFiltersReport({ refreshedAt, filters = [] }) {
       { key: "name", label: "Name", kind: "text" },
       { key: "owner", label: "Owner", kind: "text" },
       { key: "ownerActive", label: "Owner active", kind: "boolean" },
+      { key: "sharedPublicly", label: "Shared publicly", kind: "boolean" },
       { key: "sharedWithEveryone", label: "Shared with everyone", kind: "boolean" },
       { key: "subscriptions", label: "Subscriptions", kind: "number" },
       { key: "favourites", label: "Favourites", kind: "number" },
@@ -529,17 +607,23 @@ function buildFiltersReport({ refreshedAt, filters = [] }) {
 }
 
 function buildDashboardsReport({ refreshedAt, dashboards = [] }) {
-  const rows = dashboards.map((d) => ({
-    id: d.id,
-    name: d.name,
-    owner: d.ownerName || null,
-    ownerActive: d.ownerActive,
-    gadgets: d.gadgetCount ?? null,
-    favourites: Number(d.popularity) || 0,
-    sharedWithEveryone: Boolean(d.sharedWithEveryone),
-    editableByEveryone: Boolean(d.editableByEveryone),
-    findings: analyzeDashboard(d).map((x) => x.code),
-  }));
+  const rows = dashboards.map((d) => {
+    const findings = analyzeDashboard(d).map((x) => x.code);
+    const sharedPublicly = findings.includes("shared-publicly");
+    return {
+      id: d.id,
+      name: d.name,
+      owner: d.ownerName || null,
+      ownerActive: d.ownerActive,
+      gadgets: d.gadgetCount ?? null,
+      favourites: Number(d.popularity) || 0,
+      sharedPublicly,
+      // A public dashboard is reported as public, not also as "everyone".
+      sharedWithEveryone: !sharedPublicly && Boolean(d.sharedWithEveryone),
+      editableByEveryone: Boolean(d.editableByEveryone),
+      findings,
+    };
+  });
   return {
     refreshedAt,
     columns: [
@@ -549,6 +633,7 @@ function buildDashboardsReport({ refreshedAt, dashboards = [] }) {
       { key: "ownerActive", label: "Owner active", kind: "boolean" },
       { key: "gadgets", label: "Gadgets", kind: "number" },
       { key: "favourites", label: "Favourites", kind: "number" },
+      { key: "sharedPublicly", label: "Shared publicly", kind: "boolean" },
       { key: "sharedWithEveryone", label: "Shared with everyone", kind: "boolean" },
       { key: "editableByEveryone", label: "Editable by everyone", kind: "boolean" },
     ],
@@ -564,10 +649,7 @@ function buildBoardsReport({ refreshedAt, boards = [] }) {
     location: b.locationKey || b.locationName || null,
     filterId: b.filterId || null,
     columns: Number(b.columnCount) || (b.columns || []).length,
-    findings: [
-      !b.configReadable ? "config-unreadable" : null,
-      ...(b.issues || []),
-    ],
+    findings: [!b.configReadable ? "config-unreadable" : null, ...(b.issues || [])],
   }));
   return {
     refreshedAt,
@@ -598,7 +680,9 @@ function buildAutomationReport({ refreshedAt, rules = [], findingsPreview = [], 
   // The stored analysis keeps only the highest-severity findings. Saying so is the
   // difference between "these rules are clean" and "these rules were not listed".
   if (findingsTotal > findingsPreview.length) {
-    notes.push(`Findings are listed for the ${findingsPreview.length} highest-severity rules of ${findingsTotal} flagged; open the Automation tab for the rest.`);
+    notes.push(
+      `Findings are listed for the ${findingsPreview.length} highest-severity rules of ${findingsTotal} flagged; open the Automation tab for the rest.`,
+    );
   }
   return {
     refreshedAt,
@@ -658,6 +742,7 @@ export const PILLAR_REPORT_BUILDERS = {
   projects: buildProjectsReport,
   workflows: buildWorkflowsReport,
   issueTypes: buildIssueTypesReport,
+  fieldConfigs: buildFieldConfigsReport,
   priorities: buildPrioritiesReport,
   people: buildPeopleReport,
   assets: buildAssetsReport,

@@ -4,12 +4,7 @@
 // partial version. Imports only from core.js: one arrow, no cycle.
 
 import { sql } from "@forge/sql";
-import {
-  chunkArray,
-  ensureProjectStoreReady,
-  toNumber,
-  withSqlRetry,
-} from "./core.js";
+import { chunkArray, ensureProjectStoreReady, toNumber, withSqlRetry } from "./core.js";
 
 const BATCH = 50;
 
@@ -19,26 +14,35 @@ export async function replaceBoardSnapshot(scopeKey, version, { boards = [], col
   await ensureProjectStoreReady();
 
   await withSqlRetry(() =>
-    sql.prepare(`DELETE FROM snapshot_boards WHERE scope_key = ?`).bindParams(scopeKey).execute()
+    sql.prepare(`DELETE FROM snapshot_boards WHERE scope_key = ?`).bindParams(scopeKey).execute(),
   );
   await withSqlRetry(() =>
-    sql.prepare(`DELETE FROM snapshot_board_columns WHERE scope_key = ?`).bindParams(scopeKey).execute()
+    sql.prepare(`DELETE FROM snapshot_board_columns WHERE scope_key = ?`).bindParams(scopeKey).execute(),
   );
 
   for (const b of chunkArray(boards, BATCH)) {
     const valuesSql = b.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = b.flatMap((row) => [
-      scopeKey, version, String(row.boardId),
-      row.name || null, row.type || null,
-      row.locationType || null, row.locationId != null ? String(row.locationId) : null,
-      row.locationKey || null, row.locationName || null,
+      scopeKey,
+      version,
+      String(row.boardId),
+      row.name || null,
+      row.type || null,
+      row.locationType || null,
+      row.locationId != null ? String(row.locationId) : null,
+      row.locationKey || null,
+      row.locationName || null,
       row.filterId != null ? String(row.filterId) : null,
-      row.subQuery || null, row.estimationField || null,
+      row.subQuery || null,
+      row.estimationField || null,
       row.rankingField != null ? String(row.rankingField) : null,
-      Number(row.columnCount) || 0, row.configReadable === false ? 0 : 1,
+      Number(row.columnCount) || 0,
+      row.configReadable === false ? 0 : 1,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_boards
           (scope_key, version, board_id, name, type, location_type, location_id,
            location_key, location_name, filter_id, sub_query, estimation_field,
@@ -50,26 +54,38 @@ export async function replaceBoardSnapshot(scopeKey, version, { boards = [], col
           filter_id = VALUES(filter_id), sub_query = VALUES(sub_query),
           estimation_field = VALUES(estimation_field), ranking_field = VALUES(ranking_field),
           column_count = VALUES(column_count), config_readable = VALUES(config_readable)
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
   for (const c of chunkArray(columns, BATCH)) {
     const valuesSql = c.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = c.flatMap((row) => [
-      scopeKey, version, String(row.boardId), Number(row.index) || 0,
-      row.name || null, row.statusIds || null,
+      scopeKey,
+      version,
+      String(row.boardId),
+      Number(row.index) || 0,
+      row.name || null,
+      row.statusIds || null,
       row.min != null ? Number(row.min) : null,
       row.max != null ? Number(row.max) : null,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_board_columns
           (scope_key, version, board_id, column_index, name, status_ids, min_constraint, max_constraint)
         VALUES ${valuesSql}
         ON DUPLICATE KEY UPDATE name = VALUES(name), status_ids = VALUES(status_ids),
           min_constraint = VALUES(min_constraint), max_constraint = VALUES(max_constraint)
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 }
@@ -77,13 +93,18 @@ export async function replaceBoardSnapshot(scopeKey, version, { boards = [], col
 export async function loadBoards(scopeKey, version) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT board_id, name, type, location_type, location_id, location_key, location_name,
              filter_id, sub_query, estimation_field, ranking_field, column_count, config_readable
       FROM snapshot_boards
       WHERE scope_key = ? AND version = ?
       ORDER BY name ASC, board_id ASC
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     boardId: row.board_id,
@@ -104,17 +125,20 @@ export async function loadBoards(scopeKey, version) {
 
 export async function loadBoardColumns(scopeKey, version, boardId = null) {
   await ensureProjectStoreReady();
-  const where = boardId != null
-    ? `scope_key = ? AND version = ? AND board_id = ?`
-    : `scope_key = ? AND version = ?`;
+  const where = boardId != null ? `scope_key = ? AND version = ? AND board_id = ?` : `scope_key = ? AND version = ?`;
   const params = boardId != null ? [scopeKey, version, String(boardId)] : [scopeKey, version];
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT board_id, column_index, name, status_ids, min_constraint, max_constraint
       FROM snapshot_board_columns
       WHERE ${where}
       ORDER BY board_id ASC, column_index ASC
-    `).bindParams(...params).execute()
+    `,
+      )
+      .bindParams(...params)
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     boardId: row.board_id,
@@ -129,11 +153,16 @@ export async function loadBoardColumns(scopeKey, version, boardId = null) {
 export async function readBoardSnapshotMeta(scopeKey) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT state, version, started_at, completed_at, refreshed_at,
              total_boards, total_columns, boards_unreadable, last_error
       FROM board_snapshot_meta WHERE scope_key = ?
-    `).bindParams(scopeKey).execute()
+    `,
+      )
+      .bindParams(scopeKey)
+      .execute(),
   );
   const row = result.rows?.[0];
   if (!row) return null;
@@ -156,7 +185,9 @@ export async function writeBoardSnapshotMeta(scopeKey, patch = {}) {
   const next = { ...current, ...patch };
 
   await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       INSERT INTO board_snapshot_meta
         (scope_key, state, version, started_at, completed_at, refreshed_at,
          total_boards, total_columns, boards_unreadable, last_error)
@@ -171,17 +202,20 @@ export async function writeBoardSnapshotMeta(scopeKey, patch = {}) {
         total_columns = VALUES(total_columns),
         boards_unreadable = VALUES(boards_unreadable),
         last_error = VALUES(last_error)
-    `).bindParams(
-      scopeKey,
-      next.state || "idle",
-      next.version || null,
-      next.startedAt || null,
-      next.completedAt || null,
-      next.refreshedAt || null,
-      next.totalBoards ?? 0,
-      next.totalColumns ?? 0,
-      next.boardsUnreadable ?? 0,
-      next.lastError || null
-    ).execute()
+    `,
+      )
+      .bindParams(
+        scopeKey,
+        next.state || "idle",
+        next.version || null,
+        next.startedAt || null,
+        next.completedAt || null,
+        next.refreshedAt || null,
+        next.totalBoards ?? 0,
+        next.totalColumns ?? 0,
+        next.boardsUnreadable ?? 0,
+        next.lastError || null,
+      )
+      .execute(),
   );
 }

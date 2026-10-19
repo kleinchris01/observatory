@@ -29,8 +29,8 @@ import React from "react";
 // the small twist goes. Under prefers-reduced-motion it is an instant swap with no reticle.
 
 const FRAME_MS = 1000 / 30;
-const STAR_COLOR = "226, 231, 242";      // the fallback warm white
-const FLARE_COLOR = "150, 194, 255";     // the signal cyan: the spark glow, the meteor tail, the reticle
+const STAR_COLOR = "226, 231, 242"; // the fallback warm white
+const FLARE_COLOR = "150, 194, 255"; // the signal cyan: the spark glow, the meteor tail, the reticle
 
 const MAX_PARALLAX = 14;
 const MAX_SPIKE_STARS = 5;
@@ -65,9 +65,24 @@ function mulberry32(seed) {
 // is a single horizontal pan whose direction is never in doubt: a later tab is to the right.
 // A bearing that is not on the list (or none) sits at 0.
 export const BEARING_ORDER = [
-  "overview", "fields", "projects", "workflows", "issueTypes", "priorities",
-  "people", "assets", "access", "screens", "filters", "dashboards", "boards",
-  "automation", "reports", "changes", "scans", "config",
+  "overview",
+  "fields",
+  "projects",
+  "workflows",
+  "issueTypes",
+  "priorities",
+  "people",
+  "assets",
+  "access",
+  "screens",
+  "filters",
+  "dashboards",
+  "boards",
+  "automation",
+  "reports",
+  "changes",
+  "scans",
+  "config",
 ];
 
 export function bearingColumn(bearing) {
@@ -195,7 +210,7 @@ export function makeGalaxy(w, h, rng, dist = rng()) {
   // Never perfectly face-on, so no galaxy reads as a plain circle. Far ones tilt more on
   // average, which also helps sell the distance.
   const incl = 0.28 + rng() * 0.55 + dist * 0.12;
-  const bright = 0.45 + near * 0.55;          // multiplies every alpha at draw time
+  const bright = 0.45 + near * 0.55; // multiplies every alpha at draw time
   // Only near galaxies resolve into a spiral; a far one is an unresolved core + halo.
   const spiral = dist < 0.5 && rng() < 0.6;
 
@@ -203,7 +218,13 @@ export function makeGalaxy(w, h, rng, dist = rng()) {
     // Warm for an old elliptical, cool for a distant unresolved disk -- pick by chance.
     const warm = rng() < 0.5;
     return {
-      spiral: false, x, y, scale, rot, incl, bright,
+      spiral: false,
+      x,
+      y,
+      scale,
+      rot,
+      incl,
+      bright,
       core: warm ? "255, 236, 205" : "224, 232, 245",
       halo: warm ? "255, 224, 190" : "206, 218, 240",
     };
@@ -221,7 +242,7 @@ export function makeGalaxy(w, h, rng, dist = rng()) {
       const t = k / perArm;
       const theta = base + t * turns * Math.PI * 2;
       const rad = 0.12 + t * 0.92;
-      const ja = (rng() - 0.5) * 0.55 * (0.3 + t);   // arm gets fuzzier outward
+      const ja = (rng() - 0.5) * 0.55 * (0.3 + t); // arm gets fuzzier outward
       const jr = (rng() - 0.5) * 0.15;
       points.push({
         px: Math.cos(theta + ja) * (rad + jr),
@@ -232,9 +253,16 @@ export function makeGalaxy(w, h, rng, dist = rng()) {
     }
   }
   return {
-    spiral: true, x, y, scale, rot, incl, bright, points,
+    spiral: true,
+    x,
+    y,
+    scale,
+    rot,
+    incl,
+    bright,
+    points,
     core: "255, 240, 220",
-    arm: "205, 222, 255",                     // young blue arm stars
+    arm: "205, 222, 255", // young blue arm stars
     halo: "210, 220, 255",
   };
 }
@@ -316,8 +344,7 @@ export function Starfield({ active = true, bearing = "default" }) {
     if (!ctx) return undefined;
 
     const reduced =
-      typeof window.matchMedia === "function" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     let width = 0;
     let height = 0;
@@ -389,7 +416,7 @@ export function Starfield({ active = true, bearing = "default" }) {
       ctx.scale(1, 1 - g.incl * 0.72);
 
       const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, g.scale);
-      halo.addColorStop(0, `rgba(${g.halo}, ${(0.10 * gAlpha).toFixed(3)})`);
+      halo.addColorStop(0, `rgba(${g.halo}, ${(0.1 * gAlpha).toFixed(3)})`);
       halo.addColorStop(0.5, `rgba(${g.halo}, ${(0.035 * gAlpha).toFixed(3)})`);
       halo.addColorStop(1, `rgba(${g.halo}, 0)`);
       ctx.fillStyle = halo;
@@ -578,23 +605,33 @@ export function Starfield({ active = true, bearing = "default" }) {
         // A pivot, not a slide. First half: the old sky pulls back, dims and twists away.
         // Overlapping second half: the new sky pushes in from behind, untwisting to rest.
         // Nothing translates, so there is no "which direction" to read as clunky.
-        const R = 0.10; // ~5.7 degrees of twist
+        const R = 0.1; // ~5.7 degrees of twist
         const outP = clamp01(p / 0.55);
         const inP = clamp01((p - 0.4) / 0.6);
 
         if (outP < 1) {
-          drawField(slew.from, {
-            scale: 1 - 0.18 * easeIn(outP),
-            rot: -slew.dir * R * easeIn(outP),
-            alpha: clamp01(1 - 1.3 * outP),
-          }, now, false);
+          drawField(
+            slew.from,
+            {
+              scale: 1 - 0.18 * easeIn(outP),
+              rot: -slew.dir * R * easeIn(outP),
+              alpha: clamp01(1 - 1.3 * outP),
+            },
+            now,
+            false,
+          );
         }
         if (inP > 0) {
-          drawField(slew.to, {
-            scale: 0.82 + 0.18 * easeOut(inP),
-            rot: slew.dir * R * (1 - easeOut(inP)),
-            alpha: clamp01(1.3 * inP),
-          }, now, false);
+          drawField(
+            slew.to,
+            {
+              scale: 0.82 + 0.18 * easeOut(inP),
+              rot: slew.dir * R * (1 - easeOut(inP)),
+              alpha: clamp01(1.3 * inP),
+            },
+            now,
+            false,
+          );
         }
         drawReticle(p, slew.dir);
         if (p >= 1) {

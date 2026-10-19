@@ -20,10 +20,11 @@ export function attachEstateUsage({ resolutions = [], priorities = [], totals = 
     if (byKind[row?.kind]) byKind[row.kind].set(String(row.valueId ?? ""), row.issueCount);
   }
   const usageMeasured = (totals || []).length > 0;
-  const attach = (rows, kind) => rows.map((v) => ({
-    ...v,
-    issueCount: usageMeasured ? (byKind[kind].get(String(v.id)) ?? 0) : null,
-  }));
+  const attach = (rows, kind) =>
+    rows.map((v) => ({
+      ...v,
+      issueCount: usageMeasured ? (byKind[kind].get(String(v.id)) ?? 0) : null,
+    }));
   return {
     resolutions: attach(resolutions, "resolution"),
     priorities: attach(priorities, "priority"),
@@ -81,5 +82,19 @@ export function summarizeEstateHealth(summary) {
     totalPriorities: summary.totalPriorities,
     reducibleResolutionCount: summary.reducibleResolutionCount,
     reduciblePriorityCount: summary.reduciblePriorityCount,
+    resolutionsWithoutDefault: Boolean(summary.resolutionsWithoutDefault),
+    prioritiesWithoutDefault: Boolean(summary.prioritiesWithoutDefault),
+  };
+}
+
+// The usage half of this pillar's score: values no issue carries. Only measured once the issue
+// crawl has run -- before that every value reads as unused, which says nothing.
+export function summarizeEstateUsage(usage) {
+  if (!usage?.usageMeasured) return { usageMeasured: false };
+  const unused = (rows) => (rows || []).filter((v) => v.issueCount === 0).length;
+  return {
+    usageMeasured: true,
+    unusedPriorityCount: unused(usage.priorities),
+    unusedResolutionCount: unused(usage.resolutions),
   };
 }

@@ -3,8 +3,16 @@ import { invoke } from "@forge/bridge";
 import { formatNumber, formatRelativeTime, handleJiraLinkClick } from "../utils";
 import { Icon } from "../components/Icons";
 import {
-  StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar,
-  PanelGrid, GridSpan, PillarHealthPanel,
+  StatTile,
+  StatRow,
+  Panel,
+  EmptyState,
+  Chip,
+  PageHeader,
+  SortFilterBar,
+  PanelGrid,
+  GridSpan,
+  PillarHealthPanel,
 } from "../components/ui";
 import { useNavIntent, useVisiblePolling } from "../hooks";
 
@@ -30,6 +38,18 @@ export const DASHBOARD_FINDINGS = [
     label: "No live owner",
     hint: "Jira deletes a dashboard with its owner. Anything linking to these breaks at the same moment.",
     match: (d) => d.findings.some((f) => f.code === "orphaned-owner"),
+  },
+  {
+    key: "broken-gadget",
+    label: "Broken gadgets",
+    hint: "A gadget reads a filter that is deleted, or private to its owner -- everyone else sees an error.",
+    match: (d) => d.findings.some((f) => f.code === "broken-gadget"),
+  },
+  {
+    key: "shared-publicly",
+    label: "Shared publicly",
+    hint: "Shared globally. On a site that allows anonymous access, anyone with the link can open these.",
+    match: (d) => d.findings.some((f) => f.code === "shared-publicly"),
   },
   {
     key: "editable-by-everyone",
@@ -88,18 +108,35 @@ export function filterDashboards(dashboards, { search = "", finding = "all" } = 
 // resolved yet because no saved-filter inventory has been built.
 export function gadgetTooltip(gadget) {
   if (!gadget.filterId) return undefined;
+  // Said first: a filter nobody can read is the fact that matters, whatever else is known.
+  if (gadget.filterState === "missing")
+    return `Filter ${gadget.filterId} no longer exists, or this app cannot see it -- viewers see an error here.`;
+  if (gadget.filterState === "private")
+    return `Filter ${gadget.filterId} is private to its owner -- everyone else sees an error here.`;
   if (gadget.filterName === null || gadget.fieldRefs === null) {
     return "Uses a saved filter — build a saved filter inventory to see which one and what it depends on.";
   }
   const filterPart = gadget.filterName ? `Filter: ${gadget.filterName}` : "Filter: (name unavailable)";
   const fields = gadget.fieldRefs || [];
-  const fieldsPart = fields.length ? ` — depends on ${fields.join(", ")}` : " — depends on nothing this filter's JQL names";
+  const fieldsPart = fields.length
+    ? ` — depends on ${fields.join(", ")}`
+    : " — depends on nothing this filter's JQL names";
   return `${filterPart}${fieldsPart}`;
 }
 
 function OwnerChip({ dashboard }) {
-  if (!dashboard.owner) return <Chip tone="danger" title="The owning account no longer exists">owner deleted</Chip>;
-  if (dashboard.ownerActive === false) return <Chip tone="warning" title="Owned by a deactivated account">{dashboard.ownerName} · inactive</Chip>;
+  if (!dashboard.owner)
+    return (
+      <Chip tone="danger" title="The owning account no longer exists">
+        owner deleted
+      </Chip>
+    );
+  if (dashboard.ownerActive === false)
+    return (
+      <Chip tone="warning" title="Owned by a deactivated account">
+        {dashboard.ownerName} · inactive
+      </Chip>
+    );
   return <span className="dash-row__owner">{dashboard.ownerName ?? "—"}</span>;
 }
 
@@ -125,10 +162,21 @@ function DashboardRow({ dashboard, siteOrigin }) {
         )}
         <OwnerChip dashboard={dashboard} />
         {dashboard.editableByEveryone && <Chip tone="warning">anyone can edit</Chip>}
-        {dashboard.sharedWithEveryone && <Chip tone="neutral">everyone can view</Chip>}
+        {dashboard.findings?.some((f) => f.code === "shared-publicly") ? (
+          <Chip
+            tone="critical"
+            title="Shared globally: anonymous visitors can open it on a site that allows public access"
+          >
+            public
+          </Chip>
+        ) : (
+          dashboard.sharedWithEveryone && <Chip tone="neutral">everyone can view</Chip>
+        )}
         <span className="dash-row__meta">
           {/* A dash, never a zero, when the gadget walk did not reach this one. */}
-          {dashboard.gadgetCount === null ? "gadgets not read" : `${formatNumber(dashboard.gadgetCount)} gadget${dashboard.gadgetCount === 1 ? "" : "s"}`}
+          {dashboard.gadgetCount === null
+            ? "gadgets not read"
+            : `${formatNumber(dashboard.gadgetCount)} gadget${dashboard.gadgetCount === 1 ? "" : "s"}`}
           {" · "}
           {dashboard.popularity > 0 ? `${formatNumber(dashboard.popularity)} favourited` : "favourited by nobody"}
         </span>
@@ -137,11 +185,17 @@ function DashboardRow({ dashboard, siteOrigin }) {
       {dashboard.gadgets?.length > 0 && (
         <div className="dash-row__gadgets">
           {dashboard.gadgets.slice(0, 8).map((gadget) => (
-            <Chip key={gadget.id} title={gadgetTooltip(gadget)}>{gadget.title || gadget.moduleKey || "Untitled gadget"}</Chip>
+            <Chip
+              key={gadget.id}
+              tone={
+                gadget.filterState === "missing" ? "critical" : gadget.filterState === "private" ? "warning" : "neutral"
+              }
+              title={gadgetTooltip(gadget)}
+            >
+              {gadget.title || gadget.moduleKey || "Untitled gadget"}
+            </Chip>
           ))}
-          {dashboard.gadgets.length > 8 && (
-            <span className="dash-row__more">+{dashboard.gadgets.length - 8} more</span>
-          )}
+          {dashboard.gadgets.length > 8 && <span className="dash-row__more">+{dashboard.gadgets.length - 8} more</span>}
         </div>
       )}
 
@@ -157,8 +211,12 @@ function DashboardRow({ dashboard, siteOrigin }) {
       ) : dashboard.fieldRefs?.length > 0 ? (
         <div className="filter-row__refs">
           <span className="filter-row__refslabel">depends on</span>
-          {dashboard.fieldRefs.slice(0, 8).map((ref) => <Chip key={`f-${ref}`}>{ref}</Chip>)}
-          {dashboard.fieldRefs.length > 8 && <span className="filter-row__more">+{dashboard.fieldRefs.length - 8} more</span>}
+          {dashboard.fieldRefs.slice(0, 8).map((ref) => (
+            <Chip key={`f-${ref}`}>{ref}</Chip>
+          ))}
+          {dashboard.fieldRefs.length > 8 && (
+            <span className="filter-row__more">+{dashboard.fieldRefs.length - 8} more</span>
+          )}
         </div>
       ) : null}
 
@@ -199,7 +257,9 @@ export function DashboardsTab({ siteOrigin = "", intent = null }) {
     }
   }, []);
 
-  React.useEffect(() => { load(); }, [load]);
+  React.useEffect(() => {
+    load();
+  }, [load]);
 
   // Poll only while a build is in flight and only while somebody is looking.
   // "building" alone is not enough to believe: a Forge invocation timeout is a hard kill, so
@@ -212,9 +272,15 @@ export function DashboardsTab({ siteOrigin = "", intent = null }) {
   React.useEffect(() => {
     let cancelled = false;
     invoke("getPillarHealth", { pillar: "dashboards" })
-      .then((result) => { if (!cancelled) setPillar(result?.pillar || null); })
-      .catch(() => { if (!cancelled) setPillar(null); });
-    return () => { cancelled = true; };
+      .then((result) => {
+        if (!cancelled) setPillar(result?.pillar || null);
+      })
+      .catch(() => {
+        if (!cancelled) setPillar(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [data?.refreshedAt]);
 
   useNavIntent(intent, (nav) => {
@@ -223,7 +289,9 @@ export function DashboardsTab({ siteOrigin = "", intent = null }) {
     setPage(1);
   });
 
-  React.useEffect(() => { setPage(1); }, [search, finding, sort]);
+  React.useEffect(() => {
+    setPage(1);
+  }, [search, finding, sort]);
 
   async function handleBuild() {
     setBuilding(true);
@@ -248,7 +316,7 @@ export function DashboardsTab({ siteOrigin = "", intent = null }) {
 
   const rows = React.useMemo(
     () => sortDashboards(filterDashboards(withFindings, { search, finding }), sort),
-    [withFindings, search, finding, sort]
+    [withFindings, search, finding, sort],
   );
   const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -265,17 +333,23 @@ export function DashboardsTab({ siteOrigin = "", intent = null }) {
         <EmptyState
           action={
             <button type="button" className="primary-button" onClick={handleBuild} disabled={building || isBuilding}>
-              {isBuilding ? "Building…" : building ? "Starting…" : data?.staleBuild ? "Rebuild" : "Build dashboard inventory"}
+              {isBuilding
+                ? "Building…"
+                : building
+                  ? "Starting…"
+                  : data?.staleBuild
+                    ? "Rebuild"
+                    : "Build dashboard inventory"}
             </button>
           }
         >
           {data?.staleBuild
             ? "A build was started but is no longer running — it most likely hit the invocation time limit. Rebuild to recover it."
             : isBuilding
-            ? "Building the dashboard inventory…"
-            : data?.lastError
-              ? `The last build failed: ${data.lastError}`
-              : "No dashboard inventory yet. Build one to see which dashboards are orphaned, open to edit, or empty."}
+              ? "Building the dashboard inventory…"
+              : data?.lastError
+                ? `The last build failed: ${data.lastError}`
+                : "No dashboard inventory yet. Build one to see which dashboards are orphaned, open to edit, or empty."}
         </EmptyState>
         {error && <div className="error-banner">{error}</div>}
       </>
@@ -322,9 +396,11 @@ export function DashboardsTab({ siteOrigin = "", intent = null }) {
               <StatTile
                 label="Gadgets"
                 value={formatNumber(data.totalGadgets)}
-                hint={data.emptyCount === null
-                  ? "some dashboards were not read"
-                  : `${formatNumber(data.emptyCount)} dashboards carry none`}
+                hint={
+                  data.emptyCount === null
+                    ? "some dashboards were not read"
+                    : `${formatNumber(data.emptyCount)} dashboards carry none`
+                }
               />
             </StatRow>
           </Panel>
@@ -337,8 +413,8 @@ export function DashboardsTab({ siteOrigin = "", intent = null }) {
         <p className="ui-note">
           <Icon name="info" size={13} />
           <span>
-            Gadgets were read for {formatNumber(data.gadgetsWalked)} of {formatNumber(data.total)} dashboards.
-            The rest show their gadget count as unread, and are not counted as empty.
+            Gadgets were read for {formatNumber(data.gadgetsWalked)} of {formatNumber(data.total)} dashboards. The rest
+            show their gadget count as unread, and are not counted as empty.
           </span>
         </p>
       )}
@@ -350,9 +426,9 @@ export function DashboardsTab({ siteOrigin = "", intent = null }) {
         <p className="ui-note">
           <Icon name="info" size={13} />
           <span>
-            Jira refused {formatNumber(pagesUnreadable)} page{pagesUnreadable === 1 ? "" : "s"} of the
-            dashboard list, so up to {formatNumber(pagesUnreadable * 50)} dashboards are missing from this
-            inventory. Rebuild to try them again.
+            Jira refused {formatNumber(pagesUnreadable)} page{pagesUnreadable === 1 ? "" : "s"} of the dashboard list,
+            so up to {formatNumber(pagesUnreadable * 50)} dashboards are missing from this inventory. Rebuild to try
+            them again.
           </span>
         </p>
       )}
@@ -372,7 +448,11 @@ export function DashboardsTab({ siteOrigin = "", intent = null }) {
           sortOptions={SORTS}
           resultCount={rows.length}
           totalCount={data.total}
-          onClear={() => { setSearch(""); setFinding("all"); setSort("findings"); }}
+          onClear={() => {
+            setSearch("");
+            setFinding("all");
+            setSort("findings");
+          }}
         />
 
         <div className="findings-filter-bar">
@@ -394,7 +474,9 @@ export function DashboardsTab({ siteOrigin = "", intent = null }) {
           <EmptyState inline>No dashboard matches these filters.</EmptyState>
         ) : (
           <div className="dash-list">
-            {pageRows.map((row) => <DashboardRow key={row.id} dashboard={row} siteOrigin={siteOrigin} />)}
+            {pageRows.map((row) => (
+              <DashboardRow key={row.id} dashboard={row} siteOrigin={siteOrigin} />
+            ))}
           </div>
         )}
 
@@ -404,8 +486,22 @@ export function DashboardsTab({ siteOrigin = "", intent = null }) {
               Page {formatNumber(page)} of {formatNumber(pages)} · {formatNumber(rows.length)} dashboards
             </span>
             <div className="pagination-bar__actions">
-              <button type="button" className="ghost-button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>Previous</button>
-              <button type="button" className="ghost-button" onClick={() => setPage((p) => Math.min(pages, p + 1))} disabled={page >= pages}>Next</button>
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={() => setPage((p) => Math.min(pages, p + 1))}
+                disabled={page >= pages}
+              >
+                Next
+              </button>
             </div>
           </section>
         )}
@@ -415,10 +511,9 @@ export function DashboardsTab({ siteOrigin = "", intent = null }) {
       <p className="ui-note">
         <Icon name="info" size={13} />
         <span>
-          Each gadget's filter is read from the gadget's own properties, which is how a dashboard
-          counts as evidence that a filter, and the fields it searches, are in use. A gadget whose
-          properties Jira would not return is recorded with no filter, so a dashboard that names
-          no filter is not proof that it depends on none.
+          Each gadget's filter is read from the gadget's own properties, which is how a dashboard counts as evidence
+          that a filter, and the fields it searches, are in use. A gadget whose properties Jira would not return is
+          recorded with no filter, so a dashboard that names no filter is not proof that it depends on none.
         </span>
       </p>
     </>

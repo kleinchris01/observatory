@@ -54,7 +54,12 @@ function parseColor(value) {
 
 function over(top, bottom) {
   const a = top.a;
-  return { r: top.r * a + bottom.r * (1 - a), g: top.g * a + bottom.g * (1 - a), b: top.b * a + bottom.b * (1 - a), a: 1 };
+  return {
+    r: top.r * a + bottom.r * (1 - a),
+    g: top.g * a + bottom.g * (1 - a),
+    b: top.b * a + bottom.b * (1 - a),
+    a: 1,
+  };
 }
 
 function luminance({ r, g, b }) {
@@ -79,7 +84,13 @@ function panelFor(theme, tokens) {
 }
 
 describe("tone tokens", () => {
-  const TEXT = ["--tone-warning-text", "--tone-critical-text", "--tone-success-text", "--tone-grade-b-text", "--tone-grade-d-text"];
+  const TEXT = [
+    "--tone-warning-text",
+    "--tone-critical-text",
+    "--tone-success-text",
+    "--tone-grade-b-text",
+    "--tone-grade-d-text",
+  ];
   const GRAPHIC = ["--tone-warning", "--tone-critical", "--tone-success"];
 
   for (const [theme, tokens] of Object.entries(THEMES)) {

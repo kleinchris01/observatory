@@ -12,6 +12,7 @@
 
 import { inventorySnapshotQueue } from "./queues.js";
 import { logger } from "./logger.js";
+import { FULL_SCAN_STALL_MS } from "./scan-timing.js";
 
 // Order matters, and it is not the dependency order alone.
 //
@@ -61,6 +62,11 @@ export const FULL_SCAN_STAGES = [
   // disturbing the dependency-blocking cases the earlier stages exercise; it needs nothing,
   // so its position is a scheduling choice, not a correctness one.
   { key: "issue-types", label: "Issue type inventory", needs: [], mode: "inline" },
+  // What Jira enforces on each field per project and work type: field schemes, or legacy
+  // field configuration schemes + configurations on a site not yet migrated. Inline: the
+  // per-owner item walk runs under its own time budget inside the consumer ceiling and
+  // records what it did not reach as unread rather than overrunning.
+  { key: "field-configs", label: "Field scheme / configuration inventory", needs: [], mode: "inline" },
   // Permission, issue-security and notification schemes with their holders and project
   // assignments. Structural and cheap -- dozens of schemes, one bulk call each plus one
   // per-project call for the permission scheme (Jira has no bulk for that one), best-effort.
@@ -147,6 +153,8 @@ export const QUICK_SCAN_STAGES = [
   // for issue types or their schemes either, so quick scan runs it in full like the other
   // four. Ordered after the delta crawl for the same reason it sits late in the full list.
   { key: "issue-types", label: "Issue type inventory (full)", needs: [], mode: "inline" },
+  // No changed-since signal for field schemes or configurations either.
+  { key: "field-configs", label: "Field scheme / configuration inventory (full)", needs: [], mode: "inline" },
   // Same full-refetch structural stage as a full scan -- Jira exposes no changed-since
   // signal for permission / security / notification schemes either.
   { key: "access", label: "Access scheme inventory (full)", needs: [], mode: "inline" },
@@ -193,7 +201,7 @@ export const MAX_STAGE_ATTEMPTS = 3;
 // fixed 20s loop but backs off: ~20s, ~40s, ~80s. `attempt` is 1-based.
 export function scanRetryDelaySeconds(attempt = 1) {
   const n = Math.max(0, (Number(attempt) || 1) - 1);
-  return Math.min(300, 20 * (2 ** n)) + Math.floor(Math.random() * 10);
+  return Math.min(300, 20 * 2 ** n) + Math.floor(Math.random() * 10);
 }
 
 // After every stage has resolved, if any FAILED or was SKIPPED, the whole set of them is
@@ -240,7 +248,7 @@ export const FULL_SCAN_STAGE_STALE_MS = 16 * 60 * 1000;
 // Nothing inside runScanStep can detect that, because runScanStep is what stopped being
 // called. 20 minutes clears the 900s consumer ceiling plus the 30s poll delay with room to
 // spare, and sits well inside the hourly cadence of the trigger that runs the watchdog.
-export const FULL_SCAN_STALL_MS = 20 * 60 * 1000;
+export { FULL_SCAN_STALL_MS };
 
 // How many times the watchdog will re-kick a stalled run before giving up on it.
 //
