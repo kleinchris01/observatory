@@ -164,13 +164,11 @@ jobs:
           cache: npm
       - run: npm ci --frozen-lockfile
       - name: Dependency audit
-        run: npm audit --audit-level=high --omit=dev
-        # Still non-blocking, but no longer for want of triage. As of 31 Jul 2026 the
-        # remaining high advisories are the linkify-it chain under @forge/bridge, for
-        # which no fixed vendor release exists -- see SECURITY_CHECKLIST.md section 7 for
-        # the per-package rationale and re-check trigger. Making this a gate today would
-        # block every PR on something nobody can fix.
-        continue-on-error: true
+        # A gate, not a report: fails on any high or critical runtime advisory without a
+        # reviewed, in-date acceptance in scripts/audit-acceptances.json (SECURITY_CHECKLIST.md
+        # section 8). `npm audit` exits non-zero whenever it finds anything, hence `|| true`;
+        # the gate script decides.
+        run: (npm audit --omit=dev --json || true) | node scripts/audit-gate.mjs
       - name: Secret scan
         uses: gitleaks/gitleaks-action@v3
         env:

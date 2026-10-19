@@ -1,0 +1,35 @@
+{
+  "_readme": "Reviewed high/critical runtime advisories that CI lets through (scripts/audit-gate.mjs). Each needs a reason and a reviewBy date; an expired date fails the build. SECURITY_CHECKLIST.md section 8 explains the reasoning.",
+  "acceptances": [
+    {
+      "package": "@forge/bridge",
+      "severity": "high",
+      "reason": "Root of the adf-schema chain below. The fix is @forge/bridge 7.x, a major version that needs its own evaluation; Dependabot ignores @forge majors by design.",
+      "reviewBy": "2027-01-19"
+    },
+    {
+      "package": "@atlaskit/adf-schema",
+      "severity": "high",
+      "reason": "Pulled in by @forge/bridge. Client-side only; Observatory renders no user-authored ADF or markdown. Clears with @forge/bridge 7.x.",
+      "reviewBy": "2027-01-19"
+    },
+    {
+      "package": "@atlaskit/editor-prosemirror",
+      "severity": "high",
+      "reason": "Pulled in by @forge/bridge via adf-schema. Client-side only; no rich-text editor is rendered. Clears with @forge/bridge 7.x.",
+      "reviewBy": "2027-01-19"
+    },
+    {
+      "package": "prosemirror-view",
+      "severity": "high",
+      "reason": "Pulled in by @forge/bridge via adf-schema. Client-side only; no rich-text editor is rendered. Clears with @forge/bridge 7.x.",
+      "reviewBy": "2027-01-19"
+    },
+    {
+      "package": "linkify-it",
+      "severity": "high",
+      "reason": "Pulled in by @forge/bridge via adf-schema. Quadratic-time DoS in a markdown link parser that would only run in the viewer's own sandboxed iframe, on content Observatory never renders. Clears with @forge/bridge 7.x.",
+      "reviewBy": "2027-01-19"
+    }
+  ]
+}
