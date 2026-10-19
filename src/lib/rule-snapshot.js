@@ -16,13 +16,7 @@
 // deleting them later does not remove them.
 
 import { createHash } from "node:crypto";
-import {
-  FORM_SECRET_RE,
-  LITERAL_BEARER_RE,
-  SECRET_MATCHERS,
-  isSecretTag,
-  resetMatcherState,
-} from "./secret-detect.js";
+import { FORM_SECRET_RE, LITERAL_BEARER_RE, SECRET_MATCHERS, isSecretTag, resetMatcherState } from "./secret-detect.js";
 
 // Re-exported because the snapshot script prints it: a run that quietly stops redacting --
 // because Atlassian renamed a field -- should be visible rather than silent. Callers that
@@ -56,7 +50,7 @@ const REDACTORS = {
   "form-encoded-secret": (value) =>
     value.replace(FORM_SECRET_RE, (match, prefix, secret) =>
       // A smart value is a reference, not a secret -- leave it legible.
-      /^\{\{.*\}\}$/.test(secret) ? match : `${prefix}${redactionPlaceholder(secret)}`
+      /^\{\{.*\}\}$/.test(secret) ? match : `${prefix}${redactionPlaceholder(secret)}`,
     ),
   "literal-bearer-token": (value) =>
     value.replace(LITERAL_BEARER_RE, (match, scheme, token) => `${scheme}${redactionPlaceholder(token)}`),

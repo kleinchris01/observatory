@@ -7,79 +7,98 @@
 // one invocation and never appends to a partial version.
 
 import { sql } from "@forge/sql";
-import {
-  chunkArray,
-  ensureProjectStoreReady,
-  toNumber,
-  withSqlRetry,
-} from "./core.js";
+import { chunkArray, ensureProjectStoreReady, toNumber, withSqlRetry } from "./core.js";
 
 const DEFAULT_BATCH_SIZE = 50;
 
-export async function replaceAssetSnapshot(scopeKey, version, {
-  schemas = [],
-  objectTypes = [],
-  attributes = [],
-} = {}) {
+export async function replaceAssetSnapshot(
+  scopeKey,
+  version,
+  { schemas = [], objectTypes = [], attributes = [] } = {},
+) {
   await ensureProjectStoreReady();
 
-  for (const table of [
-    "snapshot_asset_schemas",
-    "snapshot_asset_object_types",
-    "snapshot_asset_attributes",
-  ]) {
-    await withSqlRetry(() =>
-      sql.prepare(`DELETE FROM ${table} WHERE scope_key = ?`).bindParams(scopeKey).execute()
-    );
+  for (const table of ["snapshot_asset_schemas", "snapshot_asset_object_types", "snapshot_asset_attributes"]) {
+    await withSqlRetry(() => sql.prepare(`DELETE FROM ${table} WHERE scope_key = ?`).bindParams(scopeKey).execute());
   }
 
   for (const batch of chunkArray(schemas, DEFAULT_BATCH_SIZE)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((s) => [
-      scopeKey, version, String(s.id), s.name || null, s.schemaKey || null,
-      s.description || null, Number(s.objectTypeCount) || 0, Number(s.objectCount) || 0,
+      scopeKey,
+      version,
+      String(s.id),
+      s.name || null,
+      s.schemaKey || null,
+      s.description || null,
+      Number(s.objectTypeCount) || 0,
+      Number(s.objectCount) || 0,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_asset_schemas
           (scope_key, version, schema_id, name, schema_key, description, object_type_count, object_count)
         VALUES ${valuesSql}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
   for (const batch of chunkArray(objectTypes, DEFAULT_BATCH_SIZE)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((t) => [
-      scopeKey, version, String(t.id), String(t.schemaId), t.name || null, t.description || null,
+      scopeKey,
+      version,
+      String(t.id),
+      String(t.schemaId),
+      t.name || null,
+      t.description || null,
       t.parentId == null ? null : String(t.parentId),
       t.inherited ? 1 : 0,
       t.abstract ? 1 : 0,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_asset_object_types
           (scope_key, version, object_type_id, schema_id, name, description, parent_id, inherited, is_abstract)
         VALUES ${valuesSql}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
   for (const batch of chunkArray(attributes, DEFAULT_BATCH_SIZE)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((a) => [
-      scopeKey, version, String(a.id),
+      scopeKey,
+      version,
+      String(a.id),
       a.objectTypeId == null ? null : String(a.objectTypeId),
-      String(a.schemaId), a.name || null, a.dataType || null,
+      String(a.schemaId),
+      a.name || null,
+      a.dataType || null,
       a.referenceObjectTypeId == null ? null : String(a.referenceObjectTypeId),
       a.system ? 1 : 0,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_asset_attributes
           (scope_key, version, attribute_id, object_type_id, schema_id, name, data_type, reference_object_type_id, is_system)
         VALUES ${valuesSql}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 }
@@ -89,12 +108,17 @@ export async function replaceAssetSnapshot(scopeKey, version, {
 export async function loadAssetSchemas(scopeKey, version) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT schema_id, name, schema_key, description, object_type_count, object_count
       FROM snapshot_asset_schemas
       WHERE scope_key = ? AND version = ?
       ORDER BY object_count DESC, name ASC
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     id: row.schema_id,
@@ -109,12 +133,17 @@ export async function loadAssetSchemas(scopeKey, version) {
 export async function loadAssetObjectTypes(scopeKey, version) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT object_type_id, schema_id, name, description, parent_id, inherited, is_abstract
       FROM snapshot_asset_object_types
       WHERE scope_key = ? AND version = ?
       ORDER BY schema_id ASC, name ASC
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     id: row.object_type_id,
@@ -130,12 +159,17 @@ export async function loadAssetObjectTypes(scopeKey, version) {
 export async function loadAssetAttributes(scopeKey, version) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT attribute_id, object_type_id, schema_id, name, data_type, reference_object_type_id, is_system
       FROM snapshot_asset_attributes
       WHERE scope_key = ? AND version = ?
       ORDER BY object_type_id ASC, name ASC
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     id: row.attribute_id,
@@ -154,17 +188,24 @@ export async function loadAssetGovernanceSummary(scopeKey, version) {
   await ensureProjectStoreReady();
 
   const schemas = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT
         COUNT(*) AS total,
         SUM(CASE WHEN object_type_count = 0 OR object_count = 0 THEN 1 ELSE 0 END) AS dead
       FROM snapshot_asset_schemas
       WHERE scope_key = ? AND version = ?
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
 
   const types = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT
         COUNT(*) AS total,
         SUM(CASE WHEN is_abstract = 1 THEN 1 ELSE 0 END) AS abstract_types,
@@ -175,11 +216,16 @@ export async function loadAssetGovernanceSummary(scopeKey, version) {
           ) THEN 1 ELSE 0 END) AS orphan_types
       FROM snapshot_asset_object_types t
       WHERE t.scope_key = ? AND t.version = ?
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
 
   const attrs = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT
         COUNT(*) AS total,
         SUM(CASE WHEN reference_object_type_id IS NOT NULL THEN 1 ELSE 0 END) AS reference_attrs,
@@ -195,7 +241,10 @@ export async function loadAssetGovernanceSummary(scopeKey, version) {
           ) THEN 1 ELSE 0 END) AS orphan_attrs
       FROM snapshot_asset_attributes a
       WHERE a.scope_key = ? AND a.version = ?
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
 
   const schemaRow = schemas.rows?.[0] || {};
@@ -225,21 +274,28 @@ export async function replaceAssetTypeCounts(scopeKey, rows = []) {
   await ensureProjectStoreReady();
 
   await withSqlRetry(() =>
-    sql.prepare(`DELETE FROM snapshot_asset_type_counts WHERE scope_key = ?`)
-      .bindParams(scopeKey).execute()
+    sql.prepare(`DELETE FROM snapshot_asset_type_counts WHERE scope_key = ?`).bindParams(scopeKey).execute(),
   );
 
   for (const batch of chunkArray(rows, DEFAULT_BATCH_SIZE)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((r) => [
-      scopeKey, String(r.objectTypeId), String(r.schemaId),
-      Number(r.objectCount) || 0, r.measuredAt || null,
+      scopeKey,
+      String(r.objectTypeId),
+      String(r.schemaId),
+      Number(r.objectCount) || 0,
+      r.measuredAt || null,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_asset_type_counts (scope_key, object_type_id, schema_id, object_count, measured_at)
         VALUES ${valuesSql}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 }
@@ -247,11 +303,16 @@ export async function replaceAssetTypeCounts(scopeKey, rows = []) {
 export async function loadAssetTypeCounts(scopeKey) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT object_type_id, schema_id, object_count, measured_at
       FROM snapshot_asset_type_counts
       WHERE scope_key = ?
-    `).bindParams(scopeKey).execute()
+    `,
+      )
+      .bindParams(scopeKey)
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     objectTypeId: row.object_type_id,
@@ -264,10 +325,15 @@ export async function loadAssetTypeCounts(scopeKey) {
 export async function readAssetTypeCountMeta(scopeKey) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT state, started_at, completed_at, refreshed_at, measured_types, unmeasured_types, last_error
       FROM asset_type_count_meta WHERE scope_key = ?
-    `).bindParams(scopeKey).execute()
+    `,
+      )
+      .bindParams(scopeKey)
+      .execute(),
   );
   const row = result.rows?.[0];
   if (!row) return null;
@@ -288,7 +354,9 @@ export async function writeAssetTypeCountMeta(scopeKey, patch = {}) {
   const next = { ...current, ...patch };
 
   await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       INSERT INTO asset_type_count_meta
         (scope_key, state, started_at, completed_at, refreshed_at, measured_types, unmeasured_types, last_error)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -300,16 +368,19 @@ export async function writeAssetTypeCountMeta(scopeKey, patch = {}) {
         measured_types = VALUES(measured_types),
         unmeasured_types = VALUES(unmeasured_types),
         last_error = VALUES(last_error)
-    `).bindParams(
-      scopeKey,
-      next.state || "idle",
-      next.startedAt || null,
-      next.completedAt || null,
-      next.refreshedAt || null,
-      next.measuredTypes ?? 0,
-      next.unmeasuredTypes ?? 0,
-      next.lastError || null
-    ).execute()
+    `,
+      )
+      .bindParams(
+        scopeKey,
+        next.state || "idle",
+        next.startedAt || null,
+        next.completedAt || null,
+        next.refreshedAt || null,
+        next.measuredTypes ?? 0,
+        next.unmeasuredTypes ?? 0,
+        next.lastError || null,
+      )
+      .execute(),
   );
 }
 
@@ -318,11 +389,16 @@ export async function writeAssetTypeCountMeta(scopeKey, patch = {}) {
 export async function readAssetSnapshotMeta(scopeKey) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT state, version, started_at, completed_at, refreshed_at, workspace_id,
              assets_enabled, total_schemas, total_object_types, total_attributes, last_error
       FROM asset_snapshot_meta WHERE scope_key = ?
-    `).bindParams(scopeKey).execute()
+    `,
+      )
+      .bindParams(scopeKey)
+      .execute(),
   );
   const row = result.rows?.[0];
   if (!row) return null;
@@ -347,7 +423,9 @@ export async function writeAssetSnapshotMeta(scopeKey, patch = {}) {
   const next = { ...current, ...patch };
 
   await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       INSERT INTO asset_snapshot_meta
         (scope_key, state, version, started_at, completed_at, refreshed_at, workspace_id,
          assets_enabled, total_schemas, total_object_types, total_attributes, last_error)
@@ -364,19 +442,22 @@ export async function writeAssetSnapshotMeta(scopeKey, patch = {}) {
         total_object_types = VALUES(total_object_types),
         total_attributes = VALUES(total_attributes),
         last_error = VALUES(last_error)
-    `).bindParams(
-      scopeKey,
-      next.state || "idle",
-      next.version || null,
-      next.startedAt || null,
-      next.completedAt || null,
-      next.refreshedAt || null,
-      next.workspaceId || null,
-      next.assetsEnabled ? 1 : 0,
-      next.totalSchemas ?? 0,
-      next.totalObjectTypes ?? 0,
-      next.totalAttributes ?? 0,
-      next.lastError || null
-    ).execute()
+    `,
+      )
+      .bindParams(
+        scopeKey,
+        next.state || "idle",
+        next.version || null,
+        next.startedAt || null,
+        next.completedAt || null,
+        next.refreshedAt || null,
+        next.workspaceId || null,
+        next.assetsEnabled ? 1 : 0,
+        next.totalSchemas ?? 0,
+        next.totalObjectTypes ?? 0,
+        next.totalAttributes ?? 0,
+        next.lastError || null,
+      )
+      .execute(),
   );
 }

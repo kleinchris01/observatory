@@ -59,7 +59,7 @@ describe("remediation playbooks", () => {
 
   it("covers the findings a first release turns into work", () => {
     expect(KEYS).toEqual(
-      expect.arrayContaining(["filter-ownership", "dashboard-ownership", "user-ownership", "board-backing"])
+      expect.arrayContaining(["filter-ownership", "dashboard-ownership", "user-ownership", "board-backing"]),
     );
   });
 });
@@ -77,18 +77,35 @@ describe("finding coverage", () => {
   });
 
   it("covers the access findings", () => {
-    for (const f of ["permission-risky", "permission-unused", "security-unused", "notification-unused", "security-broken-levels", "notification-fragile", "role-empty-admin", "role-offroster-actors"]) {
+    for (const f of [
+      "permission-risky",
+      "permission-unused",
+      "security-unused",
+      "notification-unused",
+      "security-broken-levels",
+      "notification-fragile",
+      "role-empty-admin",
+      "role-offroster-actors",
+    ]) {
       expect(REMEDIATION_FINDING_INDEX[f], f).toBeTruthy();
     }
   });
 
   it("covers the filter, dashboard, people, issue type, priority and Assets findings", () => {
     for (const f of [
-      "filters-zombie-subscriptions", "filters-shared-everyone",
-      "dashboards-open-edit", "dashboards-empty", "dashboards-published-unused",
-      "people-offroster-automation-refs", "issue-type-hierarchy", "issue-type-unused-schemes",
-      "estate-duplicate-priorities", "estate-duplicate-resolutions",
-      "asset-broken-references", "asset-broken-hierarchy", "asset-bare-types",
+      "filters-zombie-subscriptions",
+      "filters-shared-everyone",
+      "dashboards-open-edit",
+      "dashboards-empty",
+      "dashboards-published-unused",
+      "people-offroster-automation-refs",
+      "issue-type-hierarchy",
+      "issue-type-unused-schemes",
+      "estate-duplicate-priorities",
+      "estate-duplicate-resolutions",
+      "asset-broken-references",
+      "asset-broken-hierarchy",
+      "asset-bare-types",
     ]) {
       expect(REMEDIATION_FINDING_INDEX[f], f).toBeTruthy();
     }
@@ -97,27 +114,81 @@ describe("finding coverage", () => {
   it("covers every Overview finding that has items to fix", () => {
     // Every finding the Overview can raise except adoption-data-stale, whose fix is a rescan.
     const OVERVIEW_FINDINGS = [
-      "admin-attention", "risky", "duplicate-statuses", "unused-statuses", "rule-only-statuses", "scheme-balance",
-      "reducible-statuses", "unreachable-with-issues", "scheme-no-done", "over-configured", "idle-over-configured",
-      "field-global-context-low-usage", "field-dead-configuration", "field-no-populated-issues", "field-stale",
-      "field-context-sprawl", "field-missing-description", "automation-credentials", "automation-self-triggering",
-      "automation-external", "automation-inert", "automation-disabled", "dashboards-orphaned", "dashboards-open-edit",
-      "dashboards-empty", "dashboards-published-unused", "filters-orphaned", "filters-broken-scope", "filters-unknown-type",
-      "filters-zombie-subscriptions", "filters-shared-everyone", "filters-duplicates", "screen-dangling", "screen-unresolved",
-      "screen-unreached", "screen-transition-only", "screen-empty", "screen-unused-schemes", "issue-type-orphans",
-      "issue-type-hierarchy", "issue-type-duplicates", "issue-type-unused-schemes", "people-deactivated-licence",
-      "people-orphaned-ownership", "people-offroster-automation-refs", "asset-broken-references", "asset-broken-hierarchy",
-      "asset-dead-schemas", "asset-bare-types", "permission-risky", "permission-unused", "security-broken-levels",
-      "security-unused", "role-empty-admin", "role-offroster-actors", "notification-fragile", "notification-unused",
-      "estate-duplicate-resolutions", "estate-duplicate-priorities", "projects-fell-off", "projects-never-adopted",
-      "unused-projects", "stale-projects",
+      "admin-attention",
+      "risky",
+      "duplicate-statuses",
+      "unused-statuses",
+      "rule-only-statuses",
+      "scheme-balance",
+      "reducible-statuses",
+      "unreachable-with-issues",
+      "scheme-no-done",
+      "over-configured",
+      "idle-over-configured",
+      "field-global-context-low-usage",
+      "field-dead-configuration",
+      "field-no-populated-issues",
+      "field-stale",
+      "field-context-sprawl",
+      "field-missing-description",
+      "automation-credentials",
+      "automation-self-triggering",
+      "automation-external",
+      "automation-inert",
+      "automation-disabled",
+      "dashboards-orphaned",
+      "dashboards-open-edit",
+      "dashboards-empty",
+      "dashboards-published-unused",
+      "filters-orphaned",
+      "filters-broken-scope",
+      "filters-unknown-type",
+      "filters-zombie-subscriptions",
+      "filters-shared-everyone",
+      "filters-duplicates",
+      "screen-dangling",
+      "screen-unresolved",
+      "screen-unreached",
+      "screen-transition-only",
+      "screen-empty",
+      "screen-unused-schemes",
+      "issue-type-orphans",
+      "issue-type-hierarchy",
+      "issue-type-duplicates",
+      "issue-type-unused-schemes",
+      "people-deactivated-licence",
+      "people-orphaned-ownership",
+      "people-offroster-automation-refs",
+      "asset-broken-references",
+      "asset-broken-hierarchy",
+      "asset-dead-schemas",
+      "asset-bare-types",
+      "permission-risky",
+      "permission-unused",
+      "security-broken-levels",
+      "security-unused",
+      "role-empty-admin",
+      "role-offroster-actors",
+      "notification-fragile",
+      "notification-unused",
+      "estate-duplicate-resolutions",
+      "estate-duplicate-priorities",
+      "projects-fell-off",
+      "projects-never-adopted",
+      "unused-projects",
+      "stale-projects",
     ];
     const missing = OVERVIEW_FINDINGS.filter((f) => !REMEDIATION_FINDING_INDEX[f]);
     expect(missing).toEqual([]);
   });
 
   it("never writes a credential into an automation ticket", () => {
-    const text = getPlaybook("automation-credentials").taskDescription({ id: 5, name: "Sync", secret: "hunter2", token: "abc" });
+    const text = getPlaybook("automation-credentials").taskDescription({
+      id: 5,
+      name: "Sync",
+      secret: "hunter2",
+      token: "abc",
+    });
     expect(text).not.toMatch(/hunter2|abc/);
   });
 
@@ -148,7 +219,12 @@ describe("links in tickets", () => {
 
   it("bounded tasks link every project they cover", () => {
     const text = getPlaybook("role-offroster-actors").taskDescription(
-      { name: "DEV, OPS", owners: ["DEV", "OPS"], count: 2, members: [{ projectKey: "DEV", role: "Developers", accountId: "a" }] },
+      {
+        name: "DEV, OPS",
+        owners: ["DEV", "OPS"],
+        count: 2,
+        members: [{ projectKey: "DEV", role: "Developers", accountId: "a" }],
+      },
       { origin: ORIGIN },
     );
     expect(text).toContain("(https://acme.atlassian.net/plugins/servlet/project-config/DEV/roles)");
@@ -162,7 +238,10 @@ describe("groupBounded", () => {
 
   it("one group per owner when there are few, sorted, members kept", () => {
     const groups = groupBounded(items(["B", "A", "B"]), { keyOf: (x) => x.k, max: 50 });
-    expect(groups.map((g) => [g.id, g.count])).toEqual([["A", 1], ["B", 2]]);
+    expect(groups.map((g) => [g.id, g.count])).toEqual([
+      ["A", 1],
+      ["B", 2],
+    ]);
   });
 
   it("past the cap, owners are bucketed into at most `max` stable groups and nothing is lost", () => {

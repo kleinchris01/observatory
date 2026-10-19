@@ -5,12 +5,7 @@
 // carry an author only if the imported rule export did -- older exports do not, and this
 // reports that as "unknown", never "nobody".
 
-import {
-  readFilterSnapshotMeta,
-  readDashboardSnapshotMeta,
-  loadFilters,
-  loadDashboards,
-} from "./project-store.js";
+import { readFilterSnapshotMeta, readDashboardSnapshotMeta, loadFilters, loadDashboards } from "./project-store.js";
 // project-store.js re-exports the other store modules but not the automation one, so the
 // automation directory document is read straight from its own store.
 import { readAutomationPart } from "./store/automation.js";
@@ -73,8 +68,12 @@ export function activeRosterIds(users = []) {
 // tally the artifacts whose owner is not -- a deleted or unlicensed account still holding
 // site config. Also returns the total owned-artifact count, which is the rate denominator.
 export function summarizeOrphanedOwnership(ownership, rosterAccountIds) {
-  let orphanFilters = 0, orphanDashboards = 0, orphanRules = 0;
-  let totalFilters = 0, totalDashboards = 0, totalRules = 0;
+  let orphanFilters = 0,
+    orphanDashboards = 0,
+    orphanRules = 0;
+  let totalFilters = 0,
+    totalDashboards = 0,
+    totalRules = 0;
   const orphanOwners = [];
 
   for (const [accountId, owned] of ownership.byAccount) {
@@ -110,7 +109,11 @@ export const DORMANT_ACCOUNT_DAYS = 365;
 // account with no row is unmeasured, never dormant. With no rows at all the whole
 // measurement is unavailable rather than "everyone idle". Deactivated accounts are excluded:
 // they are a different finding, and counting them twice would inflate the licence number.
-export function classifyUserActivity(users = [], activityRows = [], { now = Date.now(), dormantDays = DORMANT_ACCOUNT_DAYS } = {}) {
+export function classifyUserActivity(
+  users = [],
+  activityRows = [],
+  { now = Date.now(), dormantDays = DORMANT_ACCOUNT_DAYS } = {},
+) {
   const byRow = new Map(activityRows.map((a) => [String(a.accountId), a]));
   const measured = activityRows.length > 0;
   const cutoff = new Date(now - dormantDays * 86400000).toISOString();

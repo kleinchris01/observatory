@@ -6,13 +6,7 @@
 // and the reads the Changes tab / resolver need.
 
 import { sql } from "@forge/sql";
-import {
-  chunkArray,
-  ensureProjectStoreReady,
-  safeParseJson,
-  toNumber,
-  withSqlRetry,
-} from "./core.js";
+import { chunkArray, ensureProjectStoreReady, safeParseJson, toNumber, withSqlRetry } from "./core.js";
 
 const BATCH = 50;
 
@@ -21,11 +15,16 @@ const BATCH = 50;
 export async function loadEntityDigests(scopeKey, pillar) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT entity_type, entity_id, label, digest, fields_json
       FROM snapshot_entity_digest
       WHERE scope_key = ? AND pillar = ?
-    `).bindParams(scopeKey, String(pillar)).execute()
+    `,
+      )
+      .bindParams(scopeKey, String(pillar))
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     entityType: row.entity_type,
@@ -44,23 +43,34 @@ export async function replaceEntityDigests(scopeKey, pillar, entities = []) {
   await ensureProjectStoreReady();
 
   await withSqlRetry(() =>
-    sql.prepare(`DELETE FROM snapshot_entity_digest WHERE scope_key = ? AND pillar = ?`)
-      .bindParams(scopeKey, String(pillar)).execute()
+    sql
+      .prepare(`DELETE FROM snapshot_entity_digest WHERE scope_key = ? AND pillar = ?`)
+      .bindParams(scopeKey, String(pillar))
+      .execute(),
   );
 
   for (const b of chunkArray(entities, BATCH)) {
     const valuesSql = b.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = b.flatMap((e) => [
-      scopeKey, String(pillar), String(e.entityType), String(e.entityId),
-      e.label == null ? null : String(e.label).slice(0, 255), String(e.digest),
+      scopeKey,
+      String(pillar),
+      String(e.entityType),
+      String(e.entityId),
+      e.label == null ? null : String(e.label).slice(0, 255),
+      String(e.digest),
       e.fields == null ? null : JSON.stringify(e.fields),
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_entity_digest (scope_key, pillar, entity_type, entity_id, label, digest, fields_json)
         VALUES ${valuesSql}
         ON DUPLICATE KEY UPDATE label = VALUES(label), digest = VALUES(digest), fields_json = VALUES(fields_json)
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 }
@@ -71,8 +81,7 @@ export async function replaceEntityDigests(scopeKey, pillar, entities = []) {
 export async function countTrackedEntities(scopeKey) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`SELECT COUNT(*) AS n FROM snapshot_entity_digest WHERE scope_key = ?`)
-      .bindParams(scopeKey).execute()
+    sql.prepare(`SELECT COUNT(*) AS n FROM snapshot_entity_digest WHERE scope_key = ?`).bindParams(scopeKey).execute(),
   );
   return toNumber(result.rows?.[0]?.n);
 }
@@ -86,18 +95,29 @@ export async function appendConfigChanges(scopeKey, rows = []) {
   for (const b of chunkArray(rows, BATCH)) {
     const valuesSql = b.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = b.flatMap((r) => [
-      scopeKey, String(r.changeId), String(r.detectedAt), r.scanVersion == null ? null : String(r.scanVersion),
-      String(r.pillar), String(r.entityType), String(r.entityId),
+      scopeKey,
+      String(r.changeId),
+      String(r.detectedAt),
+      r.scanVersion == null ? null : String(r.scanVersion),
+      String(r.pillar),
+      String(r.entityType),
+      String(r.entityId),
       r.label == null ? null : String(r.label).slice(0, 255),
-      String(r.changeKind), r.summary == null ? null : String(r.summary).slice(0, 1024),
+      String(r.changeKind),
+      r.summary == null ? null : String(r.summary).slice(0, 1024),
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO config_change_log
           (scope_key, change_id, detected_at, scan_version, pillar, entity_type, entity_id, label, change_kind, summary)
         VALUES ${valuesSql}
         ON DUPLICATE KEY UPDATE summary = VALUES(summary)
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 }
@@ -121,15 +141,25 @@ function parseChangeCursor(before) {
 // One page of the timeline, newest first. `pillar` / `kind` / `since` are optional filters;
 // `before` is the keyset cursor from changeCursorOf. A bare detected_at (an older client's
 // cursor) is still accepted and behaves as it always did.
-export async function loadConfigChanges(scopeKey, {
-  pillar = null, kind = null, since = null, before = null, limit = 100,
-} = {}) {
+export async function loadConfigChanges(
+  scopeKey,
+  { pillar = null, kind = null, since = null, before = null, limit = 100 } = {},
+) {
   await ensureProjectStoreReady();
   const clauses = ["scope_key = ?"];
   const params = [scopeKey];
-  if (pillar) { clauses.push("pillar = ?"); params.push(String(pillar)); }
-  if (kind) { clauses.push("change_kind = ?"); params.push(String(kind)); }
-  if (since) { clauses.push("detected_at >= ?"); params.push(String(since)); }
+  if (pillar) {
+    clauses.push("pillar = ?");
+    params.push(String(pillar));
+  }
+  if (kind) {
+    clauses.push("change_kind = ?");
+    params.push(String(kind));
+  }
+  if (since) {
+    clauses.push("detected_at >= ?");
+    params.push(String(since));
+  }
   if (before) {
     const cursor = parseChangeCursor(before);
     if (cursor.changeId) {
@@ -143,13 +173,18 @@ export async function loadConfigChanges(scopeKey, {
   const capped = Math.max(1, Math.min(500, Number(limit) || 100));
 
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT change_id, detected_at, scan_version, pillar, entity_type, entity_id, label, change_kind, summary
       FROM config_change_log
       WHERE ${clauses.join(" AND ")}
       ORDER BY detected_at DESC, change_id DESC
       LIMIT ${capped}
-    `).bindParams(...params).execute()
+    `,
+      )
+      .bindParams(...params)
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     changeId: row.change_id,
@@ -169,12 +204,17 @@ export async function loadConfigChanges(scopeKey, {
 export async function loadConfigChangeSummary(scopeKey, sinceIso) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT pillar, change_kind, COUNT(*) AS n
       FROM config_change_log
       WHERE scope_key = ? AND detected_at >= ?
       GROUP BY pillar, change_kind
-    `).bindParams(scopeKey, String(sinceIso)).execute()
+    `,
+      )
+      .bindParams(scopeKey, String(sinceIso))
+      .execute(),
   );
   const byPillar = {};
   const byKind = { added: 0, removed: 0, modified: 0 };
@@ -192,8 +232,10 @@ export async function pruneOldConfigChanges(scopeKey, olderThanMs = 400 * 24 * 6
   await ensureProjectStoreReady();
   const cutoff = new Date(Date.now() - olderThanMs).toISOString();
   const result = await withSqlRetry(() =>
-    sql.prepare(`DELETE FROM config_change_log WHERE scope_key = ? AND detected_at < ?`)
-      .bindParams(scopeKey, cutoff).execute()
+    sql
+      .prepare(`DELETE FROM config_change_log WHERE scope_key = ? AND detected_at < ?`)
+      .bindParams(scopeKey, cutoff)
+      .execute(),
   );
   return { changesDeleted: toNumber(result?.rowsAffected, 0) };
 }
@@ -203,11 +245,16 @@ export async function pruneOldConfigChanges(scopeKey, olderThanMs = 400 * 24 * 6
 export async function readDriftSnapshotMeta(scopeKey) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT state, version, started_at, completed_at, refreshed_at,
              last_run_changes, total_changes, seeded_pillars, last_error
       FROM drift_snapshot_meta WHERE scope_key = ?
-    `).bindParams(scopeKey).execute()
+    `,
+      )
+      .bindParams(scopeKey)
+      .execute(),
   );
   const row = result.rows?.[0];
   if (!row) return null;
@@ -230,7 +277,9 @@ export async function writeDriftSnapshotMeta(scopeKey, patch = {}) {
   const next = { ...current, ...patch };
 
   await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       INSERT INTO drift_snapshot_meta
         (scope_key, state, version, started_at, completed_at, refreshed_at,
          last_run_changes, total_changes, seeded_pillars, last_error)
@@ -245,17 +294,20 @@ export async function writeDriftSnapshotMeta(scopeKey, patch = {}) {
         total_changes = VALUES(total_changes),
         seeded_pillars = VALUES(seeded_pillars),
         last_error = VALUES(last_error)
-    `).bindParams(
-      scopeKey,
-      next.state || "idle",
-      next.version || null,
-      next.startedAt || null,
-      next.completedAt || null,
-      next.refreshedAt || null,
-      next.lastRunChanges ?? 0,
-      next.totalChanges ?? 0,
-      Array.isArray(next.seededPillars) ? next.seededPillars.join(",") : (next.seededPillars || null),
-      next.lastError || null
-    ).execute()
+    `,
+      )
+      .bindParams(
+        scopeKey,
+        next.state || "idle",
+        next.version || null,
+        next.startedAt || null,
+        next.completedAt || null,
+        next.refreshedAt || null,
+        next.lastRunChanges ?? 0,
+        next.totalChanges ?? 0,
+        Array.isArray(next.seededPillars) ? next.seededPillars.join(",") : next.seededPillars || null,
+        next.lastError || null,
+      )
+      .execute(),
   );
 }

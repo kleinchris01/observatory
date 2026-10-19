@@ -50,12 +50,7 @@ import { summarizeAdoption } from "../lib/project-adoption.js";
 import { summarizeProjectUsageCapacity, isJiraBuiltinField, filterProjectUsageByBrowsable } from "../lib/analysis.js";
 import { buildFieldJql, buildOverallFieldJql } from "../lib/transform.js";
 import { fallbackOn } from "../lib/logger.js";
-import {
-  requireNonEmptyString,
-  requirePositiveInt,
-  requireArray,
-  optionalString,
-} from "../lib/validate.js";
+import { requireNonEmptyString, requirePositiveInt, requireArray, optionalString } from "../lib/validate.js";
 
 export async function getProjectUsageJobs({ context }) {
   incrMetric(METRIC_NAMES.resolver);
@@ -80,9 +75,12 @@ export async function getProjectUsageJobs({ context }) {
       processedIssueCount: job.processedIssueCount || 0,
       estimatedIssueTotal: job.estimatedIssueTotal || 0,
       nextStartAt: job.nextStartAt || 0,
-      percentComplete: job.estimatedIssueTotal > 0
-        ? Math.min(100, Math.round(((job.processedIssueCount || 0) / job.estimatedIssueTotal) * 100))
-        : (job.summaryStatus === "ready" ? 100 : 0),
+      percentComplete:
+        job.estimatedIssueTotal > 0
+          ? Math.min(100, Math.round(((job.processedIssueCount || 0) / job.estimatedIssueTotal) * 100))
+          : job.summaryStatus === "ready"
+            ? 100
+            : 0,
     })),
   };
 }
@@ -99,7 +97,9 @@ export async function refreshRecentProjectUsage({ payload, context }) {
   const hours = Math.max(1, Math.min(168, Math.trunc(Number(payload?.hours)) || 24));
   const maxIssues = Math.max(50, Math.min(2000, Math.trunc(Number(payload?.maxIssues)) || 500));
   const recent = await collectRecentFieldProjectCandidates(hours, maxIssues);
-  const allSummaries = await listFieldSummaries(installationKey, 5000).catch(fallbackOn("resolver.summaries_load_failed", () => [], { installationKey }));
+  const allSummaries = await listFieldSummaries(installationKey, 5000).catch(
+    fallbackOn("resolver.summaries_load_failed", () => [], { installationKey }),
+  );
   const summaryByFieldId = new Map(allSummaries.map((summary) => [summary.fieldId, summary]));
 
   let queuedCount = 0;
@@ -108,7 +108,9 @@ export async function refreshRecentProjectUsage({ payload, context }) {
     const fieldId = String(candidate.fieldId || "").trim();
     if (!fieldId) continue;
 
-    const snapshotField = await loadSnapshotField(installationKey, meta.version, fieldId).catch(fallbackOn("resolver.snapshot_field_load_failed", null, { fieldId }));
+    const snapshotField = await loadSnapshotField(installationKey, meta.version, fieldId).catch(
+      fallbackOn("resolver.snapshot_field_load_failed", null, { fieldId }),
+    );
     if (!snapshotField) continue;
 
     const summary = summaryByFieldId.get(fieldId) || null;
@@ -146,7 +148,7 @@ export async function refreshRecentProjectUsage({ payload, context }) {
       fieldId,
       jobToken,
       candidate.projectKeys,
-      hours
+      hours,
     );
 
     if (!queueResult.queued) {
@@ -197,10 +199,7 @@ export async function cancelProjectUsageJob({ payload, context }) {
     ...existing,
     summaryStatus: "cancelled",
     completedAt: new Date().toISOString(),
-    progressLog: [
-      ...(existing.progressLog || []),
-      { t: new Date().toISOString(), msg: "Job cancelled by user" },
-    ],
+    progressLog: [...(existing.progressLog || []), { t: new Date().toISOString(), msg: "Job cancelled by user" }],
   });
 
   return { cancelled: true };
@@ -246,15 +245,7 @@ export async function restartProjectUsageJob({ payload, context }) {
     nextStartAt: 0,
     nextPageToken: null,
   });
-  await processFieldSummaryChunk(
-    installationKey,
-    meta.version,
-    snapshotField,
-    jobToken,
-    0,
-    null,
-    1
-  );
+  await processFieldSummaryChunk(installationKey, meta.version, snapshotField, jobToken, 0, null, 1);
 
   return { queued: true, fieldId };
 }
@@ -290,7 +281,8 @@ export async function resumeProjectUsageJob({ payload, context }) {
     refreshedAt: new Date().toISOString(),
     field: snapshotField,
     fieldJql: existing.fieldJql || snapshotField.fieldJql || buildOverallFieldJql(fieldId),
-    configuredProjectCount: existing.configuredProjectCount ?? snapshotField.configuredProjectCount ?? snapshotField.usageCount ?? 0,
+    configuredProjectCount:
+      existing.configuredProjectCount ?? snapshotField.configuredProjectCount ?? snapshotField.usageCount ?? 0,
     totalIssueCount: Math.max(existing.totalIssueCount ?? 0, snapshotField.totalIssueCount ?? 0),
     findings: existing.findings || snapshotField.findings || null,
     summaryStatus: "queued",
@@ -314,7 +306,7 @@ export async function resumeProjectUsageJob({ payload, context }) {
     jobToken,
     Number(existing.processedIssueCount || existing.nextStartAt || 0),
     existing.nextPageToken || null,
-    1
+    1,
   );
 
   return {
@@ -334,7 +326,11 @@ export async function ensureProjectUsageJobQueued(installationKey, version, snap
   }
 
   const fieldId = snapshotField.id;
-  const summary = existingSummary || await loadFieldSummary(installationKey, fieldId).catch(fallbackOn("resolver.field_summary_load_failed", null, { fieldId }));
+  const summary =
+    existingSummary ||
+    (await loadFieldSummary(installationKey, fieldId).catch(
+      fallbackOn("resolver.field_summary_load_failed", null, { fieldId }),
+    ));
   if (summary?.summaryStatus === "queued" || summary?.summaryStatus === "building") {
     return { queued: false, reason: "already-running" };
   }
@@ -366,14 +362,7 @@ export async function ensureProjectUsageJobQueued(installationKey, version, snap
     nextStartAt: 0,
     nextPageToken: null,
   });
-  const queueResult = await queueFieldSummaryContinuationWithRetry(
-    installationKey,
-    version,
-    fieldId,
-    jobToken,
-    0,
-    ""
-  );
+  const queueResult = await queueFieldSummaryContinuationWithRetry(installationKey, version, fieldId, jobToken, 0, "");
   if (!queueResult.queued) {
     await replaceFieldSummary(installationKey, fieldId, {
       refreshedAt: new Date().toISOString(),
@@ -408,14 +397,27 @@ export async function ensureProjectUsageJobQueued(installationKey, version, snap
   return { queued: true, reason: "queued" };
 }
 
-export async function ensureDeferredProjectUsageJobRecorded(installationKey, snapshotField, existingSummary = null, reason = "deferred") {
+export async function ensureDeferredProjectUsageJobRecorded(
+  installationKey,
+  snapshotField,
+  existingSummary = null,
+  reason = "deferred",
+) {
   if (!snapshotField?.id) {
     return;
   }
 
   const fieldId = snapshotField.id;
-  const summary = existingSummary || await loadFieldSummary(installationKey, fieldId).catch(fallbackOn("resolver.field_summary_load_failed", null, { fieldId }));
-  if (summary?.summaryStatus === "queued" || summary?.summaryStatus === "building" || summary?.summaryStatus === "ready") {
+  const summary =
+    existingSummary ||
+    (await loadFieldSummary(installationKey, fieldId).catch(
+      fallbackOn("resolver.field_summary_load_failed", null, { fieldId }),
+    ));
+  if (
+    summary?.summaryStatus === "queued" ||
+    summary?.summaryStatus === "building" ||
+    summary?.summaryStatus === "ready"
+  ) {
     return;
   }
 
@@ -443,7 +445,10 @@ export async function ensureDeferredProjectUsageJobRecorded(installationKey, sna
     lastError: null,
     progressLog: [
       ...(summary?.progressLog || []).slice(-40),
-      { t: new Date().toISOString(), msg: reasonMessages[reason] || "Deferred project-usage build for later execution" },
+      {
+        t: new Date().toISOString(),
+        msg: reasonMessages[reason] || "Deferred project-usage build for later execution",
+      },
     ].slice(-100),
     jobToken: summary?.jobToken || makeJobToken(),
     processedIssueCount: Number(summary?.processedIssueCount || 0),
@@ -471,7 +476,9 @@ export async function saveReportDefinition({ payload, context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
   const name = String(payload?.name || "").trim();
-  const fieldIds = Array.from(new Set((payload?.fieldIds || []).map((value) => String(value || "").trim()).filter(Boolean)));
+  const fieldIds = Array.from(
+    new Set((payload?.fieldIds || []).map((value) => String(value || "").trim()).filter(Boolean)),
+  );
   const reportId = String(payload?.reportId || "").trim() || makeJobToken();
 
   if (!name) throw new Error("Report name is required.");
@@ -506,7 +513,9 @@ export async function deleteReportDefinition({ payload, context }) {
 export async function getProjectUsageReport({ payload, context }) {
   incrMetric(METRIC_NAMES.resolver);
   await ensureProjectStoreReady();
-  const fieldIds = Array.from(new Set((payload?.fieldIds || []).map((value) => String(value || "").trim()).filter(Boolean)));
+  const fieldIds = Array.from(
+    new Set((payload?.fieldIds || []).map((value) => String(value || "").trim()).filter(Boolean)),
+  );
   if (!fieldIds.length) {
     return { fields: [], projects: [] };
   }
@@ -516,7 +525,7 @@ export async function getProjectUsageReport({ payload, context }) {
   // would be a field this report has nothing to say about. An empty/absent list means "no
   // scope", the report's original site-wide behaviour.
   const scopeProjectIds = new Set(
-    (payload?.projectIds || []).map((value) => String(value || "").trim()).filter(Boolean)
+    (payload?.projectIds || []).map((value) => String(value || "").trim()).filter(Boolean),
   );
 
   const installationKey = getInstallationKey(context);
@@ -526,79 +535,88 @@ export async function getProjectUsageReport({ payload, context }) {
   }
 
   const pendingFields = [];
-  const allSummaries = await listFieldSummaries(installationKey, 5000).catch(fallbackOn("resolver.summaries_load_failed", () => [], { installationKey }));
+  const allSummaries = await listFieldSummaries(installationKey, 5000).catch(
+    fallbackOn("resolver.summaries_load_failed", () => [], { installationKey }),
+  );
   const summaryByFieldId = new Map(allSummaries.map((summary) => [summary.fieldId, summary]));
   const queueCandidates = [];
-  const rows = await Promise.all(fieldIds.map(async (fieldId) => {
-    const [field, projectUsage, fieldSummary] = await Promise.all([
-      loadSnapshotField(installationKey, meta.version, fieldId),
-      loadAllSnapshotProjectUsage(installationKey, meta.version, fieldId),
-      loadFieldSummary(installationKey, fieldId).catch(fallbackOn("resolver.field_summary_load_failed", () => summaryByFieldId.get(fieldId) || null, { fieldId })),
-    ]);
-    if (!field) {
-      return null;
-    }
-
-    // Fallback chain when current-version snapshot_project_usage is empty:
-    // 1. Any-version snapshot data (handles post-migration version mismatch)
-    // 2. field_summaries.activeProjects (populated by Field Usage Jobs)
-    let finalProjects = projectUsage;
-    if (!finalProjects.length) {
-      finalProjects = await loadAnySnapshotProjectUsage(installationKey, fieldId).catch(fallbackOn("resolver.any_project_usage_load_failed", () => [], { fieldId }));
-    }
-    if (!finalProjects.length) {
-      finalProjects = (fieldSummary?.activeProjects || []).map((p) => ({
-        projectId: p.projectId,
-        projectKey: p.projectKey,
-        projectName: p.projectName,
-        issueCount: p.issueCount || 0,
-        jql: p.jql || buildFieldJql(fieldId, p.projectKey),
-        latestFieldChangeAt: null,
-        latestIssueKey: null,
-        latestIssueUpdatedAt: null,
-      }));
-    }
-
-    const derivedTotalIssueCount = field.totalIssueCount
-      || fieldSummary?.totalIssueCount
-      || finalProjects.reduce((s, p) => s + (p.issueCount || 0), 0)
-      || 0;
-
-    if (!finalProjects.length && derivedTotalIssueCount > 0) {
-      if (fieldSummary?.summaryStatus === "queued" || fieldSummary?.summaryStatus === "building") {
-        pendingFields.push({
-          fieldId: field.id,
-          fieldName: field.name,
-          summaryStatus: fieldSummary.summaryStatus,
-          reason: "already-running",
-        });
-      } else {
-        queueCandidates.push({
-          field,
-          fieldSummary,
-          issueCount: derivedTotalIssueCount,
-        });
+  const rows = await Promise.all(
+    fieldIds.map(async (fieldId) => {
+      const [field, projectUsage, fieldSummary] = await Promise.all([
+        loadSnapshotField(installationKey, meta.version, fieldId),
+        loadAllSnapshotProjectUsage(installationKey, meta.version, fieldId),
+        loadFieldSummary(installationKey, fieldId).catch(
+          fallbackOn("resolver.field_summary_load_failed", () => summaryByFieldId.get(fieldId) || null, { fieldId }),
+        ),
+      ]);
+      if (!field) {
+        return null;
       }
-    }
 
-    return {
-      fieldId: field.id,
-      fieldName: field.name,
-      fieldType: field.type,
-      totalIssueCount: derivedTotalIssueCount,
-      activeProjectCount: field.activeProjectCount || finalProjects.length || 0,
-      fieldJql: field.fieldJql || buildOverallFieldJql(field.id),
-      projects: finalProjects,
-    };
-  }));
+      // Fallback chain when current-version snapshot_project_usage is empty:
+      // 1. Any-version snapshot data (handles post-migration version mismatch)
+      // 2. field_summaries.activeProjects (populated by Field Usage Jobs)
+      let finalProjects = projectUsage;
+      if (!finalProjects.length) {
+        finalProjects = await loadAnySnapshotProjectUsage(installationKey, fieldId).catch(
+          fallbackOn("resolver.any_project_usage_load_failed", () => [], { fieldId }),
+        );
+      }
+      if (!finalProjects.length) {
+        finalProjects = (fieldSummary?.activeProjects || []).map((p) => ({
+          projectId: p.projectId,
+          projectKey: p.projectKey,
+          projectName: p.projectName,
+          issueCount: p.issueCount || 0,
+          jql: p.jql || buildFieldJql(fieldId, p.projectKey),
+          latestFieldChangeAt: null,
+          latestIssueKey: null,
+          latestIssueUpdatedAt: null,
+        }));
+      }
+
+      const derivedTotalIssueCount =
+        field.totalIssueCount ||
+        fieldSummary?.totalIssueCount ||
+        finalProjects.reduce((s, p) => s + (p.issueCount || 0), 0) ||
+        0;
+
+      if (!finalProjects.length && derivedTotalIssueCount > 0) {
+        if (fieldSummary?.summaryStatus === "queued" || fieldSummary?.summaryStatus === "building") {
+          pendingFields.push({
+            fieldId: field.id,
+            fieldName: field.name,
+            summaryStatus: fieldSummary.summaryStatus,
+            reason: "already-running",
+          });
+        } else {
+          queueCandidates.push({
+            field,
+            fieldSummary,
+            issueCount: derivedTotalIssueCount,
+          });
+        }
+      }
+
+      return {
+        fieldId: field.id,
+        fieldName: field.name,
+        fieldType: field.type,
+        totalIssueCount: derivedTotalIssueCount,
+        activeProjectCount: field.activeProjectCount || finalProjects.length || 0,
+        fieldJql: field.fieldJql || buildOverallFieldJql(field.id),
+        projects: finalProjects,
+      };
+    }),
+  );
 
   const queueCapacity = summarizeProjectUsageCapacity(allSummaries);
   let runningJobCount = queueCapacity.runningJobCount;
   let runningIssueBudget = queueCapacity.runningIssueBudget;
   let newlyQueuedFieldCount = 0;
   let newlyQueuedIssueBudget = 0;
-  const sortedCandidates = queueCandidates.sort((left, right) =>
-    left.issueCount - right.issueCount || left.field.name.localeCompare(right.field.name)
+  const sortedCandidates = queueCandidates.sort(
+    (left, right) => left.issueCount - right.issueCount || left.field.name.localeCompare(right.field.name),
   );
 
   for (const candidate of sortedCandidates) {
@@ -610,19 +628,14 @@ export async function getProjectUsageReport({ payload, context }) {
     } else if (newlyQueuedFieldCount >= MAX_AUTOQUEUED_REPORT_FIELDS) {
       reason = "deferred-field-cap";
     } else if (
-      (runningIssueBudget + newlyQueuedIssueBudget + candidateIssueCount) > MAX_AUTOQUEUED_REPORT_ISSUE_BUDGET
-      && (newlyQueuedFieldCount > 0 || runningJobCount > 0)
+      runningIssueBudget + newlyQueuedIssueBudget + candidateIssueCount > MAX_AUTOQUEUED_REPORT_ISSUE_BUDGET &&
+      (newlyQueuedFieldCount > 0 || runningJobCount > 0)
     ) {
       reason = "deferred-issue-budget";
     }
 
     if (reason) {
-      await ensureDeferredProjectUsageJobRecorded(
-        installationKey,
-        candidate.field,
-        candidate.fieldSummary,
-        reason
-      );
+      await ensureDeferredProjectUsageJobRecorded(installationKey, candidate.field, candidate.fieldSummary, reason);
       pendingFields.push({
         fieldId: candidate.field.id,
         fieldName: candidate.field.name,
@@ -636,7 +649,7 @@ export async function getProjectUsageReport({ payload, context }) {
       installationKey,
       meta.version,
       candidate.field,
-      candidate.fieldSummary
+      candidate.fieldSummary,
     );
 
     if (queued.queued) {
@@ -686,7 +699,7 @@ export async function getProjectUsageReport({ payload, context }) {
   // are filled drops out of the matrix, which is the opposite of what the report is for.
   if (scopeProjectIds.size && meta?.version) {
     const scoped = await listSnapshotProjects(installationKey, meta.version).catch(
-      fallbackOn("report.scope_projects_load_failed", () => [], { installationKey })
+      fallbackOn("report.scope_projects_load_failed", () => [], { installationKey }),
     );
     for (const project of scoped) {
       if (scopeProjectIds.has(String(project.projectId))) {
@@ -712,7 +725,8 @@ export async function getProjectUsageReport({ payload, context }) {
   }
 
   const projects = Array.from(projectMap.values()).sort(
-    (left, right) => left.projectKey.localeCompare(right.projectKey) || left.projectName.localeCompare(right.projectName)
+    (left, right) =>
+      left.projectKey.localeCompare(right.projectKey) || left.projectName.localeCompare(right.projectName),
   );
 
   const uniqueIssueCount = await getDistinctIssueCountForFields(fields.map((field) => field.fieldId));
@@ -721,9 +735,12 @@ export async function getProjectUsageReport({ payload, context }) {
   // it -- one bulk permission check for every project touched by this report.
   const browsableProjectIds = await getBrowsableProjectIds(
     context?.accountId,
-    projects.map((p) => p.projectId)
+    projects.map((p) => p.projectId),
   );
-  const filtered = filterProjectUsageByBrowsable({ fields, projects, pendingFields, uniqueIssueCount }, browsableProjectIds);
+  const filtered = filterProjectUsageByBrowsable(
+    { fields, projects, pendingFields, uniqueIssueCount },
+    browsableProjectIds,
+  );
 
   return filtered;
 }
@@ -734,7 +751,9 @@ export async function startProjectUsageReportJob({ payload, context }) {
   const rawFieldIds = requireArray(payload?.fieldIds, "fieldIds");
   if (rawFieldIds.length < 1) throw new Error("fieldIds must contain at least 1 element");
   await ensureProjectStoreReady();
-  const fieldIds = Array.from(new Set((payload?.fieldIds || []).map((value) => String(value || "").trim()).filter(Boolean)));
+  const fieldIds = Array.from(
+    new Set((payload?.fieldIds || []).map((value) => String(value || "").trim()).filter(Boolean)),
+  );
   if (!fieldIds.length) {
     throw new Error("Select at least one field for the report.");
   }
@@ -758,7 +777,9 @@ export async function startProjectUsageReportJob({ payload, context }) {
     completedAt: null,
     refreshedAt: new Date().toISOString(),
     lastError: null,
-    progressLog: [{ t: new Date().toISOString(), msg: `Queued report build for ${fieldIds.length.toLocaleString()} fields` }],
+    progressLog: [
+      { t: new Date().toISOString(), msg: `Queued report build for ${fieldIds.length.toLocaleString()} fields` },
+    ],
     result: { fields: [], projects: [], pendingFields: [], uniqueIssueCount: null },
   });
   await queueReportBuild(installationKey, meta.version, jobId);
@@ -790,7 +811,8 @@ export async function getProjectUsageReportJob({ payload, context }) {
     job: {
       ...job,
       result: filteredResult,
-      percentComplete: job.totalFields > 0 ? Math.min(100, Math.round((job.processedFields / job.totalFields) * 100)) : 0,
+      percentComplete:
+        job.totalFields > 0 ? Math.min(100, Math.round((job.processedFields / job.totalFields) * 100)) : 0,
     },
   };
 }
@@ -837,15 +859,16 @@ export async function getProjectsView({ payload, context }) {
   // Adoption for every project the rail can show, so it can be sorted and filtered by it.
   // Best-effort: a site scanned before issue dates were captured renders the rail exactly as
   // it does today, with the adoption panel reporting itself unmeasured.
-  const activity = await loadProjectActivity(installationKey)
-    .catch(fallbackOn("projects.activity_load_failed", () => new Map(), { installationKey }));
+  const activity = await loadProjectActivity(installationKey).catch(
+    fallbackOn("projects.activity_load_failed", () => new Map(), { installationKey }),
+  );
 
   // Only show projects the CALLING user actually has Browse Projects
   // permission on -- never surface another project's name/existence to
   // someone who can't see it in Jira itself.
   const browsableProjectIds = await getBrowsableProjectIds(
     context?.accountId,
-    allProjects.map((p) => p.projectId)
+    allProjects.map((p) => p.projectId),
   );
   const projects = allProjects.filter((p) => browsableProjectIds.has(String(p.projectId)));
 
@@ -865,8 +888,12 @@ export async function getProjectsView({ payload, context }) {
     const row = adoptionByProject.get(String(project.projectId));
     if (!row?.measured) return null;
     return {
-      score: row.score, issuesPerDay: row.issuesPerDay, recentIssuesPerDay: row.recentIssuesPerDay,
-      momentum: row.momentum, ageDays: row.ageDays, firstIssueCreatedAt: row.firstIssueCreatedAt,
+      score: row.score,
+      issuesPerDay: row.issuesPerDay,
+      recentIssuesPerDay: row.recentIssuesPerDay,
+      momentum: row.momentum,
+      ageDays: row.ageDays,
+      firstIssueCreatedAt: row.firstIssueCreatedAt,
       // Decline flags are held back site-wide while the activity histogram is stale -- the
       // same suppression summarizeAdoption applies to the headline counts, carried to the
       // rail so it does not paint every project with a "fell off" tag the data cannot support.
@@ -887,15 +914,17 @@ export async function getProjectsView({ payload, context }) {
       totalPages: 1,
       pageSize: PROJECTS_VIEW_PAGE_SIZE,
       refreshedAt: meta.refreshedAt || null,
-      issueScan: issueScanMeta ? {
-        state: issueScanMeta.state,
-        completedAt: issueScanMeta.completedAt,
-        totalIssues: issueScanMeta.totalIssues,
-        processedIssues: issueScanMeta.processedIssues,
-        totalPages: issueScanMeta.totalPages,
-        processedPages: issueScanMeta.processedPages,
-        lastError: issueScanMeta.lastError,
-      } : null,
+      issueScan: issueScanMeta
+        ? {
+            state: issueScanMeta.state,
+            completedAt: issueScanMeta.completedAt,
+            totalIssues: issueScanMeta.totalIssues,
+            processedIssues: issueScanMeta.processedIssues,
+            totalPages: issueScanMeta.totalPages,
+            processedPages: issueScanMeta.processedPages,
+            lastError: issueScanMeta.lastError,
+          }
+        : null,
     };
   }
 
@@ -910,7 +939,7 @@ export async function getProjectsView({ payload, context }) {
       sortBy,
       limit: PROJECTS_VIEW_PAGE_SIZE,
       offset,
-    }
+    },
   );
 
   // Which workflow scheme governs the selected project, and how many other projects
@@ -923,19 +952,16 @@ export async function getProjectsView({ payload, context }) {
       const wfMeta = await readWorkflowSnapshotMeta(installationKey);
       if (!wfMeta?.version) return null;
 
-      const scheme = await loadWorkflowSchemeForProject(
-        installationKey, wfMeta.version, selectedProject.projectId
-      );
+      const scheme = await loadWorkflowSchemeForProject(installationKey, wfMeta.version, selectedProject.projectId);
       if (!scheme) return null;
 
       // Sharing count is computed from the projects the VIEWER can browse, matching the
       // enforcement in getWorkflowInventory -- otherwise "shared with 12 projects" leaks
       // the existence of projects this user cannot see.
-      const schemeProjects = await loadWorkflowSchemeProjects(
-        installationKey, wfMeta.version, scheme.schemeId
-      );
+      const schemeProjects = await loadWorkflowSchemeProjects(installationKey, wfMeta.version, scheme.schemeId);
       const browsable = await getBrowsableProjectIds(
-        context?.accountId, schemeProjects.map((p) => p.projectId)
+        context?.accountId,
+        schemeProjects.map((p) => p.projectId),
       );
       const visible = schemeProjects.filter((p) => browsable.has(String(p.projectId)));
 
@@ -974,7 +1000,7 @@ export async function getProjectsView({ payload, context }) {
   }));
 
   const availableTypes = Array.from(
-    new Set(projectFieldsResult.rows.map((field) => field.fieldType).filter(Boolean))
+    new Set(projectFieldsResult.rows.map((field) => field.fieldType).filter(Boolean)),
   ).sort((left, right) => left.localeCompare(right));
   const totalFields = Number(projectFieldsResult.total || 0);
   const totalPages = Math.max(1, Math.ceil(totalFields / PROJECTS_VIEW_PAGE_SIZE));
@@ -985,9 +1011,7 @@ export async function getProjectsView({ payload, context }) {
     selectedProject,
     // The selected project's adoption in full, monthly series included. This is what dates a
     // decline: "fell off in 2023-04" comes from the shape, not from a single number.
-    selectedAdoption: selectedProject
-      ? adoptionByProject.get(String(selectedProject.projectId)) ?? null
-      : null,
+    selectedAdoption: selectedProject ? (adoptionByProject.get(String(selectedProject.projectId)) ?? null) : null,
     // What normal looks like here, so a rate has something to be read against.
     adoptionContext: {
       available: adoption.available,
@@ -1006,15 +1030,17 @@ export async function getProjectsView({ payload, context }) {
     totalPages,
     pageSize: PROJECTS_VIEW_PAGE_SIZE,
     refreshedAt: meta.refreshedAt || null,
-    issueScan: issueScanMeta ? {
-      state: issueScanMeta.state,
-      completedAt: issueScanMeta.completedAt,
-      totalIssues: issueScanMeta.totalIssues,
-      processedIssues: issueScanMeta.processedIssues,
-      totalPages: issueScanMeta.totalPages,
-      processedPages: issueScanMeta.processedPages,
-      lastError: issueScanMeta.lastError,
-    } : null,
+    issueScan: issueScanMeta
+      ? {
+          state: issueScanMeta.state,
+          completedAt: issueScanMeta.completedAt,
+          totalIssues: issueScanMeta.totalIssues,
+          processedIssues: issueScanMeta.processedIssues,
+          totalPages: issueScanMeta.totalPages,
+          processedPages: issueScanMeta.processedPages,
+          lastError: issueScanMeta.lastError,
+        }
+      : null,
   };
 }
 

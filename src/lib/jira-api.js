@@ -1,13 +1,7 @@
 import api, { route } from "@forge/api";
 import { fallbackOn } from "./logger.js";
 import { internalMetrics } from "@forge/metrics";
-import {
-  buildFieldJql,
-  buildOverallFieldJql,
-  buildProjectUsageRecord,
-  getFieldNumericId,
-  summarizeContexts,
-} from "./transform.js";
+import { buildFieldJql, buildOverallFieldJql, buildProjectUsageRecord, summarizeContexts } from "./transform.js";
 import { isSelectFieldType } from "./analysis.js";
 import { extractWorkflowRules } from "./workflow-rules.js";
 
@@ -33,8 +27,8 @@ export const SNAPSHOT_PROGRESS_FLUSH_INTERVAL_MS = 15000;
 export const SNAPSHOT_DB_BATCH_SIZE = 25;
 export const FIELD_SUMMARY_QUEUE_STALE_AFTER_MS = 60 * 1000;
 export const FIELD_SUMMARY_BUILD_STALE_AFTER_MS = 5 * 60 * 1000;
-export const ISSUE_SCAN_PAGE_SIZE = 100;      // Jira Cloud cursor-based search caps maxResults at 100
-export const ISSUE_SCAN_WORKERS = 5;          // parallel Forge workers; keep low because each invocation has its own in-memory limiter
+export const ISSUE_SCAN_PAGE_SIZE = 100; // Jira Cloud cursor-based search caps maxResults at 100
+export const ISSUE_SCAN_WORKERS = 5; // parallel Forge workers; keep low because each invocation has its own in-memory limiter
 // Independent JQL slices crawled concurrently WITHIN one worker invocation.
 //
 // Pagination is sequential -- page N+1 needs page N's cursor -- so a worker crawling a single
@@ -160,9 +154,16 @@ let rl429Count = 0;
 let rlRetryCount = 0;
 let snapshotLogFn = null; // set by runSnapshot so withRetry can surface events
 
-export function setSnapshotLogger(fn) { snapshotLogFn = fn; }
-export function resetScanTelemetry() { rl429Count = 0; rlRetryCount = 0; }
-export function getScanTelemetry() { return { rl429Count, rlRetryCount }; }
+export function setSnapshotLogger(fn) {
+  snapshotLogFn = fn;
+}
+export function resetScanTelemetry() {
+  rl429Count = 0;
+  rlRetryCount = 0;
+}
+export function getScanTelemetry() {
+  return { rl429Count, rlRetryCount };
+}
 
 export function resetJiraRateLimiterState() {
   jiraSuccessStreak = 0;
@@ -199,7 +200,12 @@ export function makeJobToken() {
 }
 
 export function sanitizeCacheKeyPart(value) {
-  return String(value || "global").replace(/[^a-zA-Z0-9:._\s\-#]/g, "_").trim().slice(0, 180) || "global";
+  return (
+    String(value || "global")
+      .replace(/[^a-zA-Z0-9:._\s\-#]/g, "_")
+      .trim()
+      .slice(0, 180) || "global"
+  );
 }
 
 export function getInstallationKey(context) {
@@ -215,14 +221,14 @@ export function getInstallationKey(context) {
 
 export function isSnapshotStale(meta) {
   if (!meta?.refreshedAt) return true;
-  return (Date.now() - new Date(meta.refreshedAt).getTime()) > SNAPSHOT_STALE_AFTER_MS;
+  return Date.now() - new Date(meta.refreshedAt).getTime() > SNAPSHOT_STALE_AFTER_MS;
 }
 
 export function registerJiraRateLimit(delayMs) {
   jiraCooldownUntil = Math.max(jiraCooldownUntil, Date.now() + delayMs);
   currentJiraRequestIntervalMs = Math.min(
     MAX_JIRA_REQUEST_INTERVAL_MS,
-    Math.max(currentJiraRequestIntervalMs * 1.5, BASE_JIRA_REQUEST_INTERVAL_MS + 120)
+    Math.max(currentJiraRequestIntervalMs * 1.5, BASE_JIRA_REQUEST_INTERVAL_MS + 120),
   );
   currentJiraConcurrency = Math.max(1, currentJiraConcurrency - 1);
   jiraSuccessStreak = 0;
@@ -266,7 +272,9 @@ export async function withRetry(operation) {
       if (error?.status === 429) {
         rl429Count++;
         registerJiraRateLimit(delayMs);
-        snapshotLogFn?.(`⚠ 429 rate-limited — backing off ${delayMs}ms (total 429s: ${rl429Count}, retries: ${rlRetryCount})`);
+        snapshotLogFn?.(
+          `⚠ 429 rate-limited — backing off ${delayMs}ms (total 429s: ${rl429Count}, retries: ${rlRetryCount})`,
+        );
       } else {
         snapshotLogFn?.(`⚠ ${error?.status ?? "network"} error (attempt ${attempt + 1}) — retrying in ${delayMs}ms`);
       }
@@ -282,7 +290,9 @@ export async function scheduleRateLimitedRequest(callback) {
   while (true) {
     const previous = jiraRequestChain;
     let release;
-    jiraRequestChain = new Promise((resolve) => { release = resolve; });
+    jiraRequestChain = new Promise((resolve) => {
+      release = resolve;
+    });
     await previous;
 
     if (jiraCooldownUntil > Date.now()) {
@@ -294,10 +304,7 @@ export async function scheduleRateLimitedRequest(callback) {
     if (jiraInflight < currentJiraConcurrency) {
       // Got a slot — apply rate limit, increment, then release chain so the next
       // request can start dispatching while this one is still in-flight.
-      const waitMs = Math.max(
-        0,
-        (lastJiraRequestAt + currentJiraRequestIntervalMs + getJitterMs()) - Date.now()
-      );
+      const waitMs = Math.max(0, lastJiraRequestAt + currentJiraRequestIntervalMs + getJitterMs() - Date.now());
       if (waitMs > 0) await sleep(waitMs);
       lastJiraRequestAt = Date.now();
       jiraInflight++;
@@ -330,7 +337,7 @@ export async function jiraRequest(path, options = {}) {
           ...options.headers,
         },
         ...options,
-      })
+      }),
     );
 
     if (!response.ok) {
@@ -358,7 +365,7 @@ export async function jiraRequestAsUser(path, options = {}) {
           ...options.headers,
         },
         ...options,
-      })
+      }),
     );
 
     if (!response.ok) {
@@ -464,20 +471,23 @@ export async function getFieldCatalog() {
 
 export async function getAllCustomFields() {
   return paginate(
-    (startAt) => route`/rest/api/3/field/search?type=custom&startAt=${startAt}&maxResults=${DEFAULT_PAGE_SIZE}&orderBy=name`
+    (startAt) =>
+      route`/rest/api/3/field/search?type=custom&startAt=${startAt}&maxResults=${DEFAULT_PAGE_SIZE}&orderBy=name`,
   );
 }
 
 export async function getAllSystemFields() {
   return paginate(
-    (startAt) => route`/rest/api/3/field/search?type=system&startAt=${startAt}&maxResults=${DEFAULT_PAGE_SIZE}&orderBy=name`
+    (startAt) =>
+      route`/rest/api/3/field/search?type=system&startAt=${startAt}&maxResults=${DEFAULT_PAGE_SIZE}&orderBy=name`,
   );
 }
 
 export async function getFieldProjectAssociations(fieldId) {
   const rows = await paginate(
-    (startAt) => route`/rest/api/3/field/${fieldId}/association/project?startAt=${startAt}&maxResults=${DEFAULT_PAGE_SIZE}`,
-    "values"
+    (startAt) =>
+      route`/rest/api/3/field/${fieldId}/association/project?startAt=${startAt}&maxResults=${DEFAULT_PAGE_SIZE}`,
+    "values",
   );
   return rows
     .map((row) => ({
@@ -551,7 +561,11 @@ export async function getProjectBreakdownByAssociation(fieldId, startAt = 0, max
   };
 }
 
-export async function getProjectBreakdownByIssueScan(fieldId, nextPageToken = null, maxPages = PROJECT_USAGE_SCAN_PAGES_PER_JOB) {
+export async function getProjectBreakdownByIssueScan(
+  fieldId,
+  nextPageToken = null,
+  maxPages = PROJECT_USAGE_SCAN_PAGES_PER_JOB,
+) {
   const jql = `${buildOverallFieldJql(fieldId)} ORDER BY issueKey ASC`;
   const countsByProjectId = new Map();
   let pagesProcessed = 0;
@@ -584,11 +598,11 @@ export async function getProjectBreakdownByIssueScan(fieldId, nextPageToken = nu
     scannedIssueCount += issues.length;
     lastResponseNextPageToken = data?.nextPageToken || null;
     paginationBroken = Boolean(
-      issues.length
-      && totalIssues > 0
-      && scannedIssueCount < totalIssues
-      && data?.isLast !== true
-      && !lastResponseNextPageToken
+      issues.length &&
+      totalIssues > 0 &&
+      scannedIssueCount < totalIssues &&
+      data?.isLast !== true &&
+      !lastResponseNextPageToken,
     );
     reachedEnd = !issues.length || data?.isLast === true || (!lastResponseNextPageToken && !paginationBroken);
 
@@ -651,7 +665,7 @@ export async function getFieldConfiguredProjectCount(fieldId) {
   try {
     const data = await withTimeout(
       jiraRequest(route`/rest/api/3/field/${fieldId}/association/project?startAt=0&maxResults=1`),
-      ISSUE_COUNT_TIMEOUT_MS
+      ISSUE_COUNT_TIMEOUT_MS,
     );
     return Number(data?.total ?? data?.values?.length ?? 0);
   } catch {
@@ -671,7 +685,7 @@ export async function getFieldTotalIssueCount(fieldId) {
         method: "POST",
         body: JSON.stringify({ jql }),
       }),
-      ISSUE_COUNT_TIMEOUT_MS
+      ISSUE_COUNT_TIMEOUT_MS,
     );
     if (typeof approx?.count === "number") return approx.count;
   } catch {
@@ -683,7 +697,7 @@ export async function getFieldTotalIssueCount(fieldId) {
         method: "POST",
         body: JSON.stringify({ jql, fields: [], maxResults: 1 }),
       }),
-      ISSUE_COUNT_TIMEOUT_MS
+      ISSUE_COUNT_TIMEOUT_MS,
     );
     return Number(data?.total ?? 0);
   } catch {
@@ -692,7 +706,9 @@ export async function getFieldTotalIssueCount(fieldId) {
 }
 
 export async function getDistinctIssueCountForFields(fieldIds) {
-  const uniqueFieldIds = Array.from(new Set((fieldIds || []).map((value) => String(value || "").trim()).filter(Boolean)));
+  const uniqueFieldIds = Array.from(
+    new Set((fieldIds || []).map((value) => String(value || "").trim()).filter(Boolean)),
+  );
   if (!uniqueFieldIds.length) {
     return 0;
   }
@@ -704,7 +720,7 @@ export async function getDistinctIssueCountForFields(fieldIds) {
         method: "POST",
         body: JSON.stringify({ jql }),
       }),
-      ISSUE_COUNT_TIMEOUT_MS
+      ISSUE_COUNT_TIMEOUT_MS,
     );
     if (typeof approx?.count === "number") return approx.count;
   } catch {
@@ -716,7 +732,7 @@ export async function getDistinctIssueCountForFields(fieldIds) {
         method: "POST",
         body: JSON.stringify({ jql, fields: [], maxResults: 1 }),
       }),
-      ISSUE_COUNT_TIMEOUT_MS
+      ISSUE_COUNT_TIMEOUT_MS,
     );
     return Number(data?.total ?? 0);
   } catch {
@@ -736,37 +752,39 @@ export async function getProjectById(projectId) {
 export async function getFieldContexts(fieldId) {
   return paginate(
     (startAt) => route`/rest/api/3/field/${fieldId}/context?startAt=${startAt}&maxResults=${DEFAULT_PAGE_SIZE}`,
-    "values"
+    "values",
   );
 }
 
 export async function getFieldContextProjectMappings(fieldId) {
   return paginate(
-    (startAt) => route`/rest/api/3/field/${fieldId}/context/projectmapping?startAt=${startAt}&maxResults=${DEFAULT_PAGE_SIZE}`,
-    "values"
+    (startAt) =>
+      route`/rest/api/3/field/${fieldId}/context/projectmapping?startAt=${startAt}&maxResults=${DEFAULT_PAGE_SIZE}`,
+    "values",
   );
 }
 
 export async function getFieldContextIssueTypeMappings(fieldId) {
   return paginate(
-    (startAt) => route`/rest/api/3/field/${fieldId}/context/issuetypemapping?startAt=${startAt}&maxResults=${DEFAULT_PAGE_SIZE}`,
-    "values"
+    (startAt) =>
+      route`/rest/api/3/field/${fieldId}/context/issuetypemapping?startAt=${startAt}&maxResults=${DEFAULT_PAGE_SIZE}`,
+    "values",
   );
 }
 
 export async function loadFieldContexts(fieldId) {
   const [contexts, projectMappings, issueTypeMappings] = await Promise.all([
     getFieldContexts(fieldId),
-    getFieldContextProjectMappings(fieldId).catch(fallbackOn("jira.context_project_mappings_failed", () => [], { fieldId })),
-    getFieldContextIssueTypeMappings(fieldId).catch(fallbackOn("jira.context_issuetype_mappings_failed", () => [], { fieldId })),
+    getFieldContextProjectMappings(fieldId).catch(
+      fallbackOn("jira.context_project_mappings_failed", () => [], { fieldId }),
+    ),
+    getFieldContextIssueTypeMappings(fieldId).catch(
+      fallbackOn("jira.context_issuetype_mappings_failed", () => [], { fieldId }),
+    ),
   ]);
 
   const projectIds = Array.from(
-    new Set(
-      projectMappings
-        .map((mapping) => String(mapping.projectId || ""))
-        .filter(Boolean)
-    )
+    new Set(projectMappings.map((mapping) => String(mapping.projectId || "")).filter(Boolean)),
   );
 
   const projectLookup = new Map();
@@ -921,9 +939,7 @@ export async function getLiveFieldProjectUsage(fieldId, usagePage, usagePageSize
 }
 
 export async function getAllJiraProjects() {
-  return paginate(
-    (startAt) => route`/rest/api/3/project/search?maxResults=50&startAt=${startAt}`
-  );
+  return paginate((startAt) => route`/rest/api/3/project/search?maxResults=50&startAt=${startAt}`);
 }
 
 // Every archived project, with its issue count where Jira gives one. Archived projects are
@@ -932,7 +948,7 @@ export async function getAllJiraProjects() {
 // "could not be read" -- never as "nothing archived".
 export async function getArchivedJiraProjects() {
   const rows = await paginate(
-    (startAt) => route`/rest/api/3/project/search?status=archived&expand=insight&maxResults=50&startAt=${startAt}`
+    (startAt) => route`/rest/api/3/project/search?status=archived&expand=insight&maxResults=50&startAt=${startAt}`,
   );
   return rows.map((p) => ({
     id: String(p.id),
@@ -948,7 +964,7 @@ export async function getArchivedJiraProjects() {
 // project list with expand=lead and nothing else kept.
 export async function getProjectLeads() {
   const rows = await paginate(
-    (startAt) => route`/rest/api/3/project/search?expand=lead&maxResults=50&startAt=${startAt}`
+    (startAt) => route`/rest/api/3/project/search?expand=lead&maxResults=50&startAt=${startAt}`,
   );
   return rows.map((p) => ({
     id: String(p.id),
@@ -965,7 +981,7 @@ export async function countIssues(jql) {
   try {
     const data = await withTimeout(
       jiraRequest(route`/rest/api/3/search/approximate-count`, { method: "POST", body: JSON.stringify({ jql }) }),
-      ISSUE_COUNT_TIMEOUT_MS
+      ISSUE_COUNT_TIMEOUT_MS,
     );
     return typeof data?.count === "number" ? data.count : null;
   } catch {
@@ -998,7 +1014,8 @@ export async function countIssues(jql) {
 // filter on every tenant came back with no lastUsedAt, which downstream code then read as
 // "never opened" rather than "unknown," and a saved-filter estate of any size rendered as
 // 100% stale. The field itself was never wrong; it was never asked for.
-const FILTER_EXPAND = "description,owner,jql,sharePermissions,subscriptions,viewUrl,favouritedCount,approximateLastUsed";
+const FILTER_EXPAND =
+  "description,owner,jql,sharePermissions,subscriptions,viewUrl,favouritedCount,approximateLastUsed";
 
 // Every dashboard on the site, with the governance-relevant expansions.
 //
@@ -1021,7 +1038,7 @@ const DASHBOARD_EXPAND = "description,owner,favouritedCount,sharePermissions,edi
 // getFilterPage: the dashboard build is resumable and drives its own pagination.
 export async function getDashboardPage(startAt = 0, maxResults = 50) {
   return jiraRequest(
-    route`/rest/api/3/dashboard/search?maxResults=${maxResults}&startAt=${startAt}&expand=${DASHBOARD_EXPAND}`
+    route`/rest/api/3/dashboard/search?maxResults=${maxResults}&startAt=${startAt}&expand=${DASHBOARD_EXPAND}`,
   );
 }
 
@@ -1035,9 +1052,7 @@ export async function getDashboardPage(startAt = 0, maxResults = 50) {
 // a gadget can have half a dozen properties recording column widths and refresh intervals,
 // and fetching those would double the cost of the walk for nothing.
 export async function getGadgetFilterId(dashboardId, gadgetId) {
-  const keyList = await jiraRequest(
-    route`/rest/api/3/dashboard/${dashboardId}/items/${gadgetId}/properties`
-  );
+  const keyList = await jiraRequest(route`/rest/api/3/dashboard/${dashboardId}/items/${gadgetId}/properties`);
   const keys = (keyList?.keys || []).map((k) => k?.key).filter(Boolean);
 
   // "config" is where the standard Jira gadgets keep it. The others are what the common
@@ -1045,9 +1060,7 @@ export async function getGadgetFilterId(dashboardId, gadgetId) {
   const candidates = keys.filter((k) => /^(config|filter|filterId|savedFilter)$/i.test(k));
 
   for (const key of candidates) {
-    const prop = await jiraRequest(
-      route`/rest/api/3/dashboard/${dashboardId}/items/${gadgetId}/properties/${key}`
-    );
+    const prop = await jiraRequest(route`/rest/api/3/dashboard/${dashboardId}/items/${gadgetId}/properties/${key}`);
     const id = extractFilterId(prop?.value);
     if (id) return id;
   }
@@ -1114,8 +1127,9 @@ export function extractFilterId(value) {
 }
 
 export async function getAllDashboards() {
-  return paginate((startAt) =>
-    route`/rest/api/3/dashboard/search?maxResults=50&startAt=${startAt}&expand=${DASHBOARD_EXPAND}`);
+  return paginate(
+    (startAt) => route`/rest/api/3/dashboard/search?maxResults=50&startAt=${startAt}&expand=${DASHBOARD_EXPAND}`,
+  );
 }
 
 // The gadgets on one dashboard.
@@ -1139,14 +1153,17 @@ export async function getDashboardGadgets(dashboardId) {
 // whole estate arrives before the invocation is killed.
 export async function getFilterPage(startAt = 0, maxResults = 50) {
   return jiraRequest(
-    route`/rest/api/3/filter/search?maxResults=${maxResults}&startAt=${startAt}&expand=${FILTER_EXPAND}&overrideSharePermissions=false`
+    route`/rest/api/3/filter/search?maxResults=${maxResults}&startAt=${startAt}&expand=${FILTER_EXPAND}&overrideSharePermissions=false`,
   );
 }
 
 export async function getAllFilters({ onPage } = {}) {
-  return paginate((startAt) =>
-    route`/rest/api/3/filter/search?maxResults=50&startAt=${startAt}&expand=${FILTER_EXPAND}&overrideSharePermissions=false`,
-  "values", { onPage });
+  return paginate(
+    (startAt) =>
+      route`/rest/api/3/filter/search?maxResults=50&startAt=${startAt}&expand=${FILTER_EXPAND}&overrideSharePermissions=false`,
+    "values",
+    { onPage },
+  );
 }
 
 export async function getAllScreens() {
@@ -1235,7 +1252,7 @@ export async function getIssueTypeScreenSchemeProjects(projectIds = []) {
       .join("&");
 
     const page = await paginate((startAt) =>
-      route([`/rest/api/3/issuetypescreenscheme/project?maxResults=100&startAt=${Number(startAt) || 0}&${query}`])
+      route([`/rest/api/3/issuetypescreenscheme/project?maxResults=100&startAt=${Number(startAt) || 0}&${query}`]),
     );
     rows.push(...page);
   }
@@ -1270,7 +1287,8 @@ export async function getApplicationRoles() {
 export async function getGroupMembers(groupId) {
   if (!groupId) return [];
   return paginate(
-    (startAt) => route`/rest/api/3/group/member?groupId=${groupId}&includeInactiveUsers=true&startAt=${startAt}&maxResults=50`
+    (startAt) =>
+      route`/rest/api/3/group/member?groupId=${groupId}&includeInactiveUsers=true&startAt=${startAt}&maxResults=50`,
   );
 }
 
@@ -1331,7 +1349,7 @@ export async function getIssueTypeSchemeProjects(projectIds = []) {
       .join("&");
 
     const page = await paginate((startAt) =>
-      route([`/rest/api/3/issuetypescheme/project?maxResults=100&startAt=${Number(startAt) || 0}&${query}`])
+      route([`/rest/api/3/issuetypescheme/project?maxResults=100&startAt=${Number(startAt) || 0}&${query}`]),
     );
     rows.push(...page);
   }
@@ -1369,7 +1387,9 @@ export async function getFieldSchemeProjectAssignments() {
 // overrides: { fieldId, parameters: { isRequired, description, rendererType },
 // restrictedToWorkTypes: [], workTypeParameters: [{ workTypeId, isRequired, ... }] }.
 export async function getFieldSchemeFields(schemeId) {
-  return paginate((startAt) => route`/rest/api/3/config/fieldschemes/${schemeId}/fields?startAt=${startAt}&maxResults=100`);
+  return paginate(
+    (startAt) => route`/rest/api/3/config/fieldschemes/${schemeId}/fields?startAt=${startAt}&maxResults=100`,
+  );
 }
 
 // Legacy: every field configuration ({ id, name, description, isDefault }).
@@ -1379,7 +1399,9 @@ export async function getAllFieldConfigurations() {
 
 // Legacy: every field in one configuration ({ id, isHidden, isRequired, description, renderer }).
 export async function getFieldConfigurationItems(configurationId) {
-  return paginate((startAt) => route`/rest/api/3/fieldconfiguration/${configurationId}/fields?startAt=${startAt}&maxResults=100`);
+  return paginate(
+    (startAt) => route`/rest/api/3/fieldconfiguration/${configurationId}/fields?startAt=${startAt}&maxResults=100`,
+  );
 }
 
 // Legacy: every field configuration scheme ({ id, name, description }).
@@ -1403,9 +1425,11 @@ export async function getFieldConfigurationSchemeProjects(projectIds = []) {
       .slice(i, i + ITSS_PROJECT_QUERY_BATCH)
       .map((id) => `projectId=${encodeURIComponent(id)}`)
       .join("&");
-    rows.push(...await paginate((startAt) =>
-      route([`/rest/api/3/fieldconfigurationscheme/project?maxResults=100&startAt=${Number(startAt) || 0}&${query}`])
-    ));
+    rows.push(
+      ...(await paginate((startAt) =>
+        route([`/rest/api/3/fieldconfigurationscheme/project?maxResults=100&startAt=${Number(startAt) || 0}&${query}`]),
+      )),
+    );
   }
   return rows;
 }
@@ -1438,12 +1462,17 @@ export async function getAllIssueSecuritySchemes() {
 }
 
 export async function getIssueSecurityLevels(schemeId) {
-  return paginate((startAt) => route`/rest/api/3/issuesecurityschemes/level?schemeId=${schemeId}&startAt=${startAt}&maxResults=100`);
+  return paginate(
+    (startAt) => route`/rest/api/3/issuesecurityschemes/level?schemeId=${schemeId}&startAt=${startAt}&maxResults=100`,
+  );
 }
 
 // Level members: [{ issueSecurityLevelId, holder: { type, value, parameter } }].
 export async function getIssueSecurityLevelMembers(schemeId) {
-  return paginate((startAt) => route`/rest/api/3/issuesecurityschemes/level/member?schemeId=${schemeId}&startAt=${startAt}&maxResults=100`);
+  return paginate(
+    (startAt) =>
+      route`/rest/api/3/issuesecurityschemes/level/member?schemeId=${schemeId}&startAt=${startAt}&maxResults=100`,
+  );
 }
 
 // Security scheme -> projects. Bulk, projectId repeatable, batched like getIssueTypeSchemeProjects.
@@ -1457,7 +1486,7 @@ export async function getIssueSecuritySchemeProjects(projectIds = []) {
       .map((id) => `projectId=${encodeURIComponent(id)}`)
       .join("&");
     const page = await paginate((startAt) =>
-      route([`/rest/api/3/issuesecurityschemes/project?maxResults=100&startAt=${Number(startAt) || 0}&${query}`])
+      route([`/rest/api/3/issuesecurityschemes/project?maxResults=100&startAt=${Number(startAt) || 0}&${query}`]),
     );
     rows.push(...page);
   }
@@ -1493,7 +1522,7 @@ export async function getNotificationSchemeProjects(projectIds = []) {
       .map((id) => `projectId=${encodeURIComponent(id)}`)
       .join("&");
     const page = await paginate((startAt) =>
-      route([`/rest/api/3/notificationscheme/project?maxResults=100&startAt=${Number(startAt) || 0}&${query}`])
+      route([`/rest/api/3/notificationscheme/project?maxResults=100&startAt=${Number(startAt) || 0}&${query}`]),
     );
     rows.push(...page);
   }
@@ -1516,15 +1545,23 @@ export async function getProjectRolesForProject(projectIdOrKey) {
   const entries = Object.entries(map || {});
   const out = [];
   for (const [roleName, url] of entries) {
-    const roleId = String(url || "").split("/").filter(Boolean).pop();
+    const roleId = String(url || "")
+      .split("/")
+      .filter(Boolean)
+      .pop();
     if (!roleId) continue;
-    const detail = await jiraRequest(
-      route`/rest/api/3/project/${String(projectIdOrKey)}/role/${roleId}`
-    ).catch(() => null);
+    const detail = await jiraRequest(route`/rest/api/3/project/${String(projectIdOrKey)}/role/${roleId}`).catch(
+      () => null,
+    );
     if (!detail) continue;
     const actors = (detail.actors || []).map((a) => ({
       // "atlassian-group-role-actor" | "atlassian-user-role-actor"
-      type: a.type === "atlassian-user-role-actor" ? "user" : a.type === "atlassian-group-role-actor" ? "group" : String(a.type || "unknown"),
+      type:
+        a.type === "atlassian-user-role-actor"
+          ? "user"
+          : a.type === "atlassian-group-role-actor"
+            ? "group"
+            : String(a.type || "unknown"),
       id: a.id != null ? String(a.id) : null,
       displayName: a.displayName || a.name || null,
       accountId: a.actorUser?.accountId ? String(a.actorUser.accountId) : null,
@@ -1574,9 +1611,7 @@ export async function getAllPriorities() {
 
 // One page of boards. `type` is optional ("scrum" | "kanban" | "simple"); omitted, all types.
 export async function getBoardPage(startAt = 0, maxResults = 50) {
-  return jiraRequest(
-    route`/rest/agile/1.0/board?startAt=${startAt}&maxResults=${maxResults}`
-  );
+  return jiraRequest(route`/rest/agile/1.0/board?startAt=${startAt}&maxResults=${maxResults}`);
 }
 
 // A board's configuration: the backing filter, the column-to-status mapping, the estimation
@@ -1643,41 +1678,67 @@ export async function transitionIssueWithComment(issueKey, { target, commentBody
       headers: { Accept: "application/json", ...(init.body ? { "Content-Type": "application/json" } : {}) },
     });
     if (!response.ok) {
-      const error = new Error(`${init.method || "GET"} ${issueKey} failed (${response.status}): ${(await response.text()).slice(0, 300)}`);
+      const error = new Error(
+        `${init.method || "GET"} ${issueKey} failed (${response.status}): ${(await response.text()).slice(0, 300)}`,
+      );
       error.status = response.status;
       throw error;
     }
     return response.status === 204 ? null : response.json().catch(() => null);
   };
 
-  const { transitions = [] } = (await call(route`/rest/api/3/issue/${issueKey}/transitions?expand=transitions.fields`)) || {};
+  const { transitions = [] } =
+    (await call(route`/rest/api/3/issue/${issueKey}/transitions?expand=transitions.fields`)) || {};
   const into = (key) => transitions.find((t) => t?.to?.statusCategory?.key === key);
   // "withdraw" closes like "done", but as Won't Do: a transition of that name if the workflow
   // has one, and the Won't Do resolution if the transition's screen offers it. A workflow with
   // neither still closes the task; the comment is what says it was withdrawn.
   const closing = target === "done" || target === "withdraw";
   const wontDo = (s) => /won.?t do/i.test(String(s || ""));
-  const chosen = target === "withdraw"
-    ? transitions.find((t) => t?.to?.statusCategory?.key === "done" && (wontDo(t.name) || wontDo(t.to?.name))) || into("done")
-    : target === "done" ? into("done") : (into("new") || into("indeterminate"));
+  const chosen =
+    target === "withdraw"
+      ? transitions.find((t) => t?.to?.statusCategory?.key === "done" && (wontDo(t.name) || wontDo(t.to?.name))) ||
+        into("done")
+      : target === "done"
+        ? into("done")
+        : into("new") || into("indeterminate");
   if (!chosen) {
-    return { issueKey, transitioned: false, commented: false, reason: `No transition from its current status leads to ${closing ? "Done" : "an open status"}.` };
+    return {
+      issueKey,
+      transitioned: false,
+      commented: false,
+      reason: `No transition from its current status leads to ${closing ? "Done" : "an open status"}.`,
+    };
   }
-  const resolution = target === "withdraw"
-    ? (chosen.fields?.resolution?.allowedValues || []).find((v) => wontDo(v?.name)) || null
-    : null;
-  const body = { transition: { id: chosen.id }, ...(resolution ? { fields: { resolution: { id: resolution.id } } } : {}) };
+  const resolution =
+    target === "withdraw"
+      ? (chosen.fields?.resolution?.allowedValues || []).find((v) => wontDo(v?.name)) || null
+      : null;
+  const body = {
+    transition: { id: chosen.id },
+    ...(resolution ? { fields: { resolution: { id: resolution.id } } } : {}),
+  };
   await call(route`/rest/api/3/issue/${issueKey}/transitions`, { method: "POST", body: JSON.stringify(body) });
   let commented = false;
   if (commentBody) {
     try {
-      await call(route`/rest/api/3/issue/${issueKey}/comment`, { method: "POST", body: JSON.stringify({ body: commentBody }) });
+      await call(route`/rest/api/3/issue/${issueKey}/comment`, {
+        method: "POST",
+        body: JSON.stringify({ body: commentBody }),
+      });
       commented = true;
     } catch {
       commented = false;
     }
   }
-  return { issueKey, transitioned: true, commented, toStatus: chosen.to?.name || null, resolution: resolution?.name || null, reason: null };
+  return {
+    issueKey,
+    transitioned: true,
+    commented,
+    toStatus: chosen.to?.name || null,
+    resolution: resolution?.name || null,
+    reason: null,
+  };
 }
 
 // One page of issues matching a JQL query, with only the requested fields. For small lookups
@@ -1697,7 +1758,9 @@ let cachedServerBaseUrl;
 export async function getSiteBaseUrl() {
   if (cachedServerBaseUrl !== undefined) return cachedServerBaseUrl;
   try {
-    const response = await api.asApp().requestJira(route`/rest/api/3/serverInfo`, { headers: { Accept: "application/json" } });
+    const response = await api
+      .asApp()
+      .requestJira(route`/rest/api/3/serverInfo`, { headers: { Accept: "application/json" } });
     const data = response.ok ? await response.json() : null;
     cachedServerBaseUrl = normalizeSiteOrigin(data?.baseUrl);
   } catch {
@@ -1788,30 +1851,32 @@ export function normalizeWorkflowSearchResponse(data) {
   }
 
   const workflows = data?.workflows || data?.values || [];
-  return workflows.map((workflow) => {
-    const name = workflow?.name || workflow?.id?.name || null;
-    const statusIds = [];
-    for (const entry of workflow?.statuses || []) {
-      const direct = entry?.id ?? entry?.statusId;
-      const reference = entry?.statusReference;
-      const resolved = direct != null ? String(direct) : (reference ? idByReference.get(String(reference)) : null);
-      if (resolved) statusIds.push(resolved);
-    }
-    return {
-      name,
-      // The current endpoint's id is a UUID; the deprecated one nests { name, entityId }.
-      id: typeof workflow?.id === "string" ? workflow.id : (workflow?.id?.entityId ?? null),
-      // GLOBAL = company-managed, PROJECT = team-managed. Absent on the deprecated endpoint,
-      // which only ever returned company-managed workflows.
-      scopeType: workflow?.scope?.type ?? null,
-      scopeProjectId: workflow?.scope?.project?.id != null ? String(workflow.scope.project.id) : null,
-      statusIds,
-      transitions: extractTransitionScreens(workflow, idByReference),
-      // Conditions, validators, post-functions and properties. Same response, same status
-      // references -- this was simply never kept.
-      rules: extractWorkflowRules(workflow, idByReference),
-    };
-  }).filter((workflow) => workflow.name);
+  return workflows
+    .map((workflow) => {
+      const name = workflow?.name || workflow?.id?.name || null;
+      const statusIds = [];
+      for (const entry of workflow?.statuses || []) {
+        const direct = entry?.id ?? entry?.statusId;
+        const reference = entry?.statusReference;
+        const resolved = direct != null ? String(direct) : reference ? idByReference.get(String(reference)) : null;
+        if (resolved) statusIds.push(resolved);
+      }
+      return {
+        name,
+        // The current endpoint's id is a UUID; the deprecated one nests { name, entityId }.
+        id: typeof workflow?.id === "string" ? workflow.id : (workflow?.id?.entityId ?? null),
+        // GLOBAL = company-managed, PROJECT = team-managed. Absent on the deprecated endpoint,
+        // which only ever returned company-managed workflows.
+        scopeType: workflow?.scope?.type ?? null,
+        scopeProjectId: workflow?.scope?.project?.id != null ? String(workflow.scope.project.id) : null,
+        statusIds,
+        transitions: extractTransitionScreens(workflow, idByReference),
+        // Conditions, validators, post-functions and properties. Same response, same status
+        // references -- this was simply never kept.
+        rules: extractWorkflowRules(workflow, idByReference),
+      };
+    })
+    .filter((workflow) => workflow.name);
 }
 
 // Transitions that open a screen, and which screen that is.
@@ -1841,7 +1906,8 @@ export function extractTransitionScreens(workflow, idByReference = new Map()) {
       screenId = transition.transitionScreen.parameters?.screenId ?? null;
     } else {
       const screen = transition?.screen ?? null;
-      screenId = screen?.id ?? screen?.screenId ?? (typeof screen === "string" || typeof screen === "number" ? screen : null);
+      screenId =
+        screen?.id ?? screen?.screenId ?? (typeof screen === "string" || typeof screen === "number" ? screen : null);
     }
     if (screenId == null || screenId === "") continue;
     const toReference = transition?.toStatusReference ?? null;
@@ -1850,9 +1916,10 @@ export function extractTransitionScreens(workflow, idByReference = new Map()) {
       name: transition?.name || null,
       // "from -> to" is what makes a transition recognisable in Jira's own UI; the name
       // alone is frequently just "Done" on a dozen different transitions.
-      toStatus: toReference != null
-        ? (idByReference.get(String(toReference)) ?? String(toReference))
-        : (transition?.to?.statusReference ?? transition?.to?.id ?? transition?.to ?? null),
+      toStatus:
+        toReference != null
+          ? (idByReference.get(String(toReference)) ?? String(toReference))
+          : (transition?.to?.statusReference ?? transition?.to?.id ?? transition?.to ?? null),
       screenId: String(screenId),
     });
   }
@@ -1876,7 +1943,7 @@ export async function getAllWorkflowsWithStatuses() {
     let startAt = 0;
     for (;;) {
       const data = await jiraRequest(
-        route`/rest/api/3/workflows/search?expand=values.transitions&startAt=${startAt}&maxResults=${DEFAULT_PAGE_SIZE}`
+        route`/rest/api/3/workflows/search?expand=values.transitions&startAt=${startAt}&maxResults=${DEFAULT_PAGE_SIZE}`,
       );
       const values = data?.values || [];
       workflows.push(...normalizeWorkflowSearchResponse(data));
@@ -1893,7 +1960,8 @@ export async function getAllWorkflowsWithStatuses() {
   }
 
   const legacy = await paginate(
-    (startAt) => route`/rest/api/3/workflow/search?expand=statuses,transitions,transitions.rules,transitions.properties,statuses.properties&startAt=${startAt}&maxResults=${DEFAULT_PAGE_SIZE}`
+    (startAt) =>
+      route`/rest/api/3/workflow/search?expand=statuses,transitions,transitions.rules,transitions.properties,statuses.properties&startAt=${startAt}&maxResults=${DEFAULT_PAGE_SIZE}`,
   );
   return normalizeWorkflowSearchResponse({ values: legacy });
 }
@@ -1973,7 +2041,7 @@ export async function getEverInStatusCounts(statusIds = [], concurrency = STATUS
           // Numeric id, unquoted: quoting makes Jira resolve it as a name.
           body: JSON.stringify({ jql: `status WAS ${statusId}` }),
         }),
-        STATUS_HISTORY_TIMEOUT_MS
+        STATUS_HISTORY_TIMEOUT_MS,
       );
       return { statusId, count: Number(data?.count ?? 0), error: null };
     } catch (error) {
@@ -1988,7 +2056,7 @@ export async function getEverInStatusCounts(statusIds = [], concurrency = STATUS
           method: "POST",
           body: JSON.stringify({ jql: `status WAS ${statusId}` }),
         }),
-        STATUS_HISTORY_TIMEOUT_MS
+        STATUS_HISTORY_TIMEOUT_MS,
       );
       return { statusId, count: Number(data?.count ?? 0), error: null };
     } catch (error) {
@@ -2058,10 +2126,7 @@ export async function getAllJiraProjectKeys() {
   const keys = [];
   let startAt = 0;
   for (;;) {
-    const data = await jiraRequest(
-      route`/rest/api/3/project/search?maxResults=50&startAt=${startAt}`,
-      {}
-    );
+    const data = await jiraRequest(route`/rest/api/3/project/search?maxResults=50&startAt=${startAt}`, {});
     const values = data?.values || [];
     for (const p of values) if (p.key) keys.push(p.key);
     if (data?.isLast || values.length === 0) break;
@@ -2071,7 +2136,9 @@ export async function getAllJiraProjectKeys() {
 }
 
 export async function findFieldIdsByOptionValue(fields, optionQuery, startIndex = 0, maxFields = 10) {
-  const normalizedQuery = String(optionQuery || "").trim().toLowerCase();
+  const normalizedQuery = String(optionQuery || "")
+    .trim()
+    .toLowerCase();
   if (!normalizedQuery) return { matchingIds: null, nextIndex: 0, done: true, scanned: 0, totalCandidates: 0 };
 
   const selectFields = fields.filter((field) => isSelectFieldType(field.type));
@@ -2088,9 +2155,15 @@ export async function findFieldIdsByOptionValue(fields, optionQuery, startIndex 
         if (matchingIds.has(field.id)) break;
         const options = await paginate(
           (startAt) => route`/rest/api/3/field/${field.id}/context/${ctx.id}/option?startAt=${startAt}&maxResults=100`,
-          "values"
+          "values",
         );
-        if (options.some((opt) => String(opt.value || "").toLowerCase().includes(normalizedQuery))) {
+        if (
+          options.some((opt) =>
+            String(opt.value || "")
+              .toLowerCase()
+              .includes(normalizedQuery),
+          )
+        ) {
           matchingIds.add(field.id);
           break;
         }
@@ -2117,7 +2190,7 @@ export async function loadFieldOptionsFromJira(fieldId) {
       try {
         const options = await paginate(
           (startAt) => route`/rest/api/3/field/${fieldId}/context/${ctx.id}/option?startAt=${startAt}&maxResults=100`,
-          "values"
+          "values",
         );
         return {
           contextId: String(ctx.id),
@@ -2130,7 +2203,10 @@ export async function loadFieldOptionsFromJira(fieldId) {
           })),
         };
       } catch (optError) {
-        console.error(`loadFieldOptionsFromJira: context ${ctx.id} options fetch failed:`, optError?.message || optError);
+        console.error(
+          `loadFieldOptionsFromJira: context ${ctx.id} options fetch failed:`,
+          optError?.message || optError,
+        );
         return {
           contextId: String(ctx.id),
           contextName: String(ctx.name || "Default context"),
@@ -2139,7 +2215,7 @@ export async function loadFieldOptionsFromJira(fieldId) {
           fetchError: optError?.message || String(optError),
         };
       }
-    })
+    }),
   );
 }
 
@@ -2187,7 +2263,6 @@ export async function probeEndpoint(path, { method = "GET", headers = {}, keepBo
   }
 }
 
-
 // Ask Jira how many issues a JQL query matches, reporting exactly what came back. Same
 // never-throws contract as probeEndpoint. approximate-count is a POST but reads only -- the
 // body carries the query. A 400 is an answer here, not a failure: its errorMessages say
@@ -2205,10 +2280,26 @@ export async function probeJqlCount(jql) {
     try {
       const parsed = JSON.parse(text);
       if (typeof parsed?.count === "number") count = parsed.count;
-    } catch { /* non-JSON answer; the sample shows it */ }
-    return { jql, status: response.status, ok: response.ok, count, ms: Date.now() - started, sample: text.slice(0, 300) };
+    } catch {
+      /* non-JSON answer; the sample shows it */
+    }
+    return {
+      jql,
+      status: response.status,
+      ok: response.ok,
+      count,
+      ms: Date.now() - started,
+      sample: text.slice(0, 300),
+    };
   } catch (error) {
-    return { jql, status: null, ok: false, count: null, ms: Date.now() - started, sample: String(error?.message || error).slice(0, 300) };
+    return {
+      jql,
+      status: null,
+      ok: false,
+      count: null,
+      ms: Date.now() - started,
+      sample: String(error?.message || error).slice(0, 300),
+    };
   }
 }
 
@@ -2294,17 +2385,16 @@ export async function requestAtlassianJson(path, { method = "GET", body = null }
 // a Data Center migration can leave more than one, in which case the first is used and the
 // rest are ignored -- the pillar governs "the" workspace, not a chooser.
 export async function getAssetsWorkspaceId() {
-  const response = await api.asApp().requestJira(
-    route(["/rest/servicedeskapi/assets/workspace"]),
-    { headers: { Accept: "application/json" } }
-  );
+  const response = await api
+    .asApp()
+    .requestJira(route(["/rest/servicedeskapi/assets/workspace"]), { headers: { Accept: "application/json" } });
   if (!response.ok) {
     const error = new Error(`assets workspace lookup returned ${response.status}`);
     error.status = response.status;
     throw error;
   }
   const body = await response.json();
-  const values = Array.isArray(body?.values) ? body.values : (Array.isArray(body) ? body : []);
+  const values = Array.isArray(body?.values) ? body.values : Array.isArray(body) ? body : [];
   const first = values[0];
   return first?.workspaceId || first?.id || null;
 }

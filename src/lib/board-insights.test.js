@@ -2,8 +2,14 @@ import { describe, test, expect } from "vitest";
 import { summarizeBoardInsights, summarizeBoardHealth } from "./board-insights.js";
 
 const board = (over = {}) => ({
-  boardId: "1", name: "B", type: "scrum", locationKey: "AAA",
-  configReadable: true, filterId: "100", columns: [{ statusIds: ["1", "2"] }], ...over,
+  boardId: "1",
+  name: "B",
+  type: "scrum",
+  locationKey: "AAA",
+  configReadable: true,
+  filterId: "100",
+  columns: [{ statusIds: ["1", "2"] }],
+  ...over,
 });
 
 describe("summarizeBoardInsights", () => {
@@ -73,7 +79,11 @@ describe("unreadable boards", () => {
   // must not count toward the denominator that makes a board estate look clean.
   test("counts readable and unreadable boards separately", () => {
     const r = summarizeBoardInsights({
-      boards: [board(), board({ boardId: "2", configReadable: false, columns: [] }), board({ boardId: "3", configReadable: false, columns: [] })],
+      boards: [
+        board(),
+        board({ boardId: "2", configReadable: false, columns: [] }),
+        board({ boardId: "3", configReadable: false, columns: [] }),
+      ],
       filters: [{ id: "100", ownerActive: true }],
     });
     expect(r).toMatchObject({ total: 3, readable: 1, unreadable: 2 });
@@ -87,7 +97,22 @@ describe("summarizeBoardHealth", () => {
   });
 
   test("rolls the broken-backing counts together", () => {
-    const h = summarizeBoardHealth({ available: true, total: 10, missingFilter: 2, noFilter: 1, inactiveFilterOwner: 3, staleColumnBoards: 1, unmappedColumnBoards: 4 });
-    expect(h).toMatchObject({ available: true, total: 10, brokenBackingCount: 3, inactiveFilterOwner: 3, staleColumnBoards: 1, unmappedColumnBoards: 4 });
+    const h = summarizeBoardHealth({
+      available: true,
+      total: 10,
+      missingFilter: 2,
+      noFilter: 1,
+      inactiveFilterOwner: 3,
+      staleColumnBoards: 1,
+      unmappedColumnBoards: 4,
+    });
+    expect(h).toMatchObject({
+      available: true,
+      total: 10,
+      brokenBackingCount: 3,
+      inactiveFilterOwner: 3,
+      staleColumnBoards: 1,
+      unmappedColumnBoards: 4,
+    });
   });
 });

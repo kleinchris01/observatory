@@ -179,7 +179,9 @@ export async function saveAdminConfigResolver({ payload }) {
     const rem = cfg.remediation;
     if (rem.projectKey !== undefined && rem.projectKey !== null && rem.projectKey !== "") {
       if (typeof rem.projectKey !== "string" || !/^[A-Za-z][A-Za-z0-9_]{1,49}$/.test(rem.projectKey)) {
-        throw new Error("remediation.projectKey must be a Jira project key (letters, digits and underscores, starting with a letter).");
+        throw new Error(
+          "remediation.projectKey must be a Jira project key (letters, digits and underscores, starting with a letter).",
+        );
       }
     }
     if (rem.hierarchyEnabled !== undefined && typeof rem.hierarchyEnabled !== "boolean") {
@@ -192,7 +194,11 @@ export async function saveAdminConfigResolver({ payload }) {
         }
       }
     }
-    if (rem.defaultAssigneeAccountId !== undefined && rem.defaultAssigneeAccountId !== null && rem.defaultAssigneeAccountId !== "") {
+    if (
+      rem.defaultAssigneeAccountId !== undefined &&
+      rem.defaultAssigneeAccountId !== null &&
+      rem.defaultAssigneeAccountId !== ""
+    ) {
       if (typeof rem.defaultAssigneeAccountId !== "string" || rem.defaultAssigneeAccountId.length > 128) {
         throw new Error("remediation.defaultAssigneeAccountId must be an Atlassian accountId.");
       }
@@ -249,8 +255,10 @@ export async function saveAdminConfigResolver({ payload }) {
   updated.apiConcurrency = Math.max(1, Math.min(10, Number(updated.apiConcurrency) || BASE_JIRA_CONCURRENCY));
   // Clamped as well as validated, so a value that reached storage some other way (an older
   // build, a hand-edited record) still lands inside the band rather than disabling the gate.
-  updated.automationStaleAfterDays = Math.max(1, Math.min(90,
-    Number(updated.automationStaleAfterDays) || DEFAULT_ANALYSIS_STALE_AFTER_DAYS));
+  updated.automationStaleAfterDays = Math.max(
+    1,
+    Math.min(90, Number(updated.automationStaleAfterDays) || DEFAULT_ANALYSIS_STALE_AFTER_DAYS),
+  );
   await kvs.set(ADMIN_CONFIG_KEY, updated);
   return { ok: true, config: updated };
 }

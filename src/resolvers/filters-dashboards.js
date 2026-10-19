@@ -25,12 +25,7 @@ import {
 import { summarizeFilters, summarizeFilterHealth } from "../lib/filter-insights.js";
 import { summarizeDashboards, summarizeDashboardHealth } from "../lib/dashboard-insights.js";
 import { isFilterBuildStale, queueFilterSnapshotBuild } from "../lib/filter-engine.js";
-import {
-  filterRows,
-  sortFilters,
-  filterFindingCounts,
-  FILTER_SORTS,
-} from "../lib/filter-query.js";
+import { filterRows, sortFilters, filterFindingCounts, FILTER_SORTS } from "../lib/filter-query.js";
 import { isDashboardBuildStale, queueDashboardSnapshotBuild } from "../lib/dashboard-engine.js";
 import { fallbackOn } from "../lib/logger.js";
 import { requirePositiveInt, requireBoundedInt, optionalString } from "../lib/validate.js";
@@ -55,16 +50,15 @@ export async function loadFiltersWithFindings(installationKey, version) {
   // references because nobody looked.
   let projectKeys = null;
   if (snapshotMeta?.version) {
-    const projects = await listSnapshotProjects(installationKey, snapshotMeta.version)
-      .catch(fallbackOn("filters.project_keys_load_failed", () => [], { installationKey }));
+    const projects = await listSnapshotProjects(installationKey, snapshotMeta.version).catch(
+      fallbackOn("filters.project_keys_load_failed", () => [], { installationKey }),
+    );
     // Both the key and the display name: JQL accepts `project = KEY` and
     // `project = "Display Name"` equally, and a filter written the second way was being
     // reported as broken -- a project that genuinely exists, referenced by a name this set
     // never carried, indistinguishable from a real dangling reference to the check below.
     if (projects.length) {
-      projectKeys = new Set(
-        projects.flatMap((p) => [p.projectKey, p.projectName]).filter(Boolean)
-      );
+      projectKeys = new Set(projects.flatMap((p) => [p.projectKey, p.projectName]).filter(Boolean));
     }
   }
 
@@ -73,8 +67,9 @@ export async function loadFiltersWithFindings(installationKey, version) {
   let typeNames = null;
   const itMeta = await readIssueTypeSnapshotMeta(installationKey).catch(() => null);
   if (itMeta?.version) {
-    const types = await loadIssueTypes(installationKey, itMeta.version)
-      .catch(fallbackOn("filters.type_names_load_failed", () => [], { installationKey }));
+    const types = await loadIssueTypes(installationKey, itMeta.version).catch(
+      fallbackOn("filters.type_names_load_failed", () => [], { installationKey }),
+    );
     if (types.length) typeNames = new Set(types.map((t) => String(t.name || "").toLowerCase()).filter(Boolean));
   }
 
@@ -101,7 +96,8 @@ export async function getFilterInventory({ payload, context }) {
   try {
     const params = payload || {};
     if (params.page !== undefined && params.page !== null) requirePositiveInt(params.page, "page");
-    if (params.pageSize !== undefined && params.pageSize !== null) requireBoundedInt(params.pageSize, "pageSize", 1, 100);
+    if (params.pageSize !== undefined && params.pageSize !== null)
+      requireBoundedInt(params.pageSize, "pageSize", 1, 100);
     optionalString(params.search, "search");
     optionalString(params.finding, "finding");
     optionalString(params.sort, "sort");
@@ -359,8 +355,13 @@ export async function getDashboardUsage({ payload, context }) {
 
     if (!filterIds.length) {
       return {
-        available: true, label, total: 0, dashboards: [], viaFilters: 0,
-        coverage, complete,
+        available: true,
+        label,
+        total: 0,
+        dashboards: [],
+        viaFilters: 0,
+        coverage,
+        complete,
       };
     }
 
@@ -458,24 +459,27 @@ export async function getDashboardInventory({ context }) {
     // this is the second half, filter -> field, done once in bulk rather than once per
     // dashboard -- a site with a few hundred dashboards and a shared handful of filters would
     // otherwise re-run the same lookup for every dashboard that reuses a filter.
-    const filterMeta = await readFilterSnapshotMeta(installationKey)
-      .catch(fallbackOn("dashboard_inventory.filter_meta_read_failed", null, { installationKey }));
+    const filterMeta = await readFilterSnapshotMeta(installationKey).catch(
+      fallbackOn("dashboard_inventory.filter_meta_read_failed", null, { installationKey }),
+    );
 
     let fieldRefsAvailable = false;
     if (filterMeta?.version) {
-      const filterIds = [...new Set(
-        dashboards.flatMap((d) => (d.gadgets || []).map((g) => g.filterId).filter(Boolean))
-      )];
+      const filterIds = [
+        ...new Set(dashboards.flatMap((d) => (d.gadgets || []).map((g) => g.filterId).filter(Boolean))),
+      ];
       if (filterIds.length) {
         // Two independent joins off the same filter id list: which fields a filter touches
         // (already existed, rolled up per dashboard) and what the filter is actually called
         // (new -- a gadget's config only ever carries the id). Neither failing should sink
         // the other, so each gets its own fallback rather than one Promise.all rejecting both.
         const [fieldsByFilter, filterNamesById] = await Promise.all([
-          loadFieldNamesForFilterIds(installationKey, filterMeta.version, filterIds)
-            .catch(fallbackOn("dashboard_inventory.field_join_failed", new Map(), { installationKey })),
-          loadFilterNamesForIds(installationKey, filterMeta.version, filterIds)
-            .catch(fallbackOn("dashboard_inventory.filter_name_join_failed", new Map(), { installationKey })),
+          loadFieldNamesForFilterIds(installationKey, filterMeta.version, filterIds).catch(
+            fallbackOn("dashboard_inventory.field_join_failed", new Map(), { installationKey }),
+          ),
+          loadFilterNamesForIds(installationKey, filterMeta.version, filterIds).catch(
+            fallbackOn("dashboard_inventory.filter_name_join_failed", new Map(), { installationKey }),
+          ),
         ]);
         for (const dashboard of dashboards) {
           const names = new Set();
@@ -503,7 +507,11 @@ export async function getDashboardInventory({ context }) {
       for (const dashboard of dashboards) {
         dashboard.fieldRefs = null;
         for (const gadget of dashboard.gadgets || []) {
-          if (gadget.filterId) { gadget.fieldRefs = null; gadget.filterName = null; gadget.filterViewUrl = null; }
+          if (gadget.filterId) {
+            gadget.fieldRefs = null;
+            gadget.filterName = null;
+            gadget.filterViewUrl = null;
+          }
         }
       }
     }

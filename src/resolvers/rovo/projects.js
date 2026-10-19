@@ -3,13 +3,7 @@
 // Moved verbatim from src/resolvers.js; see docs/resolvers-refactor.md.
 
 import { incrMetric, METRIC_NAMES, getInstallationKey } from "../../lib/jira-api.js";
-import {
-  pillarUnavailable,
-  agentOk,
-  agentNotFound,
-  rankMatches,
-  clampResults,
-} from "../../lib/rovo-agents.js";
+import { pillarUnavailable, agentOk, agentNotFound, rankMatches, clampResults } from "../../lib/rovo-agents.js";
 import { viewerProjects } from "../viewer.js";
 import { getProjectOverview } from "../project-overview.js";
 
@@ -58,7 +52,8 @@ export async function rovoProjectInspect(payload, context) {
     }
 
     const ov = await getProjectOverview({ payload: { projectId, projectKey }, context });
-    if (!ov.available) return { status: "not-authorised", message: ov.reason || "You do not have Browse Projects on this project." };
+    if (!ov.available)
+      return { status: "not-authorised", message: ov.reason || "You do not have Browse Projects on this project." };
 
     // Read off the keys getProjectOverview actually returns. This used to read projectType,
     // lead, workflowScheme, roleActors and fieldsInUse, none of which the overview has, so the
@@ -66,7 +61,9 @@ export async function rovoProjectInspect(payload, context) {
     return agentOk(ov.refreshedAt || null, {
       project: { projectId, projectKey: ov.projectKey || projectKey, projectName: ov.projectName || null },
       workflowScheme: ov.workflow?.available
-        ? (ov.workflow.scheme ? { id: ov.workflow.scheme.schemeId ?? null, name: ov.workflow.scheme.name } : null)
+        ? ov.workflow.scheme
+          ? { id: ov.workflow.scheme.schemeId ?? null, name: ov.workflow.scheme.name }
+          : null
         : { available: false, reason: ov.workflow?.reason || null },
       schemes: ov.schemes || null,
       roles: ov.roles || null,

@@ -31,10 +31,7 @@ export function AuditLogPanel() {
     return events.filter((e) => e.outcome === outcomeFilter);
   }, [events, outcomeFilter]);
 
-  const deniedCount = React.useMemo(
-    () => (events || []).filter((e) => e.outcome === "denied").length,
-    [events]
-  );
+  const deniedCount = React.useMemo(() => (events || []).filter((e) => e.outcome === "denied").length, [events]);
 
   return (
     <section className="admin-config-section audit-panel">
@@ -42,8 +39,8 @@ export function AuditLogPanel() {
         <div>
           <h3 className="admin-config-section__title">Audit log</h3>
           <p className="admin-config-section__hint">
-            Privileged actions and permission denials, newest first. Retained for 180 days.
-            Routine admin reads are not recorded.
+            Privileged actions and permission denials, newest first. Retained for 180 days. Routine admin reads are not
+            recorded.
           </p>
         </div>
         <button className="secondary-button" type="button" onClick={load} disabled={loading}>
@@ -52,15 +49,19 @@ export function AuditLogPanel() {
         </button>
       </div>
 
-      {error && <div className="danger-zone__error" role="alert">{error}</div>}
+      {error && (
+        <div className="danger-zone__error" role="alert">
+          {error}
+        </div>
+      )}
 
       {/* A denial means someone reached an admin resolver without admin permission --
           worth surfacing rather than leaving buried in a 200-row table. */}
       {deniedCount > 0 && (
         <div className="audit-panel__alert" role="status">
           <Icon name="alertTriangle" size={13} />
-          {deniedCount} permission {deniedCount === 1 ? "denial" : "denials"} in this window.
-          A denial means an admin resolver was reached by a caller without Jira admin permission.
+          {deniedCount} permission {deniedCount === 1 ? "denial" : "denials"} in this window. A denial means an admin
+          resolver was reached by a caller without Jira admin permission.
         </div>
       )}
 
@@ -80,9 +81,7 @@ export function AuditLogPanel() {
       )}
 
       {events && events.length === 0 && (
-        <div className="empty-state">
-          No audit events recorded yet. Privileged actions appear here once performed.
-        </div>
+        <div className="empty-state">No audit events recorded yet. Privileged actions appear here once performed.</div>
       )}
 
       {events && events.length > 0 && (
@@ -113,9 +112,7 @@ export function AuditLogPanel() {
               ))}
             </tbody>
           </table>
-          {visible.length === 0 && (
-            <div className="empty-state">No {outcomeFilter} events in this window.</div>
-          )}
+          {visible.length === 0 && <div className="empty-state">No {outcomeFilter} events in this window.</div>}
         </div>
       )}
     </section>

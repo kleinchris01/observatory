@@ -24,8 +24,13 @@ beforeEach(() => vi.clearAllMocks());
 
 describe("normalizeValue", () => {
   test("stringifies the id, keeps isDefault, and stamps the sort order", () => {
-    expect(normalizeValue({ id: 10001, name: "Done", isDefault: true }, 3))
-      .toEqual({ id: "10001", name: "Done", description: null, isDefault: true, sortOrder: 3 });
+    expect(normalizeValue({ id: 10001, name: "Done", isDefault: true }, 3)).toEqual({
+      id: "10001",
+      name: "Done",
+      description: null,
+      isDefault: true,
+      sortOrder: 3,
+    });
   });
 });
 
@@ -33,7 +38,9 @@ describe("isEstateBuildStale", () => {
   test("false unless building, true past the window", () => {
     expect(isEstateBuildStale({ state: "ready" })).toBe(false);
     expect(isEstateBuildStale({ state: "building", startedAt: new Date().toISOString() })).toBe(false);
-    expect(isEstateBuildStale({ state: "building", startedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString() })).toBe(true);
+    expect(
+      isEstateBuildStale({ state: "building", startedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString() }),
+    ).toBe(true);
   });
 });
 
@@ -41,13 +48,18 @@ describe("queueEstateSnapshotBuild", () => {
   test("marks building then pushes the job", async () => {
     await queueEstateSnapshotBuild("inst");
     expect(writeEstateSnapshotMeta).toHaveBeenCalledWith("inst", expect.objectContaining({ state: "building" }));
-    expect(inventorySnapshotQueue.push).toHaveBeenCalledWith({ body: { jobType: "build-estate-snapshot", installationKey: "inst" } });
+    expect(inventorySnapshotQueue.push).toHaveBeenCalledWith({
+      body: { jobType: "build-estate-snapshot", installationKey: "inst" },
+    });
   });
 });
 
 describe("buildEstateSnapshot", () => {
   test("writes both lists and marks the meta ready with totals", async () => {
-    jiraApi.getAllResolutions.mockResolvedValue([{ id: "1", name: "Done", isDefault: true }, { id: "2", name: "Fixed" }]);
+    jiraApi.getAllResolutions.mockResolvedValue([
+      { id: "1", name: "Done", isDefault: true },
+      { id: "2", name: "Fixed" },
+    ]);
     jiraApi.getAllPriorities.mockResolvedValue([{ id: "10", name: "High" }]);
 
     const result = await buildEstateSnapshot("inst");
@@ -57,9 +69,14 @@ describe("buildEstateSnapshot", () => {
     expect(version).toEqual(expect.any(String));
     expect(payload.resolutions).toHaveLength(2);
     expect(payload.priorities).toHaveLength(1);
-    expect(writeEstateSnapshotMeta).toHaveBeenLastCalledWith("inst", expect.objectContaining({
-      state: "ready", totalResolutions: 2, totalPriorities: 1,
-    }));
+    expect(writeEstateSnapshotMeta).toHaveBeenLastCalledWith(
+      "inst",
+      expect.objectContaining({
+        state: "ready",
+        totalResolutions: 2,
+        totalPriorities: 1,
+      }),
+    );
   });
 
   test("marks the build failed and rethrows on a hard error", async () => {

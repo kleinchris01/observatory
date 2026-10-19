@@ -12,19 +12,8 @@
 
 import { logger } from "./logger.js";
 import { inventorySnapshotQueue } from "./queues.js";
-import {
-  incrMetric,
-  METRIC_NAMES,
-  getApplicationRoles,
-  getGroupMembers,
-  mapWithConcurrency,
-} from "./jira-api.js";
-import {
-  ensureProjectStoreReady,
-  writeUserSnapshotMeta,
-  readUserSnapshotMeta,
-  replaceUserSnapshot,
-} from "./project-store.js";
+import { incrMetric, METRIC_NAMES, getApplicationRoles, getGroupMembers, mapWithConcurrency } from "./jira-api.js";
+import { ensureProjectStoreReady, writeUserSnapshotMeta, replaceUserSnapshot } from "./project-store.js";
 
 // Matches ISSUE_TYPE_BUILD_STALE_MS and for the same reason: the consumer ceiling is 900s,
 // plus a minute so a build finishing right at the limit is never declared stale out from
@@ -72,9 +61,12 @@ export function accessGroupsFromApplicationRoles(roles = []) {
       hasUnlimitedSeats: Boolean(role.hasUnlimitedSeats),
     });
 
-    const details = Array.isArray(role.groupDetails) && role.groupDetails.length
-      ? role.groupDetails.map((g) => ({ id: String(g.groupId || ""), name: g.name || null }))
-      : (Array.isArray(role.groups) ? role.groups.map((name) => ({ id: "", name })) : []);
+    const details =
+      Array.isArray(role.groupDetails) && role.groupDetails.length
+        ? role.groupDetails.map((g) => ({ id: String(g.groupId || ""), name: g.name || null }))
+        : Array.isArray(role.groups)
+          ? role.groups.map((name) => ({ id: "", name }))
+          : [];
 
     for (const g of details) {
       const key = g.id || `name:${g.name}`;
@@ -129,7 +121,9 @@ export async function buildUserSnapshot(installationKey) {
       if (!group.id) return { group, members: [] };
       const raw = await getGroupMembers(group.id).catch((error) => {
         logger.warn("user-snapshot.group_member_load_failed", {
-          installationKey, groupId: group.id, error: String(error?.message || error),
+          installationKey,
+          groupId: group.id,
+          error: String(error?.message || error),
         });
         return [];
       });
@@ -180,7 +174,11 @@ export async function buildUserSnapshot(installationKey) {
 
     incrMetric(METRIC_NAMES.userSnapshotCompleted);
     logger.info("user-snapshot.completed", {
-      version, users: users.length, activeUsers, accessRows: access.length, groups: groups.length,
+      version,
+      users: users.length,
+      activeUsers,
+      accessRows: access.length,
+      groups: groups.length,
     });
 
     return { version, users: users.length, groups: groups.length };

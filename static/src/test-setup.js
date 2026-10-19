@@ -3,7 +3,9 @@ import "@testing-library/jest-dom";
 // ResizeObserver is not implemented in jsdom — provide a no-op stub so
 // components that use it (ScrollableTableWrap, etc.) don't throw.
 global.ResizeObserver = class ResizeObserver {
-  constructor(cb) { this._cb = cb; }
+  constructor(cb) {
+    this._cb = cb;
+  }
   observe() {}
   unobserve() {}
   disconnect() {}
@@ -18,7 +20,6 @@ Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
 };
 
 // Mock createPortal to render children inline so jsdom can find them
-import { createPortal } from "react-dom";
 vi.mock("react-dom", async (importOriginal) => {
   const actual = await importOriginal();
   return {
@@ -32,5 +33,9 @@ vi.mock("react-dom", async (importOriginal) => {
 // test's render opens.
 import { beforeEach } from "vitest";
 beforeEach(() => {
-  try { window.localStorage.clear(); } catch { /* storage unavailable: nothing to clear */ }
+  try {
+    window.localStorage.clear();
+  } catch {
+    /* storage unavailable: nothing to clear */
+  }
 });

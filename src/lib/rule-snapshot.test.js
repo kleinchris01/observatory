@@ -22,7 +22,15 @@ function ruleWith(overrides = {}) {
     checksum: "abc123",
     partitionId: "part-1",
     currentVersionId: null,
-    trigger: { id: "t1", component: "TRIGGER", type: "jira.issue.created", value: {}, children: [], conditions: [], checksum: "t-sum" },
+    trigger: {
+      id: "t1",
+      component: "TRIGGER",
+      type: "jira.issue.created",
+      value: {},
+      children: [],
+      conditions: [],
+      checksum: "t-sum",
+    },
     components: [],
     tags: [],
     ...overrides,
@@ -95,7 +103,8 @@ describe("redactSecrets", () => {
   });
 
   it("removes client_secret from a form-encoded body but keeps grant_type and client_id", () => {
-    const body = "grant_type=client_credentials&client_id=00000000-0000-0000&client_secret=Ab-cD~efGhIjKlMn-opQrStUv~wXyZ01&scope=x";
+    const body =
+      "grant_type=client_credentials&client_id=00000000-0000-0000&client_secret=Ab-cD~efGhIjKlMn-opQrStUv~wXyZ01&scope=x";
     const out = redactSecrets({ customBody: body });
     expect(out.customBody).toContain("grant_type=client_credentials");
     expect(out.customBody).toContain("client_id=00000000-0000-0000");
@@ -118,12 +127,16 @@ describe("redactSecrets", () => {
     const out = redactSecrets({ headers: [{ name: "Authorization", value: "Bearer {{graphtoken}}" }] });
     expect(out.headers[0].value).toBe("Bearer {{graphtoken}}");
 
-    const literal = redactSecrets({ headers: [{ name: "Authorization", value: "Bearer eyJhbGciOiJIUzI1NiJ9.abcdefghij" }] });
+    const literal = redactSecrets({
+      headers: [{ name: "Authorization", value: "Bearer eyJhbGciOiJIUzI1NiJ9.abcdefghij" }],
+    });
     expect(literal.headers[0].value).toMatch(/^Bearer \[\[REDACTED:[0-9a-f]{8}\]\]$/);
   });
 
   it("finds secrets nested arbitrarily deep inside component children", () => {
-    const deep = { components: [{ children: [{ children: [{ value: { customBody: "client_secret=deadbeefdeadbeef" } }] }] }] };
+    const deep = {
+      components: [{ children: [{ children: [{ value: { customBody: "client_secret=deadbeefdeadbeef" } }] }] }],
+    };
     const out = redactSecrets(deep);
     expect(JSON.stringify(out)).not.toContain("deadbeefdeadbeef");
   });
@@ -204,7 +217,9 @@ describe("stripVolatileFields", () => {
 
   it("strips component checksums at every nesting level", () => {
     const rule = ruleWith({
-      components: [{ id: "c1", checksum: "x", children: [{ id: "c2", checksum: "y", conditions: [{ id: "c3", checksum: "z" }] }] }],
+      components: [
+        { id: "c1", checksum: "x", children: [{ id: "c2", checksum: "y", conditions: [{ id: "c3", checksum: "z" }] }] },
+      ],
     });
     const out = stripVolatileFields(rule);
     expect(JSON.stringify(out)).not.toContain("checksum");
@@ -213,20 +228,36 @@ describe("stripVolatileFields", () => {
   });
 
   it("drops the IS_RULE_UPDATED tag, which flips just from opening the editor", () => {
-    const out = stripVolatileFields(ruleWith({ tags: [{ id: 1, ruleIdUuid: "u", tagType: "IS_RULE_UPDATED", tagValue: "true" }] }));
+    const out = stripVolatileFields(
+      ruleWith({ tags: [{ id: 1, ruleIdUuid: "u", tagType: "IS_RULE_UPDATED", tagValue: "true" }] }),
+    );
     expect(out.tags).toEqual([]);
   });
 
   it("keeps provenance tags but discards their storage identifiers", () => {
     const out = stripVolatileFields(
-      ruleWith({ tags: [{ id: 99, ruleIdUuid: "uuid-1", tagType: "CREATION_TYPE", tagValue: "USER" }] })
+      ruleWith({ tags: [{ id: 99, ruleIdUuid: "uuid-1", tagType: "CREATION_TYPE", tagValue: "USER" }] }),
     );
     expect(out.tags).toEqual([{ tagType: "CREATION_TYPE", tagValue: "USER" }]);
   });
 
   it("sorts tags so reordering by the API is not a diff", () => {
-    const a = stripVolatileFields(ruleWith({ tags: [{ tagType: "TEMPLATE_ID", tagValue: "t1" }, { tagType: "CREATION_TYPE", tagValue: "USER" }] }));
-    const b = stripVolatileFields(ruleWith({ tags: [{ tagType: "CREATION_TYPE", tagValue: "USER" }, { tagType: "TEMPLATE_ID", tagValue: "t1" }] }));
+    const a = stripVolatileFields(
+      ruleWith({
+        tags: [
+          { tagType: "TEMPLATE_ID", tagValue: "t1" },
+          { tagType: "CREATION_TYPE", tagValue: "USER" },
+        ],
+      }),
+    );
+    const b = stripVolatileFields(
+      ruleWith({
+        tags: [
+          { tagType: "CREATION_TYPE", tagValue: "USER" },
+          { tagType: "TEMPLATE_ID", tagValue: "t1" },
+        ],
+      }),
+    );
     expect(a.tags).toEqual(b.tags);
   });
 
@@ -244,8 +275,23 @@ describe("serializeRule", () => {
   });
 
   it("is byte-stable across two exports that differ only in key order and volatile fields", () => {
-    const first = serializeRule({ ...ruleWith(), checksum: "sum-A", tags: [{ tagType: "IS_RULE_UPDATED", tagValue: "true" }] });
-    const second = serializeRule({ tags: [], state: "ENABLED", name: "Test rule", id: 123, checksum: "sum-B", trigger: ruleWith().trigger, components: [], clientKey: "client-1", partitionId: "part-2", currentVersionId: null });
+    const first = serializeRule({
+      ...ruleWith(),
+      checksum: "sum-A",
+      tags: [{ tagType: "IS_RULE_UPDATED", tagValue: "true" }],
+    });
+    const second = serializeRule({
+      tags: [],
+      state: "ENABLED",
+      name: "Test rule",
+      id: 123,
+      checksum: "sum-B",
+      trigger: ruleWith().trigger,
+      components: [],
+      clientKey: "client-1",
+      partitionId: "part-2",
+      currentVersionId: null,
+    });
     expect(first).toBe(second);
   });
 
@@ -291,7 +337,10 @@ describe("buildManifest", () => {
   });
 
   it("keeps every clientKey when they disagree, rather than silently picking one", () => {
-    const mixed = [{ id: 1, clientKey: "a" }, { id: 2, clientKey: "b" }];
+    const mixed = [
+      { id: 1, clientKey: "a" },
+      { id: 2, clientKey: "b" },
+    ];
     expect(buildManifest({ rules: mixed }).clientKey).toEqual(["a", "b"]);
   });
 

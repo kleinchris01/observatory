@@ -100,8 +100,6 @@ describe("ignoreWith", () => {
   });
 
   test("works as a drop-in catch handler without changing the resolved value", async () => {
-    await expect(
-      Promise.reject(new Error("nope")).catch(ignoreWith("x.ignored"))
-    ).resolves.toBeUndefined();
+    await expect(Promise.reject(new Error("nope")).catch(ignoreWith("x.ignored"))).resolves.toBeUndefined();
   });
 });

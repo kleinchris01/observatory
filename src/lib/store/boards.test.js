@@ -34,7 +34,10 @@ function harness() {
     const entry = { statement: String(statement), params: null };
     issued.push(entry);
     const stub = {
-      bindParams: (...params) => { entry.params = params; return stub; },
+      bindParams: (...params) => {
+        entry.params = params;
+        return stub;
+      },
       execute: () => Promise.resolve({ rows: nextRows }),
     };
     return stub;
@@ -43,7 +46,9 @@ function harness() {
 
 const find = (match) => issued.find((e) => e.statement.includes(match));
 const findAll = (match) => issued.filter((e) => e.statement.includes(match));
-const mockRows = (rows) => { nextRows = rows; };
+const mockRows = (rows) => {
+  nextRows = rows;
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -54,12 +59,23 @@ beforeEach(() => {
 describe("replaceBoardSnapshot", () => {
   test("deletes only this scope from both tables, then inserts boards (15 cols) and columns (8 cols)", async () => {
     await replaceBoardSnapshot("inst", "v1", {
-      boards: [{
-        boardId: "1", name: "Scrum", type: "scrum",
-        locationType: "project", locationId: 10, locationKey: "AAA", locationName: "Alpha",
-        filterId: 4001, subQuery: "labels = x", estimationField: "Story Points",
-        rankingField: 10019, columnCount: 2, configReadable: true,
-      }],
+      boards: [
+        {
+          boardId: "1",
+          name: "Scrum",
+          type: "scrum",
+          locationType: "project",
+          locationId: 10,
+          locationKey: "AAA",
+          locationName: "Alpha",
+          filterId: 4001,
+          subQuery: "labels = x",
+          estimationField: "Story Points",
+          rankingField: 10019,
+          columnCount: 2,
+          configReadable: true,
+        },
+      ],
       columns: [
         { boardId: "1", index: 0, name: "To Do", statusIds: "1,2", min: null, max: null },
         { boardId: "1", index: 1, name: "Done", statusIds: "5", min: 1, max: 4 },
@@ -103,18 +119,38 @@ describe("replaceBoardSnapshot", () => {
 
 describe("loadBoards", () => {
   test("scopes by scope+version and maps the rows", async () => {
-    mockRows([{
-      board_id: "1", name: "Scrum", type: "scrum", location_type: "project",
-      location_id: "10", location_key: "AAA", location_name: "Alpha",
-      filter_id: "4001", sub_query: null, estimation_field: "Story Points",
-      ranking_field: "10019", column_count: 3, config_readable: 1,
-    }]);
+    mockRows([
+      {
+        board_id: "1",
+        name: "Scrum",
+        type: "scrum",
+        location_type: "project",
+        location_id: "10",
+        location_key: "AAA",
+        location_name: "Alpha",
+        filter_id: "4001",
+        sub_query: null,
+        estimation_field: "Story Points",
+        ranking_field: "10019",
+        column_count: 3,
+        config_readable: 1,
+      },
+    ]);
     const rows = await loadBoards("inst", "v1");
     expect(rows[0]).toEqual({
-      boardId: "1", name: "Scrum", type: "scrum", locationType: "project",
-      locationId: "10", locationKey: "AAA", locationName: "Alpha",
-      filterId: "4001", subQuery: null, estimationField: "Story Points",
-      rankingField: "10019", columnCount: 3, configReadable: true,
+      boardId: "1",
+      name: "Scrum",
+      type: "scrum",
+      locationType: "project",
+      locationId: "10",
+      locationKey: "AAA",
+      locationName: "Alpha",
+      filterId: "4001",
+      subQuery: null,
+      estimationField: "Story Points",
+      rankingField: "10019",
+      columnCount: 3,
+      configReadable: true,
     });
     expect(find("FROM snapshot_boards").params).toEqual(["inst", "v1"]);
   });
@@ -122,7 +158,9 @@ describe("loadBoards", () => {
 
 describe("loadBoardColumns", () => {
   test("splits the status id list and can scope to one board", async () => {
-    mockRows([{ board_id: "1", column_index: 0, name: "To Do", status_ids: "1,2,3", min_constraint: null, max_constraint: 5 }]);
+    mockRows([
+      { board_id: "1", column_index: 0, name: "To Do", status_ids: "1,2,3", min_constraint: null, max_constraint: 5 },
+    ]);
     const cols = await loadBoardColumns("inst", "v1", "1");
     expect(cols[0]).toEqual({ boardId: "1", index: 0, name: "To Do", statusIds: ["1", "2", "3"], min: null, max: 5 });
     expect(find("FROM snapshot_board_columns").params).toEqual(["inst", "v1", "1"]);
@@ -143,7 +181,13 @@ describe("board snapshot meta", () => {
 
   test("writeBoardSnapshotMeta upserts the totals", async () => {
     mockRows([]);
-    await writeBoardSnapshotMeta("inst", { state: "ready", version: "v2", totalBoards: 40, totalColumns: 190, boardsUnreadable: 3 });
+    await writeBoardSnapshotMeta("inst", {
+      state: "ready",
+      version: "v2",
+      totalBoards: 40,
+      totalColumns: 190,
+      boardsUnreadable: 3,
+    });
     const up = find("INSERT INTO board_snapshot_meta");
     expect(up.statement).toContain("ON DUPLICATE KEY UPDATE");
     expect(up.params[0]).toBe("inst");

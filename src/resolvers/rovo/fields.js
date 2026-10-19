@@ -29,15 +29,15 @@ export function formatFieldCandidate(field) {
 }
 
 export function findFieldFromSnapshot(fields, identifier) {
-  const n = String(identifier || "").trim().toLowerCase();
+  const n = String(identifier || "")
+    .trim()
+    .toLowerCase();
   if (!n) return null;
   return (
     fields.find((f) => f.id.toLowerCase() === n) ||
     fields.find((f) => f.name.trim().toLowerCase() === n) ||
     fields.find((f) => f.name.trim().toLowerCase().startsWith(n)) ||
-    fields.find((f) =>
-      [f.name, f.id, f.description].filter(Boolean).some((v) => v.toLowerCase().includes(n))
-    ) ||
+    fields.find((f) => [f.name, f.id, f.description].filter(Boolean).some((v) => v.toLowerCase().includes(n))) ||
     null
   );
 }
@@ -97,7 +97,11 @@ export async function rovoInspectField(payload, context) {
 
   const matchedField = findFieldFromSnapshot(fields, fieldIdentifier);
   if (!matchedField) {
-    return { status: "not-found", snapshotRefreshedAt: meta.refreshedAt, message: `No field matched "${fieldIdentifier}".` };
+    return {
+      status: "not-found",
+      snapshotRefreshedAt: meta.refreshedAt,
+      message: `No field matched "${fieldIdentifier}".`,
+    };
   }
 
   const {
@@ -111,7 +115,7 @@ export async function rovoInspectField(payload, context) {
   // bare-number tradeoff already accepted elsewhere in this file.
   const browsableProjectIds = await getBrowsableProjectIds(
     context?.accountId,
-    rawProjectUsage.map((p) => p.projectId)
+    rawProjectUsage.map((p) => p.projectId),
   );
   const projectUsage = rawProjectUsage.filter((p) => browsableProjectIds.has(String(p.projectId)));
 

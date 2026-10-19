@@ -53,7 +53,9 @@ export async function getBoardInventory({ context }) {
   // than as a clean bill of health.
   const [filters, statusCatalog] = await Promise.all([
     filterMeta?.version ? loadFilters(installationKey, filterMeta.version).catch(() => null) : Promise.resolve(null),
-    workflowMeta?.version ? loadStatusesCatalog(installationKey, workflowMeta.version).catch(() => null) : Promise.resolve(null),
+    workflowMeta?.version
+      ? loadStatusesCatalog(installationKey, workflowMeta.version).catch(() => null)
+      : Promise.resolve(null),
   ]);
   const knownStatusIds = statusCatalog ? new Set(statusCatalog.map((s) => String(s.id ?? s.statusId))) : null;
 

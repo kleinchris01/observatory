@@ -24,7 +24,8 @@ export async function rovoSearchAutomationRules(payload, context) {
   if (!analysis || !directory) {
     return {
       status: "analysis-unavailable",
-      message: "No automation analysis has been built for this site yet. An administrator can build one from the Automation tab by importing a rule export.",
+      message:
+        "No automation analysis has been built for this site yet. An administrator can build one from the Automation tab by importing a rule export.",
     };
   }
 
@@ -32,13 +33,21 @@ export async function rovoSearchAutomationRules(payload, context) {
 
   const riskByRuleId = new Map();
   for (const row of findings?.findings ?? []) {
-    riskByRuleId.set(row.id, (row.r ?? []).map((r) => r.c));
+    riskByRuleId.set(
+      row.id,
+      (row.r ?? []).map((r) => r.c),
+    );
   }
 
   const term = query.toLowerCase();
   const matches = [];
   for (const rule of ruleDirectoryMap(directory).values()) {
-    if (!String(rule.name || "").toLowerCase().includes(term)) continue;
+    if (
+      !String(rule.name || "")
+        .toLowerCase()
+        .includes(term)
+    )
+      continue;
     if (stateFilter === "enabled" && !rule.enabled) continue;
     if (stateFilter === "disabled" && rule.enabled) continue;
     matches.push({
@@ -77,7 +86,8 @@ export async function rovoInspectAutomationRule(payload, context) {
   const identifier = String(payload?.ruleIdentifier || "").trim();
   if (!identifier) return { status: "error", message: "A rule id or name is required." };
 
-  const { analysis, directory, findings, fields, statuses, staleAfterDays } = await loadAutomationForAgent(installationKey);
+  const { analysis, directory, findings, fields, statuses, staleAfterDays } =
+    await loadAutomationForAgent(installationKey);
   if (!analysis || !directory) {
     return { status: "analysis-unavailable", message: "No automation analysis has been built for this site yet." };
   }
@@ -92,7 +102,11 @@ export async function rovoInspectAutomationRule(payload, context) {
   const rule =
     byId.get(Number(identifier)) ??
     [...byId.values()].find((r) => String(r.name || "").toLowerCase() === wanted) ??
-    [...byId.values()].find((r) => String(r.name || "").toLowerCase().includes(wanted));
+    [...byId.values()].find((r) =>
+      String(r.name || "")
+        .toLowerCase()
+        .includes(wanted),
+    );
 
   if (!rule) return { status: "not-found", message: `No automation rule matched "${identifier}".` };
 
@@ -188,10 +202,11 @@ export async function rovoAutomationUsage(payload, context) {
   }
 
   const byId = ruleDirectoryMap(directory);
-  const expand = (ids = []) => ids.map((id) => {
-    const r = byId.get(id);
-    return { ruleId: id, name: r?.name ?? `Rule ${id}`, state: r ? (r.enabled ? "ENABLED" : "DISABLED") : "UNKNOWN" };
-  });
+  const expand = (ids = []) =>
+    ids.map((id) => {
+      const r = byId.get(id);
+      return { ruleId: id, name: r?.name ?? `Rule ${id}`, state: r ? (r.enabled ? "ENABLED" : "DISABLED") : "UNKNOWN" };
+    });
 
   const referenced = entry.writeCount > 0 || entry.readCount > 0 || entry.triggerCount > 0;
 
@@ -213,11 +228,12 @@ export async function rovoAutomationUsage(payload, context) {
     // rule that wrote this field a fortnight ago almost certainly still does, and "no" is
     // the cautious answer anyway. An entry found with no references in any direction is an
     // absence claim like the not-found branch above, so it answers to the same test.
-    safeToDelete: referenced ? false : (evidence.absenceIsEvidence ? true : null),
-    guidance: entry.writeCount > 0
-      ? `Deleting this ${kind} would break ${entry.writeCount} rule(s) that write to it.`
-      : referenced
-        ? "No rule writes this, but rules that read it will misbehave if it is removed."
-        : evidence.blockers.map((b) => b.message).join(" ") || "No rule references this.",
+    safeToDelete: referenced ? false : evidence.absenceIsEvidence ? true : null,
+    guidance:
+      entry.writeCount > 0
+        ? `Deleting this ${kind} would break ${entry.writeCount} rule(s) that write to it.`
+        : referenced
+          ? "No rule writes this, but rules that read it will misbehave if it is removed."
+          : evidence.blockers.map((b) => b.message).join(" ") || "No rule references this.",
   };
 }

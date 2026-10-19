@@ -58,26 +58,33 @@ describe("normalizers", () => {
         { permission: "CREATE_ISSUES", holder: { type: "user", value: "acc-1", user: { displayName: "Ann" } } },
       ],
     });
-    expect(holders).toEqual(expect.arrayContaining([
-      expect.objectContaining({ context: "BROWSE_PROJECTS", holderType: "anyone", holderValue: "" }),
-      expect.objectContaining({ holderType: "group", holderValue: "g-1", holderLabel: "site-admins" }),
-      expect.objectContaining({ holderType: "user", holderValue: "acc-1", holderLabel: "Ann" }),
-    ]));
+    expect(holders).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ context: "BROWSE_PROJECTS", holderType: "anyone", holderValue: "" }),
+        expect.objectContaining({ holderType: "group", holderValue: "g-1", holderLabel: "site-admins" }),
+        expect.objectContaining({ holderType: "user", holderValue: "acc-1", holderLabel: "Ann" }),
+      ]),
+    );
   });
 
   test("notificationEventsToHolders maps Jira's recipient vocabulary onto the shared one", () => {
     const holders = notificationEventsToHolders({
       id: 9,
       notificationSchemeEvents: [
-        { event: { id: 1, name: "Issue Created" }, notifications: [
-          { notificationType: "CurrentAssignee" },
-          { notificationType: "User", parameter: "acc-2" },
-          { notificationType: "ProjectRole", parameter: "role-10" },
-        ] },
+        {
+          event: { id: 1, name: "Issue Created" },
+          notifications: [
+            { notificationType: "CurrentAssignee" },
+            { notificationType: "User", parameter: "acc-2" },
+            { notificationType: "ProjectRole", parameter: "role-10" },
+          ],
+        },
       ],
     });
     expect(holders.map((h) => `${h.holderType}:${h.holderValue}`)).toEqual([
-      "assignee:", "user:acc-2", "projectRole:role-10",
+      "assignee:",
+      "user:acc-2",
+      "projectRole:role-10",
     ]);
     expect(holders[0].contextLabel).toBe("Issue Created");
   });
@@ -87,7 +94,9 @@ describe("isAccessBuildStale", () => {
   test("false unless building, true past the window", () => {
     expect(isAccessBuildStale({ state: "ready" })).toBe(false);
     expect(isAccessBuildStale({ state: "building", startedAt: new Date().toISOString() })).toBe(false);
-    expect(isAccessBuildStale({ state: "building", startedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString() })).toBe(true);
+    expect(
+      isAccessBuildStale({ state: "building", startedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString() }),
+    ).toBe(true);
   });
 });
 
@@ -95,7 +104,9 @@ describe("queueAccessSnapshotBuild", () => {
   test("marks building then pushes the job", async () => {
     await queueAccessSnapshotBuild("inst");
     expect(writeAccessSnapshotMeta).toHaveBeenCalledWith("inst", expect.objectContaining({ state: "building" }));
-    expect(inventorySnapshotQueue.push).toHaveBeenCalledWith({ body: { jobType: "build-access-snapshot", installationKey: "inst" } });
+    expect(inventorySnapshotQueue.push).toHaveBeenCalledWith({
+      body: { jobType: "build-access-snapshot", installationKey: "inst" },
+    });
   });
 });
 
@@ -103,19 +114,29 @@ describe("buildAccessSnapshot", () => {
   test("writes all three scheme types with holders, levels and project assignments", async () => {
     jiraApi.getAllJiraProjects.mockResolvedValue([{ id: "10", key: "OPS", name: "Ops" }]);
     jiraApi.getAllPermissionSchemes.mockResolvedValue([
-      { id: 1, name: "Prod", permissions: [{ permission: "BROWSE_PROJECTS", holder: { type: "projectRole", value: "role-1" } }] },
+      {
+        id: 1,
+        name: "Prod",
+        permissions: [{ permission: "BROWSE_PROJECTS", holder: { type: "projectRole", value: "role-1" } }],
+      },
     ]);
     jiraApi.getProjectPermissionScheme.mockResolvedValue({ id: 1, name: "Prod" });
     jiraApi.getAllIssueSecuritySchemes.mockResolvedValue([{ id: "s1", name: "Sec", defaultSecurityLevelId: "L1" }]);
     jiraApi.getIssueSecurityLevels.mockResolvedValue([{ id: "L1", name: "Internal" }]);
-    jiraApi.getIssueSecurityLevelMembers.mockResolvedValue([{ issueSecurityLevelId: "L1", holder: { type: "group", value: "g-staff" } }]);
+    jiraApi.getIssueSecurityLevelMembers.mockResolvedValue([
+      { issueSecurityLevelId: "L1", holder: { type: "group", value: "g-staff" } },
+    ]);
     jiraApi.getIssueSecuritySchemeProjects.mockResolvedValue([{ issueSecuritySchemeId: "s1", projectIds: ["10"] }]);
     jiraApi.getAllNotificationSchemes.mockResolvedValue([
       // No `projects` field: the real notificationscheme resource never carries one, and a
       // fixture that added it here would let the bug this pins back in unnoticed.
-      { id: "n1", name: "Notif", notificationSchemeEvents: [
-        { event: { id: 1, name: "Created" }, notifications: [{ notificationType: "User", parameter: "acc-1" }] },
-      ] },
+      {
+        id: "n1",
+        name: "Notif",
+        notificationSchemeEvents: [
+          { event: { id: 1, name: "Created" }, notifications: [{ notificationType: "User", parameter: "acc-1" }] },
+        ],
+      },
     ]);
     jiraApi.getNotificationSchemeProjects.mockResolvedValue([{ notificationSchemeId: "n1", projectIds: ["10"] }]);
 
@@ -132,7 +153,11 @@ describe("buildAccessSnapshot", () => {
     // response reported zero projects for every scheme, because that field does not exist
     // there. This asserts the notification scheme's project row actually arrives via the
     // bulk reverse lookup instead.
-    expect(payload.schemeProjects.some((p) => p.schemeType === "notification" && p.schemeId === "n1" && p.projectId === "10")).toBe(true);
+    expect(
+      payload.schemeProjects.some(
+        (p) => p.schemeType === "notification" && p.schemeId === "n1" && p.projectId === "10",
+      ),
+    ).toBe(true);
     expect(writeAccessSnapshotMeta).toHaveBeenLastCalledWith("inst", expect.objectContaining({ state: "ready" }));
   });
 
@@ -146,7 +171,11 @@ describe("buildAccessSnapshot", () => {
       { id: 10003, name: "Members", description: "" },
     ]);
     jiraApi.getProjectRolesForProject.mockResolvedValue([
-      { roleId: "10002", roleName: "Administrators", actors: [{ type: "group", groupId: "g-admins", displayName: "admins" }] },
+      {
+        roleId: "10002",
+        roleName: "Administrators",
+        actors: [{ type: "group", groupId: "g-admins", displayName: "admins" }],
+      },
       { roleId: "10003", roleName: "Members", actors: [] },
     ]);
 
@@ -155,9 +184,17 @@ describe("buildAccessSnapshot", () => {
     expect(result.projectRole).toBe(2);
     const [, , payload] = replaceAccessSnapshot.mock.calls[0];
     expect(payload.schemes.some((s) => s.schemeType === "project-role" && s.id === "10002")).toBe(true);
-    expect(payload.holders.some((h) => h.schemeType === "project-role" && h.holderType === "group" && h.holderValue === "g-admins")).toBe(true);
+    expect(
+      payload.holders.some(
+        (h) => h.schemeType === "project-role" && h.holderType === "group" && h.holderValue === "g-admins",
+      ),
+    ).toBe(true);
     // Members has no actors on OPS -> a sentinel row so "empty here" is queryable.
-    expect(payload.holders.some((h) => h.schemeType === "project-role" && h.schemeId === "10003" && h.holderType === "empty")).toBe(true);
+    expect(
+      payload.holders.some(
+        (h) => h.schemeType === "project-role" && h.schemeId === "10003" && h.holderType === "empty",
+      ),
+    ).toBe(true);
     expect(writeAccessSnapshotMeta).toHaveBeenLastCalledWith("inst", expect.objectContaining({ totalProjectRoles: 2 }));
   });
 

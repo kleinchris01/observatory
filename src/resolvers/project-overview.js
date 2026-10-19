@@ -46,16 +46,24 @@ export function buildProjectHealthRollup({ perIssue, siteMedianPerIssue, adoptio
   const signals = [];
 
   if (adoption?.measured) {
-    const tone = adoption.fellOff ? "critical" : adoption.neverAdopted ? "warning"
-      : (adoption.score ?? 0) >= 66 ? "success" : "neutral";
+    const tone = adoption.fellOff
+      ? "critical"
+      : adoption.neverAdopted
+        ? "warning"
+        : (adoption.score ?? 0) >= 66
+          ? "success"
+          : "neutral";
     signals.push({
       key: "adoption",
       label: "Adoption",
       value: adoption.score ?? "—",
-      detail: adoption.fellOff ? "running far below its own historical rate"
-        : adoption.neverAdopted ? "never picked up — under an issue a month across its life"
-        : adoption.volumePercentile != null ? `busier than ${adoption.volumePercentile}% of projects here`
-        : "measured",
+      detail: adoption.fellOff
+        ? "running far below its own historical rate"
+        : adoption.neverAdopted
+          ? "never picked up — under an issue a month across its life"
+          : adoption.volumePercentile != null
+            ? `busier than ${adoption.volumePercentile}% of projects here`
+            : "measured",
       tone,
     });
   } else {
@@ -63,7 +71,8 @@ export function buildProjectHealthRollup({ perIssue, siteMedianPerIssue, adoptio
       key: "adoption",
       label: "Adoption",
       value: "—",
-      detail: adoption?.dataStale ? "activity data is stale — the last full scan didn't finish"
+      detail: adoption?.dataStale
+        ? "activity data is stale — the last full scan didn't finish"
         : "no scanned activity yet",
       tone: "neutral",
     });
@@ -75,9 +84,12 @@ export function buildProjectHealthRollup({ perIssue, siteMedianPerIssue, adoptio
     key: "configuration",
     label: "Configuration weight",
     value: perIssue != null ? `${perIssue.toFixed(1)} fields/issue` : "—",
-    detail: perIssue == null ? "needs a Universal Scan for issue counts"
-      : siteMedianPerIssue ? `site median ${siteMedianPerIssue.toFixed(1)}${ratio >= 2 ? ` — ${ratio.toFixed(1)}× heavier` : ""}`
-      : "how much of the form gets filled",
+    detail:
+      perIssue == null
+        ? "needs a Universal Scan for issue counts"
+        : siteMedianPerIssue
+          ? `site median ${siteMedianPerIssue.toFixed(1)}${ratio >= 2 ? ` — ${ratio.toFixed(1)}× heavier` : ""}`
+          : "how much of the form gets filled",
     tone: ratio != null && ratio >= 6 ? "critical" : configHeavy ? "warning" : "neutral",
   });
 
@@ -100,9 +112,10 @@ export function buildProjectHealthRollup({ perIssue, siteMedianPerIssue, adoptio
       key: "forms",
       label: "Forms",
       value: readable,
-      detail: screens.unresolvedScreens > 0
-        ? `${screens.unresolvedScreens} screens on this site could not be read`
-        : "screens this project routes to",
+      detail:
+        screens.unresolvedScreens > 0
+          ? `${screens.unresolvedScreens} screens on this site could not be read`
+          : "screens this project routes to",
       tone: screens.unresolvedScreens > 0 ? "warning" : "neutral",
     });
   }
@@ -112,20 +125,23 @@ export function buildProjectHealthRollup({ perIssue, siteMedianPerIssue, adoptio
       key: "process",
       label: "Process",
       value: workflow.scheme.sharedWithCount > 0 ? "shared" : "local",
-      detail: workflow.scheme.sharedWithCount > 0
-        ? `workflow scheme shared with ${workflow.scheme.sharedWithCount} other ${workflow.scheme.sharedWithCount === 1 ? "project" : "projects"}`
-        : "workflow scheme used only here",
+      detail:
+        workflow.scheme.sharedWithCount > 0
+          ? `workflow scheme shared with ${workflow.scheme.sharedWithCount} other ${workflow.scheme.sharedWithCount === 1 ? "project" : "projects"}`
+          : "workflow scheme used only here",
       tone: "neutral",
     });
   }
 
-  const worst = signals.some((s) => s.tone === "critical") ? "critical"
-    : signals.some((s) => s.tone === "warning") ? "warning" : "healthy";
+  const worst = signals.some((s) => s.tone === "critical")
+    ? "critical"
+    : signals.some((s) => s.tone === "warning")
+      ? "warning"
+      : "healthy";
 
   return {
     band: worst,
-    headline: worst === "critical" ? "Needs attention"
-      : worst === "warning" ? "Worth a look" : "Looks healthy",
+    headline: worst === "critical" ? "Needs attention" : worst === "warning" ? "Worth a look" : "Looks healthy",
     signals,
   };
 }
@@ -159,10 +175,12 @@ export async function getProjectOverview({ payload, context }) {
   // The agile boards whose location is this project. loadBoards returns the whole estate for
   // a version -- a few hundred rows -- so filtering in memory is cheaper than a scoped query.
   const projectBoards = boardMeta?.version
-    ? (await loadBoards(installationKey, boardMeta.version).catch(() => []))
-        .filter((b) => b.locationType === "project" &&
+    ? (await loadBoards(installationKey, boardMeta.version).catch(() => [])).filter(
+        (b) =>
+          b.locationType === "project" &&
           (String(b.locationId) === String(projectId) ||
-           (projectKeyHint && String(b.locationKey || "").toLowerCase() === projectKeyHint.toLowerCase())))
+            (projectKeyHint && String(b.locationKey || "").toLowerCase() === projectKeyHint.toLowerCase())),
+      )
     : [];
 
   // The project's own row, plus every browsable project's activity -- needed both for this
@@ -175,49 +193,53 @@ export async function getProjectOverview({ payload, context }) {
   const thisProject = allProjects.find((p) => String(p.projectId) === String(projectId)) || null;
   const projectKey = projectKeyHint || thisProject?.projectKey || "";
 
-  const [scheme, screens, rules, globalRules, projectFilters, activityByProject, projectSchemeRows, projectRoleRows] = await Promise.all([
-    workflowMeta?.version
-      ? loadWorkflowSchemeForProject(installationKey, workflowMeta.version, projectId).catch(() => null)
-      : Promise.resolve(null),
-    screenMeta?.version
-      ? loadScreensForProject(installationKey, screenMeta.version, projectId).catch(() => null)
-      : Promise.resolve(null),
-    loadRulesForProject(installationKey, projectId).catch(() => null),
-    // Needs the field snapshot: the evidence is field usage in this project, so without it
-    // there is nothing to infer from and the list is withheld rather than guessed at.
-    fieldMeta?.version
-      ? loadGlobalRulesAffectingProject(installationKey, fieldMeta.version, projectId).catch(() => null)
-      : Promise.resolve(null),
-    // Filters whose JQL names this project. The filter snapshot already indexes project refs
-    // pulled out of each filter's JQL, so this is the same join the field pillar uses.
-    filterMeta?.version && projectKey
-      ? loadFilterReferencesFor(installationKey, filterMeta.version, "project", projectKey).catch(() => null)
-      : Promise.resolve(null),
-    loadProjectActivity(installationKey).catch(() => new Map()),
-    accessMeta?.version
-      ? loadProjectSchemes(installationKey, accessMeta.version, projectId).catch(() => null)
-      : Promise.resolve(null),
-    accessMeta?.version
-      ? loadProjectRoleActors(installationKey, accessMeta.version, projectId).catch(() => null)
-      : Promise.resolve(null),
-  ]);
+  const [scheme, screens, rules, globalRules, projectFilters, activityByProject, projectSchemeRows, projectRoleRows] =
+    await Promise.all([
+      workflowMeta?.version
+        ? loadWorkflowSchemeForProject(installationKey, workflowMeta.version, projectId).catch(() => null)
+        : Promise.resolve(null),
+      screenMeta?.version
+        ? loadScreensForProject(installationKey, screenMeta.version, projectId).catch(() => null)
+        : Promise.resolve(null),
+      loadRulesForProject(installationKey, projectId).catch(() => null),
+      // Needs the field snapshot: the evidence is field usage in this project, so without it
+      // there is nothing to infer from and the list is withheld rather than guessed at.
+      fieldMeta?.version
+        ? loadGlobalRulesAffectingProject(installationKey, fieldMeta.version, projectId).catch(() => null)
+        : Promise.resolve(null),
+      // Filters whose JQL names this project. The filter snapshot already indexes project refs
+      // pulled out of each filter's JQL, so this is the same join the field pillar uses.
+      filterMeta?.version && projectKey
+        ? loadFilterReferencesFor(installationKey, filterMeta.version, "project", projectKey).catch(() => null)
+        : Promise.resolve(null),
+      loadProjectActivity(installationKey).catch(() => new Map()),
+      accessMeta?.version
+        ? loadProjectSchemes(installationKey, accessMeta.version, projectId).catch(() => null)
+        : Promise.resolve(null),
+      accessMeta?.version
+        ? loadProjectRoleActors(installationKey, accessMeta.version, projectId).catch(() => null)
+        : Promise.resolve(null),
+    ]);
 
   const workflowPillar = workflowMeta?.version
     ? { available: true, scheme }
     : { available: false, reason: "No workflow inventory has been built yet." };
-  const screensPillar = screenMeta?.version && screens
-    ? { available: true, screens, unresolvedScreens: screenMeta.unresolvedScreens || 0 }
-    : { available: false, reason: "No screen inventory has been built yet." };
+  const screensPillar =
+    screenMeta?.version && screens
+      ? { available: true, screens, unresolvedScreens: screenMeta.unresolvedScreens || 0 }
+      : { available: false, reason: "No screen inventory has been built yet." };
   const automationPillar = rules
     ? {
-      available: true,
-      rules,
-      enabledCount: rules.filter((r) => r.enabled).length,
-      disabledCount: rules.filter((r) => !r.enabled).length,
-      globalRules: globalRules || [],
-      globalRulesAvailable: Boolean(globalRules),
-      globalRulesReason: globalRules ? null : "Needs the field snapshot to tell which site-wide rules act on this project.",
-    }
+        available: true,
+        rules,
+        enabledCount: rules.filter((r) => r.enabled).length,
+        disabledCount: rules.filter((r) => !r.enabled).length,
+        globalRules: globalRules || [],
+        globalRulesAvailable: Boolean(globalRules),
+        globalRulesReason: globalRules
+          ? null
+          : "Needs the field snapshot to tell which site-wide rules act on this project.",
+      }
     : { available: false, reason: "No automation analysis has been built yet." };
 
   // Adoption for this project, scored against every browsable project so its percentile means
@@ -230,7 +252,8 @@ export async function getProjectOverview({ payload, context }) {
     if (adoptionRow) adoptionRow.dataStale = adoption.dataStale;
     const perIssueValues = allProjects
       .map((p) => {
-        const f = Number(p.totalIssueCount), u = Number(p.uniqueIssueCount);
+        const f = Number(p.totalIssueCount),
+          u = Number(p.uniqueIssueCount);
         return Number.isFinite(f) && Number.isFinite(u) && u > 0 ? f / u : null;
       })
       .filter((v) => v != null)
@@ -240,9 +263,8 @@ export async function getProjectOverview({ payload, context }) {
 
   const thisFills = Number(thisProject?.totalIssueCount);
   const thisIssues = Number(thisProject?.uniqueIssueCount);
-  const perIssue = Number.isFinite(thisFills) && Number.isFinite(thisIssues) && thisIssues > 0
-    ? thisFills / thisIssues
-    : null;
+  const perIssue =
+    Number.isFinite(thisFills) && Number.isFinite(thisIssues) && thisIssues > 0 ? thisFills / thisIssues : null;
 
   return {
     available: true,
@@ -261,51 +283,53 @@ export async function getProjectOverview({ payload, context }) {
     // renamed or archived. Tri-state like the rest: no filter snapshot is not "no filters".
     filters: filterMeta?.version
       ? {
-        available: true,
-        total: projectFilters?.total ?? 0,
-        filters: projectFilters?.filters ?? [],
-      }
+          available: true,
+          total: projectFilters?.total ?? 0,
+          filters: projectFilters?.filters ?? [],
+        }
       : { available: false, reason: "No saved-filter inventory has been built yet." },
     adoption: adoptionRow,
     // The permission / issue-security / notification scheme this project uses, each flagged
     // if it is the site default. Tri-state like the rest.
     schemes: accessMeta?.version
       ? {
-        available: true,
-        permission: (projectSchemeRows || []).find((s) => s.schemeType === "permission") || null,
-        security: (projectSchemeRows || []).find((s) => s.schemeType === "security") || null,
-        notification: (projectSchemeRows || []).find((s) => s.schemeType === "notification") || null,
-      }
+          available: true,
+          permission: (projectSchemeRows || []).find((s) => s.schemeType === "permission") || null,
+          security: (projectSchemeRows || []).find((s) => s.schemeType === "security") || null,
+          notification: (projectSchemeRows || []).find((s) => s.schemeType === "notification") || null,
+        }
       : { available: false, reason: "No access scheme inventory has been built yet." },
     // Project-role actors, grouped by role. An "empty" holder means the role exists here
     // with nobody in it.
     roles: accessMeta?.version
       ? {
-        available: true,
-        byRole: Object.values((projectRoleRows || []).reduce((acc, r) => {
-          const key = r.roleId;
-          acc[key] = acc[key] || { roleId: r.roleId, roleName: r.roleName, actors: [] };
-          if (r.holderType === "user" || r.holderType === "group") {
-            acc[key].actors.push({ type: r.holderType, value: r.holderValue, label: r.holderLabel });
-          }
-          return acc;
-        }, {})),
-      }
+          available: true,
+          byRole: Object.values(
+            (projectRoleRows || []).reduce((acc, r) => {
+              const key = r.roleId;
+              acc[key] = acc[key] || { roleId: r.roleId, roleName: r.roleName, actors: [] };
+              if (r.holderType === "user" || r.holderType === "group") {
+                acc[key].actors.push({ type: r.holderType, value: r.holderValue, label: r.holderLabel });
+              }
+              return acc;
+            }, {}),
+          ),
+        }
       : { available: false, reason: "No access scheme inventory has been built yet." },
     // The agile boards that live in this project, with their backing filter and column state.
     // Tri-state like the rest: no board snapshot is not "no boards".
     boards: boardMeta?.version
       ? {
-        available: true,
-        boards: projectBoards.map((b) => ({
-          boardId: b.boardId,
-          name: b.name,
-          type: b.type,
-          filterId: b.filterId,
-          columnCount: b.columnCount,
-          configReadable: b.configReadable,
-        })),
-      }
+          available: true,
+          boards: projectBoards.map((b) => ({
+            boardId: b.boardId,
+            name: b.name,
+            type: b.type,
+            filterId: b.filterId,
+            columnCount: b.columnCount,
+            configReadable: b.configReadable,
+          })),
+        }
       : { available: false, reason: "No board inventory has been built yet." },
     // One rolled-up read of the project's overall health, from the pillar signals above.
     health: buildProjectHealthRollup({

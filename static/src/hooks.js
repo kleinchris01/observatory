@@ -21,12 +21,22 @@ export function useVisiblePolling(active, fn, intervalMs) {
     if (!active) return undefined;
 
     let timer = null;
-    const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
-    const start = () => { if (!timer) timer = setInterval(() => saved.current(), intervalMs); };
+    const stop = () => {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    };
+    const start = () => {
+      if (!timer) timer = setInterval(() => saved.current(), intervalMs);
+    };
 
     const sync = () => {
       const hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
-      if (hidden) { stop(); return; }
+      if (hidden) {
+        stop();
+        return;
+      }
       saved.current();
       start();
     };
@@ -101,7 +111,9 @@ export function useNavIntent(intent, apply) {
 // longer names a real section is harmless: SubNavLayout falls back to its first item.
 export function usePersistentState(storageKey, fallback, override = null) {
   const [value, setValue] = React.useState(() => override || readStored(storageKey, null) || fallback);
-  React.useEffect(() => { writeStored(storageKey, value); }, [storageKey, value]);
+  React.useEffect(() => {
+    writeStored(storageKey, value);
+  }, [storageKey, value]);
   return [value, setValue];
 }
 
@@ -114,9 +126,15 @@ export function usePillarUsage(pillar) {
     if (!pillar) return undefined;
     let live = true;
     invoke("getPillarUsage", { pillar })
-      .then((result) => { if (live) setUsage(result || { available: false, reason: "error", items: {} }); })
-      .catch((error) => { if (live) setUsage({ available: false, reason: "error", error: error?.message || null, items: {} }); });
-    return () => { live = false; };
+      .then((result) => {
+        if (live) setUsage(result || { available: false, reason: "error", items: {} });
+      })
+      .catch((error) => {
+        if (live) setUsage({ available: false, reason: "error", error: error?.message || null, items: {} });
+      });
+    return () => {
+      live = false;
+    };
   }, [pillar]);
   return usage;
 }

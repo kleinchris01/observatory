@@ -31,7 +31,13 @@ function section(key, title, why, action, items, { available = true, reason = nu
   };
 }
 
-export function buildHandoverReport({ details, boards = null, gadgets = null, projectsLed = null, openAssigned = null } = {}) {
+export function buildHandoverReport({
+  details,
+  boards = null,
+  gadgets = null,
+  projectsLed = null,
+  openAssigned = null,
+} = {}) {
   if (!details?.available) {
     return { available: false, reason: details?.reason || "no-roster", sections: [] };
   }
@@ -48,13 +54,25 @@ export function buildHandoverReport({ details, boards = null, gadgets = null, pr
     "Jira deletes a saved filter or dashboard when its owner's account is removed.",
     "Change the owner of each one before the account is removed.",
     [
-      ...owned.filters.map((f) => ({ kind: "filter", id: String(f.id), name: f.name || `Filter ${f.id}`, url: f.viewUrl || null, detail: "Saved filter" })),
-      ...owned.dashboards.map((d) => ({ kind: "dashboard", id: String(d.id), name: d.name || `Dashboard ${d.id}`, url: d.viewUrl || null, detail: "Dashboard" })),
+      ...owned.filters.map((f) => ({
+        kind: "filter",
+        id: String(f.id),
+        name: f.name || `Filter ${f.id}`,
+        url: f.viewUrl || null,
+        detail: "Saved filter",
+      })),
+      ...owned.dashboards.map((d) => ({
+        kind: "dashboard",
+        id: String(d.id),
+        name: d.name || `Dashboard ${d.id}`,
+        url: d.viewUrl || null,
+        detail: "Dashboard",
+      })),
     ],
     {
       available: ownership.filters !== false && ownership.dashboards !== false,
       reason: "Build the filter and dashboard inventories to see what this person owns.",
-    }
+    },
   );
 
   // 2. Breaks downstream: boards and gadgets built on those filters. A gadget on a dashboard
@@ -87,20 +105,40 @@ export function buildHandoverReport({ details, boards = null, gadgets = null, pr
     {
       available: !owned.filters.length || (boards !== null && gadgets !== null),
       reason: "Build the board and dashboard inventories to see what is built on this person's filters.",
-    }
+    },
   );
 
   // 3. Work that keeps arriving for nobody.
   const routing = (details.referencedInRules || []).filter((r) => r.direction === "write");
   const work = [];
   if (typeof openAssigned === "number" && openAssigned > 0) {
-    work.push({ kind: "issues", id: "open-assigned", name: plural(openAssigned, "open issue"), url: null, detail: "Assigned to them and not done", jql: `assignee = "${details.user?.accountId}" AND statusCategory != Done` });
+    work.push({
+      kind: "issues",
+      id: "open-assigned",
+      name: plural(openAssigned, "open issue"),
+      url: null,
+      detail: "Assigned to them and not done",
+      jql: `assignee = "${details.user?.accountId}" AND statusCategory != Done`,
+    });
   }
   for (const p of projectsLed || []) {
-    work.push({ kind: "project", id: String(p.id), name: p.name || p.key, url: null, projectKey: p.key || null, detail: `Project lead${p.key ? ` of ${p.key}` : ""}; also the default assignee where the project assigns to its lead` });
+    work.push({
+      kind: "project",
+      id: String(p.id),
+      name: p.name || p.key,
+      url: null,
+      projectKey: p.key || null,
+      detail: `Project lead${p.key ? ` of ${p.key}` : ""}; also the default assignee where the project assigns to its lead`,
+    });
   }
   for (const r of routing) {
-    work.push({ kind: "rule", id: String(r.id), name: r.name, url: null, detail: `Automation rule that assigns or sets them${r.enabled === false ? " (disabled)" : ""}` });
+    work.push({
+      kind: "rule",
+      id: String(r.id),
+      name: r.name,
+      url: null,
+      detail: `Automation rule that assigns or sets them${r.enabled === false ? " (disabled)" : ""}`,
+    });
   }
   const unreadable = [
     openAssigned === null && "open issues assigned to them",
@@ -112,7 +150,7 @@ export function buildHandoverReport({ details, boards = null, gadgets = null, pr
     "Work routed to them",
     "Work keeps arriving for this account after it is gone, and nobody sees it.",
     "Reassign the open issues, change the project lead, and point each rule at someone else.",
-    work
+    work,
   );
   if (unreadable.length) workSection.reason = `Could not read ${unreadable.join(", ")}; check those by hand.`;
 
@@ -122,11 +160,17 @@ export function buildHandoverReport({ details, boards = null, gadgets = null, pr
     "Automation rules they own",
     "A rule's owner receives its error notifications. Nobody will once this account is gone.",
     "Make someone who maintains each rule its owner.",
-    (details.authoredRules || []).map((r) => ({ kind: "rule", id: String(r.id), name: r.name, url: null, detail: r.enabled === false ? "Disabled" : "Enabled" })),
+    (details.authoredRules || []).map((r) => ({
+      kind: "rule",
+      id: String(r.id),
+      name: r.name,
+      url: null,
+      detail: r.enabled === false ? "Disabled" : "Enabled",
+    })),
     {
       available: ownership.rules !== false,
       reason: "Rule ownership needs a rule export that carries account ids. Import one on the Automation tab.",
-    }
+    },
   );
 
   // 5. Issues that name them in a user field: the values stay, pointing at a gone account.
@@ -135,11 +179,17 @@ export function buildHandoverReport({ details, boards = null, gadgets = null, pr
     "Issues that name them",
     "User-picker values stay on the issues and show a deactivated user.",
     "Decide whether each field's values should move to someone else.",
-    (details.fieldAppearances || []).map((f) => ({ kind: "field", id: f.fieldId, name: f.fieldName, url: null, detail: `${plural(f.issueCount ?? 0, "issue")} hold them in this field` })),
+    (details.fieldAppearances || []).map((f) => ({
+      kind: "field",
+      id: f.fieldId,
+      name: f.fieldName,
+      url: null,
+      detail: `${plural(f.issueCount ?? 0, "issue")} hold them in this field`,
+    })),
     {
       available: details.fieldAppearancesAvailable !== false,
       reason: "Run a full scan to see which user fields hold this person.",
-    }
+    },
   );
 
   // 6. Access to remove.
@@ -149,14 +199,32 @@ export function buildHandoverReport({ details, boards = null, gadgets = null, pr
     "Direct grants outlive the reason they were made. Groups and licences are listed so nothing is missed.",
     "Remove direct scheme grants, then the group memberships and licences.",
     [
-      ...(details.grantedBySchemes || []).map((g, i) => ({ kind: "grant", id: `grant-${i}`, name: g.schemeName, url: null, detail: `Named directly in a ${g.schemeType} scheme (${g.contextLabel || g.context})` })),
-      ...(details.user?.groups || []).map((g) => ({ kind: "group", id: `group-${g.id || g.name}`, name: g.name || g.id, url: null, detail: "Group membership" })),
-      ...(details.user?.applications || []).map((a) => ({ kind: "licence", id: `app-${a.key}`, name: a.name || a.key, url: null, detail: "Product licence" })),
+      ...(details.grantedBySchemes || []).map((g, i) => ({
+        kind: "grant",
+        id: `grant-${i}`,
+        name: g.schemeName,
+        url: null,
+        detail: `Named directly in a ${g.schemeType} scheme (${g.contextLabel || g.context})`,
+      })),
+      ...(details.user?.groups || []).map((g) => ({
+        kind: "group",
+        id: `group-${g.id || g.name}`,
+        name: g.name || g.id,
+        url: null,
+        detail: "Group membership",
+      })),
+      ...(details.user?.applications || []).map((a) => ({
+        kind: "licence",
+        id: `app-${a.key}`,
+        name: a.name || a.key,
+        url: null,
+        detail: "Product licence",
+      })),
     ],
     {
       available: details.accessGrantsAvailable !== false,
       reason: "Build the access inventory to see which schemes name this person.",
-    }
+    },
   );
 
   const sections = [deleted, breaks, workSection, rules, named, access];
@@ -176,13 +244,27 @@ export function buildHandoverReport({ details, boards = null, gadgets = null, pr
 }
 
 // One sentence an admin can paste into the leaver's ticket.
-export function summarize({ deleted, brokenBoards = [], brokenGadgets = [], openAssigned = null, projectsLed = null, routing = [] }) {
+export function summarize({
+  deleted,
+  brokenBoards = [],
+  brokenGadgets = [],
+  openAssigned = null,
+  projectsLed = null,
+  routing = [],
+}) {
   const parts = [];
   const filters = deleted.items.filter((i) => i.kind === "filter").length;
   const dashboards = deleted.items.filter((i) => i.kind === "dashboard").length;
   if (filters || dashboards) {
-    const what = [filters && plural(filters, "filter"), dashboards && plural(dashboards, "dashboard")].filter(Boolean).join(" and ");
-    const breaking = [brokenBoards.length && plural(brokenBoards.length, "board"), brokenGadgets.length && plural(brokenGadgets.length, "dashboard gadget")].filter(Boolean).join(" and ");
+    const what = [filters && plural(filters, "filter"), dashboards && plural(dashboards, "dashboard")]
+      .filter(Boolean)
+      .join(" and ");
+    const breaking = [
+      brokenBoards.length && plural(brokenBoards.length, "board"),
+      brokenGadgets.length && plural(brokenGadgets.length, "dashboard gadget"),
+    ]
+      .filter(Boolean)
+      .join(" and ");
     parts.push(`Removing this account deletes ${what}${breaking ? `, breaking ${breaking}` : ""}.`);
   }
   const work = [

@@ -54,29 +54,63 @@ import {
 import { getAssetsWorkspaceId, requestAtlassianJson } from "./jira-api.js";
 import { inventorySnapshotQueue } from "./queues.js";
 import {
-  replaceAssetSnapshot, writeAssetSnapshotMeta,
-  readAssetSnapshotMeta, loadAssetObjectTypes,
-  replaceAssetTypeCounts, writeAssetTypeCountMeta,
+  replaceAssetSnapshot,
+  writeAssetSnapshotMeta,
+  readAssetSnapshotMeta,
+  loadAssetObjectTypes,
+  replaceAssetTypeCounts,
+  writeAssetTypeCountMeta,
 } from "./project-store.js";
 
 beforeEach(() => vi.clearAllMocks());
 
 describe("normalizers", () => {
   test("normalizeSchema keeps the per-schema totals the list API already returns", () => {
-    expect(normalizeSchema({ id: 3, name: "Infra", objectSchemaKey: "INFRA", objectTypeCount: 12, objectCount: 4200 }))
-      .toEqual({ id: "3", name: "Infra", schemaKey: "INFRA", description: null, objectTypeCount: 12, objectCount: 4200 });
+    expect(
+      normalizeSchema({ id: 3, name: "Infra", objectSchemaKey: "INFRA", objectTypeCount: 12, objectCount: 4200 }),
+    ).toEqual({
+      id: "3",
+      name: "Infra",
+      schemaKey: "INFRA",
+      description: null,
+      objectTypeCount: 12,
+      objectCount: 4200,
+    });
   });
 
   test("normalizeObjectType carries parent and abstract as the hierarchy signals", () => {
-    const t = normalizeObjectType({ id: 9, name: "Server", parentObjectTypeId: 4, abstractObjectType: true, inherited: false }, "1");
-    expect(t).toMatchObject({ id: "9", schemaId: "1", name: "Server", parentId: "4", abstract: true, inherited: false });
+    const t = normalizeObjectType(
+      { id: 9, name: "Server", parentObjectTypeId: 4, abstractObjectType: true, inherited: false },
+      "1",
+    );
+    expect(t).toMatchObject({
+      id: "9",
+      schemaId: "1",
+      name: "Server",
+      parentId: "4",
+      abstract: true,
+      inherited: false,
+    });
   });
 
   test("normalizeAttribute keeps a target type id only for an object reference", () => {
-    const ref = normalizeAttribute({ id: 1, name: "Depends on", type: 1, referenceObjectTypeId: 55, objectType: { id: 9 } }, "1");
+    const ref = normalizeAttribute(
+      { id: 1, name: "Depends on", type: 1, referenceObjectTypeId: 55, objectType: { id: 9 } },
+      "1",
+    );
     expect(ref).toMatchObject({ dataType: "reference", referenceObjectTypeId: "55", objectTypeId: "9" });
 
-    const text = normalizeAttribute({ id: 2, name: "Hostname", type: 0, defaultType: { name: "Text" }, referenceObjectTypeId: 55, objectType: { id: 9 } }, "1");
+    const text = normalizeAttribute(
+      {
+        id: 2,
+        name: "Hostname",
+        type: 0,
+        defaultType: { name: "Text" },
+        referenceObjectTypeId: 55,
+        objectType: { id: 9 },
+      },
+      "1",
+    );
     // type 0 is not a reference: the stray referenceObjectTypeId is dropped, not trusted.
     expect(text).toMatchObject({ dataType: "default", referenceObjectTypeId: null });
   });
@@ -86,7 +120,9 @@ describe("isAssetBuildStale", () => {
   test("false unless building, true past the window or with no heartbeat", () => {
     expect(isAssetBuildStale({ state: "ready" })).toBe(false);
     expect(isAssetBuildStale({ state: "building", startedAt: new Date().toISOString() })).toBe(false);
-    expect(isAssetBuildStale({ state: "building", startedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString() })).toBe(true);
+    expect(
+      isAssetBuildStale({ state: "building", startedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString() }),
+    ).toBe(true);
     expect(isAssetBuildStale({ state: "building" })).toBe(true);
   });
 });
@@ -106,11 +142,16 @@ describe("buildAssetSnapshot", () => {
     getAssetsWorkspaceId.mockResolvedValue("ws-1");
     requestAtlassianJson.mockImplementation(async (path) => {
       if (path.endsWith("/objectschema/list")) return [{ id: 1, name: "Infra", objectTypeCount: 2, objectCount: 10 }];
-      if (path.endsWith("/objecttypes/flat")) return [{ id: 9, name: "Server", objectSchemaId: 1 }, { id: 10, name: "App", parentObjectTypeId: 9, objectSchemaId: 1 }];
-      if (path.endsWith("/attributes")) return [
-        { id: 100, name: "Name", type: 0, system: true, objectType: { id: 9 } },
-        { id: 101, name: "Runs on", type: 1, referenceObjectTypeId: 9, objectType: { id: 10 } },
-      ];
+      if (path.endsWith("/objecttypes/flat"))
+        return [
+          { id: 9, name: "Server", objectSchemaId: 1 },
+          { id: 10, name: "App", parentObjectTypeId: 9, objectSchemaId: 1 },
+        ];
+      if (path.endsWith("/attributes"))
+        return [
+          { id: 100, name: "Name", type: 0, system: true, objectType: { id: 9 } },
+          { id: 101, name: "Runs on", type: 1, referenceObjectTypeId: 9, objectType: { id: 10 } },
+        ];
       return [];
     });
 
@@ -122,9 +163,16 @@ describe("buildAssetSnapshot", () => {
     expect(payload.schemas).toHaveLength(1);
     expect(payload.objectTypes.map((t) => t.name).sort()).toEqual(["App", "Server"]);
     expect(payload.attributes.find((a) => a.name === "Runs on").referenceObjectTypeId).toBe("9");
-    expect(writeAssetSnapshotMeta).toHaveBeenLastCalledWith("inst", expect.objectContaining({
-      state: "ready", assetsEnabled: true, totalSchemas: 1, totalObjectTypes: 2, totalAttributes: 2,
-    }));
+    expect(writeAssetSnapshotMeta).toHaveBeenLastCalledWith(
+      "inst",
+      expect.objectContaining({
+        state: "ready",
+        assetsEnabled: true,
+        totalSchemas: 1,
+        totalObjectTypes: 2,
+        totalAttributes: 2,
+      }),
+    );
   });
 
   test("records a clean 'not enabled' state when the site has no workspace", async () => {
@@ -134,9 +182,13 @@ describe("buildAssetSnapshot", () => {
 
     expect(result).toMatchObject({ unavailable: true });
     expect(replaceAssetSnapshot).not.toHaveBeenCalled();
-    expect(writeAssetSnapshotMeta).toHaveBeenLastCalledWith("inst", expect.objectContaining({
-      state: "unavailable", assetsEnabled: false,
-    }));
+    expect(writeAssetSnapshotMeta).toHaveBeenLastCalledWith(
+      "inst",
+      expect.objectContaining({
+        state: "unavailable",
+        assetsEnabled: false,
+      }),
+    );
   });
 
   test("treats a 403 from the schema list as 'not enabled', not a failure", async () => {
@@ -164,8 +216,9 @@ describe("buildAssetSnapshot", () => {
 
 describe("buildObjectTypeCountQuery", () => {
   test("disambiguates by schema and escapes a quote in the type name", () => {
-    expect(buildObjectTypeCountQuery("3", 'Server "prod"'))
-      .toBe('objectSchemaId = 3 AND objectType = "Server \\"prod\\""');
+    expect(buildObjectTypeCountQuery("3", 'Server "prod"')).toBe(
+      'objectSchemaId = 3 AND objectType = "Server \\"prod\\""',
+    );
   });
 });
 
@@ -221,9 +274,14 @@ describe("buildAssetTypeCounts", () => {
     expect(replaceAssetTypeCounts).toHaveBeenCalledWith("inst", [
       expect.objectContaining({ objectTypeId: "9", objectCount: 42 }),
     ]);
-    expect(writeAssetTypeCountMeta).toHaveBeenLastCalledWith("inst", expect.objectContaining({
-      state: "ready", measuredTypes: 1, unmeasuredTypes: 1,
-    }));
+    expect(writeAssetTypeCountMeta).toHaveBeenLastCalledWith(
+      "inst",
+      expect.objectContaining({
+        state: "ready",
+        measuredTypes: 1,
+        unmeasuredTypes: 1,
+      }),
+    );
   });
 
   test("records a type as unmeasured, not zero, when the response has no count-shaped key", async () => {

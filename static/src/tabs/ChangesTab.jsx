@@ -2,9 +2,7 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatNumber, formatRelativeTime, formatLogTime, buildRovoPrompt } from "../utils";
 import { Icon } from "../components/Icons";
-import {
-  StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar, AskRovo,
-} from "../components/ui";
+import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar, AskRovo } from "../components/ui";
 import { useNavIntent, useVisiblePolling } from "../hooks";
 
 // Configuration drift: what changed in the estate's configuration, and when.
@@ -25,7 +23,9 @@ function ChangeRow({ change, pillarLabel }) {
       <span className="change-row__summary">{change.summary || change.label || change.entityId}</span>
       <span className="change-row__meta">
         <Chip tone="neutral">{pillarLabel || change.pillar}</Chip>
-        <span className="change-row__time" title={change.detectedAt}>{formatLogTime(change.detectedAt)}</span>
+        <span className="change-row__time" title={change.detectedAt}>
+          {formatLogTime(change.detectedAt)}
+        </span>
       </span>
     </div>
   );
@@ -78,7 +78,9 @@ export function ChangesTab({ intent }) {
     }
   }, [pillar, kind]);
 
-  React.useEffect(() => { load(); }, [load]);
+  React.useEffect(() => {
+    load();
+  }, [load]);
 
   const isBuilding = ["building", "queued"].includes(data?.state) && !data?.staleBuild;
   useVisiblePolling(isBuilding, load, BUILD_POLL_MS);
@@ -129,14 +131,19 @@ export function ChangesTab({ intent }) {
         buildPrompt={() =>
           buildRovoPrompt({
             task: "Summarise what has changed in the estate's configuration recently and which pillar has seen the most change.",
-            facts: [["Last drift pass", data?.refreshedAt || "unknown"], ["Changes recorded last pass", data?.lastRunChanges ?? null], ["Total changes recorded", data?.totalChanges ?? null], ["Window (days)", data?.windowDays ?? null]],
+            facts: [
+              ["Last drift pass", data?.refreshedAt || "unknown"],
+              ["Changes recorded last pass", data?.lastRunChanges ?? null],
+              ["Total changes recorded", data?.totalChanges ?? null],
+              ["Window (days)", data?.windowDays ?? null],
+            ],
           })
         }
       />
       <button type="button" className="secondary-button" onClick={startBuild} disabled={building || isBuilding}>
         <Icon name="refreshCw" size={13} />
-      {isBuilding ? "Running…" : "Run drift pass"}
-    </button>
+        {isBuilding ? "Running…" : "Run drift pass"}
+      </button>
     </>
   );
 
@@ -155,14 +162,28 @@ export function ChangesTab({ intent }) {
 
   const banners = (
     <>
-      {error && <div className="danger-zone__error" role="alert">{error}</div>}
-      {notice && !error && <p className="admin-config-row__hint" role="status">{notice}</p>}
-      {isBuilding && <p className="admin-config-row__hint">Diffing every pillar against the last pass… this page refreshes itself.</p>}
+      {error && (
+        <div className="danger-zone__error" role="alert">
+          {error}
+        </div>
+      )}
+      {notice && !error && (
+        <p className="admin-config-row__hint" role="status">
+          {notice}
+        </p>
+      )}
+      {isBuilding && (
+        <p className="admin-config-row__hint">
+          Diffing every pillar against the last pass… this page refreshes itself.
+        </p>
+      )}
       {data?.staleBuild && (
         <p className="admin-config-row__hint">A drift pass was started but is no longer running. Run one to recover.</p>
       )}
       {data?.lastError && !isBuilding && (
-        <div className="danger-zone__error" role="alert">Last pass failed: {data.lastError}</div>
+        <div className="danger-zone__error" role="alert">
+          Last pass failed: {data.lastError}
+        </div>
       )}
     </>
   );
@@ -178,15 +199,15 @@ export function ChangesTab({ intent }) {
         {isBuilding ? (
           <Panel title="Running the first drift pass" icon="refreshCw">
             <p>
-              Recording a digest of every scheme, status, field and filter as the baseline.
-              This first pass finds nothing to report — the timeline starts from the next
-              scan, when there is a previous state to diff against.
+              Recording a digest of every scheme, status, field and filter as the baseline. This first pass finds
+              nothing to report — the timeline starts from the next scan, when there is a previous state to diff
+              against.
             </p>
           </Panel>
         ) : (
           <EmptyState action={buildAction}>
-            No drift pass has run yet. It also runs at the end of every full and quick scan —
-            or run one now to set the baseline. Tracked: {trackedPillars.map((p) => p.label).join(", ")}.
+            No drift pass has run yet. It also runs at the end of every full and quick scan — or run one now to set the
+            baseline. Tracked: {trackedPillars.map((p) => p.label).join(", ")}.
           </EmptyState>
         )}
       </div>
@@ -196,7 +217,9 @@ export function ChangesTab({ intent }) {
   const allChanges = [data, ...extraPages].flatMap((p) => p?.changes || []);
   const term = search.trim().toLowerCase();
   const filtered = term
-    ? allChanges.filter((c) => (c.summary || "").toLowerCase().includes(term) || (c.label || "").toLowerCase().includes(term))
+    ? allChanges.filter(
+        (c) => (c.summary || "").toLowerCase().includes(term) || (c.label || "").toLowerCase().includes(term),
+      )
     : allChanges;
   const groups = groupByDay(filtered);
   const lastPage = extraPages[extraPages.length - 1] || data;
@@ -226,7 +249,12 @@ export function ChangesTab({ intent }) {
           icon="activity"
         />
         <StatTile label="Added" value={formatNumber(summary.byKind?.added ?? 0)} tone="success" icon="check" />
-        <StatTile label="Removed" value={formatNumber(summary.byKind?.removed ?? 0)} tone={(summary.byKind?.removed ?? 0) > 0 ? "critical" : "neutral"} icon="x" />
+        <StatTile
+          label="Removed"
+          value={formatNumber(summary.byKind?.removed ?? 0)}
+          tone={(summary.byKind?.removed ?? 0) > 0 ? "critical" : "neutral"}
+          icon="x"
+        />
         <StatTile label="Changed" value={formatNumber(summary.byKind?.modified ?? 0)} tone="active" icon="refreshCw" />
       </StatRow>
 
@@ -241,21 +269,32 @@ export function ChangesTab({ intent }) {
           searchLabel="Search changes"
           searchPlaceholder="Search by what changed…"
           filters={[
-            { key: "pillar", label: "Pillar", value: pillar, onChange: setPillar, options: pillarFilterOptions, allValue: "all" },
+            {
+              key: "pillar",
+              label: "Pillar",
+              value: pillar,
+              onChange: setPillar,
+              options: pillarFilterOptions,
+              allValue: "all",
+            },
             { key: "kind", label: "Kind", value: kind, onChange: setKind, options: kindFilterOptions, allValue: "all" },
           ]}
           resultCount={filtered.length}
           totalCount={allChanges.length}
-          onClear={() => { setSearch(""); setPillar("all"); setKind("all"); }}
+          onClear={() => {
+            setSearch("");
+            setPillar("all");
+            setKind("all");
+          }}
         />
 
         {groups.length === 0 ? (
           <EmptyState inline>
             {term || pillar !== "all" || kind !== "all"
               ? "No changes match these filters."
-              : (data?.seededPillars?.length
+              : data?.seededPillars?.length
                 ? "No changes recorded yet. The baseline is set — the next scan will start the timeline."
-                : "No configuration changes have been detected.")}
+                : "No configuration changes have been detected."}
           </EmptyState>
         ) : (
           <div className="change-timeline">

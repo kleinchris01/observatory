@@ -1,9 +1,18 @@
 import React from "react";
-import { invoke, view } from "@forge/bridge";
+import { invoke } from "@forge/bridge";
 import { formatTimestamp, formatShortTime, formatRelativeTime, formatNumber } from "../utils";
 import { Icon, useLiveDuration, useLiveElapsedMs } from "../components/Icons";
 import { SubNavLayout, Toggle, ConfigSection, ConfigRow } from "../components/admin/primitives";
-import { StatTile, StatRow, PageHeader, Panel, EmptyState, StageRail, LinkButton, formatDurationMs } from "../components/ui";
+import {
+  StatTile,
+  StatRow,
+  PageHeader,
+  Panel,
+  EmptyState,
+  StageRail,
+  LinkButton,
+  formatDurationMs,
+} from "../components/ui";
 import { useVisiblePolling, usePersistentState } from "../hooks";
 
 // Re-exported: this started here before three surfaces needed it, and the ScansTab tests
@@ -21,7 +30,6 @@ export { useVisiblePolling };
 // That is a build dependency, not a reason to browse it from the operator's tab: this tab
 // runs and monitors scans, every other tab reads what they produced. It now lives under
 // Reports, which is where a cross-reference over field values belongs.
-
 
 // The word a user must type to confirm destroying every snapshot. Deliberately not
 // "yes": the point is that it cannot be typed by reflex.
@@ -71,26 +79,33 @@ export function ClearSnapshotControl({ onCleared }) {
 
       {result && !open && (
         <div className="danger-zone__result" role="status">
-          Snapshot data cleared — {result.totalRowsDeleted.toLocaleString()} rows removed. Build a new snapshot to repopulate.
+          Snapshot data cleared — {result.totalRowsDeleted.toLocaleString()} rows removed. Build a new snapshot to
+          repopulate.
         </div>
       )}
 
       {!open ? (
         <div className="danger-zone__row">
           <p className="danger-zone__desc">
-            Delete all indexed field data and start over. Use this to recover from a corrupted
-            snapshot, or to purge site data on request.
+            Delete all indexed field data and start over. Use this to recover from a corrupted snapshot, or to purge
+            site data on request.
           </p>
-          <button className="danger-button" type="button" onClick={() => { setOpen(true); setResult(null); }}>
+          <button
+            className="danger-button"
+            type="button"
+            onClick={() => {
+              setOpen(true);
+              setResult(null);
+            }}
+          >
             Clear snapshot data
           </button>
         </div>
       ) : (
         <div className="danger-zone__confirm">
           <p className="danger-zone__desc">
-            This permanently deletes the field catalog, per-project usage, field summaries,
-            cached options, issue scan state and report job history. A full rebuild will be
-            required, which can take hours on a large site.
+            This permanently deletes the field catalog, per-project usage, field summaries, cached options, issue scan
+            state and report job history. A full rebuild will be required, which can take hours on a large site.
           </p>
           <p className="danger-zone__desc danger-zone__desc--muted">
             Saved reports, workflow data and the RQT index are not affected.
@@ -113,19 +128,18 @@ export function ClearSnapshotControl({ onCleared }) {
             <button className="secondary-button" type="button" onClick={reset} disabled={clearing}>
               Cancel
             </button>
-            <button
-              className="danger-button"
-              type="button"
-              onClick={handleClear}
-              disabled={!confirmed || clearing}
-            >
+            <button className="danger-button" type="button" onClick={handleClear} disabled={!confirmed || clearing}>
               {clearing ? "Clearing…" : "Clear everything"}
             </button>
           </div>
         </div>
       )}
 
-      {error && <div className="danger-zone__error" role="alert">{error}</div>}
+      {error && (
+        <div className="danger-zone__error" role="alert">
+          {error}
+        </div>
+      )}
     </div>
   );
 }
@@ -134,16 +148,21 @@ export function ScanProgressChart({ data }) {
   if (data.length < 2) {
     return <div className="scan-chart-card__empty">{data.length === 0 ? "No progress data yet" : "Running…"}</div>;
   }
-  const W = 480, H = 130, P = { t: 12, r: 16, b: 22, l: 52 };
-  const cW = W - P.l - P.r, cH = H - P.t - P.b;
-  const minT = data[0].t, maxT = data[data.length - 1].t, maxV = Math.max(...data.map(d => d.count));
-  const xS = t => (maxT > minT ? (t - minT) / (maxT - minT) : 0.5) * cW;
-  const yS = v => cH - (v / (maxV || 1)) * cH;
+  const W = 480,
+    H = 130,
+    P = { t: 12, r: 16, b: 22, l: 52 };
+  const cW = W - P.l - P.r,
+    cH = H - P.t - P.b;
+  const minT = data[0].t,
+    maxT = data[data.length - 1].t,
+    maxV = Math.max(...data.map((d) => d.count));
+  const xS = (t) => (maxT > minT ? (t - minT) / (maxT - minT) : 0.5) * cW;
+  const yS = (v) => cH - (v / (maxV || 1)) * cH;
   const pathD = data.map((d, i) => `${i === 0 ? "M" : "L"} ${xS(d.t).toFixed(1)} ${yS(d.count).toFixed(1)}`).join(" ");
   const areaD = `${pathD} L ${xS(data[data.length - 1].t).toFixed(1)} ${cH} L 0 ${cH} Z`;
-  const yTicks = [0, 0.5, 1].map(r => ({
+  const yTicks = [0, 0.5, 1].map((r) => ({
     y: yS(maxV * r),
-    label: maxV * r >= 1000 ? `${Math.round(maxV * r / 1000)}k` : String(Math.round(maxV * r)),
+    label: maxV * r >= 1000 ? `${Math.round((maxV * r) / 1000)}k` : String(Math.round(maxV * r)),
   }));
   const xTicks = [data[0], data[Math.floor((data.length - 1) / 2)], data[data.length - 1]];
   return (
@@ -158,14 +177,25 @@ export function ScanProgressChart({ data }) {
         {yTicks.map((t, i) => (
           <g key={i}>
             <line x1={0} y1={t.y} x2={cW} y2={t.y} stroke="var(--stroke)" strokeDasharray="3 5" />
-            <text x={-6} y={t.y + 4} textAnchor="end" fontSize="9" fill="var(--muted)">{t.label}</text>
+            <text x={-6} y={t.y + 4} textAnchor="end" fontSize="9" fill="var(--muted)">
+              {t.label}
+            </text>
           </g>
         ))}
         <path d={areaD} fill="url(#sp-grad)" />
         <path d={pathD} fill="none" stroke="#79b8ff" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
         <circle cx={xS(data[data.length - 1].t)} cy={yS(data[data.length - 1].count)} r={3.5} fill="#79b8ff" />
         {xTicks.map((d, i) => (
-          <text key={i} x={xS(d.t)} y={cH + 14} textAnchor={i === 0 ? "start" : i === 2 ? "end" : "middle"} fontSize="9" fill="var(--muted)">{d.label}</text>
+          <text
+            key={i}
+            x={xS(d.t)}
+            y={cH + 14}
+            textAnchor={i === 0 ? "start" : i === 2 ? "end" : "middle"}
+            fontSize="9"
+            fill="var(--muted)"
+          >
+            {d.label}
+          </text>
         ))}
       </g>
     </svg>
@@ -176,14 +206,17 @@ export function ScanHistoryChart({ data }) {
   if (data.length === 0) {
     return <div className="scan-chart-card__empty">No completed scan runs recorded yet</div>;
   }
-  const W = 480, H = 130, P = { t: 12, r: 16, b: 22, l: 52 };
-  const cW = W - P.l - P.r, cH = H - P.t - P.b;
-  const maxV = Math.max(...data.map(d => d.issues), 1);
+  const W = 480,
+    H = 130,
+    P = { t: 12, r: 16, b: 22, l: 52 };
+  const cW = W - P.l - P.r,
+    cH = H - P.t - P.b;
+  const maxV = Math.max(...data.map((d) => d.issues), 1);
   const step = cW / Math.max(data.length, 1);
   const barW = Math.max(4, step * 0.7);
-  const yTicks = [0, 0.5, 1].map(r => ({
+  const yTicks = [0, 0.5, 1].map((r) => ({
     y: cH - r * cH,
-    label: maxV * r >= 1000 ? `${Math.round(maxV * r / 1000)}k` : String(Math.round(maxV * r)),
+    label: maxV * r >= 1000 ? `${Math.round((maxV * r) / 1000)}k` : String(Math.round(maxV * r)),
   }));
   return (
     <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: "block", overflow: "visible" }}>
@@ -191,7 +224,9 @@ export function ScanHistoryChart({ data }) {
         {yTicks.map((t, i) => (
           <g key={i}>
             <line x1={0} y1={t.y} x2={cW} y2={t.y} stroke="var(--stroke)" strokeDasharray="3 5" />
-            <text x={-6} y={t.y + 4} textAnchor="end" fontSize="9" fill="var(--muted)">{t.label}</text>
+            <text x={-6} y={t.y + 4} textAnchor="end" fontSize="9" fill="var(--muted)">
+              {t.label}
+            </text>
           </g>
         ))}
         {data.map((d, i) => {
@@ -201,7 +236,9 @@ export function ScanHistoryChart({ data }) {
           return (
             <g key={i}>
               <rect x={x} y={cH - h} width={barW} height={h} rx="2" fill={`rgba(126,200,164,${opacity.toFixed(2)})`} />
-              <text x={x + barW / 2} y={cH + 14} textAnchor="middle" fontSize="9" fill="var(--muted)">{d.label}</text>
+              <text x={x + barW / 2} y={cH + 14} textAnchor="middle" fontSize="9" fill="var(--muted)">
+                {d.label}
+              </text>
             </g>
           );
         })}
@@ -221,8 +258,11 @@ export function ScanDeltaChart({ data }) {
   if (data.length === 0) {
     return <div className="scan-chart-card__empty">Needs two completed runs to show growth</div>;
   }
-  const W = 480, H = 130, P = { t: 12, r: 16, b: 22, l: 52 };
-  const cW = W - P.l - P.r, cH = H - P.t - P.b;
+  const W = 480,
+    H = 130,
+    P = { t: 12, r: 16, b: 22, l: 52 };
+  const cW = W - P.l - P.r,
+    cH = H - P.t - P.b;
   const maxAbs = Math.max(...data.map((d) => Math.abs(d.delta)), 1);
   // Only give up half the height to negatives when negatives actually occur. A re-scan that
   // finds fewer issues is real (issues get deleted), but it is rare, and reserving space for
@@ -234,11 +274,21 @@ export function ScanDeltaChart({ data }) {
   const barW = Math.max(4, step * 0.7);
   const fmt = (v) => (Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v));
   return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: "block", overflow: "visible" }} role="img" aria-label="Net new issues per scan run">
+    <svg
+      width="100%"
+      viewBox={`0 0 ${W} ${H}`}
+      style={{ display: "block", overflow: "visible" }}
+      role="img"
+      aria-label="Net new issues per scan run"
+    >
       <g transform={`translate(${P.l},${P.t})`}>
         <line x1={0} y1={zeroY} x2={cW} y2={zeroY} stroke="var(--stroke)" />
-        <text x={-6} y={zeroY + 4} textAnchor="end" fontSize="9" fill="var(--muted)">0</text>
-        <text x={-6} y={zeroY - scale(maxAbs) + 4} textAnchor="end" fontSize="9" fill="var(--muted)">{fmt(maxAbs)}</text>
+        <text x={-6} y={zeroY + 4} textAnchor="end" fontSize="9" fill="var(--muted)">
+          0
+        </text>
+        <text x={-6} y={zeroY - scale(maxAbs) + 4} textAnchor="end" fontSize="9" fill="var(--muted)">
+          {fmt(maxAbs)}
+        </text>
         {data.map((d, i) => {
           const h = Math.max(2, scale(d.delta));
           const x = step * i + (step - barW) / 2;
@@ -253,7 +303,9 @@ export function ScanDeltaChart({ data }) {
                 rx="2"
                 fill={up ? "rgba(126,200,164,0.75)" : "rgba(224,124,109,0.75)"}
               />
-              <text x={x + barW / 2} y={cH + 14} textAnchor="middle" fontSize="9" fill="var(--muted)">{d.label}</text>
+              <text x={x + barW / 2} y={cH + 14} textAnchor="middle" fontSize="9" fill="var(--muted)">
+                {d.label}
+              </text>
             </g>
           );
         })}
@@ -272,8 +324,11 @@ export function ScanThroughputChart({ data }) {
   if (data.length === 0) {
     return <div className="scan-chart-card__empty">No completed runs with timing recorded</div>;
   }
-  const W = 480, H = 130, P = { t: 12, r: 40, b: 22, l: 52 };
-  const cW = W - P.l - P.r, cH = H - P.t - P.b;
+  const W = 480,
+    H = 130,
+    P = { t: 12, r: 40, b: 22, l: 52 };
+  const cW = W - P.l - P.r,
+    cH = H - P.t - P.b;
   const maxMin = Math.max(...data.map((d) => d.minutes), 1);
   const maxRate = Math.max(...data.map((d) => d.rate), 1);
   const step = cW / Math.max(data.length, 1);
@@ -284,7 +339,13 @@ export function ScanThroughputChart({ data }) {
     .map((d, i) => `${i === 0 ? "M" : "L"} ${centre(i).toFixed(1)} ${rateY(d.rate).toFixed(1)}`)
     .join(" ");
   return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: "block", overflow: "visible" }} role="img" aria-label="Scan duration and throughput per run">
+    <svg
+      width="100%"
+      viewBox={`0 0 ${W} ${H}`}
+      style={{ display: "block", overflow: "visible" }}
+      role="img"
+      aria-label="Scan duration and throughput per run"
+    >
       <g transform={`translate(${P.l},${P.t})`}>
         {[0, 0.5, 1].map((r, i) => (
           <g key={i}>
@@ -302,7 +363,9 @@ export function ScanThroughputChart({ data }) {
           return (
             <g key={i}>
               <rect x={centre(i) - barW / 2} y={cH - h} width={barW} height={h} rx="2" fill="rgba(126,200,164,0.45)" />
-              <text x={centre(i)} y={cH + 14} textAnchor="middle" fontSize="9" fill="var(--muted)">{d.label}</text>
+              <text x={centre(i)} y={cH + 14} textAnchor="middle" fontSize="9" fill="var(--muted)">
+                {d.label}
+              </text>
             </g>
           );
         })}
@@ -332,14 +395,16 @@ function useIssueCrawlData(issueScan) {
   const scanDone = issueScan?.state === "ready";
   const scanFailed = issueScan?.state === "failed";
   const scanCancelled = issueScan?.state === "cancelled";
-  const lastScanLogAt = issueScan?.progressLog?.length ? issueScan.progressLog[issueScan.progressLog.length - 1]?.t : issueScan?.startedAt;
-  const scanStale = lastScanLogAt ? (Date.now() - new Date(lastScanLogAt).getTime()) > 10 * 60 * 1000 : scanActive;
+  const lastScanLogAt = issueScan?.progressLog?.length
+    ? issueScan.progressLog[issueScan.progressLog.length - 1]?.t
+    : issueScan?.startedAt;
+  const scanStale = lastScanLogAt ? Date.now() - new Date(lastScanLogAt).getTime() > 10 * 60 * 1000 : scanActive;
   const canResume = issueScan && !scanDone && ((scanActive && scanStale) || scanFailed || scanCancelled);
   const canForceResume = scanActive && scanStale;
   const processedIssues = Number(issueScan?.processedIssues || 0);
   const processedProjects = Number(issueScan?.processedPages || 0);
   const totalProjects = Number(issueScan?.totalPages || 0);
-  const scanPercent = totalProjects > 0 ? Math.min(100, Math.round(processedProjects / totalProjects * 100)) : 0;
+  const scanPercent = totalProjects > 0 ? Math.min(100, Math.round((processedProjects / totalProjects) * 100)) : 0;
   const elapsed = useLiveDuration(scanActive ? issueScan?.startedAt : null);
 
   const durationMs = React.useMemo(() => {
@@ -374,14 +439,15 @@ function useIssueCrawlData(issueScan) {
     const rate = done / elapsedSec;
     if (rate <= 0) return null;
     const remainingSec = Math.round((total - done) / rate);
-    const m = Math.floor(remainingSec / 60), s = remainingSec % 60;
+    const m = Math.floor(remainingSec / 60),
+      s = remainingSec % 60;
     return m > 0 ? `~${m}m ${s}s remaining` : `~${s}s remaining`;
   }, [scanActive, issueScan?.processedPages, issueScan?.totalPages, issueScan?.startedAt, elapsed]);
 
   // Current run's entries newest-first (for count / search)
   const currentEntries = React.useMemo(
     () => (issueScan?.progressLog?.length ? [...issueScan.progressLog].reverse() : []),
-    [issueScan?.progressLog]
+    [issueScan?.progressLog],
   );
 
   // All historical runs (newest-first order)
@@ -398,12 +464,26 @@ function useIssueCrawlData(issueScan) {
   const allRunEntries = React.useMemo(() => {
     const result = [];
     if (issueScan?.startedAt || currentEntries.length) {
-      result.push({ type: "run-header", key: "current", startedAt: issueScan?.startedAt, completedAt: issueScan?.completedAt, processedIssues: issueScan?.processedIssues || 0, isCurrent: true });
-      currentEntries.forEach(e => result.push({ type: "log", ...e }));
+      result.push({
+        type: "run-header",
+        key: "current",
+        startedAt: issueScan?.startedAt,
+        completedAt: issueScan?.completedAt,
+        processedIssues: issueScan?.processedIssues || 0,
+        isCurrent: true,
+      });
+      currentEntries.forEach((e) => result.push({ type: "log", ...e }));
     }
     [...scanHistoryRuns].reverse().forEach((run, i) => {
-      result.push({ type: "run-header", key: `hist-${i}`, startedAt: run.startedAt, completedAt: run.completedAt, processedIssues: run.processedIssues || 0, isCurrent: false });
-      [...(run.progressLog || [])].reverse().forEach(e => result.push({ type: "log", ...e }));
+      result.push({
+        type: "run-header",
+        key: `hist-${i}`,
+        startedAt: run.startedAt,
+        completedAt: run.completedAt,
+        processedIssues: run.processedIssues || 0,
+        isCurrent: false,
+      });
+      [...(run.progressLog || [])].reverse().forEach((e) => result.push({ type: "log", ...e }));
     });
     return result;
   }, [currentEntries, scanHistoryRuns, issueScan?.startedAt, issueScan?.completedAt, issueScan?.processedIssues]);
@@ -411,7 +491,7 @@ function useIssueCrawlData(issueScan) {
   // Flat list of all log entries for search
   const flatAllEntries = React.useMemo(() => {
     const entries = [...currentEntries];
-    [...scanHistoryRuns].reverse().forEach(run => {
+    [...scanHistoryRuns].reverse().forEach((run) => {
       entries.push(...[...(run.progressLog || [])].reverse());
     });
     return entries;
@@ -421,7 +501,9 @@ function useIssueCrawlData(issueScan) {
   const filteredEntries = React.useMemo(() => {
     if (!logSearch.trim()) return null;
     const q = logSearch.toLowerCase();
-    return flatAllEntries.filter(e => e.msg?.toLowerCase().includes(q) || formatShortTime(e.t).toLowerCase().includes(q));
+    return flatAllEntries.filter(
+      (e) => e.msg?.toLowerCase().includes(q) || formatShortTime(e.t).toLowerCase().includes(q),
+    );
   }, [flatAllEntries, logSearch]);
 
   // Chart data: parse current-run log for issue counts over time
@@ -431,19 +513,26 @@ function useIssueCrawlData(issueScan) {
     for (const entry of entries) {
       const match = entry.msg.match(/^([0-9,]+)(?:\s*\/\s*[0-9,]+)?\s+issues?\s+(?:scanned|on\s+site)/i);
       if (match) {
-        parsed.push({ t: new Date(entry.t).getTime(), count: parseInt(match[1].replace(/,/g, ""), 10), label: formatShortTime(entry.t) });
+        parsed.push({
+          t: new Date(entry.t).getTime(),
+          count: parseInt(match[1].replace(/,/g, ""), 10),
+          label: formatShortTime(entry.t),
+        });
       }
     }
     return parsed;
   }, [issueScan?.progressLog]);
 
   // Chart data: historical runs bar chart
-  const historySeries = React.useMemo(() =>
-    scanHistoryRuns.map(run => ({
-      issues: run.processedIssues || 0,
-      label: run.completedAt ? new Date(run.completedAt).toLocaleDateString([], { month: "short", day: "numeric" }) : "?",
-    })),
-    [scanHistoryRuns]
+  const historySeries = React.useMemo(
+    () =>
+      scanHistoryRuns.map((run) => ({
+        issues: run.processedIssues || 0,
+        label: run.completedAt
+          ? new Date(run.completedAt).toLocaleDateString([], { month: "short", day: "numeric" })
+          : "?",
+      })),
+    [scanHistoryRuns],
   );
 
   // Growth between consecutive runs. Runs arrive oldest-first, so each entry pairs with the
@@ -466,28 +555,43 @@ function useIssueCrawlData(issueScan) {
 
   // Duration and rate per run. A run missing either timestamp is skipped rather than shown
   // as zero minutes -- an unmeasured run and an instant run are different claims.
-  const throughputSeries = React.useMemo(() =>
-    scanHistoryRuns
-      .filter((run) => run.startedAt && run.completedAt)
-      .map((run) => {
-        const ms = new Date(run.completedAt).getTime() - new Date(run.startedAt).getTime();
-        const seconds = Math.max(ms / 1000, 1);
-        return {
-          minutes: Math.round(ms / 60000),
-          rate: Math.round((run.processedIssues || 0) / seconds),
-          label: new Date(run.completedAt).toLocaleDateString([], { month: "short", day: "numeric" }),
-        };
-      })
-      .filter((row) => Number.isFinite(row.minutes) && row.minutes >= 0),
-    [scanHistoryRuns]
+  const throughputSeries = React.useMemo(
+    () =>
+      scanHistoryRuns
+        .filter((run) => run.startedAt && run.completedAt)
+        .map((run) => {
+          const ms = new Date(run.completedAt).getTime() - new Date(run.startedAt).getTime();
+          const seconds = Math.max(ms / 1000, 1);
+          return {
+            minutes: Math.round(ms / 60000),
+            rate: Math.round((run.processedIssues || 0) / seconds),
+            label: new Date(run.completedAt).toLocaleDateString([], { month: "short", day: "numeric" }),
+          };
+        })
+        .filter((row) => Number.isFinite(row.minutes) && row.minutes >= 0),
+    [scanHistoryRuns],
   );
 
   const showCharts =
     progressSeries.length >= 2 || historySeries.length >= 1 || deltaSeries.length >= 1 || throughputSeries.length >= 1;
 
-  const stateClass = scanActive ? "scan-status--active" : scanDone ? "scan-status--done" : scanFailed ? "scan-status--failed" : "scan-status--idle";
-  const stateLabel = scanActive ? "Running" : scanDone ? "Complete" : scanFailed ? "Failed" : scanCancelled ? "Cancelled" : "Not started";
-  const displayIssues = scanDone ? (issueScan?.processedIssues || issueScan?.totalIssues || 0) : processedIssues;
+  const stateClass = scanActive
+    ? "scan-status--active"
+    : scanDone
+      ? "scan-status--done"
+      : scanFailed
+        ? "scan-status--failed"
+        : "scan-status--idle";
+  const stateLabel = scanActive
+    ? "Running"
+    : scanDone
+      ? "Complete"
+      : scanFailed
+        ? "Failed"
+        : scanCancelled
+          ? "Cancelled"
+          : "Not started";
+  const displayIssues = scanDone ? issueScan?.processedIssues || issueScan?.totalIssues || 0 : processedIssues;
   const hasStats = scanDone || scanActive || processedIssues > 0;
 
   // Nothing has ever crawled this row -- the parent scan's own stage table already says
@@ -495,14 +599,35 @@ function useIssueCrawlData(issueScan) {
   const everCrawled = Boolean(issueScan?.startedAt || issueScan?.scanHistory?.length);
 
   return {
-    logSearch, setLogSearch,
-    scanActive, scanDone, scanFailed, scanCancelled, everCrawled,
-    stateClass, stateLabel,
-    canResume, canForceResume,
-    processedIssues, displayIssues, processedProjects, totalProjects, scanPercent,
-    elapsed, durationLabel, scanRate, etaLabel,
-    totalLogCount, scanHistoryRuns, allRunEntries, filteredEntries,
-    progressSeries, historySeries, deltaSeries, throughputSeries, showCharts,
+    logSearch,
+    setLogSearch,
+    scanActive,
+    scanDone,
+    scanFailed,
+    scanCancelled,
+    everCrawled,
+    stateClass,
+    stateLabel,
+    canResume,
+    canForceResume,
+    processedIssues,
+    displayIssues,
+    processedProjects,
+    totalProjects,
+    scanPercent,
+    elapsed,
+    durationLabel,
+    scanRate,
+    etaLabel,
+    totalLogCount,
+    scanHistoryRuns,
+    allRunEntries,
+    filteredEntries,
+    progressSeries,
+    historySeries,
+    deltaSeries,
+    throughputSeries,
+    showCharts,
     hasStats,
   };
 }
@@ -512,7 +637,15 @@ function useIssueCrawlData(issueScan) {
 // log competing with it for the same screen. Lives inline in the Full/Quick Scan panels;
 // the charts and the log each moved to their own sub-tab (IssueCrawlCharts,
 // IssueCrawlAuditLog below) once both grew past what a "meanwhile" panel should carry.
-export function IssueCrawlSummary({ issueScan, onResume, onCancel, resuming, cancelling, title = "Issue crawl", readOnly = false }) {
+export function IssueCrawlSummary({
+  issueScan,
+  onResume,
+  onCancel,
+  resuming,
+  cancelling,
+  title = "Issue crawl",
+  readOnly = false,
+}) {
   const d = useIssueCrawlData(issueScan);
   if (!d.everCrawled) return null;
 
@@ -524,7 +657,8 @@ export function IssueCrawlSummary({ issueScan, onResume, onCancel, resuming, can
           <span className={`scan-status-pill ${d.stateClass}`}>{d.stateLabel}</span>
         </div>
         <p className="universe-scan-panel__desc">
-          Crawls every issue across all Jira projects in parallel workers to compute per-project field usage counts, detect RQT-pattern values, and build the complete field inventory.
+          Crawls every issue across all Jira projects in parallel workers to compute per-project field usage counts,
+          detect RQT-pattern values, and build the complete field inventory.
           {issueScan?.completedAt ? ` Last completed ${formatTimestamp(issueScan.completedAt)}.` : ""}
         </p>
       </div>
@@ -562,11 +696,17 @@ export function IssueCrawlSummary({ issueScan, onResume, onCancel, resuming, can
               <div className="universe-scan-panel__progress-fill" style={{ width: `${d.scanPercent}%` }} />
             </div>
             <div className="universe-scan-panel__progress-text">
-              <span>{d.totalProjects > 0 ? `${d.scanPercent}% — ${d.processedProjects}/${d.totalProjects} workers` : "Starting…"}</span>
+              <span>
+                {d.totalProjects > 0
+                  ? `${d.scanPercent}% — ${d.processedProjects}/${d.totalProjects} workers`
+                  : "Starting…"}
+              </span>
               {d.elapsed && <span className="universe-scan-panel__elapsed">{d.elapsed}</span>}
             </div>
             {d.processedIssues > 0 && (
-              <div className="universe-scan-panel__issues-live">{d.processedIssues.toLocaleString()} issues scanned</div>
+              <div className="universe-scan-panel__issues-live">
+                {d.processedIssues.toLocaleString()} issues scanned
+              </div>
             )}
             {d.etaLabel && <div className="universe-scan-panel__eta">{d.etaLabel}</div>}
           </div>
@@ -575,12 +715,22 @@ export function IssueCrawlSummary({ issueScan, onResume, onCancel, resuming, can
         {!readOnly && (d.canResume || d.scanActive) && (
           <div className="universe-scan-panel__action-row">
             {d.canResume && (
-              <button className="secondary-button secondary-button--small" type="button" onClick={onResume} disabled={resuming}>
+              <button
+                className="secondary-button secondary-button--small"
+                type="button"
+                onClick={onResume}
+                disabled={resuming}
+              >
                 {resuming ? "Resuming…" : d.canForceResume ? "Force resume" : "Resume crawl"}
               </button>
             )}
             {d.scanActive && (
-              <button className="secondary-button secondary-button--small" type="button" onClick={onCancel} disabled={cancelling}>
+              <button
+                className="secondary-button secondary-button--small"
+                type="button"
+                onClick={onCancel}
+                disabled={cancelling}
+              >
                 {cancelling ? "Cancelling…" : "Cancel crawl"}
               </button>
             )}
@@ -593,8 +743,16 @@ export function IssueCrawlSummary({ issueScan, onResume, onCancel, resuming, can
 
         {issueScan?.startedAt && (
           <div className="universe-scan-panel__timestamps">
-            <div><span className="scan-ts-label">Started</span>{formatTimestamp(issueScan.startedAt)}</div>
-            {issueScan.completedAt && <div><span className="scan-ts-label">Completed</span>{formatTimestamp(issueScan.completedAt)}</div>}
+            <div>
+              <span className="scan-ts-label">Started</span>
+              {formatTimestamp(issueScan.startedAt)}
+            </div>
+            {issueScan.completedAt && (
+              <div>
+                <span className="scan-ts-label">Completed</span>
+                {formatTimestamp(issueScan.completedAt)}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -634,14 +792,19 @@ export function IssueCrawlCharts({ issueScan, title = "Issue crawl" }) {
         <div className="scan-chart-card">
           <div className="scan-chart-card__title">Net new issues — run over run</div>
           <ScanDeltaChart data={d.deltaSeries} />
-          <div className="scan-chart-card__caption">Growth between consecutive scans. The totals above barely move; this is where the change is.</div>
+          <div className="scan-chart-card__caption">
+            Growth between consecutive scans. The totals above barely move; this is where the change is.
+          </div>
         </div>
       )}
       {d.throughputSeries.length >= 1 && (
         <div className="scan-chart-card">
           <div className="scan-chart-card__title">Duration &amp; throughput</div>
           <ScanThroughputChart data={d.throughputSeries} />
-          <div className="scan-chart-card__caption">Bars are minutes per run, the line is issues per second. Duration up with the rate flat means the estate grew; both worsening means the scan is degrading.</div>
+          <div className="scan-chart-card__caption">
+            Bars are minutes per run, the line is issues per second. Duration up with the rate flat means the estate
+            grew; both worsening means the scan is degrading.
+          </div>
         </div>
       )}
     </div>
@@ -660,7 +823,9 @@ export function IssueCrawlAuditLog({ issueScan }) {
   return (
     <div className="universe-scan-panel__log-col">
       <div className="universe-scan-panel__log-head">
-        <span className="universe-scan-panel__log-count">{d.totalLogCount} entr{d.totalLogCount !== 1 ? "ies" : "y"}</span>
+        <span className="universe-scan-panel__log-count">
+          {d.totalLogCount} entr{d.totalLogCount !== 1 ? "ies" : "y"}
+        </span>
         {d.scanHistoryRuns.length > 0 && (
           <span className="universe-scan-panel__log-runs">{d.scanHistoryRuns.length + 1} runs</span>
         )}
@@ -671,45 +836,68 @@ export function IssueCrawlAuditLog({ issueScan }) {
             type="search"
             placeholder="Search all runs…"
             value={d.logSearch}
-            onChange={e => d.setLogSearch(e.target.value)}
+            onChange={(e) => d.setLogSearch(e.target.value)}
           />
         </label>
       </div>
       <div className="universe-scan-panel__log scan-log">
         {d.filteredEntries ? (
-          d.filteredEntries.length > 0 ? d.filteredEntries.map((entry, i) => {
-            const isComplete = /complete|done|finished/i.test(entry.msg);
-            const isError = /error|fail/i.test(entry.msg);
-            const isWarn = /warn|stale|slow|timeout/i.test(entry.msg);
-            return (
-              <div key={i} className={`scan-log__entry${isComplete ? " scan-log__entry--complete" : ""}${isError ? " scan-log__entry--error" : ""}${isWarn ? " scan-log__entry--warn" : ""}`}>
-                <span className="scan-log__time">{formatShortTime(entry.t)}</span>
-                <span className="scan-log__msg">{entry.msg}</span>
-              </div>
-            );
-          }) : (
-            <div className="empty-state empty-state--inline" style={{ padding: "24px 16px" }}>{`No entries match "${d.logSearch}".`}</div>
+          d.filteredEntries.length > 0 ? (
+            d.filteredEntries.map((entry, i) => {
+              const isComplete = /complete|done|finished/i.test(entry.msg);
+              const isError = /error|fail/i.test(entry.msg);
+              const isWarn = /warn|stale|slow|timeout/i.test(entry.msg);
+              return (
+                <div
+                  key={i}
+                  className={`scan-log__entry${isComplete ? " scan-log__entry--complete" : ""}${isError ? " scan-log__entry--error" : ""}${isWarn ? " scan-log__entry--warn" : ""}`}
+                >
+                  <span className="scan-log__time">{formatShortTime(entry.t)}</span>
+                  <span className="scan-log__msg">{entry.msg}</span>
+                </div>
+              );
+            })
+          ) : (
+            <div
+              className="empty-state empty-state--inline"
+              style={{ padding: "24px 16px" }}
+            >{`No entries match "${d.logSearch}".`}</div>
           )
-        ) : d.allRunEntries.length > 0 ? d.allRunEntries.map((item, i) => {
-          if (item.type === "run-header") {
+        ) : d.allRunEntries.length > 0 ? (
+          d.allRunEntries.map((item, i) => {
+            if (item.type === "run-header") {
+              return (
+                <div key={item.key} className="scan-log__run-header">
+                  <span className="scan-log__run-label">
+                    {item.isCurrent
+                      ? d.scanDone
+                        ? "Latest run"
+                        : d.scanActive
+                          ? "Current run"
+                          : "Last run"
+                      : "Previous run"}
+                  </span>
+                  {item.startedAt && <span className="scan-log__run-date">{formatTimestamp(item.startedAt)}</span>}
+                  {item.processedIssues > 0 && (
+                    <span className="scan-log__run-issues">{item.processedIssues.toLocaleString()} issues</span>
+                  )}
+                </div>
+              );
+            }
+            const isComplete = /complete|done|finished/i.test(item.msg);
+            const isError = /error|fail/i.test(item.msg);
+            const isWarn = /warn|stale|slow|timeout/i.test(item.msg);
             return (
-              <div key={item.key} className="scan-log__run-header">
-                <span className="scan-log__run-label">{item.isCurrent ? (d.scanDone ? "Latest run" : d.scanActive ? "Current run" : "Last run") : "Previous run"}</span>
-                {item.startedAt && <span className="scan-log__run-date">{formatTimestamp(item.startedAt)}</span>}
-                {item.processedIssues > 0 && <span className="scan-log__run-issues">{item.processedIssues.toLocaleString()} issues</span>}
+              <div
+                key={i}
+                className={`scan-log__entry${isComplete ? " scan-log__entry--complete" : ""}${isError ? " scan-log__entry--error" : ""}${isWarn ? " scan-log__entry--warn" : ""}`}
+              >
+                <span className="scan-log__time">{formatShortTime(item.t)}</span>
+                <span className="scan-log__msg">{item.msg}</span>
               </div>
             );
-          }
-          const isComplete = /complete|done|finished/i.test(item.msg);
-          const isError = /error|fail/i.test(item.msg);
-          const isWarn = /warn|stale|slow|timeout/i.test(item.msg);
-          return (
-            <div key={i} className={`scan-log__entry${isComplete ? " scan-log__entry--complete" : ""}${isError ? " scan-log__entry--error" : ""}${isWarn ? " scan-log__entry--warn" : ""}`}>
-              <span className="scan-log__time">{formatShortTime(item.t)}</span>
-              <span className="scan-log__msg">{item.msg}</span>
-            </div>
-          );
-        }) : (
+          })
+        ) : (
           <div className="empty-state empty-state--inline" style={{ padding: "24px 16px" }}>
             {d.scanActive ? "Waiting for log entries…" : "No log entries yet. Start a scan to populate the audit log."}
           </div>
@@ -754,9 +942,18 @@ function SnapshotRecoveryNotice({ snapshot, onForceResume, forceResuming }) {
   if (Date.now() - new Date(snapshot.startedAt).getTime() <= SNAPSHOT_STALE_MS) return null;
 
   return (
-    <div className="danger-zone__error" role="alert" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+    <div
+      className="danger-zone__error"
+      role="alert"
+      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}
+    >
       <span>The field snapshot build has been stalled for over 20 minutes.</span>
-      <button className="secondary-button secondary-button--small" type="button" onClick={onForceResume} disabled={forceResuming}>
+      <button
+        className="secondary-button secondary-button--small"
+        type="button"
+        onClick={onForceResume}
+        disabled={forceResuming}
+      >
         {forceResuming ? "Resuming…" : "Force resume (stalled)"}
       </button>
     </div>
@@ -774,13 +971,27 @@ function ScanStallRecoveryNotice({ status, onResume, onAbandon, resuming, abando
   if (Date.now() - new Date(status.updatedAt).getTime() <= SCAN_STALL_MS) return null;
 
   return (
-    <div className="danger-zone__error" role="alert" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+    <div
+      className="danger-zone__error"
+      role="alert"
+      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}
+    >
       <span>This scan has not reported progress for over 20 minutes. Its background loop may have stopped.</span>
       <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button className="secondary-button secondary-button--small" type="button" onClick={onResume} disabled={resuming || abandoning}>
+        <button
+          className="secondary-button secondary-button--small"
+          type="button"
+          onClick={onResume}
+          disabled={resuming || abandoning}
+        >
           {resuming ? "Resuming…" : "Resume (stalled)"}
         </button>
-        <button className="secondary-button secondary-button--small" type="button" onClick={onAbandon} disabled={resuming || abandoning}>
+        <button
+          className="secondary-button secondary-button--small"
+          type="button"
+          onClick={onAbandon}
+          disabled={resuming || abandoning}
+        >
           {abandoning ? "Abandoning…" : "Abandon scan"}
         </button>
       </span>
@@ -798,10 +1009,14 @@ function ScanIncompleteNotice({ status, onResume, resuming }) {
   if (!incomplete.length) return null;
 
   return (
-    <div className="status-banner status-banner--warning" role="alert" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+    <div
+      className="status-banner status-banner--warning"
+      role="alert"
+      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}
+    >
       <span>
-        {incomplete.length} {incomplete.length === 1 ? "stage" : "stages"} did not build
-        ({incomplete.map((s) => s.label || s.key).join(", ")}). The rest are current — resume to retry only those.
+        {incomplete.length} {incomplete.length === 1 ? "stage" : "stages"} did not build (
+        {incomplete.map((s) => s.label || s.key).join(", ")}). The rest are current — resume to retry only those.
       </span>
       <button className="secondary-button secondary-button--small" type="button" onClick={onResume} disabled={resuming}>
         {resuming ? "Resuming…" : `Resume — retry ${incomplete.length} ${incomplete.length === 1 ? "stage" : "stages"}`}
@@ -814,7 +1029,8 @@ const STAGE_TONE = { done: "success", running: "active", failed: "critical", ski
 const STAGE_LABEL = { done: "Done", running: "Running", failed: "Failed", skipped: "Skipped", pending: "Waiting" };
 
 function durationBetween(a, b) {
-  const s = Date.parse(a || ""), e = Date.parse(b || "");
+  const s = Date.parse(a || ""),
+    e = Date.parse(b || "");
   return Number.isFinite(s) && Number.isFinite(e) && e >= s ? e - s : null;
 }
 
@@ -868,7 +1084,8 @@ function useRunningStageProgress({ startedAt, recentRuns, stageKey, realProgress
   let text;
   if (real.counted) text = `${formatNumber(real.processed)} of ${formatNumber(real.total)} (${real.pct}%)`;
   else if (real.total > 0) text = `${formatNumber(real.processed)} processed`;
-  else if (estPct != null) text = overRun ? "~99% · running longer than last time" : `~${estPct}% · estimated from previous runs`;
+  else if (estPct != null)
+    text = overRun ? "~99% · running longer than last time" : `~${estPct}% · estimated from previous runs`;
   else text = "no previous run to estimate from yet";
 
   return { pct, text, estimated: !real.counted && pct != null, indeterminate: pct == null };
@@ -922,9 +1139,8 @@ function mergeStageData(status) {
 // that matters mid-run. The ticking "last update" is the real proof of life -- it only moves
 // when a poll lands fresh data, so a frozen number is the honest signal something is stuck.
 function ScanNowBand({ status, stages, onCancel, cancelling }) {
-  const current = stages.find((s) => s.key === status?.currentStage)
-    || stages.find((s) => s.state === "running")
-    || null;
+  const current =
+    stages.find((s) => s.key === status?.currentStage) || stages.find((s) => s.state === "running") || null;
   const idx = current ? stages.findIndex((s) => s.key === current.key) : -1;
   const startedAt = current?.startedAt || status?.startedAt || null;
   const elapsed = useLiveDuration(startedAt);
@@ -948,8 +1164,14 @@ function ScanNowBand({ status, stages, onCancel, cancelling }) {
           <strong>{current ? current.label : "Starting…"}</strong>
           <span className="scan-now__sub">
             {idx >= 0 ? `stage ${idx + 1} of ${stages.length}` : "queued"}
-            {" · elapsed "}{elapsed || "0s"}
-            {sweep > 0 && <span className="scan-now__sweeptag">{" · retry pass "}{sweep}</span>}
+            {" · elapsed "}
+            {elapsed || "0s"}
+            {sweep > 0 && (
+              <span className="scan-now__sweeptag">
+                {" · retry pass "}
+                {sweep}
+              </span>
+            )}
           </span>
         </div>
         <button type="button" className="secondary-button" onClick={onCancel} disabled={cancelling}>
@@ -957,17 +1179,24 @@ function ScanNowBand({ status, stages, onCancel, cancelling }) {
         </button>
       </div>
       <div className="scan-now__track" aria-hidden="true">
-        {progress.indeterminate
-          ? <span className="stage-progress__sweep" />
-          : <span
-              className={`stage-progress__fill${progress.estimated ? " stage-progress__fill--estimated" : ""}`}
-              style={{ width: `${progress.pct}%` }}
-            />}
+        {progress.indeterminate ? (
+          <span className="stage-progress__sweep" />
+        ) : (
+          <span
+            className={`stage-progress__fill${progress.estimated ? " stage-progress__fill--estimated" : ""}`}
+            style={{ width: `${progress.pct}%` }}
+          />
+        )}
       </div>
       <div className="scan-now__foot">
         <span>
           {progress.text}
-          {note && <span className="scan-now__note">{" — "}{note}</span>}
+          {note && (
+            <span className="scan-now__note">
+              {" — "}
+              {note}
+            </span>
+          )}
         </span>
         <span className="scan-now__beat">last update {updatedAgo || "just now"} ago</span>
       </div>
@@ -986,7 +1215,9 @@ function RunDelta({ from, to, unit = "", goodDown = false }) {
   const worse = goodDown && d > 0;
   return (
     <span className={`run-delta run-delta--${worse ? "warn" : "neutral"}`}>
-      {d > 0 ? "+" : "−"}{formatNumber(Math.abs(d))}{unit} vs last run
+      {d > 0 ? "+" : "−"}
+      {formatNumber(Math.abs(d))}
+      {unit} vs last run
     </span>
   );
 }
@@ -1008,10 +1239,18 @@ function StageDetailCard({ stage, onOpenCrawl }) {
     <Panel
       title={stage.label}
       icon="layers"
-      description={<span className={`chip chip--${STAGE_TONE[stage.state] || "neutral"}`}>{STAGE_LABEL[stage.state] || stage.state}</span>}
+      description={
+        <span className={`chip chip--${STAGE_TONE[stage.state] || "neutral"}`}>
+          {STAGE_LABEL[stage.state] || stage.state}
+        </span>
+      }
     >
       <StatRow>
-        <StatTile label="Produced" value={stage.count == null ? "—" : formatNumber(stage.count)} hint={stage.count == null ? "no headline count for this stage" : undefined}>
+        <StatTile
+          label="Produced"
+          value={stage.count == null ? "—" : formatNumber(stage.count)}
+          hint={stage.count == null ? "no headline count for this stage" : undefined}
+        >
           <RunDelta from={stage.prevCount} to={stage.count} />
         </StatTile>
         <StatTile label="Duration" value={formatDurationMs(stage.durationMs) || "—"}>
@@ -1109,21 +1348,31 @@ function ScanPipeline({ status, onAbandonScan, abandoningScan, onOpenCrawl }) {
     if (running) setUserPicked(false);
   }, [status?.startedAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const selectStage = (key) => { setUserPicked(true); setSelectedKey(key); };
+  const selectStage = (key) => {
+    setUserPicked(true);
+    setSelectedKey(key);
+  };
   const selected = stages.find((s) => s.key === selectedKey) || null;
-  const everRun = stages.some((s) => s.state !== "pending") || (status?.recentRuns?.length > 0);
+  const everRun = stages.some((s) => s.state !== "pending") || status?.recentRuns?.length > 0;
 
   return (
     <>
       <StatRow>
-        <StatTile label="Stages complete" value={`${done} / ${stages.length}`} tone={done === stages.length && !failed ? "success" : "neutral"} />
+        <StatTile
+          label="Stages complete"
+          value={`${done} / ${stages.length}`}
+          tone={done === stages.length && !failed ? "success" : "neutral"}
+        />
         <StatTile label="Failed" value={failed} tone={failed ? "critical" : "neutral"} />
-        <StatTile label="Skipped" value={skipped} tone={skipped ? "warning" : "neutral"} hint="A stage is skipped when something it depends on did not complete. Running it against stale inputs would produce a wrong answer rather than a partial one." />
+        <StatTile
+          label="Skipped"
+          value={skipped}
+          tone={skipped ? "warning" : "neutral"}
+          hint="A stage is skipped when something it depends on did not complete. Running it against stale inputs would produce a wrong answer rather than a partial one."
+        />
       </StatRow>
 
-      {running && (
-        <ScanNowBand status={status} stages={stages} onCancel={onAbandonScan} cancelling={abandoningScan} />
-      )}
+      {running && <ScanNowBand status={status} stages={stages} onCancel={onAbandonScan} cancelling={abandoningScan} />}
 
       <Panel title="Stages" icon="layers">
         {everRun ? (
@@ -1147,10 +1396,22 @@ function ScanPipeline({ status, onAbandonScan, abandoningScan, onOpenCrawl }) {
 }
 
 export function FullScanPanel({
-  status, onStart, starting,
-  onResumeStalledScan, onAbandonScan, recoveringScan, abandoningScan,
-  issueScan, onResumeIssueScan, onCancelIssueScan, resumingIssueScan, cancellingIssueScan,
-  snapshot, onForceResumeSnapshot, forceResumingSnapshot, onSnapshotCleared,
+  status,
+  onStart,
+  starting,
+  onResumeStalledScan,
+  onAbandonScan,
+  recoveringScan,
+  abandoningScan,
+  issueScan,
+  onResumeIssueScan,
+  onCancelIssueScan,
+  resumingIssueScan,
+  cancellingIssueScan,
+  snapshot,
+  onForceResumeSnapshot,
+  forceResumingSnapshot,
+  onSnapshotCleared,
   onViewAuditLog,
 }) {
   const running = status?.state === "running";
@@ -1162,7 +1423,12 @@ export function FullScanPanel({
         description="Every pillar in one pass, in dependency order. Each stage is the same build its own tab runs — this sequences them so the tabs cannot end up disagreeing about which snapshot they are describing."
         meta={status?.completedAt ? `Last run ${formatRelativeTime(status.completedAt)}` : undefined}
         actions={
-          <button type="button" className="primary-button" onClick={onStart} disabled={starting || running || status?.blockedByOtherScan}>
+          <button
+            type="button"
+            className="primary-button"
+            onClick={onStart}
+            disabled={starting || running || status?.blockedByOtherScan}
+          >
             {running ? "Scanning…" : starting ? "Starting…" : "Run full scan"}
           </button>
         }
@@ -1174,8 +1440,14 @@ export function FullScanPanel({
       <Panel title="What this scan does" icon="info" collapsible defaultCollapsed>
         <ul className="delta-scan-panel__facts">
           <li>Rebuilds the workflow &amp; status, screen, saved filter, and dashboard inventories in full.</li>
-          <li>Rebuilds the field catalog, then crawls every issue across all Jira projects to compute per-project field usage counts and detect <code>RQT-XXXXXX-XXXXXX</code> pattern values.</li>
-          <li>Updates field usage summaries and governance scores from what the crawl found, then records status history and site health once everything else has landed.</li>
+          <li>
+            Rebuilds the field catalog, then crawls every issue across all Jira projects to compute per-project field
+            usage counts and detect <code>RQT-XXXXXX-XXXXXX</code> pattern values.
+          </li>
+          <li>
+            Updates field usage summaries and governance scores from what the crawl found, then records status history
+            and site health once everything else has landed.
+          </li>
         </ul>
       </Panel>
 
@@ -1199,12 +1471,18 @@ export function FullScanPanel({
       />
 
       {status?.lastError && !running && (
-        <div className="danger-zone__error" role="alert">{status.lastError}</div>
+        <div className="danger-zone__error" role="alert">
+          {status.lastError}
+        </div>
       )}
 
       <ScanIncompleteNotice status={status} onResume={onResumeStalledScan} resuming={recoveringScan} />
 
-      <SnapshotRecoveryNotice snapshot={snapshot} onForceResume={onForceResumeSnapshot} forceResuming={forceResumingSnapshot} />
+      <SnapshotRecoveryNotice
+        snapshot={snapshot}
+        onForceResume={onForceResumeSnapshot}
+        forceResuming={forceResumingSnapshot}
+      />
 
       <IssueCrawlSummary
         issueScan={issueScan}
@@ -1216,10 +1494,9 @@ export function FullScanPanel({
 
       <Panel title="What this does not cover" icon="alertTriangle" collapsible defaultCollapsed>
         <p>
-          <strong>Automation rules are not scanned.</strong> Jira publishes no API to enumerate
-          them — that pillar is fed by importing a rule export by hand, from the Automation tab.
-          A scan that quietly skipped it while calling itself complete would be claiming coverage
-          it does not have.
+          <strong>Automation rules are not scanned.</strong> Jira publishes no API to enumerate them — that pillar is
+          fed by importing a rule export by hand, from the Automation tab. A scan that quietly skipped it while calling
+          itself complete would be claiming coverage it does not have.
         </p>
       </Panel>
 
@@ -1256,15 +1533,29 @@ function QuickScanSchedule({ schedule, onChange, onToggleEnabled, onSave, saving
 
           {schedule.frequency === "weekly" && (
             <ConfigRow label="Day of week" hint="Which day the weekly run fires on.">
-              <select value={schedule.dayOfWeek} onChange={(e) => onChange({ ...schedule, dayOfWeek: Number(e.target.value) })}>
-                {WEEKDAY_LABELS.map((label, i) => <option key={i} value={i}>{label}</option>)}
+              <select
+                value={schedule.dayOfWeek}
+                onChange={(e) => onChange({ ...schedule, dayOfWeek: Number(e.target.value) })}
+              >
+                {WEEKDAY_LABELS.map((label, i) => (
+                  <option key={i} value={i}>
+                    {label}
+                  </option>
+                ))}
               </select>
             </ConfigRow>
           )}
 
           <ConfigRow label="Time (UTC)" hint="The hour the run fires in, in UTC.">
-            <select value={schedule.hourUtc} onChange={(e) => onChange({ ...schedule, hourUtc: Number(e.target.value) })}>
-              {HOUR_OPTIONS.map((h) => <option key={h} value={h}>{String(h).padStart(2, "0")}:00 UTC</option>)}
+            <select
+              value={schedule.hourUtc}
+              onChange={(e) => onChange({ ...schedule, hourUtc: Number(e.target.value) })}
+            >
+              {HOUR_OPTIONS.map((h) => (
+                <option key={h} value={h}>
+                  {String(h).padStart(2, "0")}:00 UTC
+                </option>
+              ))}
             </select>
           </ConfigRow>
 
@@ -1289,9 +1580,13 @@ function QuickScanSchedule({ schedule, onChange, onToggleEnabled, onSave, saving
           <button className="primary-button" type="button" onClick={onSave} disabled={saving || !dirty}>
             {saving ? "Saving…" : "Save schedule"}
           </button>
-          {dirty
-            ? <span className="status-banner status-banner--warning" style={{ padding: "2px 8px" }}>Unsaved changes</span>
-            : saved && <span className="admin-snapshot-card__age">Saved.</span>}
+          {dirty ? (
+            <span className="status-banner status-banner--warning" style={{ padding: "2px 8px" }}>
+              Unsaved changes
+            </span>
+          ) : (
+            saved && <span className="admin-snapshot-card__age">Saved.</span>
+          )}
         </div>
       )}
     </ConfigSection>
@@ -1299,10 +1594,21 @@ function QuickScanSchedule({ schedule, onChange, onToggleEnabled, onSave, saving
 }
 
 export function QuickScanPanel({
-  status, onStart, starting,
-  onResumeStalledScan, onAbandonScan, recoveringScan, abandoningScan,
+  status,
+  onStart,
+  starting,
+  onResumeStalledScan,
+  onAbandonScan,
+  recoveringScan,
+  abandoningScan,
   deltaIssueScan,
-  schedule, onChangeSchedule, onToggleScheduleEnabled, onSaveSchedule, savingSchedule, scheduleSaved, scheduleDirty,
+  schedule,
+  onChangeSchedule,
+  onToggleScheduleEnabled,
+  onSaveSchedule,
+  savingSchedule,
+  scheduleSaved,
+  scheduleDirty,
   onViewAuditLog,
 }) {
   const running = status?.state === "running";
@@ -1314,7 +1620,12 @@ export function QuickScanPanel({
         description="The same estate as a full scan, minus what Jira genuinely cannot tell us has changed. Filters, dashboards, screens and workflows still run in full every time — there is no changed-since signal for them. The issue crawl is windowed to whatever you configure below."
         meta={status?.completedAt ? `Last run ${formatRelativeTime(status.completedAt)}` : undefined}
         actions={
-          <button type="button" className="primary-button" onClick={onStart} disabled={starting || running || status?.blockedByOtherScan}>
+          <button
+            type="button"
+            className="primary-button"
+            onClick={onStart}
+            disabled={starting || running || status?.blockedByOtherScan}
+          >
             {running ? "Scanning…" : starting ? "Starting…" : "Run quick scan"}
           </button>
         }
@@ -1322,9 +1633,18 @@ export function QuickScanPanel({
 
       <Panel title="What this scan does" icon="info" collapsible defaultCollapsed>
         <ul className="delta-scan-panel__facts">
-          <li>Refetches workflow &amp; status, screen, saved filter, and dashboard inventories in full — Jira gives no changed-since signal for any of them.</li>
-          <li>Re-reads only the issues created or updated within the configured window, refreshing field × project usage counts for what changed and detecting <code>RQT-XXXXXX-XXXXXX</code> pattern values in them.</li>
-          <li>Updates governance scores from what the crawl found, then records status history and site health once everything else has landed.</li>
+          <li>
+            Refetches workflow &amp; status, screen, saved filter, and dashboard inventories in full — Jira gives no
+            changed-since signal for any of them.
+          </li>
+          <li>
+            Re-reads only the issues created or updated within the configured window, refreshing field × project usage
+            counts for what changed and detecting <code>RQT-XXXXXX-XXXXXX</code> pattern values in them.
+          </li>
+          <li>
+            Updates governance scores from what the crawl found, then records status history and site health once
+            everything else has landed.
+          </li>
         </ul>
       </Panel>
 
@@ -1333,7 +1653,9 @@ export function QuickScanPanel({
       )}
 
       {status?.windowHours != null && (
-        <EmptyState inline>Last run looked back {status.windowHours} hour{status.windowHours === 1 ? "" : "s"} for changed issues.</EmptyState>
+        <EmptyState inline>
+          Last run looked back {status.windowHours} hour{status.windowHours === 1 ? "" : "s"} for changed issues.
+        </EmptyState>
       )}
 
       <ScanPipeline
@@ -1352,21 +1674,25 @@ export function QuickScanPanel({
       />
 
       {status?.lastError && !running && (
-        <div className="danger-zone__error" role="alert">{status.lastError}</div>
+        <div className="danger-zone__error" role="alert">
+          {status.lastError}
+        </div>
       )}
 
       <ScanIncompleteNotice status={status} onResume={onResumeStalledScan} resuming={recoveringScan} />
 
-      <IssueCrawlSummary
-        issueScan={deltaIssueScan}
-        title="Issue crawl (changed since window)"
-        readOnly
-      />
+      <IssueCrawlSummary issueScan={deltaIssueScan} title="Issue crawl (changed since window)" readOnly />
 
       <Panel title="What this does not cover" icon="alertTriangle" collapsible defaultCollapsed>
         <ul className="delta-scan-panel__facts">
-          <li><strong>New custom fields</strong> are not picked up — the field catalog itself only refreshes on a full scan. Usage counts for existing fields are current; a field created since the last full scan will not appear until the next one.</li>
-          <li><strong>Automation rules</strong> are never scanned. Jira publishes no API to enumerate them.</li>
+          <li>
+            <strong>New custom fields</strong> are not picked up — the field catalog itself only refreshes on a full
+            scan. Usage counts for existing fields are current; a field created since the last full scan will not appear
+            until the next one.
+          </li>
+          <li>
+            <strong>Automation rules</strong> are never scanned. Jira publishes no API to enumerate them.
+          </li>
         </ul>
       </Panel>
 
@@ -1385,8 +1711,12 @@ export function QuickScanPanel({
 
 const DEFAULT_QUICK_SCAN_SCHEDULE = { enabled: false, frequency: "weekly", dayOfWeek: 0, hourUtc: 0, windowHours: 168 };
 
-export function ScansTab({ siteOrigin, initialSection }) {
-  const [activeSection, setActiveSection] = usePersistentState("observatory.section.scans", "full", initialSection || null);
+export function ScansTab({ initialSection }) {
+  const [activeSection, setActiveSection] = usePersistentState(
+    "observatory.section.scans",
+    "full",
+    initialSection || null,
+  );
   // Which crawl the Audit Log / Reports sub-tabs are showing. Both sub-tabs read whichever
   // scan's issue crawl was last opened from -- "See the full issue-crawl log" on a stage card
   // sets this before switching section, so the reader lands on the run they actually clicked
@@ -1433,12 +1763,14 @@ export function ScansTab({ siteOrigin, initialSection }) {
     }
   }, []);
 
-  React.useEffect(() => { fetchSnapshotStatus(); }, []);
+  React.useEffect(() => {
+    fetchSnapshotStatus();
+  }, []);
 
   useVisiblePolling(
     snapshotStatus?.state === "building" || snapshotStatus?.state === "queued",
     fetchSnapshotStatus,
-    8000
+    8000,
   );
 
   async function forceResumeSnapshot() {
@@ -1455,19 +1787,37 @@ export function ScansTab({ siteOrigin, initialSection }) {
   }
 
   const fetchIssueScanStatus = React.useCallback(async () => {
-    try { const r = await invoke("getIssueScanStatus"); setIssueScanStatus(r?.meta || null); } catch (err) { setError(err.message || "Failed to load issue crawl status."); }
+    try {
+      const r = await invoke("getIssueScanStatus");
+      setIssueScanStatus(r?.meta || null);
+    } catch (err) {
+      setError(err.message || "Failed to load issue crawl status.");
+    }
   }, []);
 
   const fetchFullScanStatus = React.useCallback(async () => {
-    try { setFullScanStatus(await invoke("getFullScanStatus")); } catch (err) { setError(err.message || "Failed to load full scan status."); }
+    try {
+      setFullScanStatus(await invoke("getFullScanStatus"));
+    } catch (err) {
+      setError(err.message || "Failed to load full scan status.");
+    }
   }, []);
 
   const fetchQuickScanStatus = React.useCallback(async () => {
-    try { setQuickScanStatus(await invoke("getQuickScanStatus")); } catch (err) { setError(err.message || "Failed to load quick scan status."); }
+    try {
+      setQuickScanStatus(await invoke("getQuickScanStatus"));
+    } catch (err) {
+      setError(err.message || "Failed to load quick scan status.");
+    }
   }, []);
 
   const fetchDeltaStatus = React.useCallback(async () => {
-    try { const r = await invoke("getDeltaIssueScanStatus"); setDeltaIssueScanStatus(r?.meta || null); } catch {}
+    try {
+      const r = await invoke("getDeltaIssueScanStatus");
+      setDeltaIssueScanStatus(r?.meta || null);
+    } catch {
+      // Best effort: the status poll runs again shortly, and a failed read keeps the last value.
+    }
   }, []);
 
   const fetchSchedule = React.useCallback(async () => {
@@ -1503,27 +1853,45 @@ export function ScansTab({ siteOrigin, initialSection }) {
   useVisiblePolling(
     issueScanStatus?.state === "building" || issueScanStatus?.state === "queued" || fullScanStatus?.state === "running",
     fetchIssueScanStatus,
-    15000
+    15000,
   );
 
   useVisiblePolling(
-    deltaIssueScanStatus?.state === "building" || deltaIssueScanStatus?.state === "queued" || quickScanStatus?.state === "running",
+    deltaIssueScanStatus?.state === "building" ||
+      deltaIssueScanStatus?.state === "queued" ||
+      quickScanStatus?.state === "running",
     fetchDeltaStatus,
-    15000
+    15000,
   );
 
   async function resumeScan() {
     setIssueScanResuming(true);
     try {
       const result = await invoke("resumeIssueScan");
-      if (result?.resumed === false) setError({ "already-complete": "Issue crawl is already complete.", "no-scan": "No issue crawl exists to resume." }[result.reason] || "Issue crawl could not be resumed.");
+      if (result?.resumed === false)
+        setError(
+          { "already-complete": "Issue crawl is already complete.", "no-scan": "No issue crawl exists to resume." }[
+            result.reason
+          ] || "Issue crawl could not be resumed.",
+        );
       await fetchIssueScanStatus();
-    } catch (err) { setError(err.message || "Failed to resume the issue crawl."); } finally { setIssueScanResuming(false); }
+    } catch (err) {
+      setError(err.message || "Failed to resume the issue crawl.");
+    } finally {
+      setIssueScanResuming(false);
+    }
   }
 
   async function cancelScan() {
     setIssueScanCancelling(true);
-    try { await invoke("cancelIssueScan"); await fetchIssueScanStatus(); } catch (err) { setError(err.message || "Failed to cancel the issue crawl."); } finally { setIssueScanCancelling(false); }
+    try {
+      await invoke("cancelIssueScan");
+      await fetchIssueScanStatus();
+    } catch (err) {
+      setError(err.message || "Failed to cancel the issue crawl.");
+    } finally {
+      setIssueScanCancelling(false);
+    }
   }
 
   async function startFullScan() {
@@ -1640,7 +2008,14 @@ export function ScansTab({ siteOrigin, initialSection }) {
 
   return (
     <div className="admin-scans-tab">
-      {error && <div className="error-banner" style={{ margin: "0 0 12px 0" }}>{error}<button className="inline-text-button" type="button" onClick={() => setError("")} style={{ marginLeft: 10 }}>Dismiss</button></div>}
+      {error && (
+        <div className="error-banner" style={{ margin: "0 0 12px 0" }}>
+          {error}
+          <button className="inline-text-button" type="button" onClick={() => setError("")} style={{ marginLeft: 10 }}>
+            Dismiss
+          </button>
+        </div>
+      )}
       <SubNavLayout items={subNavItems} activeKey={activeSection} onSelect={setActiveSection}>
         {activeSection === "full" && (
           <FullScanPanel

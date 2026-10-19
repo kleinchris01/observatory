@@ -124,7 +124,8 @@ export async function getRemediationTickets({ payload, context }) {
   const period = currentPeriod();
   const byFinding = new Map();
   for (const t of tickets) {
-    if (!byFinding.has(t.findingKey)) byFinding.set(t.findingKey, { findingKey: t.findingKey, pillar: t.pillar, periods: new Map() });
+    if (!byFinding.has(t.findingKey))
+      byFinding.set(t.findingKey, { findingKey: t.findingKey, pillar: t.pillar, periods: new Map() });
     const f = byFinding.get(t.findingKey);
     if (!f.periods.has(t.period)) f.periods.set(t.period, { period: t.period, epic: null, tasks: [] });
     const p = f.periods.get(t.period);
@@ -161,7 +162,10 @@ export async function getRemediationTickets({ payload, context }) {
 
   // The latest time the sync reached any ticket. Null means it never has, which the tab says in
   // those words rather than implying the tickets were checked and found untouched.
-  const lastSyncedAt = tickets.reduce((latest, t) => (t.syncedAt && (!latest || t.syncedAt > latest) ? t.syncedAt : latest), null);
+  const lastSyncedAt = tickets.reduce(
+    (latest, t) => (t.syncedAt && (!latest || t.syncedAt > latest) ? t.syncedAt : latest),
+    null,
+  );
 
   // The catalog and the finding index travel with the tickets, so neither the Remediation tab
   // nor the Overview keeps its own copy of which playbooks exist or which finding each covers.
@@ -169,8 +173,9 @@ export async function getRemediationTickets({ payload, context }) {
   const rc = (await readAdminConfig().catch(() => ({})))?.remediation || {};
   let hierarchy = null;
   if (rc.hierarchyEnabled) {
-    const nodes = await loadHierarchyNodes(installationKey, period)
-      .catch(fallbackOn("remediation.hierarchy_read_failed", () => new Map(), { installationKey }));
+    const nodes = await loadHierarchyNodes(installationKey, period).catch(
+      fallbackOn("remediation.hierarchy_read_failed", () => new Map(), { installationKey }),
+    );
     hierarchy = {
       enabled: true,
       rootKey: nodes.get(ROOT_NODE)?.issueKey || null,
@@ -208,18 +213,28 @@ export const WITHDRAWAL_EVIDENCE = {
     if (!fields) return null;
     const holding = fields.filter((f) => (f.totalIssueCount || 0) > 0 || (f.archivedIssueCount || 0) > 0);
     const archived = holding.some((f) => f.archivedIssueCount > 0)
-      ? await loadArchivedFieldUsage(installationKey, holding.filter((f) => f.archivedIssueCount > 0).map((f) => f.id))
+      ? await loadArchivedFieldUsage(
+          installationKey,
+          holding.filter((f) => f.archivedIssueCount > 0).map((f) => f.id),
+        )
       : new Map();
     const n = (v) => Number(v).toLocaleString("en-US");
-    return new Map(holding.map((f) => {
-      const parts = [];
-      if (f.totalIssueCount > 0) parts.push(`it holds values on ${n(f.totalIssueCount)} issue${f.totalIssueCount === 1 ? "" : "s"} in active projects`);
-      if (f.archivedIssueCount > 0) {
-        const keys = (archived.get(String(f.id)) || []).map((r) => r.projectKey).filter(Boolean);
-        parts.push(`it holds values on ${n(f.archivedIssueCount)} issue${f.archivedIssueCount === 1 ? "" : "s"} in archived projects${keys.length ? ` (${keys.slice(0, 5).join(", ")}${keys.length > 5 ? ", …" : ""})` : ""}, which Jira's search cannot see`);
-      }
-      return [String(f.id), `${parts.join("; ")}. Deleting it would destroy that data`];
-    }));
+    return new Map(
+      holding.map((f) => {
+        const parts = [];
+        if (f.totalIssueCount > 0)
+          parts.push(
+            `it holds values on ${n(f.totalIssueCount)} issue${f.totalIssueCount === 1 ? "" : "s"} in active projects`,
+          );
+        if (f.archivedIssueCount > 0) {
+          const keys = (archived.get(String(f.id)) || []).map((r) => r.projectKey).filter(Boolean);
+          parts.push(
+            `it holds values on ${n(f.archivedIssueCount)} issue${f.archivedIssueCount === 1 ? "" : "s"} in archived projects${keys.length ? ` (${keys.slice(0, 5).join(", ")}${keys.length > 5 ? ", …" : ""})` : ""}, which Jira's search cannot see`,
+          );
+        }
+        return [String(f.id), `${parts.join("; ")}. Deleting it would destroy that data`];
+      }),
+    );
   },
 };
 
@@ -234,14 +249,24 @@ export async function getRemediationVerification({ payload, context }) {
   await mapWithConcurrency(findingKeys, 3, async (findingKey) => {
     try {
       const result = await loadRemediationCandidates({ payload: { findingKey }, context });
-      const withdrawn = result?.available !== false && WITHDRAWAL_EVIDENCE[findingKey]
-        ? await WITHDRAWAL_EVIDENCE[findingKey](installationKey).catch(fallbackOn("remediation.withdrawal_evidence_failed", () => null, { installationKey, findingKey }))
-        : null;
-      current.set(findingKey, result?.available === false
-        ? { available: false, ids: new Set(), reason: result.reason || "unavailable" }
-        : { available: true, ids: new Set((result?.items || []).map((it) => String(it.id ?? it.name))), withdrawn });
+      const withdrawn =
+        result?.available !== false && WITHDRAWAL_EVIDENCE[findingKey]
+          ? await WITHDRAWAL_EVIDENCE[findingKey](installationKey).catch(
+              fallbackOn("remediation.withdrawal_evidence_failed", () => null, { installationKey, findingKey }),
+            )
+          : null;
+      current.set(
+        findingKey,
+        result?.available === false
+          ? { available: false, ids: new Set(), reason: result.reason || "unavailable" }
+          : { available: true, ids: new Set((result?.items || []).map((it) => String(it.id ?? it.name))), withdrawn },
+      );
     } catch (error) {
-      logger.warn("remediation.verify_candidates_failed", { installationKey, findingKey, error: String(error?.message || error) });
+      logger.warn("remediation.verify_candidates_failed", {
+        installationKey,
+        findingKey,
+        error: String(error?.message || error),
+      });
       current.set(findingKey, { available: false, ids: new Set(), reason: "error" });
     }
   });
@@ -262,7 +287,10 @@ export async function applyRemediationVerification({ payload, context }) {
   requireArray(payload?.issueKeys, "issueKeys");
   const issueKeys = [...new Set(payload.issueKeys.map(String))].slice(0, MAX_VERIFICATION_APPLY);
 
-  const verification = await getRemediationVerification({ payload: { findingKey: payload.findingKey || null }, context });
+  const verification = await getRemediationVerification({
+    payload: { findingKey: payload.findingKey || null },
+    context,
+  });
   const byKey = new Map(verification.rows.map((r) => [r.issueKey, r]));
   const results = [];
   for (const issueKey of issueKeys) {
@@ -270,12 +298,19 @@ export async function applyRemediationVerification({ payload, context }) {
     const target = row ? targetCategory(row.verdict) : null;
     if (!target) {
       results.push({
-        issueKey, transitioned: false, commented: false,
-        reason: row ? `Its verdict is now "${row.verdict}", so it was left as it is.` : "Not an Observatory remediation task.",
+        issueKey,
+        transitioned: false,
+        commented: false,
+        reason: row
+          ? `Its verdict is now "${row.verdict}", so it was left as it is.`
+          : "Not an Observatory remediation task.",
       });
       continue;
     }
-    const text = verificationComment(row, { checkedAt: verification.checkedAt, findingLabel: verification.labels[row.findingKey] });
+    const text = verificationComment(row, {
+      checkedAt: verification.checkedAt,
+      findingLabel: verification.labels[row.findingKey],
+    });
     try {
       // eslint-disable-next-line no-await-in-loop -- one ticket at a time; each is a write.
       results.push(await transitionIssueWithComment(issueKey, { target, commentBody: renderADF(text), asUser: true }));
@@ -284,8 +319,14 @@ export async function applyRemediationVerification({ payload, context }) {
     }
   }
   // Pull the new statuses back now rather than at the next hourly sync.
-  await queueRemediationSync(installationKey).catch(fallbackOn("remediation.verify_sync_queue_failed", null, { installationKey }));
-  return { results, applied: results.filter((r) => r.transitioned).length, skipped: payload.issueKeys.length - issueKeys.length };
+  await queueRemediationSync(installationKey).catch(
+    fallbackOn("remediation.verify_sync_queue_failed", null, { installationKey }),
+  );
+  return {
+    results,
+    applied: results.filter((r) => r.transitioned).length,
+    skipped: payload.issueKeys.length - issueKeys.length,
+  };
 }
 
 export async function getRemediationMetrics({ payload, context }) {
@@ -328,10 +369,13 @@ export async function organiseRemediationHierarchy({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
   const adminConfig = await readAdminConfig();
-  if (adminConfig.readOnlyMode) return { error: "Read-only mode is enabled. Disable it before changing remediation tickets." };
+  if (adminConfig.readOnlyMode)
+    return { error: "Read-only mode is enabled. Disable it before changing remediation tickets." };
   const rc = adminConfig.remediation || {};
-  if (!rc.projectKey) return { error: "No remediation project is configured. Set one in Configuration → Remediation first." };
-  if (!rc.hierarchyEnabled) return { error: "The remediation hierarchy is off. Turn it on in Configuration → Remediation first." };
+  if (!rc.projectKey)
+    return { error: "No remediation project is configured. Set one in Configuration → Remediation first." };
+  if (!rc.hierarchyEnabled)
+    return { error: "The remediation hierarchy is off. Turn it on in Configuration → Remediation first." };
   const accountId = callerAccountId(context);
   if (!accountId) return { error: "Could not identify the calling user." };
 
@@ -355,9 +399,13 @@ export async function organiseRemediationHierarchy({ context }) {
     try {
       // eslint-disable-next-line no-await-in-loop -- sequential: nodes are created once and reused
       const { initiativeKey } = await ensureInitiativeFor(
-        { scopeKey: installationKey, period, pillar: epic.pillar, config: rc, projectKey: rc.projectKey, accountId }, deps,
+        { scopeKey: installationKey, period, pillar: epic.pillar, config: rc, projectKey: rc.projectKey, accountId },
+        deps,
       );
-      if (parentOf.get(epic.issueKey) === initiativeKey) { alreadyPlaced += 1; continue; }
+      if (parentOf.get(epic.issueKey) === initiativeKey) {
+        alreadyPlaced += 1;
+        continue;
+      }
       // eslint-disable-next-line no-await-in-loop
       await updateJiraIssue(epic.issueKey, { parent: { key: initiativeKey } }, { asUser: true });
       organised += 1;
@@ -365,9 +413,18 @@ export async function organiseRemediationHierarchy({ context }) {
       failures.push({ epicKey: epic.issueKey, error: String(error?.message || error) });
     }
   }
-  logger.info("remediation.hierarchy_organised", { installationKey, period, organised, alreadyPlaced, failures: failures.length });
+  logger.info("remediation.hierarchy_organised", {
+    installationKey,
+    period,
+    organised,
+    alreadyPlaced,
+    failures: failures.length,
+  });
   return {
-    ok: true, period, organised, alreadyPlaced,
+    ok: true,
+    period,
+    organised,
+    alreadyPlaced,
     rootKey: deps.nodes.get(ROOT_NODE)?.issueKey || null,
     remaining: Math.max(0, epics.length - attempted),
     failures,
@@ -400,12 +457,16 @@ export async function createRemediationEpic({ payload, context }) {
   const rawItems = Array.isArray(payload?.items) ? payload.items : [];
   const items = rawItems
     .filter((it) => it && (it.id != null || it.name))
-    .map((it) => ({ ...it, id: String(it.id ?? it.name), name: it.name != null ? String(it.name).slice(0, 240) : null }));
+    .map((it) => ({
+      ...it,
+      id: String(it.id ?? it.name),
+      name: it.name != null ? String(it.name).slice(0, 240) : null,
+    }));
   const pillar = payload?.pillar ? String(payload.pillar) : playbook.pillar;
   const nowIso = () => new Date().toISOString();
   // Every ticket links straight to what it is about. The invocation context carries the site
   // URL; serverInfo is the fallback. Neither is required -- without one, tickets go out unlinked.
-  const origin = normalizeSiteOrigin(context?.siteUrl) || await getSiteBaseUrl();
+  const origin = normalizeSiteOrigin(context?.siteUrl) || (await getSiteBaseUrl());
 
   // One epic per finding per calendar quarter. Within the quarter a second click adds only
   // the tasks still missing; the next quarter starts a fresh epic carrying what is flagged
@@ -424,7 +485,9 @@ export async function createRemediationEpic({ payload, context }) {
           await hierarchyDeps(installationKey, period),
         ));
       } catch (error) {
-        return { error: `Placing the epic under its initiative failed: ${error?.message || error}. Check the Product and Initiative issue types in Configuration → Remediation, or turn the hierarchy off.` };
+        return {
+          error: `Placing the epic under its initiative failed: ${error?.message || error}. Check the Product and Initiative issue types in Configuration → Remediation, or turn the hierarchy off.`,
+        };
       }
     }
     try {
@@ -439,9 +502,16 @@ export async function createRemediationEpic({ payload, context }) {
       };
       const created = await createJiraIssue(fields, { asUser: true });
       await recordRemediationTicket(installationKey, {
-        findingKey, period, pillar, isEpic: true,
-        issueKey: created.key, issueId: created.id, epicKey: created.key,
-        summary: fields.summary, createdBy: accountId, createdAt: nowIso(),
+        findingKey,
+        period,
+        pillar,
+        isEpic: true,
+        issueKey: created.key,
+        issueId: created.id,
+        epicKey: created.key,
+        summary: fields.summary,
+        createdBy: accountId,
+        createdAt: nowIso(),
       });
       epic = { issueKey: created.key, issueId: created.id };
       epicCreated = true;
@@ -477,9 +547,16 @@ export async function createRemediationEpic({ payload, context }) {
       const created = await createJiraIssue(fields, { asUser: true });
       // eslint-disable-next-line no-await-in-loop
       await recordRemediationTicket(installationKey, {
-        findingKey, period, pillar, itemId: it.id,
-        issueKey: created.key, issueId: created.id, epicKey: epic.issueKey,
-        summary: fields.summary, createdBy: accountId, createdAt: nowIso(),
+        findingKey,
+        period,
+        pillar,
+        itemId: it.id,
+        issueKey: created.key,
+        issueId: created.id,
+        epicKey: epic.issueKey,
+        summary: fields.summary,
+        createdBy: accountId,
+        createdAt: nowIso(),
       });
       tasksCreated += 1;
     } catch (error) {
@@ -488,8 +565,13 @@ export async function createRemediationEpic({ payload, context }) {
   }
 
   logger.info("remediation.epic_created", {
-    installationKey, findingKey, epicKey: epic.issueKey, epicCreated,
-    tasksCreated, itemsTotal: items.length, failures: failures.length,
+    installationKey,
+    findingKey,
+    epicKey: epic.issueKey,
+    epicCreated,
+    tasksCreated,
+    itemsTotal: items.length,
+    failures: failures.length,
   });
 
   return {
@@ -520,8 +602,9 @@ export async function getRemediationCandidates({ payload, context }) {
   if (!result?.items?.length) return result;
   const installationKey = getInstallationKey(context);
   const findingKey = String(payload?.findingKey || "");
-  const ticketed = await loadTicketedItems(installationKey, findingKey, currentPeriod())
-    .catch(fallbackOn("remediation.candidates_ticketed_failed", () => null, { installationKey, findingKey }));
+  const ticketed = await loadTicketedItems(installationKey, findingKey, currentPeriod()).catch(
+    fallbackOn("remediation.candidates_ticketed_failed", () => null, { installationKey, findingKey }),
+  );
   if (!ticketed) return result;
   return {
     ...result,
@@ -604,7 +687,8 @@ export async function loadRemediationCandidates({ payload, context }) {
     for (const [accountId, owned] of ownership.byAccount) {
       if (rosterIds.has(accountId)) continue;
       for (const f of owned.filters) items.push({ id: `filter:${f.id}`, kind: "filter", name: f.name || null });
-      for (const d of owned.dashboards) items.push({ id: `dashboard:${d.id}`, kind: "dashboard", name: d.name || null });
+      for (const d of owned.dashboards)
+        items.push({ id: `dashboard:${d.id}`, kind: "dashboard", name: d.name || null });
       for (const r of owned.rules) items.push({ id: `rule:${r.id}`, kind: "automation rule", name: r.name || null });
     }
     return { available: true, items };
@@ -641,10 +725,19 @@ export async function loadRemediationCandidates({ payload, context }) {
       computeBoardStatusIds(installationKey).catch(() => null),
       readFilterSnapshotMeta(installationKey).catch(() => null),
     ]);
-    const filterCountByStatus = filterMeta?.version && provisionalNames.length
-      ? await loadFilterReferenceCounts(installationKey, filterMeta.version, "status", provisionalNames).catch(() => null)
-      : null;
-    const orphans = findOrphanedStatuses(statuses, schemeStatuses, hasIssueCounts ? issueCounts : null, automationByStatus, boardStatusIds);
+    const filterCountByStatus =
+      filterMeta?.version && provisionalNames.length
+        ? await loadFilterReferenceCounts(installationKey, filterMeta.version, "status", provisionalNames).catch(
+            () => null,
+          )
+        : null;
+    const orphans = findOrphanedStatuses(
+      statuses,
+      schemeStatuses,
+      hasIssueCounts ? issueCounts : null,
+      automationByStatus,
+      boardStatusIds,
+    );
     const items = orphans
       .filter((o) => !o.ruleOnly && !o.boardOnly)
       .filter((o) => !(filterCountByStatus && (filterCountByStatus[String(o.name || "").toLowerCase()] ?? 0) > 0))
@@ -669,7 +762,9 @@ export async function loadRemediationCandidates({ payload, context }) {
       loadBoardColumns(installationKey, meta.version),
       readFilterSnapshotMeta(installationKey).catch(() => null),
     ]);
-    const filters = filterMeta?.version ? await loadFilters(installationKey, filterMeta.version).catch(() => null) : null;
+    const filters = filterMeta?.version
+      ? await loadFilters(installationKey, filterMeta.version).catch(() => null)
+      : null;
     const columnsByBoard = new Map();
     for (const col of columns) {
       if (!columnsByBoard.has(col.boardId)) columnsByBoard.set(col.boardId, []);
@@ -742,7 +837,8 @@ export async function loadRemediationCandidates({ payload, context }) {
     let projectKeys = null;
     if (fieldMeta?.version) {
       const projects = await listSnapshotProjects(installationKey, fieldMeta.version).catch(() => []);
-      if (projects.length) projectKeys = new Set(projects.flatMap((p) => [p.projectKey, p.projectName]).filter(Boolean));
+      if (projects.length)
+        projectKeys = new Set(projects.flatMap((p) => [p.projectKey, p.projectName]).filter(Boolean));
     }
 
     const itMeta = await readIssueTypeSnapshotMeta(installationKey).catch(() => null);
@@ -756,8 +852,20 @@ export async function loadRemediationCandidates({ payload, context }) {
 
     const summary = summarizeFilters(filters, { projectKeys, typeNames });
     const items = [
-      ...summary.brokenProjects.map((f) => ({ id: `${f.id}:project`, name: f.name, ownerName: f.ownerName, missing: f.missing, refKind: "project" })),
-      ...summary.unknownTypeRefs.map((f) => ({ id: `${f.id}:type`, name: f.name, ownerName: f.ownerName, missing: f.missing, refKind: "type" })),
+      ...summary.brokenProjects.map((f) => ({
+        id: `${f.id}:project`,
+        name: f.name,
+        ownerName: f.ownerName,
+        missing: f.missing,
+        refKind: "project",
+      })),
+      ...summary.unknownTypeRefs.map((f) => ({
+        id: `${f.id}:type`,
+        name: f.name,
+        ownerName: f.ownerName,
+        missing: f.missing,
+        refKind: "type",
+      })),
     ];
     return { available: true, items };
   }
@@ -768,7 +876,11 @@ export async function loadRemediationCandidates({ payload, context }) {
   if (findingKey === "screen-unreachable-fields") {
     const cross = await getScreenFieldCrossSignal({ payload: {}, context }).catch(() => null);
     if (!cross?.available) return { available: false, reason: cross ? "no-snapshot" : "error", items: [] };
-    const items = (cross.unreachableFields || []).map((f) => ({ id: f.fieldId, fieldId: f.fieldId, fieldName: f.fieldName }));
+    const items = (cross.unreachableFields || []).map((f) => ({
+      id: f.fieldId,
+      fieldId: f.fieldId,
+      fieldName: f.fieldName,
+    }));
     return { available: true, items };
   }
 
@@ -780,7 +892,11 @@ export async function loadRemediationCandidates({ payload, context }) {
   if (findingKey === "issue-type-reach") {
     const inv = await getIssueTypeInventory({ context });
     if (inv.neverBuilt || !inv.version) return { available: false, reason: "no-snapshot", items: [] };
-    const items = (inv.governanceFindings?.orphanTypes || []).map((t) => ({ id: t.id, name: t.name, subtask: t.subtask }));
+    const items = (inv.governanceFindings?.orphanTypes || []).map((t) => ({
+      id: t.id,
+      name: t.name,
+      subtask: t.subtask,
+    }));
     return { available: true, items };
   }
 
@@ -789,7 +905,13 @@ export async function loadRemediationCandidates({ payload, context }) {
   if (findingKey === "issue-type-naming") {
     const inv = await getIssueTypeInventory({ context });
     if (inv.neverBuilt || !inv.version) return { available: false, reason: "no-snapshot", items: [] };
-    const items = (inv.governanceFindings?.duplicateGroups || []).map((g) => ({ id: g.key, key: g.key, kind: g.kind, count: g.count, types: g.types }));
+    const items = (inv.governanceFindings?.duplicateGroups || []).map((g) => ({
+      id: g.key,
+      key: g.key,
+      kind: g.kind,
+      count: g.count,
+      types: g.types,
+    }));
     return { available: true, items };
   }
 
@@ -797,9 +919,18 @@ export async function loadRemediationCandidates({ payload, context }) {
   // governance summary already computes this for the tab.
   if (findingKey === "asset-schema-hygiene") {
     const inv = await getAssetInventory({ context });
-    if (!inv.governance?.available) return { available: false, reason: inv.assetsEnabled === false ? "assets-not-enabled" : "no-snapshot", items: [] };
+    if (!inv.governance?.available)
+      return {
+        available: false,
+        reason: inv.assetsEnabled === false ? "assets-not-enabled" : "no-snapshot",
+        items: [],
+      };
     const items = (inv.governance.deadSchemas || []).map((s) => ({
-      id: s.id, name: s.name, reason: s.reason, objectTypeCount: s.objectTypeCount, objectCount: s.objectCount,
+      id: s.id,
+      name: s.name,
+      reason: s.reason,
+      objectTypeCount: s.objectTypeCount,
+      objectCount: s.objectCount,
     }));
     return { available: true, items };
   }
@@ -809,9 +940,18 @@ export async function loadRemediationCandidates({ payload, context }) {
   // since an unmeasured type must never render as an empty one.
   if (findingKey === "asset-type-usage") {
     const inv = await getAssetInventory({ context });
-    if (!inv.governance?.available) return { available: false, reason: inv.assetsEnabled === false ? "assets-not-enabled" : "no-snapshot", items: [] };
+    if (!inv.governance?.available)
+      return {
+        available: false,
+        reason: inv.assetsEnabled === false ? "assets-not-enabled" : "no-snapshot",
+        items: [],
+      };
     if (!inv.governance.countsMeasured) return { available: false, reason: "no-object-count-crawl", items: [] };
-    const items = (inv.governance.emptyObjectTypes || []).map((t) => ({ id: t.id, name: t.name, schemaId: t.schemaId }));
+    const items = (inv.governance.emptyObjectTypes || []).map((t) => ({
+      id: t.id,
+      name: t.name,
+      schemaId: t.schemaId,
+    }));
     return { available: true, items };
   }
 
@@ -836,13 +976,17 @@ export const REMEDIATION_CANDIDATE_LOADERS = {
   "permission-risky": async ({ context }) => {
     const inv = await accessGovernance(context);
     if (!inv) return ACCESS_UNAVAILABLE;
-    return { available: true, items: inv.permissions.governance.riskySchemes.map((sc) => ({ ...sc, id: String(sc.id) })) };
+    return {
+      available: true,
+      items: inv.permissions.governance.riskySchemes.map((sc) => ({ ...sc, id: String(sc.id) })),
+    };
   },
 
   "access-unused-schemes": async ({ context }) => {
     const inv = await accessGovernance(context);
     if (!inv) return ACCESS_UNAVAILABLE;
-    const tag = (type, list) => list.map((sc) => ({ id: `${type}:${sc.id}`, type, schemeId: String(sc.id), name: sc.name }));
+    const tag = (type, list) =>
+      list.map((sc) => ({ id: `${type}:${sc.id}`, type, schemeId: String(sc.id), name: sc.name }));
     return {
       available: true,
       items: [
@@ -860,8 +1004,20 @@ export const REMEDIATION_CANDIDATE_LOADERS = {
     return {
       available: true,
       items: [
-        ...(g.noLevelSchemes || []).map((sc) => ({ id: `scheme:${sc.id}`, kind: "no-levels", schemeId: String(sc.id), schemeName: sc.name })),
-        ...(g.emptyLevels || []).map((l) => ({ id: `level:${l.schemeId}:${l.levelId}`, kind: "empty-level", schemeId: String(l.schemeId), schemeName: l.schemeName, levelId: String(l.levelId), levelName: l.levelName })),
+        ...(g.noLevelSchemes || []).map((sc) => ({
+          id: `scheme:${sc.id}`,
+          kind: "no-levels",
+          schemeId: String(sc.id),
+          schemeName: sc.name,
+        })),
+        ...(g.emptyLevels || []).map((l) => ({
+          id: `level:${l.schemeId}:${l.levelId}`,
+          kind: "empty-level",
+          schemeId: String(l.schemeId),
+          schemeName: l.schemeName,
+          levelId: String(l.levelId),
+          levelName: l.levelName,
+        })),
       ],
     };
   },
@@ -869,7 +1025,10 @@ export const REMEDIATION_CANDIDATE_LOADERS = {
   "notification-fragile": async ({ context }) => {
     const inv = await accessGovernance(context);
     if (!inv) return ACCESS_UNAVAILABLE;
-    return { available: true, items: inv.notifications.governance.fragileSchemes.map((sc) => ({ ...sc, id: String(sc.id) })) };
+    return {
+      available: true,
+      items: inv.notifications.governance.fragileSchemes.map((sc) => ({ ...sc, id: String(sc.id) })),
+    };
   },
 
   "role-empty-admin": async ({ context }) => {
@@ -877,7 +1036,11 @@ export const REMEDIATION_CANDIDATE_LOADERS = {
     if (!inv) return ACCESS_UNAVAILABLE;
     return {
       available: true,
-      items: inv.roles.governance.projectsMissingAdminActor.map((p) => ({ id: String(p.projectId ?? p.projectKey), projectKey: p.projectKey, role: p.role })),
+      items: inv.roles.governance.projectsMissingAdminActor.map((p) => ({
+        id: String(p.projectId ?? p.projectKey),
+        projectKey: p.projectKey,
+        role: p.role,
+      })),
     };
   },
 
@@ -895,19 +1058,28 @@ export const REMEDIATION_CANDIDATE_LOADERS = {
   "permission-public-access": async ({ context }) => {
     const inv = await accessGovernance(context);
     if (!inv) return ACCESS_UNAVAILABLE;
-    return { available: true, items: inv.permissions.governance.publicSchemes.map((sc) => ({ ...sc, id: String(sc.id) })) };
+    return {
+      available: true,
+      items: inv.permissions.governance.publicSchemes.map((sc) => ({ ...sc, id: String(sc.id) })),
+    };
   },
 
   "permission-everyone-sensitive": async ({ context }) => {
     const inv = await accessGovernance(context);
     if (!inv) return ACCESS_UNAVAILABLE;
-    return { available: true, items: inv.permissions.governance.everyoneSensitiveSchemes.map((sc) => ({ ...sc, id: String(sc.id) })) };
+    return {
+      available: true,
+      items: inv.permissions.governance.everyoneSensitiveSchemes.map((sc) => ({ ...sc, id: String(sc.id) })),
+    };
   },
 
   "permission-direct-grants": async ({ context }) => {
     const inv = await accessGovernance(context);
     if (!inv) return ACCESS_UNAVAILABLE;
-    return { available: true, items: inv.permissions.governance.directGrantSchemes.map((sc) => ({ ...sc, id: String(sc.id) })) };
+    return {
+      available: true,
+      items: inv.permissions.governance.directGrantSchemes.map((sc) => ({ ...sc, id: String(sc.id) })),
+    };
   },
 
   "permission-departed-grants": async ({ context }) => {
@@ -926,7 +1098,10 @@ export const REMEDIATION_CANDIDATE_LOADERS = {
   "security-direct-members": async ({ context }) => {
     const inv = await accessGovernance(context);
     if (!inv) return ACCESS_UNAVAILABLE;
-    return { available: true, items: inv.security.governance.userMemberSchemes.map((sc) => ({ ...sc, id: String(sc.id) })) };
+    return {
+      available: true,
+      items: inv.security.governance.userMemberSchemes.map((sc) => ({ ...sc, id: String(sc.id) })),
+    };
   },
 
   "security-departed-members": async ({ context }) => {
@@ -945,7 +1120,10 @@ export const REMEDIATION_CANDIDATE_LOADERS = {
   "notification-external-email": async ({ context }) => {
     const inv = await accessGovernance(context);
     if (!inv) return ACCESS_UNAVAILABLE;
-    return { available: true, items: inv.notifications.governance.emailRecipientSchemes.map((sc) => ({ ...sc, id: String(sc.id) })) };
+    return {
+      available: true,
+      items: inv.notifications.governance.emailRecipientSchemes.map((sc) => ({ ...sc, id: String(sc.id) })),
+    };
   },
 
   "notification-departed-recipients": async ({ context }) => {
@@ -965,7 +1143,10 @@ export const REMEDIATION_CANDIDATE_LOADERS = {
   "role-group-actors": async ({ context }) => {
     const inv = await accessGovernance(context);
     if (!inv) return ACCESS_UNAVAILABLE;
-    return { available: true, items: groupBounded(inv.roles.governance.userActorMemberships, { keyOf: (m) => m.projectKey, max: 50 }) };
+    return {
+      available: true,
+      items: groupBounded(inv.roles.governance.userActorMemberships, { keyOf: (m) => m.projectKey, max: 50 }),
+    };
   },
 
   "role-unused": async ({ context }) => {
@@ -984,8 +1165,16 @@ export const REMEDIATION_CANDIDATE_LOADERS = {
     return {
       available: true,
       items: [
-        missing(inv.priorities || []) && { id: "priority", kind: "priority", valueCount: (inv.priorities || []).length },
-        missing(inv.resolutions || []) && { id: "resolution", kind: "resolution", valueCount: (inv.resolutions || []).length },
+        missing(inv.priorities || []) && {
+          id: "priority",
+          kind: "priority",
+          valueCount: (inv.priorities || []).length,
+        },
+        missing(inv.resolutions || []) && {
+          id: "resolution",
+          kind: "resolution",
+          valueCount: (inv.resolutions || []).length,
+        },
       ].filter(Boolean),
     };
   },
@@ -999,15 +1188,17 @@ export const REMEDIATION_CANDIDATE_LOADERS = {
     if (!inv.governance?.activityMeasured) return { available: false, reason: "no-activity", items: [] };
     return {
       available: true,
-      items: inv.users.filter((u) => u.dormant === true).map((u) => ({
-        id: u.accountId,
-        accountId: u.accountId,
-        displayName: u.displayName,
-        lastActivityAt: u.lastActivityAt,
-        products: (u.applications || []).map((a) => a.name),
-        groups: (u.groups || []).map((g) => g.name),
-        ownedCount: (u.ownedFilters || 0) + (u.ownedDashboards || 0) + (u.authoredRules || 0),
-      })),
+      items: inv.users
+        .filter((u) => u.dormant === true)
+        .map((u) => ({
+          id: u.accountId,
+          accountId: u.accountId,
+          displayName: u.displayName,
+          lastActivityAt: u.lastActivityAt,
+          products: (u.applications || []).map((a) => a.name),
+          groups: (u.groups || []).map((g) => g.name),
+          ownedCount: (u.ownedFilters || 0) + (u.ownedDashboards || 0) + (u.authoredRules || 0),
+        })),
     };
   },
   "dashboards-public": ({ installationKey }) => dashboardItemsWith(installationKey, "shared-publicly"),
@@ -1045,7 +1236,11 @@ export const REMEDIATION_CANDIDATE_LOADERS = {
     return {
       available: true,
       items: insights.flaggedSchemes.map((sc) => ({
-        id: sc.schemeId, schemeId: sc.schemeId, name: sc.name, projectCount: sc.projectCount, flags: sc.flags.map((f) => f.message),
+        id: sc.schemeId,
+        schemeId: sc.schemeId,
+        name: sc.name,
+        projectCount: sc.projectCount,
+        flags: sc.flags.map((f) => f.message),
       })),
     };
   },
@@ -1053,7 +1248,10 @@ export const REMEDIATION_CANDIDATE_LOADERS = {
   "issue-type-unused-schemes": async ({ installationKey, context }) => {
     const insights = await issueTypeInsightsFull(installationKey, context);
     if (!insights) return { available: false, reason: "no-snapshot", items: [] };
-    return { available: true, items: insights.unusedSchemes.map((sc) => ({ id: sc.schemeId, schemeId: sc.schemeId, name: sc.name })) };
+    return {
+      available: true,
+      items: insights.unusedSchemes.map((sc) => ({ id: sc.schemeId, schemeId: sc.schemeId, name: sc.name })),
+    };
   },
 
   "estate-duplicate-priorities": ({ context }) => estateGroups(context, "priorityDuplicateGroups"),
@@ -1086,54 +1284,89 @@ export const REMEDIATION_CANDIDATE_LOADERS = {
 // ── Fields, workflows, projects, screens, automation ───────────────────────
 
 Object.assign(REMEDIATION_CANDIDATE_LOADERS, {
-  "field-admin-attention": ({ installationKey }) => fieldItems(installationKey, (f) => (f.findings?.tags?.adminAttention ? f.findings.reasons : null)),
-  "field-risky": ({ installationKey }) => fieldItems(installationKey, (f) => (f.findings?.tags?.risky ? f.findings.reasons.filter((r) => r.category === "risky") : null)),
-  "field-global-context-low-usage": ({ installationKey }) => fieldItems(installationKey, reasonsWithCode("global-context-low-usage")),
-  "field-dead-configuration": ({ installationKey }) => fieldItems(installationKey, reasonsWithCode("dead-configuration")),
+  "field-admin-attention": ({ installationKey }) =>
+    fieldItems(installationKey, (f) => (f.findings?.tags?.adminAttention ? f.findings.reasons : null)),
+  "field-risky": ({ installationKey }) =>
+    fieldItems(installationKey, (f) =>
+      f.findings?.tags?.risky ? f.findings.reasons.filter((r) => r.category === "risky") : null,
+    ),
+  "field-global-context-low-usage": ({ installationKey }) =>
+    fieldItems(installationKey, reasonsWithCode("global-context-low-usage")),
+  "field-dead-configuration": ({ installationKey }) =>
+    fieldItems(installationKey, reasonsWithCode("dead-configuration")),
   "field-stale": ({ installationKey }) => fieldItems(installationKey, reasonsWithCode("stale")),
   "field-context-sprawl": ({ installationKey }) => fieldItems(installationKey, reasonsWithCode("context-sprawl")),
-  "field-missing-description": ({ installationKey }) => fieldItems(installationKey, reasonsWithCode("missing-description")),
+  "field-missing-description": ({ installationKey }) =>
+    fieldItems(installationKey, reasonsWithCode("missing-description")),
 
-  "workflow-duplicate-statuses": ({ installationKey }) => workflowItems(installationKey, (w) => w.duplicateGroups.map((g) => ({
-    id: g.key,
-    key: g.key,
-    kind: g.kind,
-    count: g.count,
-    statuses: g.statuses.map((st) => {
-      const statusId = String(st.statusId ?? st.id);
-      return { statusId, name: st.name, issueCount: w.hasIssueCounts ? Number(w.issueCounts.get(statusId) ?? 0) : null };
-    }),
-  }))),
-  "rule-only-statuses": ({ installationKey }) => workflowItems(installationKey, (w) => w.orphans
-    .filter((o) => o.ruleOnly)
-    .map((o) => ({ id: String(o.statusId), name: o.name, automationRuleCount: o.automationRuleCount ?? null, issueCount: o.issueCount ?? null }))),
-  "unreachable-with-issues": ({ installationKey }) => workflowItems(installationKey, (w) => w.orphans
-    .filter((o) => !o.ruleOnly && (o.issueCount ?? 0) > 0)
-    .map((o) => ({ id: String(o.statusId), name: o.name, issueCount: o.issueCount }))),
+  "workflow-duplicate-statuses": ({ installationKey }) =>
+    workflowItems(installationKey, (w) =>
+      w.duplicateGroups.map((g) => ({
+        id: g.key,
+        key: g.key,
+        kind: g.kind,
+        count: g.count,
+        statuses: g.statuses.map((st) => {
+          const statusId = String(st.statusId ?? st.id);
+          return {
+            statusId,
+            name: st.name,
+            issueCount: w.hasIssueCounts ? Number(w.issueCounts.get(statusId) ?? 0) : null,
+          };
+        }),
+      })),
+    ),
+  "rule-only-statuses": ({ installationKey }) =>
+    workflowItems(installationKey, (w) =>
+      w.orphans
+        .filter((o) => o.ruleOnly)
+        .map((o) => ({
+          id: String(o.statusId),
+          name: o.name,
+          automationRuleCount: o.automationRuleCount ?? null,
+          issueCount: o.issueCount ?? null,
+        })),
+    ),
+  "unreachable-with-issues": ({ installationKey }) =>
+    workflowItems(installationKey, (w) =>
+      w.orphans
+        .filter((o) => !o.ruleOnly && (o.issueCount ?? 0) > 0)
+        .map((o) => ({ id: String(o.statusId), name: o.name, issueCount: o.issueCount })),
+    ),
   // ── Field schemes / configurations: all three from the stored findings ──
   "fieldconfig-required-hidden": async ({ context }) => {
     const inv = await getFieldConfigInventory({ context });
     if (inv.neverBuilt) return { available: false, reason: "no-snapshot", items: [] };
     return {
       available: true,
-      items: inv.configs.filter((c) => c.requiredHidden.length).map((c) => ({
-        id: c.id, sourceId: c.sourceId, name: c.name,
-        fieldNames: c.requiredHidden.map((f) => f.fieldName),
-        usedBy: (c.routes || []).map((r) => `${r.schemeName} (${r.workTypeName})`),
-      })),
+      items: inv.configs
+        .filter((c) => c.requiredHidden.length)
+        .map((c) => ({
+          id: c.id,
+          sourceId: c.sourceId,
+          name: c.name,
+          fieldNames: c.requiredHidden.map((f) => f.fieldName),
+          usedBy: (c.routes || []).map((r) => `${r.schemeName} (${r.workTypeName})`),
+        })),
     };
   },
   "fieldconfig-unused": async ({ context }) => {
     const inv = await getFieldConfigInventory({ context });
     if (inv.neverBuilt) return { available: false, reason: "no-snapshot", items: [] };
-    const pick = (rows, kind) => rows.filter((r) => r.codes.includes("unused")).map((r) => ({ id: r.id, sourceId: r.sourceId, name: r.name, kind }));
+    const pick = (rows, kind) =>
+      rows
+        .filter((r) => r.codes.includes("unused"))
+        .map((r) => ({ id: r.id, sourceId: r.sourceId, name: r.name, kind }));
     return { available: true, items: [...pick(inv.schemes, "scheme"), ...pick(inv.configs, "config")] };
   },
   "fieldconfig-duplicates": async ({ context }) => {
     const inv = await getFieldConfigInventory({ context });
     if (inv.neverBuilt) return { available: false, reason: "no-snapshot", items: [] };
     const groups = [];
-    for (const [rows, kind] of [[inv.schemes, "scheme"], [inv.configs, "config"]]) {
+    for (const [rows, kind] of [
+      [inv.schemes, "scheme"],
+      [inv.configs, "config"],
+    ]) {
       const byId = new Map(rows.map((r) => [r.id, r]));
       const byKeep = new Map();
       for (const row of rows) {
@@ -1143,10 +1376,15 @@ Object.assign(REMEDIATION_CANDIDATE_LOADERS, {
       }
       for (const [keep, members] of byKeep) {
         groups.push({
-          id: `${kind}:${keep}`, kind, keep, keepName: byId.get(keep)?.name || keep, members,
+          id: `${kind}:${keep}`,
+          kind,
+          keep,
+          keepName: byId.get(keep)?.name || keep,
+          members,
           memberNames: members.map((m) => byId.get(m)?.name || m),
           memberSourceIds: members.map((m) => byId.get(m)?.sourceId || null),
-          name: byId.get(keep)?.name || keep, count: members.length,
+          name: byId.get(keep)?.name || keep,
+          count: members.length,
         });
       }
     }
@@ -1174,26 +1412,45 @@ Object.assign(REMEDIATION_CANDIDATE_LOADERS, {
     if (!insights.available) return { available: false, reason: insights.reason, items: [] };
     return {
       available: true,
-      items: insights.inactive.map((w) => ({ id: w.name, name: w.name, statusCount: w.statusCount, ruleCount: w.ruleCount })),
+      items: insights.inactive.map((w) => ({
+        id: w.name,
+        name: w.name,
+        statusCount: w.statusCount,
+        ruleCount: w.ruleCount,
+      })),
     };
   },
-  "workflow-scheme-structure": ({ installationKey }) => workflowItems(installationKey, (w) => w.balance
-    .filter((b) => b.flags.length > 0)
-    .map((b) => ({ id: b.schemeId, name: b.name, projectCount: b.projectCount, flags: b.flags.map((f) => f.message) }))),
+  "workflow-scheme-structure": ({ installationKey }) =>
+    workflowItems(installationKey, (w) =>
+      w.balance
+        .filter((b) => b.flags.length > 0)
+        .map((b) => ({
+          id: b.schemeId,
+          name: b.name,
+          projectCount: b.projectCount,
+          flags: b.flags.map((f) => f.message),
+        })),
+    ),
 
-  "project-over-configured": ({ installationKey }) => projectItems(installationKey, ({ insights }) => {
-    const idle = new Set(insights.idleOverConfigured.map((p) => p.projectKey));
-    return insights.overConfigured.map((p) => ({ id: p.projectKey, ...p, idle: idle.has(p.projectKey) }));
-  }),
-  "unused-projects": ({ installationKey }) => projectItems(installationKey, ({ insights }) => insights.unusedProjects.map((p) => ({ id: p.projectKey, ...p }))),
-  "stale-projects": ({ installationKey }) => projectItems(installationKey, ({ insights }) => insights.staleProjects.map((p) => ({ id: p.projectKey, ...p }))),
-  "projects-fell-off": ({ installationKey }) => projectItems(installationKey, ({ adoption }) => adoptionFlagged(adoption, "fellOff")),
-  "projects-never-adopted": ({ installationKey }) => projectItems(installationKey, ({ adoption }) => adoptionFlagged(adoption, "neverAdopted")),
+  "project-over-configured": ({ installationKey }) =>
+    projectItems(installationKey, ({ insights }) => {
+      const idle = new Set(insights.idleOverConfigured.map((p) => p.projectKey));
+      return insights.overConfigured.map((p) => ({ id: p.projectKey, ...p, idle: idle.has(p.projectKey) }));
+    }),
+  "unused-projects": ({ installationKey }) =>
+    projectItems(installationKey, ({ insights }) => insights.unusedProjects.map((p) => ({ id: p.projectKey, ...p }))),
+  "stale-projects": ({ installationKey }) =>
+    projectItems(installationKey, ({ insights }) => insights.staleProjects.map((p) => ({ id: p.projectKey, ...p }))),
+  "projects-fell-off": ({ installationKey }) =>
+    projectItems(installationKey, ({ adoption }) => adoptionFlagged(adoption, "fellOff")),
+  "projects-never-adopted": ({ installationKey }) =>
+    projectItems(installationKey, ({ adoption }) => adoptionFlagged(adoption, "neverAdopted")),
 
   "screen-empty": ({ installationKey }) => screenItems(installationKey, "empty"),
   "screen-unresolved": ({ installationKey }) => screenItems(installationKey, "unresolved"),
   "screen-unreached": ({ installationKey }) => screenItems(installationKey, "unreached", { needsWorkflow: true }),
-  "screen-transition-only": ({ installationKey }) => screenItems(installationKey, "transition-only", { needsWorkflow: true }),
+  "screen-transition-only": ({ installationKey }) =>
+    screenItems(installationKey, "transition-only", { needsWorkflow: true }),
   // One task per screen scheme, listing each operation that points at a missing screen.
   "screen-dangling": async ({ installationKey }) => {
     const meta = await readScreenSnapshotMeta(installationKey).catch(() => null);
@@ -1215,7 +1472,12 @@ Object.assign(REMEDIATION_CANDIDATE_LOADERS, {
     const meta = await readScreenSnapshotMeta(installationKey).catch(() => null);
     if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
     const schemes = await loadScreenSchemes(installationKey, meta.version);
-    return { available: true, items: schemes.filter((sc) => (sc.issueTypeSchemeCount ?? 0) === 0).map((sc) => ({ id: String(sc.schemeId), name: sc.name })) };
+    return {
+      available: true,
+      items: schemes
+        .filter((sc) => (sc.issueTypeSchemeCount ?? 0) === 0)
+        .map((sc) => ({ id: String(sc.schemeId), name: sc.name })),
+    };
   },
 
   "automation-disabled": async ({ installationKey }) => {
@@ -1223,8 +1485,10 @@ Object.assign(REMEDIATION_CANDIDATE_LOADERS, {
     if (!directory) return { available: false, reason: "no-automation-index", items: [] };
     return { available: true, items: [...hydrateRuleDirectory(directory).values()].filter((r) => !r.enabled) };
   },
-  "automation-credentials": ({ installationKey }) => automationRiskItems(installationKey, "embedded-credential", "credentialRuleCount"),
-  "automation-external": ({ installationKey }) => automationRiskItems(installationKey, "external-http", "externalHttpCount"),
+  "automation-credentials": ({ installationKey }) =>
+    automationRiskItems(installationKey, "embedded-credential", "credentialRuleCount"),
+  "automation-external": ({ installationKey }) =>
+    automationRiskItems(installationKey, "external-http", "externalHttpCount"),
   "automation-inert": ({ installationKey }) => automationRiskItems(installationKey, "no-actions", "noActionCount"),
   "automation-self-triggering": async ({ installationKey }) => {
     const [analysis, directory] = await Promise.all([
@@ -1250,7 +1514,9 @@ export async function hydratedFields(installationKey) {
   if (!meta?.version) return null;
   const [fields, config] = await Promise.all([loadSnapshotFields(installationKey, meta.version), readAdminConfig()]);
   const dup = buildDuplicateNameCountMap(fields);
-  return fields.map((f) => hydrateFieldForGovernance(f, null, dup.get(normalizeFieldName(f.name)) ?? 1, config.governanceThresholds));
+  return fields.map((f) =>
+    hydrateFieldForGovernance(f, null, dup.get(normalizeFieldName(f.name)) ?? 1, config.governanceThresholds),
+  );
 }
 
 export const reasonsWithCode = (code) => (f) => {
@@ -1289,12 +1555,19 @@ export async function workflowItems(installationKey, pick) {
 export async function projectItems(installationKey, pick) {
   const meta = await readSnapshotMeta(installationKey).catch(() => null);
   if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
-  const projects = await attachUniqueIssueCounts(installationKey, await listSnapshotProjects(installationKey, meta.version));
-  const activity = await loadProjectActivity(installationKey)
-    .catch(fallbackOn("remediation.project_activity_load_failed", () => new Map(), { installationKey }));
+  const projects = await attachUniqueIssueCounts(
+    installationKey,
+    await listSnapshotProjects(installationKey, meta.version),
+  );
+  const activity = await loadProjectActivity(installationKey).catch(
+    fallbackOn("remediation.project_activity_load_failed", () => new Map(), { installationKey }),
+  );
   return {
     available: true,
-    items: pick({ insights: buildProjectInsights(projects, { listLimit: Infinity }), adoption: summarizeAdoption(projects, activity) }),
+    items: pick({
+      insights: buildProjectInsights(projects, { listLimit: Infinity }),
+      adoption: summarizeAdoption(projects, activity),
+    }),
   };
 }
 
@@ -1322,10 +1595,17 @@ export async function screenItems(installationKey, filter, { needsWorkflow = fal
   // A screen a transition opens is in use, so "unreached" needs a snapshot that read them.
   const workflowVersion = transitionAwareWorkflowVersion(workflowMeta);
   if (needsWorkflow && !workflowVersion) {
-    return { available: false, reason: workflowMeta?.version ? "transitions-unknown" : "no-workflow-snapshot", items: [] };
+    return {
+      available: false,
+      reason: workflowMeta?.version ? "transitions-unknown" : "no-workflow-snapshot",
+      items: [],
+    };
   }
   const rows = await loadAllScreenPages(installationKey, meta.version, { workflowVersion, filter });
-  return { available: true, items: rows.map((r) => ({ id: String(r.screenId), name: r.name, tabCount: r.tabCount, fieldCount: r.fieldCount })) };
+  return {
+    available: true,
+    items: rows.map((r) => ({ id: String(r.screenId), name: r.name, tabCount: r.tabCount, fieldCount: r.fieldCount })),
+  };
 }
 
 // The stored analysis keeps a preview of the highest-severity rules, not every flagged
@@ -1416,23 +1696,36 @@ export async function estateUnusedValues(context, listKey, kind) {
   if (!inv.usageMeasured) return { available: false, reason: "no-usage", items: [] };
   return {
     available: true,
-    items: (inv[listKey] || []).filter((v) => v.issueCount === 0).map((v) => ({ id: String(v.id), kind, name: v.name, isDefault: Boolean(v.isDefault) })),
+    items: (inv[listKey] || [])
+      .filter((v) => v.issueCount === 0)
+      .map((v) => ({ id: String(v.id), kind, name: v.name, isDefault: Boolean(v.isDefault) })),
   };
 }
 
 export async function estateGroups(context, listKey) {
   const inv = await getEstateInventory({ context });
   if (inv.neverBuilt) return { available: false, reason: "no-snapshot", items: [] };
-  const insights = summarizeEstateInsights({ resolutions: inv.resolutions, priorities: inv.priorities, listLimit: Infinity });
+  const insights = summarizeEstateInsights({
+    resolutions: inv.resolutions,
+    priorities: inv.priorities,
+    listLimit: Infinity,
+  });
   return { available: true, items: insights[listKey].map((g) => ({ id: g.key, ...g })) };
 }
 
 export async function assetInsightsFull(context) {
   const inv = await getAssetInventory({ context });
-  if (inv.assetsEnabled === false) return { available: false, result: { available: false, reason: "assets-not-enabled", items: [] } };
-  if (!inv.governance?.available) return { available: false, result: { available: false, reason: "no-snapshot", items: [] } };
+  if (inv.assetsEnabled === false)
+    return { available: false, result: { available: false, reason: "assets-not-enabled", items: [] } };
+  if (!inv.governance?.available)
+    return { available: false, result: { available: false, reason: "no-snapshot", items: [] } };
   const insights = summarizeAssetInsights({
-    schemas: inv.schemas, objectTypes: inv.objectTypes, attributes: inv.attributes, typeCounts: inv.typeCounts || [], assetsEnabled: true, listLimit: Infinity,
+    schemas: inv.schemas,
+    objectTypes: inv.objectTypes,
+    attributes: inv.attributes,
+    typeCounts: inv.typeCounts || [],
+    assetsEnabled: true,
+    listLimit: Infinity,
   });
   return { available: true, inv, insights };
 }

@@ -76,7 +76,10 @@ export async function buildEstateInventory({ context }) {
 
   const adminConfig = await readAdminConfig();
   if (adminConfig.readOnlyMode) {
-    return { queued: false, error: "Read-only mode is enabled. Disable it before building the priorities/resolutions inventory." };
+    return {
+      queued: false,
+      error: "Read-only mode is enabled. Disable it before building the priorities/resolutions inventory.",
+    };
   }
 
   await queueEstateSnapshotBuild(installationKey);

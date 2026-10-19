@@ -1,8 +1,17 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
 import { buildIssueUrl, buildJiraSearchUrl, handleJiraLinkClick, formatRelativeTime } from "../utils";
-import { Icon } from "../components/Icons";
-import { PageHeader, Panel, StatRow, StatTile, EmptyState, RemediationStatus, SortFilterBar, Chip, LinkButton } from "../components/ui";
+import {
+  PageHeader,
+  Panel,
+  StatRow,
+  StatTile,
+  EmptyState,
+  RemediationStatus,
+  SortFilterBar,
+  Chip,
+  LinkButton,
+} from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useNavIntent, usePersistentState } from "../hooks";
 import { RemediationVerification } from "./RemediationVerification";
@@ -15,10 +24,23 @@ import { RemediationProgress } from "./RemediationProgress";
 // Display names for the health-pillar keys a playbook is filed under, in the order the admin
 // nav lists the pillars.
 const PILLAR_ORDER = [
-  ["fields", "Fields"], ["projects", "Projects"], ["workflows", "Workflows"], ["issueTypes", "Issue Types"],
-  ["fieldConfigs", "Field Schemes"], ["estate", "Priorities"], ["users", "People"], ["assets", "Assets"], ["permissions", "Access"],
-  ["security", "Access"], ["notifications", "Access"], ["roles", "Access"], ["screens", "Screens"],
-  ["filters", "Saved Filters"], ["dashboards", "Dashboards"], ["boards", "Boards"], ["automation", "Automation"],
+  ["fields", "Fields"],
+  ["projects", "Projects"],
+  ["workflows", "Workflows"],
+  ["issueTypes", "Issue Types"],
+  ["fieldConfigs", "Field Schemes"],
+  ["estate", "Priorities"],
+  ["users", "People"],
+  ["assets", "Assets"],
+  ["permissions", "Access"],
+  ["security", "Access"],
+  ["notifications", "Access"],
+  ["roles", "Access"],
+  ["screens", "Screens"],
+  ["filters", "Saved Filters"],
+  ["dashboards", "Dashboards"],
+  ["boards", "Boards"],
+  ["automation", "Automation"],
 ];
 const PILLAR_LABEL = Object.fromEntries(PILLAR_ORDER);
 const PILLAR_RANK = Object.fromEntries(PILLAR_ORDER.map(([key], i) => [key, i]));
@@ -38,12 +60,7 @@ function IssueLink({ issueKey, siteOrigin, children }) {
   const href = buildIssueUrl(siteOrigin, issueKey);
   if (!href) return <span>{children}</span>;
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      onClick={(event) => handleJiraLinkClick(event, href)}
-    >
+    <a href={href} target="_blank" rel="noreferrer" onClick={(event) => handleJiraLinkClick(event, href)}>
       {children}
     </a>
   );
@@ -56,7 +73,9 @@ function IssueLink({ issueKey, siteOrigin, children }) {
 function TaskRow({ task, siteOrigin }) {
   return (
     <div className="remediation-task">
-      <IssueLink issueKey={task.issueKey} siteOrigin={siteOrigin}>{task.issueKey}</IssueLink>
+      <IssueLink issueKey={task.issueKey} siteOrigin={siteOrigin}>
+        {task.issueKey}
+      </IssueLink>
       <span className="remediation-task__summary">{task.summary}</span>
       <StatusChip category={task.lastStatusCategory} label={task.lastStatus} />
       <span className="remediation-task__assignee">{task.assigneeName || "Unassigned"}</span>
@@ -78,7 +97,9 @@ export function openTasksNoLongerFlagged(group, items = []) {
   if (!group) return [];
   const flagged = new Set(items.map((it) => String(it.id ?? it.name)));
   const all = [...(group.tasks || []), ...(group.previousPeriods || []).flatMap((p) => p.tasks || [])];
-  return all.filter((t) => t.lastStatusCategory !== "done" && t.itemId != null && t.itemId !== "" && !flagged.has(String(t.itemId)));
+  return all.filter(
+    (t) => t.lastStatusCategory !== "done" && t.itemId != null && t.itemId !== "" && !flagged.has(String(t.itemId)),
+  );
 }
 
 // Every quarter's task counts on a finding. Older servers sent only the latest quarter's.
@@ -93,10 +114,17 @@ export function allOpenCountOf(group) {
 // epic is itself an earlier quarter's (this quarter not started), it leads the list.
 export function earlierQuartersOf(group) {
   if (!group) return [];
-  const latest = group.isCurrent ? [] : [{
-    period: group.period, epicKey: group.epic?.issueKey ?? null,
-    tasks: group.tasks || [], taskCount: group.taskCount ?? (group.tasks || []).length, openCount: group.openCount || 0,
-  }];
+  const latest = group.isCurrent
+    ? []
+    : [
+        {
+          period: group.period,
+          epicKey: group.epic?.issueKey ?? null,
+          tasks: group.tasks || [],
+          taskCount: group.taskCount ?? (group.tasks || []).length,
+          openCount: group.openCount || 0,
+        },
+      ];
   return [...latest, ...(group.previousPeriods || []).map((p) => ({ ...p, tasks: p.tasks || [] }))];
 }
 
@@ -113,20 +141,35 @@ function EarlierQuarter({ quarter, siteOrigin, taskQuery }) {
     <div className="remediation-quarter">
       <p className="remediation-history">
         {quarter.period}{" "}
-        {quarter.epicKey ? <IssueLink issueKey={quarter.epicKey} siteOrigin={siteOrigin}>{quarter.epicKey}</IssueLink> : "(no epic)"}
+        {quarter.epicKey ? (
+          <IssueLink issueKey={quarter.epicKey} siteOrigin={siteOrigin}>
+            {quarter.epicKey}
+          </IssueLink>
+        ) : (
+          "(no epic)"
+        )}
         {` · ${quarter.openCount} open, ${closed} of ${quarter.taskCount} closed`}
         {quarter.tasks.length > 0 && !(taskQuery && shown.length > 0) && (
           <>
             {" "}
-            <button type="button" className="secondary-button secondary-button--small" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-              {open ? `Hide ${quarter.period} tasks` : `Show ${quarter.tasks.length} ${quarter.period} task${quarter.tasks.length === 1 ? "" : "s"}`}
+            <button
+              type="button"
+              className="secondary-button secondary-button--small"
+              onClick={() => setOpen((v) => !v)}
+              aria-expanded={open}
+            >
+              {open
+                ? `Hide ${quarter.period} tasks`
+                : `Show ${quarter.tasks.length} ${quarter.period} task${quarter.tasks.length === 1 ? "" : "s"}`}
             </button>
           </>
         )}
       </p>
       {visible && shown.length > 0 && (
         <div className="remediation-tasks">
-          {shown.map((task) => <TaskRow key={task.issueKey} task={task} siteOrigin={siteOrigin} />)}
+          {shown.map((task) => (
+            <TaskRow key={task.issueKey} task={task} siteOrigin={siteOrigin} />
+          ))}
         </div>
       )}
     </div>
@@ -141,14 +184,39 @@ function TicketChip({ ticketing, checking }) {
   const { bucket, untracked, heldEarlier, flagged } = ticketing;
   if (bucket === "to-ticket") {
     const held = heldEarlier.length ? `; ${heldEarlier.length} more still open under an earlier quarter's epic` : "";
-    return <Chip tone="warning" title={`${untracked.length} of ${flagged} flagged items have no task yet${held}.`}>{untracked.length} to ticket</Chip>;
+    return (
+      <Chip tone="warning" title={`${untracked.length} of ${flagged} flagged items have no task yet${held}.`}>
+        {untracked.length} to ticket
+      </Chip>
+    );
   }
-  if (bucket === "ticketed") return <Chip tone="success" title={`Every one of the ${flagged} flagged items has a task.`}>all ticketed</Chip>;
+  if (bucket === "ticketed")
+    return (
+      <Chip tone="success" title={`Every one of the ${flagged} flagged items has a task.`}>
+        all ticketed
+      </Chip>
+    );
   if (bucket === "clean") return <Chip title="Nothing is flagged for this finding right now.">nothing flagged</Chip>;
   return <Chip title="This finding's items could not be read. Open it for the reason.">no data</Chip>;
 }
 
-function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, progress, error, focused = false, taskQuery = "", candidates, ticketing, checking, onLoadCandidates, onReview }) {
+function FindingCard({
+  entry,
+  group,
+  period,
+  siteOrigin,
+  onCreate,
+  creating,
+  progress,
+  error,
+  focused = false,
+  taskQuery = "",
+  candidates,
+  ticketing,
+  checking,
+  onLoadCandidates,
+  onReview,
+}) {
   const [expanded, setExpanded] = React.useState(focused);
   const [confirming, setConfirming] = React.useState(false);
   const cardRef = React.useRef(null);
@@ -157,7 +225,11 @@ function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, pro
   React.useEffect(() => {
     if (!focused) return;
     setExpanded(true);
-    try { cardRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }); } catch { /* jsdom */ }
+    try {
+      cardRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    } catch {
+      /* jsdom */
+    }
   }, [focused]);
 
   const epic = group?.epic || null;
@@ -186,157 +258,221 @@ function FindingCard({ entry, group, period, siteOrigin, onCreate, creating, pro
   const earlierEpics = [...new Set(heldEarlier.map((it) => it.ticketed.epicKey).filter(Boolean))];
   // Only once the finding's items were actually read: an unreadable finding must not make
   // every task look stale.
-  const staleTasks = candidates && candidates.available !== false && Array.isArray(candidates.items)
-    ? openTasksNoLongerFlagged(group, candidates.items) : [];
+  const staleTasks =
+    candidates && candidates.available !== false && Array.isArray(candidates.items)
+      ? openTasksNoLongerFlagged(group, candidates.items)
+      : [];
   const staleUrl = staleTasks.length
     ? buildJiraSearchUrl(siteOrigin, `issuekey in (${staleTasks.map((t) => t.issueKey).join(", ")}) ORDER BY key`)
     : null;
   const needsConfirm = untracked.length > CONFIRM_ABOVE;
 
   function create() {
-    if (needsConfirm && !confirming) { setConfirming(true); return; }
+    if (needsConfirm && !confirming) {
+      setConfirming(true);
+      return;
+    }
     setConfirming(false);
     onCreate(entry.key, candidates.items, untracked.length);
   }
 
   return (
     <div ref={cardRef}>
-    <Panel
-      title={entry.label}
-      icon="checkCircle"
-      description={<RemediationStatus group={group} period={period} siteOrigin={siteOrigin} compact />}
-      action={<TicketChip ticketing={ticketing} checking={checking} />}
-      // Every finding is independently collapsible -- the epic chip above stays visible in
-      // the collapsed header, so a tracked finding is never mistaken for an untouched one
-      // just because it is folded away.
-      collapsible
-    >
-      {(
-        <>
-          {staleTasks.length > 0 && (
-            <p className="remediation-stale" data-testid="stale-tasks">
-              <strong>{staleTasks.length} open task{staleTasks.length === 1 ? " is" : "s are"} for items this finding no longer flags</strong>
-              {" "}— fixed since, or the finding no longer applies. Check {staleTasks.length === 1 ? "it" : "them"} before anyone acts on stale advice.
-              {staleUrl && <>{" "}<a href={staleUrl} target="_blank" rel="noreferrer" onClick={(e) => handleJiraLinkClick(e, staleUrl)}>Open {staleTasks.length === 1 ? "it" : `all ${staleTasks.length}`} in Jira</a></>}
-              {onReview && <>{" "}<LinkButton onClick={() => onReview(entry.key, entry.label)}>Review and close</LinkButton></>}
-            </p>
-          )}
-          {allTasks > 0 && (
-            <StatRow>
-              <StatTile
-                label="Tasks"
-                value={allTasks}
-                icon="layers"
-                hint={earlierTaskCount > 0 ? `${tasks.length} this quarter · ${earlierTaskCount} from earlier quarters` : null}
-              />
-              <StatTile label="Open" value={allOpen} tone={allOpen > 0 ? "active" : "success"} icon="clock" />
-              <StatTile label="Closed" value={allTasks - allOpen} tone="success" icon="checkCircle" />
-            </StatRow>
-          )}
-
-          {taskQuery && shownTasks.length < tasks.length && (
-            <p className="remediation-history">Showing {shownTasks.length} of {tasks.length} tasks matching the search.</p>
-          )}
-          {shownTasks.length > 0 && (
-            <div className="remediation-tasks">
-              {earlierQuarters.length > 0 && <h4 className="remediation-quarter__title">{period} {epic && <IssueLink issueKey={epic.issueKey} siteOrigin={siteOrigin}>{epic.issueKey}</IssueLink>}</h4>}
-              {shownTasks.map((task) => <TaskRow key={task.issueKey} task={task} siteOrigin={siteOrigin} />)}
-            </div>
-          )}
-          {earlierQuarters.map((q) => (
-            <EarlierQuarter key={q.period} quarter={q} siteOrigin={siteOrigin} taskQuery={taskQuery} />
-          ))}
-
-          <button
-            type="button"
-            className="secondary-button secondary-button--small"
-            onClick={() => setExpanded((v) => !v)}
-          >
-            {expanded ? "Hide current items" : "Check current items"}
-          </button>
-
-          {expanded && (
-            loadingCandidates ? (
-              <EmptyState inline>Loading current items…</EmptyState>
-            ) : candidates?.available === false ? (
-              <EmptyState inline>
-                {candidates.reason === "no-snapshot"
-                  ? "No snapshot yet for this pillar — build one before remediating it."
-                  : candidates.reason === "transitions-unknown"
-                    ? "The last workflow build could not read transitions, so a screen a transition opens would look unreached. Rebuild the workflow inventory before remediating this."
-                    : candidates.reason === "error"
-                      ? `Could not read this finding's items: ${candidates.error || "unknown error"}. Open it again to retry.`
-                      : candidates.reason === "not-probed"
-                        ? "The last dashboard build ran before gadget filters were checked, so a broken gadget would look fine. Rebuild the dashboard inventory (or run a scan) before remediating this."
-                        : "No data available for this finding right now."}
-              </EmptyState>
-            ) : (candidates?.items?.length ?? 0) === 0 ? (
-              <EmptyState inline>Nothing currently flagged for this finding. Clean.</EmptyState>
-            ) : (
-              <>
-                <p className="remediation-candidates__summary">
-                  {candidates.items.length} item{candidates.items.length === 1 ? "" : "s"} flagged
-                  {untracked.length !== candidates.items.length
-                    ? `, ${untracked.length} not yet ticketed`
-                    : ""}.
-                </p>
-                {heldEarlier.length > 0 && (
-                  <p className="remediation-candidates__summary" role="note">
-                    {heldEarlier.length} {heldEarlier.length === 1 ? "is" : "are"} still open under an earlier quarter's epic
-                    {earlierEpics.length > 0 && <> ({earlierEpics.map((key, i) => (
-                      <span key={key}>{i > 0 ? ", " : ""}<IssueLink issueKey={key} siteOrigin={siteOrigin}>{key}</IssueLink></span>
-                    ))})</>}
-                    {" "}and stay{heldEarlier.length === 1 ? "s" : ""} there until closed. Close or finish those tasks and anything still flagged comes into this quarter's epic.
-                  </p>
+      <Panel
+        title={entry.label}
+        icon="checkCircle"
+        description={<RemediationStatus group={group} period={period} siteOrigin={siteOrigin} compact />}
+        action={<TicketChip ticketing={ticketing} checking={checking} />}
+        // Every finding is independently collapsible -- the epic chip above stays visible in
+        // the collapsed header, so a tracked finding is never mistaken for an untouched one
+        // just because it is folded away.
+        collapsible
+      >
+        {
+          <>
+            {staleTasks.length > 0 && (
+              <p className="remediation-stale" data-testid="stale-tasks">
+                <strong>
+                  {staleTasks.length} open task{staleTasks.length === 1 ? " is" : "s are"} for items this finding no
+                  longer flags
+                </strong>{" "}
+                — fixed since, or the finding no longer applies. Check {staleTasks.length === 1 ? "it" : "them"} before
+                anyone acts on stale advice.
+                {staleUrl && (
+                  <>
+                    {" "}
+                    <a
+                      href={staleUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(e) => handleJiraLinkClick(e, staleUrl)}
+                    >
+                      Open {staleTasks.length === 1 ? "it" : `all ${staleTasks.length}`} in Jira
+                    </a>
+                  </>
                 )}
-                {candidates.partial && (
-                  // The stored automation analysis keeps a preview of the highest-severity
-                  // rules, not all of them. Said outright, so the epic is not mistaken for the
-                  // whole finding.
-                  <p className="remediation-candidates__summary" role="note">
-                    Only the {candidates.items.length} highest-severity of {candidates.expected} flagged rules are
-                    listed: the stored automation analysis keeps a preview, so the other{" "}
-                    {candidates.expected - candidates.items.length} cannot be ticketed from here yet.
-                  </p>
+                {onReview && (
+                  <>
+                    {" "}
+                    <LinkButton onClick={() => onReview(entry.key, entry.label)}>Review and close</LinkButton>
+                  </>
                 )}
-                <button
-                  type="button"
-                  className="primary-button"
-                  disabled={creating || untracked.length === 0}
-                  onClick={create}
-                >
-                  {creating
-                    ? (progress ? `Creating… ${progress.done} of ${progress.total}` : "Creating…")
-                    : untracked.length === 0
-                      ? "Everything is already ticketed"
-                      : epic && isCurrent
-                        ? `Add ${untracked.length} task${untracked.length === 1 ? "" : "s"} to ${epic.issueKey}`
-                        : `Create ${period ? `${period} ` : ""}remediation epic (${untracked.length} task${untracked.length === 1 ? "" : "s"})`}
-                </button>
-                {confirming && !creating && (
-                  <div className="remediation-confirm" role="alert">
-                    <span>
-                      This creates {untracked.length} tasks in Jira
-                      {entry.granularity === "item" ? ", one per item" : ""}. Continue?
-                    </span>
-                    <button type="button" className="primary-button" onClick={create}>Create {untracked.length} tasks</button>
-                    <button type="button" className="secondary-button" onClick={() => setConfirming(false)}>Cancel</button>
-                  </div>
+              </p>
+            )}
+            {allTasks > 0 && (
+              <StatRow>
+                <StatTile
+                  label="Tasks"
+                  value={allTasks}
+                  icon="layers"
+                  hint={
+                    earlierTaskCount > 0
+                      ? `${tasks.length} this quarter · ${earlierTaskCount} from earlier quarters`
+                      : null
+                  }
+                />
+                <StatTile label="Open" value={allOpen} tone={allOpen > 0 ? "active" : "success"} icon="clock" />
+                <StatTile label="Closed" value={allTasks - allOpen} tone="success" icon="checkCircle" />
+              </StatRow>
+            )}
+
+            {taskQuery && shownTasks.length < tasks.length && (
+              <p className="remediation-history">
+                Showing {shownTasks.length} of {tasks.length} tasks matching the search.
+              </p>
+            )}
+            {shownTasks.length > 0 && (
+              <div className="remediation-tasks">
+                {earlierQuarters.length > 0 && (
+                  <h4 className="remediation-quarter__title">
+                    {period}{" "}
+                    {epic && (
+                      <IssueLink issueKey={epic.issueKey} siteOrigin={siteOrigin}>
+                        {epic.issueKey}
+                      </IssueLink>
+                    )}
+                  </h4>
                 )}
-                {creating && progress && progress.total > 20 && (
+                {shownTasks.map((task) => (
+                  <TaskRow key={task.issueKey} task={task} siteOrigin={siteOrigin} />
+                ))}
+              </div>
+            )}
+            {earlierQuarters.map((q) => (
+              <EarlierQuarter key={q.period} quarter={q} siteOrigin={siteOrigin} taskQuery={taskQuery} />
+            ))}
+
+            <button
+              type="button"
+              className="secondary-button secondary-button--small"
+              onClick={() => setExpanded((v) => !v)}
+            >
+              {expanded ? "Hide current items" : "Check current items"}
+            </button>
+
+            {expanded &&
+              (loadingCandidates ? (
+                <EmptyState inline>Loading current items…</EmptyState>
+              ) : candidates?.available === false ? (
+                <EmptyState inline>
+                  {candidates.reason === "no-snapshot"
+                    ? "No snapshot yet for this pillar — build one before remediating it."
+                    : candidates.reason === "transitions-unknown"
+                      ? "The last workflow build could not read transitions, so a screen a transition opens would look unreached. Rebuild the workflow inventory before remediating this."
+                      : candidates.reason === "error"
+                        ? `Could not read this finding's items: ${candidates.error || "unknown error"}. Open it again to retry.`
+                        : candidates.reason === "not-probed"
+                          ? "The last dashboard build ran before gadget filters were checked, so a broken gadget would look fine. Rebuild the dashboard inventory (or run a scan) before remediating this."
+                          : "No data available for this finding right now."}
+                </EmptyState>
+              ) : (candidates?.items?.length ?? 0) === 0 ? (
+                <EmptyState inline>Nothing currently flagged for this finding. Clean.</EmptyState>
+              ) : (
+                <>
                   <p className="remediation-candidates__summary">
-                    Creating tasks in Jira, {progress.done} of {progress.total} so far — a large finding can
-                    take several minutes. Stay on this tab while it runs; if you navigate away it stops, but
-                    nothing already created is lost, and pressing the button again picks up where it left off.
+                    {candidates.items.length} item{candidates.items.length === 1 ? "" : "s"} flagged
+                    {untracked.length !== candidates.items.length ? `, ${untracked.length} not yet ticketed` : ""}.
                   </p>
-                )}
-                {error && <div className="danger-zone__error" role="alert">{error}</div>}
-              </>
-            )
-          )}
-        </>
-      )}
-    </Panel>
+                  {heldEarlier.length > 0 && (
+                    <p className="remediation-candidates__summary" role="note">
+                      {heldEarlier.length} {heldEarlier.length === 1 ? "is" : "are"} still open under an earlier
+                      quarter's epic
+                      {earlierEpics.length > 0 && (
+                        <>
+                          {" "}
+                          (
+                          {earlierEpics.map((key, i) => (
+                            <span key={key}>
+                              {i > 0 ? ", " : ""}
+                              <IssueLink issueKey={key} siteOrigin={siteOrigin}>
+                                {key}
+                              </IssueLink>
+                            </span>
+                          ))}
+                          )
+                        </>
+                      )}{" "}
+                      and stay{heldEarlier.length === 1 ? "s" : ""} there until closed. Close or finish those tasks and
+                      anything still flagged comes into this quarter's epic.
+                    </p>
+                  )}
+                  {candidates.partial && (
+                    // The stored automation analysis keeps a preview of the highest-severity
+                    // rules, not all of them. Said outright, so the epic is not mistaken for the
+                    // whole finding.
+                    <p className="remediation-candidates__summary" role="note">
+                      Only the {candidates.items.length} highest-severity of {candidates.expected} flagged rules are
+                      listed: the stored automation analysis keeps a preview, so the other{" "}
+                      {candidates.expected - candidates.items.length} cannot be ticketed from here yet.
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    className="primary-button"
+                    disabled={creating || untracked.length === 0}
+                    onClick={create}
+                  >
+                    {creating
+                      ? progress
+                        ? `Creating… ${progress.done} of ${progress.total}`
+                        : "Creating…"
+                      : untracked.length === 0
+                        ? "Everything is already ticketed"
+                        : epic && isCurrent
+                          ? `Add ${untracked.length} task${untracked.length === 1 ? "" : "s"} to ${epic.issueKey}`
+                          : `Create ${period ? `${period} ` : ""}remediation epic (${untracked.length} task${untracked.length === 1 ? "" : "s"})`}
+                  </button>
+                  {confirming && !creating && (
+                    <div className="remediation-confirm" role="alert">
+                      <span>
+                        This creates {untracked.length} tasks in Jira
+                        {entry.granularity === "item" ? ", one per item" : ""}. Continue?
+                      </span>
+                      <button type="button" className="primary-button" onClick={create}>
+                        Create {untracked.length} tasks
+                      </button>
+                      <button type="button" className="secondary-button" onClick={() => setConfirming(false)}>
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                  {creating && progress && progress.total > 20 && (
+                    <p className="remediation-candidates__summary">
+                      Creating tasks in Jira, {progress.done} of {progress.total} so far — a large finding can take
+                      several minutes. Stay on this tab while it runs; if you navigate away it stops, but nothing
+                      already created is lost, and pressing the button again picks up where it left off.
+                    </p>
+                  )}
+                  {error && (
+                    <div className="danger-zone__error" role="alert">
+                      {error}
+                    </div>
+                  )}
+                </>
+              ))}
+          </>
+        }
+      </Panel>
     </div>
   );
 }
@@ -357,7 +493,14 @@ export const SYNC_POLL_MS = 10000;
 const SYNC_MAX_POLLS = 60;
 
 function taskMatches(task, q) {
-  return String(task.summary || "").toLowerCase().includes(q) || String(task.issueKey || "").toLowerCase().includes(q);
+  return (
+    String(task.summary || "")
+      .toLowerCase()
+      .includes(q) ||
+    String(task.issueKey || "")
+      .toLowerCase()
+      .includes(q)
+  );
 }
 
 // Where a finding stands this quarter, for the State filter.
@@ -367,7 +510,10 @@ export function findingState(group) {
 }
 
 const STATE_OPTIONS = [
-  ["all", "All"], ["open", "Has open tasks"], ["closed", "All tasks closed"], ["untracked", "Not started"],
+  ["all", "All"],
+  ["open", "Has open tasks"],
+  ["closed", "All tasks closed"],
+  ["untracked", "Not started"],
 ];
 
 // Which of a finding's flagged items still need a task. What is already ticketed comes from the
@@ -380,7 +526,9 @@ export function ticketingState(candidates, group, period) {
   if (candidates.available === false) return { bucket: "unavailable", flagged: 0, untracked: [], heldEarlier: [] };
   const tasks = group?.tasks || [];
   const isCurrent = Boolean(group?.isCurrent);
-  const alreadyTicketed = new Set(tasks.filter((t) => isCurrent || t.lastStatusCategory !== "done").map((t) => t.itemId));
+  const alreadyTicketed = new Set(
+    tasks.filter((t) => isCurrent || t.lastStatusCategory !== "done").map((t) => t.itemId),
+  );
   const items = candidates.items || [];
   const untracked = items.filter((it) => !it.ticketed && !alreadyTicketed.has(it.id));
   const heldEarlier = items.filter((it) => it.ticketed && it.ticketed.period !== period && !alreadyTicketed.has(it.id));
@@ -389,7 +537,11 @@ export function ticketingState(candidates, group, period) {
 }
 
 const TICKET_OPTIONS = [
-  ["all", "All"], ["to-ticket", "Needs tickets"], ["ticketed", "All ticketed"], ["clean", "Nothing flagged"], ["unavailable", "No data"],
+  ["all", "All"],
+  ["to-ticket", "Needs tickets"],
+  ["ticketed", "All ticketed"],
+  ["clean", "Nothing flagged"],
+  ["unavailable", "No data"],
 ];
 
 // Findings checked at once. Each check is its own resolver call with its own time limit, so
@@ -415,7 +567,11 @@ export function RemediationTab({ siteOrigin, intent = null }) {
   // "Review and close" on a finding card: Did it hold?, narrowed to that finding.
   const [verifyFinding, setVerifyFinding] = React.useState(null); // { key, label }
   // Progress first; a deep link to a finding lands on Findings instead.
-  const [view, setView] = usePersistentState("observatory.section.remediation", "progress", intent?.finding ? "findings" : null);
+  const [view, setView] = usePersistentState(
+    "observatory.section.remediation",
+    "progress",
+    intent?.finding ? "findings" : null,
+  );
   useNavIntent(intent, (nav) => {
     setFocusKey(nav.finding ?? null);
     if (nav.finding) setView("findings");
@@ -455,7 +611,9 @@ export function RemediationTab({ siteOrigin, intent = null }) {
     }
   }, []);
 
-  React.useEffect(() => { fetchTickets(); }, [fetchTickets]);
+  React.useEffect(() => {
+    fetchTickets();
+  }, [fetchTickets]);
 
   // One finding's current items. A failed read is stored as unavailable with the reason, so
   // the card says what went wrong instead of spinning.
@@ -468,27 +626,34 @@ export function RemediationTab({ siteOrigin, intent = null }) {
       result = { available: false, reason: "error", error: err?.message || null, items: [] };
     }
     setCandidatesByKey((m) => ({ ...m, [findingKey]: result || { available: false, items: [] } }));
-    setCheckingKeys((s) => { const next = new Set(s); next.delete(findingKey); return next; });
+    setCheckingKeys((s) => {
+      const next = new Set(s);
+      next.delete(findingKey);
+      return next;
+    });
     return result;
   }, []);
 
   // Check every finding, a few at a time.
-  const checkAll = React.useCallback(async (keys) => {
-    let done = 0;
-    setCheckRun({ done: 0, total: keys.length, finishedAt: null });
-    const queue = [...keys];
-    const worker = async () => {
-      while (queue.length) {
-        const key = queue.shift();
-        // eslint-disable-next-line no-await-in-loop -- bounded fan-out, one call per worker at a time
-        await loadCandidates(key);
-        done += 1;
-        setCheckRun((r) => (r ? { ...r, done } : r));
-      }
-    };
-    await Promise.all(Array.from({ length: Math.min(CHECK_CONCURRENCY, keys.length) }, worker));
-    setCheckRun({ done: keys.length, total: keys.length, finishedAt: new Date().toISOString() });
-  }, [loadCandidates]);
+  const checkAll = React.useCallback(
+    async (keys) => {
+      let done = 0;
+      setCheckRun({ done: 0, total: keys.length, finishedAt: null });
+      const queue = [...keys];
+      const worker = async () => {
+        while (queue.length) {
+          const key = queue.shift();
+          // eslint-disable-next-line no-await-in-loop -- bounded fan-out, one call per worker at a time
+          await loadCandidates(key);
+          done += 1;
+          setCheckRun((r) => (r ? { ...r, done } : r));
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(CHECK_CONCURRENCY, keys.length) }, worker));
+      setCheckRun({ done: keys.length, total: keys.length, finishedAt: new Date().toISOString() });
+    },
+    [loadCandidates],
+  );
 
   const catalogKeys = React.useMemo(() => (tickets?.catalog || []).map((e) => e.key), [tickets?.catalog]);
   const sweptRef = React.useRef(false);
@@ -506,7 +671,10 @@ export function RemediationTab({ siteOrigin, intent = null }) {
       for (let round = 0; round < 20; round++) {
         // eslint-disable-next-line no-await-in-loop -- each round must land before the next
         const r = await invoke("organiseRemediationHierarchy", {});
-        if (r?.error) { setOrganiseResult({ error: r.error }); return; }
+        if (r?.error) {
+          setOrganiseResult({ error: r.error });
+          return;
+        }
         total.organised += r.organised || 0;
         total.alreadyPlaced += r.alreadyPlaced || 0;
         total.failures.push(...(r.failures || []));
@@ -593,15 +761,23 @@ export function RemediationTab({ siteOrigin, intent = null }) {
       // A run that created nothing and failed nothing means the server found every item already
       // held by an open ticket. Said, so the button never just starts and stops.
       if (totalCreated === 0 && !allFailures.length) {
-        setErrors((e) => (e[findingKey] ? e : {
-          ...e,
-          [findingKey]: "Nothing was created: every item is already held by an open remediation task, this quarter's or an earlier one's. Reload the tab to see where.",
-        }));
+        setErrors((e) =>
+          e[findingKey]
+            ? e
+            : {
+                ...e,
+                [findingKey]:
+                  "Nothing was created: every item is already held by an open remediation task, this quarter's or an earlier one's. Reload the tab to see where.",
+              },
+        );
       }
       if (allFailures.length) {
         setErrors((e) => ({
           ...e,
-          [findingKey]: `${totalCreated} task${totalCreated === 1 ? "" : "s"} created, but ${allFailures.length} item${allFailures.length === 1 ? "" : "s"} failed: ${allFailures.slice(0, 3).map((f) => f.error).join("; ")}${allFailures.length > 3 ? "…" : ""}`,
+          [findingKey]: `${totalCreated} task${totalCreated === 1 ? "" : "s"} created, but ${allFailures.length} item${allFailures.length === 1 ? "" : "s"} failed: ${allFailures
+            .slice(0, 3)
+            .map((f) => f.error)
+            .join("; ")}${allFailures.length > 3 ? "…" : ""}`,
         }));
       }
     } catch (err) {
@@ -621,12 +797,15 @@ export function RemediationTab({ siteOrigin, intent = null }) {
 
   // What each finding matched the search on: its own name (show every task) or only some of
   // its tasks (show just those). Null when it did not match at all.
-  const matchOf = React.useCallback((entry) => {
-    if (!query || entry.label.toLowerCase().includes(query)) return { taskQuery: "" };
-    const group = groupsByFinding.get(entry.key);
-    const tasks = [...(group?.tasks || []), ...(group?.previousPeriods || []).flatMap((p) => p.tasks || [])];
-    return tasks.some((t) => taskMatches(t, query)) ? { taskQuery: query } : null;
-  }, [query, groupsByFinding]);
+  const matchOf = React.useCallback(
+    (entry) => {
+      if (!query || entry.label.toLowerCase().includes(query)) return { taskQuery: "" };
+      const group = groupsByFinding.get(entry.key);
+      const tasks = [...(group?.tasks || []), ...(group?.previousPeriods || []).flatMap((p) => p.tasks || [])];
+      return tasks.some((t) => taskMatches(t, query)) ? { taskQuery: query } : null;
+    },
+    [query, groupsByFinding],
+  );
 
   // Each filter's option counts are what that choice would show given the other filters, so
   // "(0)" is never a surprise after picking it.
@@ -634,31 +813,49 @@ export function RemediationTab({ siteOrigin, intent = null }) {
   const ticketingByKey = React.useMemo(() => {
     const map = new Map();
     for (const entry of catalog) {
-      map.set(entry.key, ticketingState(candidatesByKey[entry.key], groupsByFinding.get(entry.key), tickets?.period || null));
+      map.set(
+        entry.key,
+        ticketingState(candidatesByKey[entry.key], groupsByFinding.get(entry.key), tickets?.period || null),
+      );
     }
     return map;
   }, [catalog, candidatesByKey, groupsByFinding, tickets?.period]);
   const ticketBucketOf = React.useCallback((entry) => ticketingByKey.get(entry.key)?.bucket ?? null, [ticketingByKey]);
-  const toTicketOf = React.useCallback((entry) => ticketingByKey.get(entry.key)?.untracked.length || 0, [ticketingByKey]);
+  const toTicketOf = React.useCallback(
+    (entry) => ticketingByKey.get(entry.key)?.untracked.length || 0,
+    [ticketingByKey],
+  );
 
-  const passes = React.useCallback((entry, { skipPillar = false, skipState = false, skipTicket = false } = {}) => {
-    if (!skipPillar && pillarFilter !== "all" && (PILLAR_LABEL[entry.pillar] || entry.pillar) !== pillarFilter) return false;
-    if (!skipState && stateFilter !== "all" && findingState(groupsByFinding.get(entry.key)) !== stateFilter) return false;
-    if (!skipTicket && ticketFilter !== "all" && ticketBucketOf(entry) !== ticketFilter) return false;
-    return Boolean(matchOf(entry));
-  }, [pillarFilter, stateFilter, ticketFilter, groupsByFinding, matchOf, ticketBucketOf]);
+  const passes = React.useCallback(
+    (entry, { skipPillar = false, skipState = false, skipTicket = false } = {}) => {
+      if (!skipPillar && pillarFilter !== "all" && (PILLAR_LABEL[entry.pillar] || entry.pillar) !== pillarFilter)
+        return false;
+      if (!skipState && stateFilter !== "all" && findingState(groupsByFinding.get(entry.key)) !== stateFilter)
+        return false;
+      if (!skipTicket && ticketFilter !== "all" && ticketBucketOf(entry) !== ticketFilter) return false;
+      return Boolean(matchOf(entry));
+    },
+    [pillarFilter, stateFilter, ticketFilter, groupsByFinding, matchOf, ticketBucketOf],
+  );
 
   const visible = React.useMemo(() => catalog.filter((entry) => passes(entry)), [catalog, passes]);
 
   const pillarOptions = React.useMemo(() => {
-    const labels = [...new Set(
-      [...catalog].sort((a, b) => (PILLAR_RANK[a.pillar] ?? 99) - (PILLAR_RANK[b.pillar] ?? 99))
-        .map((e) => PILLAR_LABEL[e.pillar] || e.pillar)
-    )];
+    const labels = [
+      ...new Set(
+        [...catalog]
+          .sort((a, b) => (PILLAR_RANK[a.pillar] ?? 99) - (PILLAR_RANK[b.pillar] ?? 99))
+          .map((e) => PILLAR_LABEL[e.pillar] || e.pillar),
+      ),
+    ];
     const pool = catalog.filter((e) => passes(e, { skipPillar: true }));
     return [
       { value: "all", label: "All pillars" },
-      ...labels.map((label) => ({ value: label, label, count: pool.filter((e) => (PILLAR_LABEL[e.pillar] || e.pillar) === label).length })),
+      ...labels.map((label) => ({
+        value: label,
+        label,
+        count: pool.filter((e) => (PILLAR_LABEL[e.pillar] || e.pillar) === label).length,
+      })),
     ];
   }, [catalog, passes]);
 
@@ -667,7 +864,8 @@ export function RemediationTab({ siteOrigin, intent = null }) {
     return STATE_OPTIONS.map(([value, label]) => ({
       value,
       label,
-      count: value === "all" ? undefined : pool.filter((e) => findingState(groupsByFinding.get(e.key)) === value).length,
+      count:
+        value === "all" ? undefined : pool.filter((e) => findingState(groupsByFinding.get(e.key)) === value).length,
     }));
   }, [catalog, passes, groupsByFinding]);
 
@@ -687,11 +885,13 @@ export function RemediationTab({ siteOrigin, intent = null }) {
   const sections = React.useMemo(() => {
     if (sort !== "pillar") {
       const openOf = (e) => allOpenCountOf(groupsByFinding.get(e.key));
-      const sorted = [...visible].sort(sort === "open"
-        ? (a, b) => openOf(b) - openOf(a) || a.label.localeCompare(b.label)
-        : sort === "to-ticket"
-          ? (a, b) => toTicketOf(b) - toTicketOf(a) || a.label.localeCompare(b.label)
-          : (a, b) => a.label.localeCompare(b.label));
+      const sorted = [...visible].sort(
+        sort === "open"
+          ? (a, b) => openOf(b) - openOf(a) || a.label.localeCompare(b.label)
+          : sort === "to-ticket"
+            ? (a, b) => toTicketOf(b) - toTicketOf(a) || a.label.localeCompare(b.label)
+            : (a, b) => a.label.localeCompare(b.label),
+      );
       return sorted.length ? [[null, sorted]] : [];
     }
     const byLabel = new Map();
@@ -719,8 +919,14 @@ export function RemediationTab({ siteOrigin, intent = null }) {
   const groupsList = tickets?.groups || [];
   const totalOpen = groupsList.reduce((sum, g) => sum + allOpenCountOf(g), 0);
   const totalClosed = groupsList.reduce((sum, g) => sum + (allTaskCountOf(g) - allOpenCountOf(g)), 0);
-  const earlierOpen = groupsList.reduce((sum, g) => sum + earlierQuartersOf(g).reduce((n, q) => n + (q.openCount || 0), 0), 0);
-  const earlierClosed = groupsList.reduce((sum, g) => sum + earlierQuartersOf(g).reduce((n, q) => n + ((q.taskCount || 0) - (q.openCount || 0)), 0), 0);
+  const earlierOpen = groupsList.reduce(
+    (sum, g) => sum + earlierQuartersOf(g).reduce((n, q) => n + (q.openCount || 0), 0),
+    0,
+  );
+  const earlierClosed = groupsList.reduce(
+    (sum, g) => sum + earlierQuartersOf(g).reduce((n, q) => n + ((q.taskCount || 0) - (q.openCount || 0)), 0),
+    0,
+  );
 
   return (
     <div className="admin-remediation-tab">
@@ -728,45 +934,85 @@ export function RemediationTab({ siteOrigin, intent = null }) {
         title="Remediation"
         description="Turn a governance finding into tracked Jira work — one epic per finding per quarter, a task per item (or per owner, where items are many and alike), every ticket linking straight to what it is about, and status synced from Jira three times a business day."
         meta={tickets?.period ? `Current quarter: ${tickets.period}` : null}
-        actions={tickets?.total > 0 && (
-          <>
-            <span className="ui-pagehead__meta remediation-sync__status" role="status">
-              {syncingSince
-                ? "Syncing with Jira…"
-                : tickets.lastSyncedAt ? `Last synced ${formatRelativeTime(tickets.lastSyncedAt)}` : "Never synced"}
-            </span>
-            <button
-              type="button"
-              className="secondary-button secondary-button--small"
-              onClick={syncNow}
-              disabled={Boolean(syncingSince)}
-            >
-              {syncingSince ? "Syncing…" : "Sync now"}
-            </button>
-          </>
-        )}
+        actions={
+          tickets?.total > 0 && (
+            <>
+              <span className="ui-pagehead__meta remediation-sync__status" role="status">
+                {syncingSince
+                  ? "Syncing with Jira…"
+                  : tickets.lastSyncedAt
+                    ? `Last synced ${formatRelativeTime(tickets.lastSyncedAt)}`
+                    : "Never synced"}
+              </span>
+              <button
+                type="button"
+                className="secondary-button secondary-button--small"
+                onClick={syncNow}
+                disabled={Boolean(syncingSince)}
+              >
+                {syncingSince ? "Syncing…" : "Sync now"}
+              </button>
+            </>
+          )
+        }
       />
-      {syncError && <div className="danger-zone__error" role="alert">{syncError}</div>}
+      {syncError && (
+        <div className="danger-zone__error" role="alert">
+          {syncError}
+        </div>
+      )}
       {tickets?.hierarchy?.enabled && (
         <p className="remediation-hierarchy">
-          {tickets.hierarchy.rootKey
-            ? <>{tickets.period} epics are filed under <IssueLink issueKey={tickets.hierarchy.rootKey} siteOrigin={siteOrigin}>{tickets.hierarchy.rootKey}</IssueLink> and its {tickets.hierarchy.initiativeCount} initiative{tickets.hierarchy.initiativeCount === 1 ? "" : "s"}.</>
-            : <>{tickets.period}'s top-level item and initiatives are created (or found) with the quarter's first epic.</>}
-          {" "}
-          <button type="button" className="secondary-button secondary-button--small" onClick={organiseHierarchy} disabled={organising}>
+          {tickets.hierarchy.rootKey ? (
+            <>
+              {tickets.period} epics are filed under{" "}
+              <IssueLink issueKey={tickets.hierarchy.rootKey} siteOrigin={siteOrigin}>
+                {tickets.hierarchy.rootKey}
+              </IssueLink>{" "}
+              and its {tickets.hierarchy.initiativeCount} initiative{tickets.hierarchy.initiativeCount === 1 ? "" : "s"}
+              .
+            </>
+          ) : (
+            <>{tickets.period}'s top-level item and initiatives are created (or found) with the quarter's first epic.</>
+          )}{" "}
+          <button
+            type="button"
+            className="secondary-button secondary-button--small"
+            onClick={organiseHierarchy}
+            disabled={organising}
+          >
             {organising ? "Organising…" : "Organise under initiatives"}
           </button>
           {organiseResult && !organiseResult.error && (
             <span className="remediation-history" role="status">
-              {" "}{organiseResult.organised} epic{organiseResult.organised === 1 ? "" : "s"} moved, {organiseResult.alreadyPlaced} already in place
-              {organiseResult.failures.length ? `, ${organiseResult.failures.length} failed: ${organiseResult.failures.slice(0, 2).map((f) => `${f.epicKey} (${f.error})`).join("; ")}` : ""}.
+              {" "}
+              {organiseResult.organised} epic{organiseResult.organised === 1 ? "" : "s"} moved,{" "}
+              {organiseResult.alreadyPlaced} already in place
+              {organiseResult.failures.length
+                ? `, ${organiseResult.failures.length} failed: ${organiseResult.failures
+                    .slice(0, 2)
+                    .map((f) => `${f.epicKey} (${f.error})`)
+                    .join("; ")}`
+                : ""}
+              .
             </span>
           )}
         </p>
       )}
-      {organiseResult?.error && <div className="danger-zone__error" role="alert">{organiseResult.error}</div>}
+      {organiseResult?.error && (
+        <div className="danger-zone__error" role="alert">
+          {organiseResult.error}
+        </div>
+      )}
 
-      <SubNavLayout items={VIEWS} activeKey={view} onSelect={(key) => { setVerifyFinding(null); setView(key); }}>
+      <SubNavLayout
+        items={VIEWS}
+        activeKey={view}
+        onSelect={(key) => {
+          setVerifyFinding(null);
+          setView(key);
+        }}
+      >
         {view === "progress" ? (
           <RemediationProgress />
         ) : view === "verify" ? (
@@ -782,18 +1028,30 @@ export function RemediationTab({ siteOrigin, intent = null }) {
           <>
             <StatRow>
               <StatTile label="Findings tracked" value={(tickets?.groups || []).length} icon="layers" />
-              <StatTile label="Open tasks" value={totalOpen} tone={totalOpen > 0 ? "active" : "success"} icon="clock"
-                hint={earlierOpen > 0 ? `${earlierOpen} from earlier quarters` : null} />
-              <StatTile label="Closed tasks" value={totalClosed} tone="success" icon="checkCircle"
-                hint={earlierClosed > 0 ? `${earlierClosed} from earlier quarters` : null} />
+              <StatTile
+                label="Open tasks"
+                value={totalOpen}
+                tone={totalOpen > 0 ? "active" : "success"}
+                icon="clock"
+                hint={earlierOpen > 0 ? `${earlierOpen} from earlier quarters` : null}
+              />
+              <StatTile
+                label="Closed tasks"
+                value={totalClosed}
+                tone="success"
+                icon="checkCircle"
+                hint={earlierClosed > 0 ? `${earlierClosed} from earlier quarters` : null}
+              />
               <StatTile
                 label="Need tickets"
                 value={needTickets.length}
                 tone={needTickets.length > 0 ? "warning" : "neutral"}
                 icon="wrench"
-                hint={sweeping
-                  ? `checking ${checkRun.done} of ${checkRun.total} findings…`
-                  : `${itemsToTicket} item${itemsToTicket === 1 ? "" : "s"} with no task yet`}
+                hint={
+                  sweeping
+                    ? `checking ${checkRun.done} of ${checkRun.total} findings…`
+                    : `${itemsToTicket} item${itemsToTicket === 1 ? "" : "s"} with no task yet`
+                }
               />
             </StatRow>
             <p className="remediation-history" aria-live="polite">
@@ -806,11 +1064,22 @@ export function RemediationTab({ siteOrigin, intent = null }) {
                 <>
                   {" "}
                   {needTickets.length > 0 && ticketFilter !== "to-ticket" && (
-                    <button type="button" className="secondary-button secondary-button--small" onClick={() => { setTicketFilter("to-ticket"); setSort("to-ticket"); }}>
+                    <button
+                      type="button"
+                      className="secondary-button secondary-button--small"
+                      onClick={() => {
+                        setTicketFilter("to-ticket");
+                        setSort("to-ticket");
+                      }}
+                    >
                       Show the {needTickets.length} that need tickets
                     </button>
                   )}{" "}
-                  <button type="button" className="secondary-button secondary-button--small" onClick={() => checkAll(catalogKeys)}>
+                  <button
+                    type="button"
+                    className="secondary-button secondary-button--small"
+                    onClick={() => checkAll(catalogKeys)}
+                  >
                     Recheck
                   </button>
                 </>
@@ -826,9 +1095,21 @@ export function RemediationTab({ siteOrigin, intent = null }) {
               onSortChange={setSort}
               sortOptions={SORT_OPTIONS}
               filters={[
-                { key: "pillar", label: "Pillar", value: pillarFilter, onChange: setPillarFilter, options: pillarOptions },
+                {
+                  key: "pillar",
+                  label: "Pillar",
+                  value: pillarFilter,
+                  onChange: setPillarFilter,
+                  options: pillarOptions,
+                },
                 { key: "state", label: "State", value: stateFilter, onChange: setStateFilter, options: stateOptions },
-                { key: "tickets", label: "Tickets", value: ticketFilter, onChange: setTicketFilter, options: ticketOptions },
+                {
+                  key: "tickets",
+                  label: "Tickets",
+                  value: ticketFilter,
+                  onChange: setTicketFilter,
+                  options: ticketOptions,
+                },
               ]}
               resultCount={visible.length}
               totalCount={catalog.length}
@@ -859,7 +1140,10 @@ export function RemediationTab({ siteOrigin, intent = null }) {
                     ticketing={ticketingByKey.get(entry.key) || null}
                     checking={checkingKeys.has(entry.key)}
                     onLoadCandidates={loadCandidates}
-                    onReview={(key, label) => { setVerifyFinding({ key, label }); setView("verify"); }}
+                    onReview={(key, label) => {
+                      setVerifyFinding({ key, label });
+                      setView("verify");
+                    }}
                   />
                 ))}
               </section>

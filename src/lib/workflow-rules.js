@@ -26,12 +26,31 @@ export const RULE_KINDS = ["condition", "validator", "post-function", "trigger"]
 // searched for a literal customfield_NNNNN, which is what catches a field named inside a
 // Jira expression or a third-party script.
 const FIELD_KEYS = new Set([
-  "fieldkey", "fieldid", "field", "fields", "fieldsrequired", "fieldslist", "fieldids",
-  "sourcefieldkey", "targetfieldkey", "sourcefield", "targetfield", "date1", "date2",
-  "fieldname", "requiredfields", "approvalfield",
+  "fieldkey",
+  "fieldid",
+  "field",
+  "fields",
+  "fieldsrequired",
+  "fieldslist",
+  "fieldids",
+  "sourcefieldkey",
+  "targetfieldkey",
+  "sourcefield",
+  "targetfield",
+  "date1",
+  "date2",
+  "fieldname",
+  "requiredfields",
+  "approvalfield",
 ]);
 const GROUP_KEYS = new Set([
-  "groupids", "groupid", "group", "groups", "groupsexemptfromvalidation", "groupname", "groupnames",
+  "groupids",
+  "groupid",
+  "group",
+  "groups",
+  "groupsexemptfromvalidation",
+  "groupname",
+  "groupnames",
 ]);
 const ROLE_KEYS = new Set(["roleids", "roleid", "projectroleid", "projectroleids", "roles", "role"]);
 const PERMISSION_KEYS = new Set(["permissionkeys", "permissionkey", "permission", "permissions"]);
@@ -39,7 +58,15 @@ const STATUS_KEYS = new Set(["previousstatusids", "previousstatusid", "statusids
 
 // Parameter keys safe to echo into a summary: they describe the rule's shape, never carry
 // free text an admin typed. errorMessage, expression, script and value are deliberately absent.
-const SUMMARY_KEYS = ["ruleType", "comparator", "operation", "mode", "mostRecentStatusOnly", "ignoreContext", "permissionKeys"];
+const SUMMARY_KEYS = [
+  "ruleType",
+  "comparator",
+  "operation",
+  "mode",
+  "mostRecentStatusOnly",
+  "ignoreContext",
+  "permissionKeys",
+];
 
 const CUSTOM_FIELD_RE = /customfield_\d+/g;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -100,10 +127,18 @@ export function ruleLabel(ruleKey) {
 // a workflow enforces. Listing them would bury the twelve rules an admin cares about under
 // three hundred copies of "reindex the issue".
 const HOUSEKEEPING_RULES = new Set([
-  "system:update-issue-status", "system:create-change-history", "system:reindex-issue",
-  "system:fire-issue-event", "system:create-issue", "system:add-comment-from-transition",
-  "UpdateIssueStatusFunction", "CreateCommentFunction", "GenerateChangeHistoryFunction",
-  "IssueReindexFunction", "FireIssueEventFunction", "IssueCreateFunction",
+  "system:update-issue-status",
+  "system:create-change-history",
+  "system:reindex-issue",
+  "system:fire-issue-event",
+  "system:create-issue",
+  "system:add-comment-from-transition",
+  "UpdateIssueStatusFunction",
+  "CreateCommentFunction",
+  "GenerateChangeHistoryFunction",
+  "IssueReindexFunction",
+  "FireIssueEventFunction",
+  "IssueCreateFunction",
 ]);
 
 export function isHousekeepingRule(ruleKey) {
@@ -172,7 +207,10 @@ function walk(value, parentKey, refs, depth) {
     }
   } else if (GROUP_KEYS.has(key)) {
     // Commas only: a group NAME may contain spaces, and an id never does.
-    for (const token of text.split(/[,;]+/).map((t) => t.trim()).filter(Boolean)) {
+    for (const token of text
+      .split(/[,;]+/)
+      .map((t) => t.trim())
+      .filter(Boolean)) {
       addRef(refs, UUID_RE.test(token) ? "group" : "group-name", token);
     }
   } else if (ROLE_KEYS.has(key)) {
@@ -206,18 +244,38 @@ export function summarizeRule(parameters) {
 // <groupId>" is the one that matters most -- it is how a status gets locked to one team.
 
 const PERMISSION_HOLDERS = [
-  "groupCF", "group", "assignee", "assignable", "reportercreate", "reporter", "lead",
-  "projectrole", "userCF", "user", "applicationRole", "inProjectRole", "denied",
+  "groupCF",
+  "group",
+  "assignee",
+  "assignable",
+  "reportercreate",
+  "reporter",
+  "lead",
+  "projectrole",
+  "userCF",
+  "user",
+  "applicationRole",
+  "inProjectRole",
+  "denied",
 ];
 const PERMISSION_PROPERTY_RE = new RegExp(
-  `^jira\\.permission\\.(subtasks\\.)?(.+?)\\.(${PERMISSION_HOLDERS.join("|")})(?:\\.(.+))?$`
+  `^jira\\.permission\\.(subtasks\\.)?(.+?)\\.(${PERMISSION_HOLDERS.join("|")})(?:\\.(.+))?$`,
 );
 
 const HOLDER_LABELS = {
-  group: "group", groupCF: "group in field", assignee: "assignee", assignable: "assignable users",
-  reporter: "reporter", reportercreate: "reporter (with create)", lead: "project lead",
-  projectrole: "project role", user: "user", userCF: "user in field",
-  applicationRole: "application role", inProjectRole: "project role member", denied: "nobody",
+  group: "group",
+  groupCF: "group in field",
+  assignee: "assignee",
+  assignable: "assignable users",
+  reporter: "reporter",
+  reportercreate: "reporter (with create)",
+  lead: "project lead",
+  projectrole: "project role",
+  user: "user",
+  userCF: "user in field",
+  applicationRole: "application role",
+  inProjectRole: "project role member",
+  denied: "nobody",
 };
 
 // Parse one property into what it means. Returns null for a property that restricts nothing
@@ -228,7 +286,13 @@ export function parseWorkflowProperty(key, value) {
 
   if (k === "jira.issue.editable") {
     return v.toLowerCase() === "false"
-      ? { effect: "not-editable", permission: "edit", holderType: null, holder: null, description: "Issues cannot be edited in this status" }
+      ? {
+          effect: "not-editable",
+          permission: "edit",
+          holderType: null,
+          holder: null,
+          description: "Issues cannot be edited in this status",
+        }
       : null;
   }
 
@@ -237,15 +301,29 @@ export function parseWorkflowProperty(key, value) {
     const [, subtasks, permission, holderType] = match;
     const holderLabel = HOLDER_LABELS[holderType] || holderType;
     const scope = subtasks ? " (sub-tasks)" : "";
-    const description = holderType === "denied"
-      ? `${capitalize(permission)}${scope}: nobody`
-      : `${capitalize(permission)}${scope}: only ${holderLabel}${v ? ` ${v}` : ""}`;
-    return { effect: "restrict-permission", permission, subtasks: Boolean(subtasks), holderType, holder: v || null, description };
+    const description =
+      holderType === "denied"
+        ? `${capitalize(permission)}${scope}: nobody`
+        : `${capitalize(permission)}${scope}: only ${holderLabel}${v ? ` ${v}` : ""}`;
+    return {
+      effect: "restrict-permission",
+      permission,
+      subtasks: Boolean(subtasks),
+      holderType,
+      holder: v || null,
+      description,
+    };
   }
 
   // JSM approval configuration names the approver field directly.
   if (k === "approval.field.id" && v) {
-    return { effect: "approval", permission: null, holderType: "field", holder: v, description: `Approval uses field ${v}` };
+    return {
+      effect: "approval",
+      permission: null,
+      holderType: "field",
+      holder: v,
+      description: `Approval uses field ${v}`,
+    };
   }
 
   return null;
@@ -286,9 +364,7 @@ export function propertyReferences(parsed) {
 function normalizeProperties(properties) {
   if (!properties) return [];
   if (Array.isArray(properties)) {
-    return properties
-      .map((entry) => [entry?.key, entry?.value])
-      .filter(([key]) => key);
+    return properties.map((entry) => [entry?.key, entry?.value]).filter(([key]) => key);
   }
   if (typeof properties === "object") return Object.entries(properties);
   return [];
@@ -335,9 +411,7 @@ function ruleOf(kind, raw) {
 
 function resolveStatus(reference, idByReference) {
   if (reference == null || reference === "") return null;
-  const value = typeof reference === "object"
-    ? (reference.statusReference ?? reference.id ?? null)
-    : reference;
+  const value = typeof reference === "object" ? (reference.statusReference ?? reference.id ?? null) : reference;
   if (value == null) return null;
   return idByReference.get(String(value)) ?? String(value);
 }
@@ -348,7 +422,7 @@ function resolveStatus(reference, idByReference) {
 export function extractWorkflowRules(workflow, idByReference = new Map()) {
   const transitions = [];
   for (const transition of workflow?.transitions || []) {
-    const id = transition?.id != null ? String(transition.id) : (transition?.name || null);
+    const id = transition?.id != null ? String(transition.id) : transition?.name || null;
     if (!id) continue;
 
     const type = String(transition?.type || "").toUpperCase() || null;
@@ -365,7 +439,7 @@ export function extractWorkflowRules(workflow, idByReference = new Map()) {
 
     const toStatusId = resolveStatus(
       transition?.toStatusReference ?? transition?.to?.statusReference ?? transition?.to?.id ?? transition?.to ?? null,
-      idByReference
+      idByReference,
     );
 
     const rules = [];
@@ -457,18 +531,36 @@ export function buildWorkflowRuleRows(workflows = [], schemeCountByWorkflow = ne
         });
         for (const ref of rule.refs) {
           refs.push({
-            ...ref, seq: seq++, workflowName, source: "rule", ownerKind: "transition",
-            ownerId: transition.id, ruleSeq, propKey: null,
+            ...ref,
+            seq: seq++,
+            workflowName,
+            source: "rule",
+            ownerKind: "transition",
+            ownerId: transition.id,
+            ruleSeq,
+            propKey: null,
           });
         }
       });
 
       for (const prop of transition.properties) {
-        properties.push({ workflowName, ownerKind: "transition", ownerId: transition.id, key: prop.key, value: prop.value });
+        properties.push({
+          workflowName,
+          ownerKind: "transition",
+          ownerId: transition.id,
+          key: prop.key,
+          value: prop.value,
+        });
         for (const ref of propertyReferences(parseWorkflowProperty(prop.key, prop.value))) {
           refs.push({
-            ...ref, seq: seq++, workflowName, source: "property", ownerKind: "transition",
-            ownerId: transition.id, ruleSeq: null, propKey: prop.key,
+            ...ref,
+            seq: seq++,
+            workflowName,
+            source: "property",
+            ownerKind: "transition",
+            ownerId: transition.id,
+            ruleSeq: null,
+            propKey: prop.key,
           });
         }
       }
@@ -478,8 +570,14 @@ export function buildWorkflowRuleRows(workflows = [], schemeCountByWorkflow = ne
       properties.push({ workflowName, ownerKind: "status", ownerId: prop.statusId, key: prop.key, value: prop.value });
       for (const ref of propertyReferences(parseWorkflowProperty(prop.key, prop.value))) {
         refs.push({
-          ...ref, seq: seq++, workflowName, source: "property", ownerKind: "status",
-          ownerId: prop.statusId, ruleSeq: null, propKey: prop.key,
+          ...ref,
+          seq: seq++,
+          workflowName,
+          source: "property",
+          ownerKind: "status",
+          ownerId: prop.statusId,
+          ruleSeq: null,
+          propKey: prop.key,
         });
       }
     }
@@ -499,7 +597,12 @@ export function buildWorkflowRuleRows(workflows = [], schemeCountByWorkflow = ne
 export function findBrokenReferences(refs = [], { knownFieldIds = null, knownGroupIds = null } = {}) {
   const broken = [];
   for (const ref of refs) {
-    if (ref.refType === "field" && knownFieldIds && ref.refId.startsWith("customfield_") && !knownFieldIds.has(ref.refId)) {
+    if (
+      ref.refType === "field" &&
+      knownFieldIds &&
+      ref.refId.startsWith("customfield_") &&
+      !knownFieldIds.has(ref.refId)
+    ) {
       broken.push(ref);
     } else if (ref.refType === "group" && knownGroupIds && !knownGroupIds.has(ref.refId)) {
       broken.push(ref);
@@ -552,7 +655,7 @@ export function labelReferences(refs = [], { fieldsById = null, groups = null, r
         refLabel = field?.name || null;
         // Only a custom field id can be judged missing; a token under a field key that is not
         // a known id may be an expression fragment rather than a deleted field.
-        refMissing = ref.refId.startsWith("customfield_") ? !field : (field ? false : null);
+        refMissing = ref.refId.startsWith("customfield_") ? !field : field ? false : null;
       }
     } else if (ref.refType === "group") {
       if (groups) {
@@ -586,14 +689,19 @@ export function summarizeRuleInsights({ meta, names = new Map(), catalog = [], r
     workflowName: r.workflowName,
     source: r.source,
     transitionId: r.ownerKind === "transition" ? r.ownerId : null,
-    status: r.ownerKind === "status" ? (r.ownerId != null ? { id: String(r.ownerId), name: names.get(String(r.ownerId)) || `Status ${r.ownerId}` } : null) : null,
+    status:
+      r.ownerKind === "status"
+        ? r.ownerId != null
+          ? { id: String(r.ownerId), name: names.get(String(r.ownerId)) || `Status ${r.ownerId}` }
+          : null
+        : null,
     propKey: r.propKey,
   }));
   const inactive = findInactiveWorkflows(catalog);
   const totalRules = catalog.reduce((n, w) => n + (Number(w.ruleCount) || 0), 0);
   // A rule with two broken references is one broken rule.
   const brokenRuleKeys = new Set(
-    broken.filter((r) => r.source === "rule").map((r) => `${r.workflowName}\u0000${r.ownerId}\u0000${r.ruleSeq}`)
+    broken.filter((r) => r.source === "rule").map((r) => `${r.workflowName}\u0000${r.ownerId}\u0000${r.ruleSeq}`),
   );
 
   return {

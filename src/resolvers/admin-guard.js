@@ -80,7 +80,7 @@ export function withAdminGuard(functions) {
         }
         return fn(req);
       },
-    ])
+    ]),
   );
 }
 
@@ -152,6 +152,6 @@ export function withAuditTrail(functions) {
               throw error;
             }
           },
-    ])
+    ]),
   );
 }

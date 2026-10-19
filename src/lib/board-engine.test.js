@@ -37,16 +37,32 @@ beforeEach(() => vi.clearAllMocks());
 
 describe("shapeBoard", () => {
   test("reads a project board's location", () => {
-    const row = shapeBoard({ id: 12, name: "PT2 board", type: "scrum", location: { projectId: 100, projectKey: "PT2", projectName: "Prototype & Test" } });
+    const row = shapeBoard({
+      id: 12,
+      name: "PT2 board",
+      type: "scrum",
+      location: { projectId: 100, projectKey: "PT2", projectName: "Prototype & Test" },
+    });
     expect(row).toMatchObject({
-      boardId: "12", name: "PT2 board", type: "scrum",
-      locationType: "project", locationId: 100, locationKey: "PT2", locationName: "Prototype & Test",
-      configReadable: false, columnCount: 0,
+      boardId: "12",
+      name: "PT2 board",
+      type: "scrum",
+      locationType: "project",
+      locationId: 100,
+      locationKey: "PT2",
+      locationName: "Prototype & Test",
+      configReadable: false,
+      columnCount: 0,
     });
   });
 
   test("reads a personal board's location as a user", () => {
-    const row = shapeBoard({ id: 5, name: "My work", type: "kanban", location: { userAccountId: "abc123", displayName: "Alex" } });
+    const row = shapeBoard({
+      id: 5,
+      name: "My work",
+      type: "kanban",
+      location: { userAccountId: "abc123", displayName: "Alex" },
+    });
     expect(row).toMatchObject({ locationType: "user", locationId: "abc123", locationKey: null, locationName: "Alex" });
   });
 
@@ -81,7 +97,11 @@ describe("shapeBoardConfig", () => {
 
   test("degrades missing sections to null and an empty column list", () => {
     expect(shapeBoardConfig({})).toEqual({
-      filterId: null, subQuery: null, estimationField: null, rankingField: null, columns: [],
+      filterId: null,
+      subQuery: null,
+      estimationField: null,
+      rankingField: null,
+      columns: [],
     });
   });
 });
@@ -90,7 +110,9 @@ describe("isBoardBuildStale", () => {
   test("false unless building, true past the window", () => {
     expect(isBoardBuildStale({ state: "ready" })).toBe(false);
     expect(isBoardBuildStale({ state: "building", startedAt: new Date().toISOString() })).toBe(false);
-    expect(isBoardBuildStale({ state: "building", startedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString() })).toBe(true);
+    expect(
+      isBoardBuildStale({ state: "building", startedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString() }),
+    ).toBe(true);
     expect(isBoardBuildStale({ state: "building", startedAt: "not-a-date" })).toBe(true);
   });
 });
@@ -98,7 +120,13 @@ describe("isBoardBuildStale", () => {
 describe("enumerateBoards", () => {
   test("pages until isLast and shapes every entry", async () => {
     jiraApi.getBoardPage
-      .mockResolvedValueOnce({ isLast: false, values: [{ id: 1, name: "A" }, { id: 2, name: "B" }] })
+      .mockResolvedValueOnce({
+        isLast: false,
+        values: [
+          { id: 1, name: "A" },
+          { id: 2, name: "B" },
+        ],
+      })
       .mockResolvedValueOnce({ isLast: true, values: [{ id: 3, name: "C" }] });
 
     const boards = await enumerateBoards();
@@ -119,7 +147,9 @@ describe("queueBoardSnapshotBuild", () => {
   test("marks building then pushes the job", async () => {
     await queueBoardSnapshotBuild("inst");
     expect(writeBoardSnapshotMeta).toHaveBeenCalledWith("inst", expect.objectContaining({ state: "building" }));
-    expect(inventorySnapshotQueue.push).toHaveBeenCalledWith({ body: { jobType: "build-board-snapshot", installationKey: "inst" } });
+    expect(inventorySnapshotQueue.push).toHaveBeenCalledWith({
+      body: { jobType: "build-board-snapshot", installationKey: "inst" },
+    });
   });
 });
 
@@ -134,7 +164,12 @@ describe("buildBoardSnapshot", () => {
     });
     jiraApi.getBoardConfiguration.mockImplementation(async (id) => ({
       filter: { id: `f${id}` },
-      columnConfig: { columns: [{ name: "To Do", statuses: [{ id: "1" }] }, { name: "Done", statuses: [{ id: "5" }] }] },
+      columnConfig: {
+        columns: [
+          { name: "To Do", statuses: [{ id: "1" }] },
+          { name: "Done", statuses: [{ id: "5" }] },
+        ],
+      },
     }));
 
     const result = await buildBoardSnapshot("inst");
@@ -146,9 +181,15 @@ describe("buildBoardSnapshot", () => {
     expect(payload.boards[0]).toMatchObject({ filterId: "f1", columnCount: 2, configReadable: true });
     expect(payload.columns).toHaveLength(4);
     expect(payload.columns[0]).toMatchObject({ boardId: "1", index: 0, name: "To Do", statusIds: "1" });
-    expect(writeBoardSnapshotMeta).toHaveBeenLastCalledWith("inst", expect.objectContaining({
-      state: "ready", totalBoards: 2, totalColumns: 4, boardsUnreadable: 0,
-    }));
+    expect(writeBoardSnapshotMeta).toHaveBeenLastCalledWith(
+      "inst",
+      expect.objectContaining({
+        state: "ready",
+        totalBoards: 2,
+        totalColumns: 4,
+        boardsUnreadable: 0,
+      }),
+    );
   });
 
   test("counts a board whose configuration 404s as unreadable rather than failing the build", async () => {
@@ -168,8 +209,15 @@ describe("buildBoardSnapshot", () => {
 
     expect(result).toMatchObject({ boards: 2, columns: 1, unreadable: 1 });
     const [, , payload] = replaceBoardSnapshot.mock.calls[0];
-    expect(payload.boards.find((b) => b.boardId === "2")).toMatchObject({ configReadable: false, filterId: null, columnCount: 0 });
-    expect(writeBoardSnapshotMeta).toHaveBeenLastCalledWith("inst", expect.objectContaining({ state: "ready", boardsUnreadable: 1 }));
+    expect(payload.boards.find((b) => b.boardId === "2")).toMatchObject({
+      configReadable: false,
+      filterId: null,
+      columnCount: 0,
+    });
+    expect(writeBoardSnapshotMeta).toHaveBeenLastCalledWith(
+      "inst",
+      expect.objectContaining({ state: "ready", boardsUnreadable: 1 }),
+    );
   });
 
   test("marks the build failed and rethrows on a hard error", async () => {

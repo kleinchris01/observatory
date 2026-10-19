@@ -10,19 +10,8 @@
 
 import { logger } from "./logger.js";
 import { inventorySnapshotQueue } from "./queues.js";
-import {
-  incrMetric,
-  METRIC_NAMES,
-  getBoardPage,
-  getBoardConfiguration,
-  mapWithConcurrency,
-} from "./jira-api.js";
-import {
-  ensureProjectStoreReady,
-  writeBoardSnapshotMeta,
-  readBoardSnapshotMeta,
-  replaceBoardSnapshot,
-} from "./project-store.js";
+import { incrMetric, METRIC_NAMES, getBoardPage, getBoardConfiguration, mapWithConcurrency } from "./jira-api.js";
+import { ensureProjectStoreReady, writeBoardSnapshotMeta, replaceBoardSnapshot } from "./project-store.js";
 
 // Matches the other structural builds: the consumer ceiling is 900s, plus a minute so a
 // build finishing right at the limit is never declared stale out from under itself.
@@ -52,9 +41,8 @@ export function shapeBoard(raw) {
   const id = String(raw?.id ?? "").trim();
   if (!id) return null;
   const loc = raw?.location || {};
-  const locationType = loc.projectId != null || loc.projectKey ? "project"
-    : loc.userAccountId || loc.userId ? "user"
-      : loc.type || null;
+  const locationType =
+    loc.projectId != null || loc.projectKey ? "project" : loc.userAccountId || loc.userId ? "user" : loc.type || null;
   return {
     boardId: id,
     name: raw?.name ?? null,
@@ -164,7 +152,9 @@ export async function buildBoardSnapshot(installationKey) {
         // One unreadable board, not a dead build -- team-managed boards routinely 404 here.
         unreadable += 1;
         logger.warn("board-snapshot.config_failed", {
-          installationKey, boardId: board.boardId, error: String(error?.message || error),
+          installationKey,
+          boardId: board.boardId,
+          error: String(error?.message || error),
         });
       }
     });
@@ -185,7 +175,10 @@ export async function buildBoardSnapshot(installationKey) {
 
     incrMetric(METRIC_NAMES.boardSnapshotCompleted);
     logger.info("board-snapshot.completed", {
-      version, boards: boards.length, columns: columns.length, unreadable,
+      version,
+      boards: boards.length,
+      columns: columns.length,
+      unreadable,
     });
     return { version, boards: boards.length, columns: columns.length, unreadable };
   } catch (error) {

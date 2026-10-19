@@ -31,7 +31,9 @@ export function inlineNodes(text) {
 }
 
 export function renderADF(text) {
-  const lines = String(text || "").replace(/\r\n/g, "\n").split("\n");
+  const lines = String(text || "")
+    .replace(/\r\n/g, "\n")
+    .split("\n");
   const content = [];
   let para = [];
   let bullets = [];
@@ -57,14 +59,22 @@ export function renderADF(text) {
 
   for (const raw of lines) {
     const line = raw.trim();
-    if (line === "") { flushPara(); flushBullets(); continue; }
+    if (line === "") {
+      flushPara();
+      flushBullets();
+      continue;
+    }
     if (line.startsWith("## ")) {
       flushPara();
       flushBullets();
       content.push({ type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: line.slice(3) }] });
       continue;
     }
-    if (line.startsWith("- ")) { flushPara(); bullets.push(line.slice(2)); continue; }
+    if (line.startsWith("- ")) {
+      flushPara();
+      bullets.push(line.slice(2));
+      continue;
+    }
     flushBullets();
     para.push(line);
   }

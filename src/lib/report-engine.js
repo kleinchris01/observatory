@@ -1,9 +1,4 @@
-import {
-  incrMetric,
-  METRIC_NAMES,
-  getDistinctIssueCountForFields,
-  REPORT_JOB_FIELD_BATCH_SIZE,
-} from "./jira-api.js";
+import { incrMetric, METRIC_NAMES, getDistinctIssueCountForFields, REPORT_JOB_FIELD_BATCH_SIZE } from "./jira-api.js";
 import {
   loadSnapshotField,
   loadAllSnapshotProjectUsage,
@@ -15,12 +10,16 @@ import {
 import { queueReportBuild } from "./snapshot-engine.js";
 import { buildOverallFieldJql } from "./transform.js";
 
-export async function buildProjectUsageReportResult(installationKey, version, fieldIds, offset = 0, partialResult = null) {
+export async function buildProjectUsageReportResult(
+  installationKey,
+  version,
+  fieldIds,
+  offset = 0,
+  partialResult = null,
+) {
   const fields = Array.isArray(partialResult?.fields) ? [...partialResult.fields] : [];
   const projectMap = new Map(
-    Array.isArray(partialResult?.projects)
-      ? partialResult.projects.map((project) => [project.projectId, project])
-      : []
+    Array.isArray(partialResult?.projects) ? partialResult.projects.map((project) => [project.projectId, project]) : [],
   );
   const pendingFields = Array.isArray(partialResult?.pendingFields) ? [...partialResult.pendingFields] : [];
 
@@ -95,7 +94,8 @@ export async function buildProjectUsageReportResult(installationKey, version, fi
     result: {
       fields,
       projects: projects.sort(
-        (left, right) => left.projectKey.localeCompare(right.projectKey) || left.projectName.localeCompare(right.projectName)
+        (left, right) =>
+          left.projectKey.localeCompare(right.projectKey) || left.projectName.localeCompare(right.projectName),
       ),
       pendingFields,
       uniqueIssueCount: partialResult?.uniqueIssueCount ?? null,
@@ -123,14 +123,16 @@ export async function processProjectUsageReportJob(scopeKey, version, jobId) {
     addLog(`Started report build for ${existing.reportName}`);
   }
 
-  addLog(`Processing fields ${existing.nextOffset + 1}-${Math.min(existing.totalFields, existing.nextOffset + REPORT_JOB_FIELD_BATCH_SIZE)} of ${existing.totalFields}`);
+  addLog(
+    `Processing fields ${existing.nextOffset + 1}-${Math.min(existing.totalFields, existing.nextOffset + REPORT_JOB_FIELD_BATCH_SIZE)} of ${existing.totalFields}`,
+  );
 
   const next = await buildProjectUsageReportResult(
     scopeKey,
     version,
     existing.fieldIds,
     Number(existing.nextOffset || 0),
-    existing.result || null
+    existing.result || null,
   );
 
   if (next.isComplete) {

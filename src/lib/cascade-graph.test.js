@@ -16,14 +16,18 @@ import {
 } from "./cascade-graph.js";
 
 // Shorthand: "a>b:Status" is rule a writing Status, which rule b triggers on.
-const edges = (...specs) => specs.map((spec) => {
-  const [pair, field] = spec.split(":");
-  const [sourceId, targetId] = pair.split(">");
-  return {
-    sourceId, targetId, field: field || "Status",
-    sourceName: `Rule ${sourceId}`, targetName: `Rule ${targetId}`,
-  };
-});
+const edges = (...specs) =>
+  specs.map((spec) => {
+    const [pair, field] = spec.split(":");
+    const [sourceId, targetId] = pair.split(">");
+    return {
+      sourceId,
+      targetId,
+      field: field || "Status",
+      sourceName: `Rule ${sourceId}`,
+      targetName: `Rule ${targetId}`,
+    };
+  });
 
 describe("buildCascadeGraph", () => {
   test("collapses two rules linked by several fields into one relationship", () => {
@@ -100,9 +104,7 @@ describe("findCascadeLoops", () => {
   });
 
   test("finds every independent loop, largest first", () => {
-    const loops = findCascadeLoops(buildCascadeGraph(
-      edges("1>2", "2>1", "5>6", "6>7", "7>5", "9>10")
-    ));
+    const loops = findCascadeLoops(buildCascadeGraph(edges("1>2", "2>1", "5>6", "6>7", "7>5", "9>10")));
 
     expect(loops.map((l) => l.size)).toEqual([3, 2]);
   });
@@ -190,9 +192,7 @@ describe("findCascadeLoops — a self-edge must not stand in for the component's
   it("every returned path is a closed cycle over real edges", () => {
     // The invariant the bug broke. A path that is not a walk an admin can trace is worse
     // than no path: it sends them looking for a hop that does not exist.
-    const graph = buildCascadeGraph(edges(
-      "a>b:1", "b>c:2", "c>a:3", "a>a:4", "c>b:5", "d>e:6", "e>d:7", "e>e:8"
-    ));
+    const graph = buildCascadeGraph(edges("a>b:1", "b>c:2", "c>a:3", "a>a:4", "c>b:5", "d>e:6", "e>d:7", "e>e:8"));
 
     for (const loop of findCascadeLoops(graph)) {
       const path = loop.path.map((s) => s.id);

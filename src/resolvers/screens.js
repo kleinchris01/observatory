@@ -2,12 +2,7 @@
 //
 // Moved verbatim from src/resolvers.js; see docs/resolvers-refactor.md.
 
-import {
-  incrMetric,
-  METRIC_NAMES,
-  getInstallationKey,
-  getBrowsableProjectIds,
-} from "../lib/jira-api.js";
+import { incrMetric, METRIC_NAMES, getInstallationKey, getBrowsableProjectIds } from "../lib/jira-api.js";
 import {
   ensureProjectStoreReady,
   readSnapshotMeta,
@@ -82,7 +77,15 @@ export async function getScreenInventory({ payload, context }) {
   // rebuild independently, so this is resolved per request rather than assumed to match.
   const workflowMeta = await readWorkflowSnapshotMeta(installationKey).catch(() => null);
 
-  const [screens, screenSchemes, schemeOperations, issueTypeScreenSchemes, distributions, governance, transitionScreens] = await Promise.all([
+  const [
+    screens,
+    screenSchemes,
+    schemeOperations,
+    issueTypeScreenSchemes,
+    distributions,
+    governance,
+    transitionScreens,
+  ] = await Promise.all([
     loadScreensPage(installationKey, meta.version, {
       limit: pageSize,
       offset: (page - 1) * pageSize,
@@ -101,10 +104,10 @@ export async function getScreenInventory({ payload, context }) {
     loadScreenSchemeOperations(installationKey, meta.version),
     loadIssueTypeScreenSchemes(installationKey, meta.version),
     loadScreenDistributions(installationKey, meta.version),
-    loadScreenGovernanceSummary(installationKey, meta.version, { workflowVersion: transitionAwareWorkflowVersion(workflowMeta) }),
-    workflowMeta?.version
-      ? loadTransitionScreens(installationKey, workflowMeta.version)
-      : Promise.resolve([]),
+    loadScreenGovernanceSummary(installationKey, meta.version, {
+      workflowVersion: transitionAwareWorkflowVersion(workflowMeta),
+    }),
+    workflowMeta?.version ? loadTransitionScreens(installationKey, workflowMeta.version) : Promise.resolve([]),
   ]);
 
   return {
@@ -142,9 +145,10 @@ export async function getScreenInventory({ payload, context }) {
     // has none recorded, and reporting that as "no transition opens a screen" states a fact
     // the build never established. transitionScreens is null on those, a number on the rest.
     transitionsAvailable: workflowMeta?.transitionScreens != null,
-    transitionsReason: workflowMeta?.version && workflowMeta.transitionScreens == null
-      ? "The last workflow build could not read this site's workflows, so which screens transitions open is unknown. Screens are not called unreached until it can. Rebuild from the Workflows tab; if this persists, check the build's log for the workflow read error."
-      : null,
+    transitionsReason:
+      workflowMeta?.version && workflowMeta.transitionScreens == null
+        ? "The last workflow build could not read this site's workflows, so which screens transitions open is unknown. Screens are not called unreached until it can. Rebuild from the Workflows tab; if this persists, check the build's log for the workflow read error."
+        : null,
     neverBuilt: false,
   };
 }
@@ -235,7 +239,7 @@ export async function buildScreenInventory({ context }) {
 // without asking the site. Building the fetcher first and discovering the number afterwards
 // means building it twice. Read-only, admin-only, and it never throws -- like the
 // automation probe, a diagnostic that can fail the page it runs on is worse than none.
-export async function probeScreenFetchCost({ payload, context }) {
+export async function probeScreenFetchCost({ payload }) {
   incrMetric(METRIC_NAMES.resolver);
   const requested = Math.trunc(Number(payload?.sampleSize)) || DEFAULT_SAMPLE_SIZE;
   // Bounded: below 5 the tail is invisible, and above 100 the probe becomes the expense it
@@ -288,7 +292,7 @@ export async function screensToProjects(installationKey, version, screenIds) {
 
   const schemeIds = new Set(ops.filter((o) => screenSet.has(String(o.screenId))).map((o) => String(o.schemeId)));
   const itssIds = new Set(
-    mappings.filter((m) => m.screenSchemeId && schemeIds.has(String(m.screenSchemeId))).map((m) => String(m.itssId))
+    mappings.filter((m) => m.screenSchemeId && schemeIds.has(String(m.screenSchemeId))).map((m) => String(m.itssId)),
   );
 
   const byProject = new Map();
@@ -355,8 +359,9 @@ export async function runScreenFieldCross(installationKey, screenMeta, fieldMeta
     loadSnapshotFields(installationKey, fieldMeta.version).catch(() => []),
     // Form clutter reads a missing pair as "never filled", so it needs every pair, not the
     // capped top of the list invisible data can live with. A failed read withholds it.
-    loadPopulatedFieldProjectPairs(installationKey, fieldMeta.version, { minIssues: clutterMaxIssues })
-      .catch(fallbackOn("screen_cross.pairs_load_failed", { pairs: null, complete: false }, { installationKey })),
+    loadPopulatedFieldProjectPairs(installationKey, fieldMeta.version, { minIssues: clutterMaxIssues }).catch(
+      fallbackOn("screen_cross.pairs_load_failed", { pairs: null, complete: false }, { installationKey }),
+    ),
   ]);
 
   const fields = new Map((catalog || []).map((f) => [String(f.id), { name: f.name }]));
@@ -412,7 +417,13 @@ export async function getScreenFieldReportInputs({ payload, context }) {
   incrMetric(METRIC_NAMES.resolver);
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
-  const screenIds = Array.from(new Set(requireArray(payload?.screenIds, "screenIds").map((v) => String(v || "").trim()).filter(Boolean)));
+  const screenIds = Array.from(
+    new Set(
+      requireArray(payload?.screenIds, "screenIds")
+        .map((v) => String(v || "").trim())
+        .filter(Boolean),
+    ),
+  );
   if (!screenIds.length) throw new Error("Select at least one screen.");
 
   const meta = await readScreenSnapshotMeta(installationKey);
@@ -429,7 +440,10 @@ export async function getScreenFieldReportInputs({ payload, context }) {
   const projects = await screensToProjects(installationKey, meta.version, screenIds);
   // Only projects the caller may browse, for the same reason getProjectUsageReport filters:
   // the report must never be the one place a project's existence leaks.
-  const browsable = await getBrowsableProjectIds(context?.accountId, projects.map((p) => p.projectId));
+  const browsable = await getBrowsableProjectIds(
+    context?.accountId,
+    projects.map((p) => p.projectId),
+  );
   const scopedProjects = projects.filter((p) => browsable.has(String(p.projectId)));
 
   return {
@@ -438,7 +452,12 @@ export async function getScreenFieldReportInputs({ payload, context }) {
     fields: [...fieldMap.entries()].map(([fieldId, fieldName]) => ({ fieldId, fieldName })),
     projectIds: scopedProjects.map((p) => p.projectId),
     projects: scopedProjects,
-    screens: screens.map((s) => ({ screenId: s.screenId, name: s.name, fieldCount: s.fields.length, tabsResolved: s.tabsResolved })),
+    screens: screens.map((s) => ({
+      screenId: s.screenId,
+      name: s.name,
+      fieldCount: s.fields.length,
+      tabsResolved: s.tabsResolved,
+    })),
     // Screens the caller asked for that the catalog does not have, or whose tabs the build
     // could not read -- so the tab can say the field list may be incomplete.
     unresolvedScreens: screens.filter((s) => s.tabsResolved !== "resolved").map((s) => s.name),
@@ -471,9 +490,16 @@ export async function getProjectScreenReportInputs({ payload, context }) {
     loadScreenSchemes(installationKey, meta.version).catch(() => []),
   ]);
 
-  const itssIds = new Set(itssProjects.filter((p) => String(p.projectId) === String(projectId)).map((p) => String(p.itssId)));
+  const itssIds = new Set(
+    itssProjects.filter((p) => String(p.projectId) === String(projectId)).map((p) => String(p.itssId)),
+  );
   if (!itssIds.size) {
-    return { available: true, projectId, itss: [], reason: "This project's screens could not be resolved through an issue type screen scheme." };
+    return {
+      available: true,
+      projectId,
+      itss: [],
+      reason: "This project's screens could not be resolved through an issue type screen scheme.",
+    };
   }
 
   const schemeName = new Map(schemes.map((s) => [String(s.schemeId), s.name]));
@@ -483,7 +509,8 @@ export async function getProjectScreenReportInputs({ payload, context }) {
   const bySchemeId = new Map();
   for (const m of projectMappings) {
     const key = String(m.screenSchemeId);
-    if (!bySchemeId.has(key)) bySchemeId.set(key, { schemeId: key, issueTypeCount: 0, isDefault: false, screenIds: new Set() });
+    if (!bySchemeId.has(key))
+      bySchemeId.set(key, { schemeId: key, issueTypeCount: 0, isDefault: false, screenIds: new Set() });
     const entry = bySchemeId.get(key);
     entry.issueTypeCount += 1;
     if (m.isDefault) entry.isDefault = true;
@@ -502,7 +529,12 @@ export async function getProjectScreenReportInputs({ payload, context }) {
       const groupScreens = [...entry.screenIds]
         .map((id) => screenById.get(id))
         .filter(Boolean)
-        .map((s) => ({ screenId: s.screenId, name: s.name, fieldIds: s.fields.map((f) => f.fieldId), fieldCount: s.fields.length }));
+        .map((s) => ({
+          screenId: s.screenId,
+          name: s.name,
+          fieldIds: s.fields.map((f) => f.fieldId),
+          fieldCount: s.fields.length,
+        }));
       const fieldIds = [...new Set(groupScreens.flatMap((s) => s.fieldIds))];
       return {
         schemeId: entry.schemeId,
@@ -513,7 +545,12 @@ export async function getProjectScreenReportInputs({ payload, context }) {
         fieldIds,
       };
     })
-    .sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || b.fieldIds.length - a.fieldIds.length || a.schemeName.localeCompare(b.schemeName));
+    .sort(
+      (a, b) =>
+        Number(b.isDefault) - Number(a.isDefault) ||
+        b.fieldIds.length - a.fieldIds.length ||
+        a.schemeName.localeCompare(b.schemeName),
+    );
 
   return {
     available: true,

@@ -24,14 +24,47 @@
 
 // Words that appear in operand position but are not operands.
 const KEYWORDS = new Set([
-  "and", "or", "not", "order", "by", "asc", "desc",
-  "is", "in", "was", "changed", "from", "to", "on", "during", "before", "after",
+  "and",
+  "or",
+  "not",
+  "order",
+  "by",
+  "asc",
+  "desc",
+  "is",
+  "in",
+  "was",
+  "changed",
+  "from",
+  "to",
+  "on",
+  "during",
+  "before",
+  "after",
 ]);
 
 // Values that are the absence of a value.
 const EMPTY_VALUES = new Set(["empty", "null"]);
 
-const OPERATORS = new Set(["=", "!=", "~", "!~", "<", ">", "<=", ">=", "in", "not in", "is", "is not", "was", "was not", "was in", "was not in", "changed"]);
+const OPERATORS = new Set([
+  "=",
+  "!=",
+  "~",
+  "!~",
+  "<",
+  ">",
+  "<=",
+  ">=",
+  "in",
+  "not in",
+  "is",
+  "is not",
+  "was",
+  "was not",
+  "was in",
+  "was not in",
+  "changed",
+]);
 
 // One token: a quoted string, a bracketed custom field, punctuation, or a bare word.
 function* tokenize(jql) {
@@ -40,14 +73,21 @@ function* tokenize(jql) {
   while (i < text.length) {
     const ch = text[i];
 
-    if (/\s/.test(ch)) { i += 1; continue; }
+    if (/\s/.test(ch)) {
+      i += 1;
+      continue;
+    }
 
     if (ch === '"' || ch === "'") {
       let value = "";
       i += 1;
       while (i < text.length && text[i] !== ch) {
         // A backslash escape keeps the next character rather than ending the string.
-        if (text[i] === "\\" && i + 1 < text.length) { value += text[i + 1]; i += 2; continue; }
+        if (text[i] === "\\" && i + 1 < text.length) {
+          value += text[i + 1];
+          i += 2;
+          continue;
+        }
         value += text[i];
         i += 1;
       }
@@ -56,20 +96,40 @@ function* tokenize(jql) {
       continue;
     }
 
-    if (ch === "(" || ch === ")" || ch === ",") { yield { type: ch }; i += 1; continue; }
+    if (ch === "(" || ch === ")" || ch === ",") {
+      yield { type: ch };
+      i += 1;
+      continue;
+    }
 
     // cf[10001] -- the custom field escape hatch, read whole so the brackets do not split it.
     if (text.startsWith("cf[", i)) {
       const close = text.indexOf("]", i);
-      if (close > -1) { yield { type: "term", value: text.slice(i, close + 1), quoted: false }; i = close + 1; continue; }
+      if (close > -1) {
+        yield { type: "term", value: text.slice(i, close + 1), quoted: false };
+        i = close + 1;
+        continue;
+      }
     }
 
     const symbol = text.slice(i, i + 2);
-    if (["!=", "!~", "<=", ">="].includes(symbol)) { yield { type: "op", value: symbol }; i += 2; continue; }
-    if (["=", "~", "<", ">"].includes(ch)) { yield { type: "op", value: ch }; i += 1; continue; }
+    if (["!=", "!~", "<=", ">="].includes(symbol)) {
+      yield { type: "op", value: symbol };
+      i += 2;
+      continue;
+    }
+    if (["=", "~", "<", ">"].includes(ch)) {
+      yield { type: "op", value: ch };
+      i += 1;
+      continue;
+    }
 
     const word = /^[A-Za-z0-9_.+-]+/.exec(text.slice(i));
-    if (word) { yield { type: "term", value: word[0], quoted: false }; i += word[0].length; continue; }
+    if (word) {
+      yield { type: "term", value: word[0], quoted: false };
+      i += word[0].length;
+      continue;
+    }
 
     i += 1;
   }
@@ -87,11 +147,30 @@ function* withPhrasedOperators(tokens) {
       const nextWord = next?.type === "term" && !next.quoted ? next.value.toLowerCase() : null;
       const afterWord = after?.type === "term" && !after.quoted ? after.value.toLowerCase() : null;
 
-      if (word === "was" && nextWord === "not" && afterWord === "in") { yield { type: "op", value: "was not in" }; i += 2; continue; }
-      if (word === "was" && (nextWord === "not" || nextWord === "in")) { yield { type: "op", value: `was ${nextWord}` }; i += 1; continue; }
-      if (word === "is" && nextWord === "not") { yield { type: "op", value: "is not" }; i += 1; continue; }
-      if (word === "not" && nextWord === "in") { yield { type: "op", value: "not in" }; i += 1; continue; }
-      if (OPERATORS.has(word)) { yield { type: "op", value: word }; continue; }
+      if (word === "was" && nextWord === "not" && afterWord === "in") {
+        yield { type: "op", value: "was not in" };
+        i += 2;
+        continue;
+      }
+      if (word === "was" && (nextWord === "not" || nextWord === "in")) {
+        yield { type: "op", value: `was ${nextWord}` };
+        i += 1;
+        continue;
+      }
+      if (word === "is" && nextWord === "not") {
+        yield { type: "op", value: "is not" };
+        i += 1;
+        continue;
+      }
+      if (word === "not" && nextWord === "in") {
+        yield { type: "op", value: "not in" };
+        i += 1;
+        continue;
+      }
+      if (OPERATORS.has(word)) {
+        yield { type: "op", value: word };
+        continue;
+      }
     }
     yield token;
   }
@@ -121,24 +200,47 @@ export function scanJql(jql) {
   };
 
   for (const token of withPhrasedOperators(tokenize(jql))) {
-    if (token.type === "op") { inList = false; continue; }
-    if (token.type === "(") { if (pendingField) inList = true; continue; }
-    if (token.type === ")") { if (inList) { inList = false; pendingField = null; } continue; }
-    if (token.type === ",") { if (!inList) pendingField = null; continue; }
+    if (token.type === "op") {
+      inList = false;
+      continue;
+    }
+    if (token.type === "(") {
+      if (pendingField) inList = true;
+      continue;
+    }
+    if (token.type === ")") {
+      if (inList) {
+        inList = false;
+        pendingField = null;
+      }
+      continue;
+    }
+    if (token.type === ",") {
+      if (!inList) pendingField = null;
+      continue;
+    }
 
     const word = token.value.trim().toLowerCase();
 
     // ORDER BY names fields with no operator after them. A filter sorted by a field depends
     // on it exactly as much as one that filters on it -- deleting it reorders the result
     // with no error, which is the harder failure to notice.
-    if (!token.quoted && word === "order") { orderBy = true; pendingField = null; continue; }
+    if (!token.quoted && word === "order") {
+      orderBy = true;
+      pendingField = null;
+      continue;
+    }
     if (orderBy) {
       if (!token.quoted && (word === "by" || word === "asc" || word === "desc")) continue;
       noteField(token);
       continue;
     }
 
-    if (!token.quoted && (word === "and" || word === "or" || word === "not")) { pendingField = null; inList = false; continue; }
+    if (!token.quoted && (word === "and" || word === "or" || word === "not")) {
+      pendingField = null;
+      inList = false;
+      continue;
+    }
 
     // Sitting after an operator: this is a value, and it belongs to the field on the left.
     if (pendingField) {

@@ -40,11 +40,19 @@ export async function flushUsageBuffer(scopeKey, buffer) {
   for (const batch of chunkArray(rows, BATCH)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((r) => [
-      scopeKey, r.pillar, String(r.entityId), String(r.projectId), r.projectKey || null,
-      r.total || 0, r.recent || 0, r.lastAt || null,
+      scopeKey,
+      r.pillar,
+      String(r.entityId),
+      String(r.projectId),
+      r.projectKey || null,
+      r.total || 0,
+      r.recent || 0,
+      r.lastAt || null,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO issue_scan_usage_buffer
           (scope_key, pillar, entity_id, project_id, project_key, total, recent, last_at)
         VALUES ${valuesSql}
@@ -56,7 +64,10 @@ export async function flushUsageBuffer(scopeKey, buffer) {
             WHEN VALUES(last_at) IS NULL THEN last_at
             ELSE GREATEST(last_at, VALUES(last_at))
           END
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 }
@@ -69,14 +80,19 @@ export async function promoteUsageTally(scopeKey, { coverageComplete = false, no
   if (!coverageComplete) return { promoted: false, entities: 0 };
 
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT pillar, entity_id,
              SUM(total) AS total, SUM(recent) AS recent, MAX(last_at) AS last_at,
              SUM(CASE WHEN total > 0 THEN 1 ELSE 0 END) AS project_count
       FROM issue_scan_usage_buffer
       WHERE scope_key = ?
       GROUP BY pillar, entity_id
-    `).bindParams(scopeKey).execute()
+    `,
+      )
+      .bindParams(scopeKey)
+      .execute(),
   );
   const rows = result.rows || [];
   const measuredAt = now.toISOString();
@@ -84,32 +100,50 @@ export async function promoteUsageTally(scopeKey, { coverageComplete = false, no
   for (const batch of chunkArray(rows, BATCH)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((r) => [
-      scopeKey, r.pillar, r.entity_id, toNumber(r.total), toNumber(r.recent), r.last_at || null,
-      toNumber(r.project_count), measuredAt,
+      scopeKey,
+      r.pillar,
+      r.entity_id,
+      toNumber(r.total),
+      toNumber(r.recent),
+      r.last_at || null,
+      toNumber(r.project_count),
+      measuredAt,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO usage_tally
           (scope_key, pillar, entity_id, total, recent, last_at, project_count, measured_at)
         VALUES ${valuesSql}
         ON DUPLICATE KEY UPDATE
           total = VALUES(total), recent = VALUES(recent), last_at = VALUES(last_at),
           project_count = VALUES(project_count), measured_at = VALUES(measured_at)
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
   // Anything this crawl never saw is gone from the site (or from every issue), so its old
   // figures go too. Safe only because coverage was complete.
   await withSqlRetry(() =>
-    sql.prepare("DELETE FROM usage_tally WHERE scope_key = ? AND measured_at <> ?")
-      .bindParams(scopeKey, measuredAt).execute()
+    sql
+      .prepare("DELETE FROM usage_tally WHERE scope_key = ? AND measured_at <> ?")
+      .bindParams(scopeKey, measuredAt)
+      .execute(),
   );
   await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       INSERT INTO usage_tally_meta (scope_key, measured_at, window_days) VALUES (?, ?, ?)
       ON DUPLICATE KEY UPDATE measured_at = VALUES(measured_at), window_days = VALUES(window_days)
-    `).bindParams(scopeKey, measuredAt, USAGE_WINDOW_DAYS).execute()
+    `,
+      )
+      .bindParams(scopeKey, measuredAt, USAGE_WINDOW_DAYS)
+      .execute(),
   );
   return { promoted: true, entities: rows.length, measuredAt };
 }
@@ -117,8 +151,10 @@ export async function promoteUsageTally(scopeKey, { coverageComplete = false, no
 export async function readUsageMeta(scopeKey) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare("SELECT measured_at, window_days FROM usage_tally_meta WHERE scope_key = ?")
-      .bindParams(scopeKey).execute()
+    sql
+      .prepare("SELECT measured_at, window_days FROM usage_tally_meta WHERE scope_key = ?")
+      .bindParams(scopeKey)
+      .execute(),
   );
   const row = result.rows?.[0];
   return row ? { measuredAt: row.measured_at, windowDays: toNumber(row.window_days) } : null;
@@ -128,13 +164,25 @@ export async function readUsageMeta(scopeKey) {
 export async function loadUsageTally(scopeKey, pillar) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT entity_id, total, recent, last_at, project_count
       FROM usage_tally WHERE scope_key = ? AND pillar = ?
-    `).bindParams(scopeKey, String(pillar)).execute()
+    `,
+      )
+      .bindParams(scopeKey, String(pillar))
+      .execute(),
   );
-  return new Map((result.rows || []).map((r) => [
-    String(r.entity_id),
-    { total: toNumber(r.total), recent: toNumber(r.recent), lastAt: r.last_at || null, projectCount: toNumber(r.project_count) },
-  ]));
+  return new Map(
+    (result.rows || []).map((r) => [
+      String(r.entity_id),
+      {
+        total: toNumber(r.total),
+        recent: toNumber(r.recent),
+        lastAt: r.last_at || null,
+        projectCount: toNumber(r.project_count),
+      },
+    ]),
+  );
 }

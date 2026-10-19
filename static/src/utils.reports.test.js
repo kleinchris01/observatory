@@ -53,7 +53,7 @@ describe("reportToCsvRows", () => {
       { key: "findings", label: "Findings", kind: "list" },
     ],
     rows: [
-      { name: "=HYPERLINK(\"http://evil\")", subs: -1, findings: ["stale", "orphaned-owner"] },
+      { name: '=HYPERLINK("http://evil")', subs: -1, findings: ["stale", "orphaned-owner"] },
       { name: "Plain", subs: null, findings: [] },
     ],
   };
@@ -66,7 +66,7 @@ describe("reportToCsvRows", () => {
 
   test("neutralizes formula-like text but leaves numbers alone", () => {
     const [, , first, second] = reportToCsvRows(report);
-    expect(first[0]).toBe("'=HYPERLINK(\"http://evil\")");
+    expect(first[0]).toBe('\'=HYPERLINK("http://evil")');
     expect(first[1]).toBe("-1");
     expect(first[2]).toBe("stale; orphaned-owner");
     expect(second).toEqual(["Plain", "", ""]);
@@ -85,14 +85,20 @@ describe("buildScorecardReport", () => {
     dimensionsTotal: 3,
     pillars: [
       {
-        key: "fields", label: "Fields", available: true, score: 80,
+        key: "fields",
+        label: "Fields",
+        available: true,
+        score: 80,
         dimensions: [
           { key: "a", label: "Reach", available: true, score: 95, detail: "fine" },
           { key: "b", label: "Hygiene", available: true, score: SCORECARD_ATTENTION_BELOW - 1, detail: "poor" },
         ],
       },
       {
-        key: "boards", label: "Boards", available: false, score: null,
+        key: "boards",
+        label: "Boards",
+        available: false,
+        score: null,
         dimensions: [{ key: "c", label: "Backing", available: false, reason: "No board inventory." }],
       },
     ],
@@ -169,8 +175,14 @@ describe("pillarNavStatus", () => {
   });
 
   test("attention when a scored pillar is under the scorecard's line; ok otherwise", () => {
-    expect(pillarNavStatus("boards", { pillars: [pillar("boards", { score: 69 })] })).toMatchObject({ state: "attention", label: "boards scores 69" });
-    expect(pillarNavStatus("boards", { pillars: [pillar("boards", { score: 70 })] })).toEqual({ state: "ok", label: null });
+    expect(pillarNavStatus("boards", { pillars: [pillar("boards", { score: 69 })] })).toMatchObject({
+      state: "attention",
+      label: "boards scores 69",
+    });
+    expect(pillarNavStatus("boards", { pillars: [pillar("boards", { score: 70 })] })).toEqual({
+      state: "ok",
+      label: null,
+    });
   });
 
   test("a multi-pillar tab (Access) is judged across all of its health pillars", () => {
@@ -200,8 +212,12 @@ describe("readStored / writeStored", () => {
   });
 
   test("never throws when storage is blocked", () => {
-    const get = vi.spyOn(Storage.prototype, "getItem").mockImplementationOnce(() => { throw new Error("SecurityError"); });
-    const set = vi.spyOn(Storage.prototype, "setItem").mockImplementationOnce(() => { throw new Error("QuotaExceeded"); });
+    const get = vi.spyOn(Storage.prototype, "getItem").mockImplementationOnce(() => {
+      throw new Error("SecurityError");
+    });
+    const set = vi.spyOn(Storage.prototype, "setItem").mockImplementationOnce(() => {
+      throw new Error("QuotaExceeded");
+    });
     expect(readStored("k", "fallback")).toBe("fallback");
     expect(() => writeStored("k", "v")).not.toThrow();
     get.mockRestore();

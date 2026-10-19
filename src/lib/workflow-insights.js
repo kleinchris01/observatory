@@ -12,7 +12,9 @@
 // Status names are short human labels where spacing is noise: "Back Log" and "Backlog" are
 // the same status typed twice, so every separator is removed rather than normalized.
 export function normalizeStatusName(value) {
-  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
 }
 
 // Levenshtein distance, bailing out as soon as it exceeds `max`.
@@ -152,7 +154,13 @@ export function findDuplicateStatusGroups(statuses = []) {
 // it was missing: a status could read "no scheme and no rule reaches it, safe to remove" while
 // three boards still had a column pointed at it, which would silently break those boards'
 // swimlanes the moment someone acted on that claim.
-export function findOrphanedStatuses(statuses = [], schemeStatusPairs = [], issueCountByStatusId = null, automationByStatusName = null, boardStatusIds = null) {
+export function findOrphanedStatuses(
+  statuses = [],
+  schemeStatusPairs = [],
+  issueCountByStatusId = null,
+  automationByStatusName = null,
+  boardStatusIds = null,
+) {
   const referenced = new Set(schemeStatusPairs.map((pair) => String(pair.statusId)));
   return statuses
     .filter((status) => !referenced.has(String(status.statusId ?? status.id)))
@@ -160,7 +168,7 @@ export function findOrphanedStatuses(statuses = [], schemeStatusPairs = [], issu
       const id = String(status.statusId ?? status.id);
       const issueCount = issueCountByStatusId ? Number(issueCountByStatusId.get(id) ?? 0) : null;
       const refs = automationByStatusName
-        ? automationByStatusName[String(status.name || "").toLowerCase()] ?? null
+        ? (automationByStatusName[String(status.name || "").toLowerCase()] ?? null)
         : null;
       const automationRuleCount = automationByStatusName ? Number(refs?.ruleCount ?? 0) : null;
       const boardCount = boardStatusIds ? (boardStatusIds.has(id) ? 1 : 0) : null;
@@ -220,43 +228,58 @@ export function computeSchemeCategoryBalance(schemes = [], schemeStatusPairs = [
     byScheme.get(schemeId).add(String(pair.statusId));
   }
 
-  return schemes.map((scheme) => {
-    const statusIds = byScheme.get(String(scheme.id ?? scheme.schemeId)) || new Set();
-    const counts = { todo: 0, inProgress: 0, done: 0, uncategorised: 0 };
-    for (const statusId of statusIds) {
-      counts[categoryKey(statusById.get(statusId)?.statusCategory)] += 1;
-    }
-    const total = counts.todo + counts.inProgress + counts.done + counts.uncategorised;
+  return (
+    schemes
+      .map((scheme) => {
+        const statusIds = byScheme.get(String(scheme.id ?? scheme.schemeId)) || new Set();
+        const counts = { todo: 0, inProgress: 0, done: 0, uncategorised: 0 };
+        for (const statusId of statusIds) {
+          counts[categoryKey(statusById.get(statusId)?.statusCategory)] += 1;
+        }
+        const total = counts.todo + counts.inProgress + counts.done + counts.uncategorised;
 
-    const flags = [];
-    if (total > 0 && counts.done === 0) {
-      flags.push({ code: "no-done", severity: "high", message: "No Done status — this scheme cannot represent completion." });
-    }
-    if (counts.inProgress >= 10 && counts.inProgress >= counts.done * 8) {
-      flags.push({
-        code: "in-progress-heavy",
-        severity: "medium",
-        message: `${counts.inProgress} In Progress statuses against ${counts.done} Done — likely tracking handoffs rather than progress.`,
-      });
-    }
-    if (total >= 25) {
-      flags.push({ code: "oversized", severity: "medium", message: `${total} statuses in one scheme is more than a reader can hold.` });
-    }
-    if (counts.uncategorised > 0) {
-      flags.push({ code: "uncategorised", severity: "low", message: `${counts.uncategorised} status(es) have no category and will not roll up in Jira reporting.` });
-    }
+        const flags = [];
+        if (total > 0 && counts.done === 0) {
+          flags.push({
+            code: "no-done",
+            severity: "high",
+            message: "No Done status — this scheme cannot represent completion.",
+          });
+        }
+        if (counts.inProgress >= 10 && counts.inProgress >= counts.done * 8) {
+          flags.push({
+            code: "in-progress-heavy",
+            severity: "medium",
+            message: `${counts.inProgress} In Progress statuses against ${counts.done} Done — likely tracking handoffs rather than progress.`,
+          });
+        }
+        if (total >= 25) {
+          flags.push({
+            code: "oversized",
+            severity: "medium",
+            message: `${total} statuses in one scheme is more than a reader can hold.`,
+          });
+        }
+        if (counts.uncategorised > 0) {
+          flags.push({
+            code: "uncategorised",
+            severity: "low",
+            message: `${counts.uncategorised} status(es) have no category and will not roll up in Jira reporting.`,
+          });
+        }
 
-    return {
-      schemeId: String(scheme.id ?? scheme.schemeId),
-      name: scheme.name,
-      projectCount: scheme.projectCount ?? 0,
-      ...counts,
-      total,
-      flags,
-    };
-  })
-    // Flagged schemes first, then the largest -- the list is a worklist, not a census.
-    .sort((left, right) => right.flags.length - left.flags.length || right.total - left.total);
+        return {
+          schemeId: String(scheme.id ?? scheme.schemeId),
+          name: scheme.name,
+          projectCount: scheme.projectCount ?? 0,
+          ...counts,
+          total,
+          flags,
+        };
+      })
+      // Flagged schemes first, then the largest -- the list is a worklist, not a census.
+      .sort((left, right) => right.flags.length - left.flags.length || right.total - left.total)
+  );
 }
 
 // Roll-up for the header of the insights view. Counts the finding, not the noise: a

@@ -2,7 +2,21 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatNumber, formatRelativeTime } from "../utils";
 import { Icon } from "../components/Icons";
-import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PanelGrid, GridSpan, PillarHealthPanel, BarList, SortFilterBar, AskRovo, UsageTriple } from "../components/ui";
+import {
+  StatTile,
+  StatRow,
+  Panel,
+  EmptyState,
+  Chip,
+  PageHeader,
+  PanelGrid,
+  GridSpan,
+  PillarHealthPanel,
+  BarList,
+  SortFilterBar,
+  AskRovo,
+  UsageTriple,
+} from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
 import { HandoverReport } from "./HandoverReport";
@@ -48,15 +62,25 @@ function ownsSummary(user) {
 function OwnedList({ title, items, empty }) {
   return (
     <div className="ui-split__col">
-      <h4 className="ui-subhead">{title} <span className="people-owned__count">{items.length || ""}</span></h4>
+      <h4 className="ui-subhead">
+        {title} <span className="people-owned__count">{items.length || ""}</span>
+      </h4>
       {items.length ? (
         <ul className="people-owned-list">
           {items.map((it) => (
             <li key={it.id}>
-              {it.viewUrl
-                ? <a href={it.viewUrl} target="_blank" rel="noopener noreferrer">{it.name || it.id}</a>
-                : (it.name || it.id)}
-              {it.enabled === false && <Chip tone="neutral" title="Disabled rule">off</Chip>}
+              {it.viewUrl ? (
+                <a href={it.viewUrl} target="_blank" rel="noopener noreferrer">
+                  {it.name || it.id}
+                </a>
+              ) : (
+                it.name || it.id
+              )}
+              {it.enabled === false && (
+                <Chip tone="neutral" title="Disabled rule">
+                  off
+                </Chip>
+              )}
             </li>
           ))}
         </ul>
@@ -77,35 +101,53 @@ function UserRow({ user, expanded, detail, detailLoading, onToggle, usage = null
         onClick={() => onToggle(user.accountId)}
         aria-expanded={expanded}
       >
-        <span className="people-row__chevron" aria-hidden="true">{expanded ? "▾" : "▸"}</span>
+        <span className="people-row__chevron" aria-hidden="true">
+          {expanded ? "▾" : "▸"}
+        </span>
         <span className="people-row__identity">
           <span className="people-row__name">{user.displayName}</span>
           <span className="people-row__via">
-            {user.groups.length
-              ? `via ${user.groups.map((g) => g.name).join(", ")}`
-              : "no access group recorded"}
+            {user.groups.length ? `via ${user.groups.map((g) => g.name).join(", ")}` : "no access group recorded"}
           </span>
           <UsageTriple usage={usage} entityId={user.accountId} totalLabel="issues assigned or reported" compact />
         </span>
         <span className="people-row__meta">
-          {owns && <Chip tone="neutral" title="Filters, dashboards and automation rules this user owns">owns {owns}</Chip>}
+          {owns && (
+            <Chip tone="neutral" title="Filters, dashboards and automation rules this user owns">
+              owns {owns}
+            </Chip>
+          )}
           {user.automationRefs > 0 && (
-            <Chip tone={user.active ? "neutral" : "critical"} title="Automation rules that assign to or condition on this account">
+            <Chip
+              tone={user.active ? "neutral" : "critical"}
+              title="Automation rules that assign to or condition on this account"
+            >
               in {user.automationRefs} rule{user.automationRefs === 1 ? "" : "s"}
             </Chip>
           )}
           {user.applications.map((p) => (
-            <Chip key={p.key} tone="neutral" title={`Licensed for ${p.name}`}>{shortProduct(p.key)}</Chip>
+            <Chip key={p.key} tone="neutral" title={`Licensed for ${p.name}`}>
+              {shortProduct(p.key)}
+            </Chip>
           ))}
           {user.accountType === "app" && (
-            <Chip tone="warning" title="This account is an app, not a person">app</Chip>
+            <Chip tone="warning" title="This account is an app, not a person">
+              app
+            </Chip>
           )}
           {user.dormant === true && (
-            <Chip tone="warning" title="Holds a licence and has not created, updated or been assigned an issue in a year">
+            <Chip
+              tone="warning"
+              title="Holds a licence and has not created, updated or been assigned an issue in a year"
+            >
               {user.lastActivityAt ? `idle since ${formatRelativeTime(user.lastActivityAt)}` : "dormant"}
             </Chip>
           )}
-          {!user.active && <Chip tone="critical" title="Deactivated in Jira">inactive</Chip>}
+          {!user.active && (
+            <Chip tone="critical" title="Deactivated in Jira">
+              inactive
+            </Chip>
+          )}
         </span>
       </button>
 
@@ -121,21 +163,32 @@ function UserRow({ user, expanded, detail, detailLoading, onToggle, usage = null
               <OwnedList
                 title="Automation rules"
                 items={detail?.authoredRules || []}
-                empty={detail?.ownershipAvailable?.rules === false
-                  ? "Rule authorship needs a rule export that carries account ids — import one on the Automation tab."
-                  : "Authored no automation rule."}
+                empty={
+                  detail?.ownershipAvailable?.rules === false
+                    ? "Rule authorship needs a rule export that carries account ids — import one on the Automation tab."
+                    : "Authored no automation rule."
+                }
               />
               <div className="ui-split__col">
                 <h4 className="ui-subhead">
-                  Named in rules <span className="people-owned__count">{(detail?.referencedInRules || []).length || ""}</span>
+                  Named in rules{" "}
+                  <span className="people-owned__count">{(detail?.referencedInRules || []).length || ""}</span>
                 </h4>
                 {(detail?.referencedInRules || []).length ? (
                   <ul className="people-owned-list">
                     {detail.referencedInRules.map((r) => (
                       <li key={r.id}>
                         {r.name}
-                        {r.direction === "write" && <Chip tone="warning" title="A rule assigns to or sets a user field to this account">assigned</Chip>}
-                        {r.enabled === false && <Chip tone="neutral" title="Disabled rule">off</Chip>}
+                        {r.direction === "write" && (
+                          <Chip tone="warning" title="A rule assigns to or sets a user field to this account">
+                            assigned
+                          </Chip>
+                        )}
+                        {r.enabled === false && (
+                          <Chip tone="neutral" title="Disabled rule">
+                            off
+                          </Chip>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -150,14 +203,17 @@ function UserRow({ user, expanded, detail, detailLoading, onToggle, usage = null
 
               <div className="ui-split__col">
                 <h4 className="ui-subhead">
-                  Appears in fields <span className="people-owned__count">{(detail?.fieldAppearances || []).length || ""}</span>
+                  Appears in fields{" "}
+                  <span className="people-owned__count">{(detail?.fieldAppearances || []).length || ""}</span>
                 </h4>
                 {(detail?.fieldAppearances || []).length ? (
                   <ul className="people-owned-list">
                     {detail.fieldAppearances.map((f) => (
                       <li key={f.fieldId}>
                         {f.fieldName}
-                        <Chip tone="neutral" title="Issues where this user is the value">{formatNumber(f.issueCount)}</Chip>
+                        <Chip tone="neutral" title="Issues where this user is the value">
+                          {formatNumber(f.issueCount)}
+                        </Chip>
                       </li>
                     ))}
                   </ul>
@@ -172,23 +228,28 @@ function UserRow({ user, expanded, detail, detailLoading, onToggle, usage = null
 
               <div className="ui-split__col">
                 <h4 className="ui-subhead">
-                  Granted via groups <span className="people-owned__count">{(detail?.grantedByGroups || []).length || ""}</span>
+                  Granted via groups{" "}
+                  <span className="people-owned__count">{(detail?.grantedByGroups || []).length || ""}</span>
                 </h4>
                 {(detail?.grantedByGroups || []).length ? (
                   // Grouped by the group that earns the grant: "via jira-administrators" and
                   // "via marketing-contractors" are different facts even on the same scheme.
                   <ul className="people-owned-list">
-                    {Object.entries((detail.grantedByGroups || []).reduce((acc, g) => {
-                      (acc[g.viaGroup] ||= []).push(g);
-                      return acc;
-                    }, {})).map(([group, grants]) => (
+                    {Object.entries(
+                      (detail.grantedByGroups || []).reduce((acc, g) => {
+                        (acc[g.viaGroup] ||= []).push(g);
+                        return acc;
+                      }, {}),
+                    ).map(([group, grants]) => (
                       <li key={group}>
                         <strong>{group}</strong>
                         <ul className="people-owned-list people-owned-list--nested">
                           {grants.map((g, i) => (
                             <li key={`${g.schemeType}-${g.schemeId}-${g.context}-${i}`}>
                               {g.schemeName}
-                              <Chip tone="neutral" title={`${g.schemeType} scheme`}>{g.schemeType}: {g.contextLabel || g.context}</Chip>
+                              <Chip tone="neutral" title={`${g.schemeType} scheme`}>
+                                {g.schemeType}: {g.contextLabel || g.context}
+                              </Chip>
                             </li>
                           ))}
                         </ul>
@@ -206,14 +267,18 @@ function UserRow({ user, expanded, detail, detailLoading, onToggle, usage = null
 
               <div className="ui-split__col">
                 <h4 className="ui-subhead">
-                  Granted by schemes <span className="people-owned__count">{(detail?.grantedBySchemes || []).length || ""}</span>
+                  Granted by schemes{" "}
+                  <span className="people-owned__count">{(detail?.grantedBySchemes || []).length || ""}</span>
                 </h4>
                 {(detail?.grantedBySchemes || []).length ? (
                   <ul className="people-owned-list">
                     {detail.grantedBySchemes.map((g, i) => (
                       <li key={`${g.schemeType}-${g.schemeId}-${g.context}-${i}`}>
                         {g.schemeName}
-                        <Chip tone="warning" title={`${g.schemeType} scheme — a direct grant to a person should be a role`}>
+                        <Chip
+                          tone="warning"
+                          title={`${g.schemeType} scheme — a direct grant to a person should be a role`}
+                        >
                           {g.schemeType}: {g.contextLabel || g.context}
                         </Chip>
                       </li>
@@ -267,7 +332,8 @@ function sortRoster(users, sort) {
     "name-asc": (a, b) => a.displayName.localeCompare(b.displayName),
     "name-desc": (a, b) => b.displayName.localeCompare(a.displayName),
     "owned-desc": (a, b) => ownsCount(b) - ownsCount(a) || a.displayName.localeCompare(b.displayName),
-    "products-desc": (a, b) => (b.applications?.length ?? 0) - (a.applications?.length ?? 0) || a.displayName.localeCompare(b.displayName),
+    "products-desc": (a, b) =>
+      (b.applications?.length ?? 0) - (a.applications?.length ?? 0) || a.displayName.localeCompare(b.displayName),
   };
   return [...users].sort(by[sort] || by["name-asc"]);
 }
@@ -291,23 +357,29 @@ export function PeopleTab({ intent = null, siteOrigin = "" } = {}) {
     setRosterFilter(ROSTER_FILTERS.some((f) => f.value === nav.filter) ? nav.filter : "all");
   });
   const [openUser, setOpenUser] = React.useState(null);
-  const [details, setDetails] = React.useState({});   // accountId -> detail
+  const [details, setDetails] = React.useState({}); // accountId -> detail
   const [detailLoading, setDetailLoading] = React.useState(false);
 
-  const toggleUser = React.useCallback(async (accountId) => {
-    if (openUser === accountId) { setOpenUser(null); return; }
-    setOpenUser(accountId);
-    if (details[accountId]) return;
-    setDetailLoading(true);
-    try {
-      const detail = await invoke("getUserDetails", { accountId });
-      setDetails((d) => ({ ...d, [accountId]: detail }));
-    } catch {
-      setDetails((d) => ({ ...d, [accountId]: { ownedFilters: [], ownedDashboards: [], authoredRules: [] } }));
-    } finally {
-      setDetailLoading(false);
-    }
-  }, [openUser, details]);
+  const toggleUser = React.useCallback(
+    async (accountId) => {
+      if (openUser === accountId) {
+        setOpenUser(null);
+        return;
+      }
+      setOpenUser(accountId);
+      if (details[accountId]) return;
+      setDetailLoading(true);
+      try {
+        const detail = await invoke("getUserDetails", { accountId });
+        setDetails((d) => ({ ...d, [accountId]: detail }));
+      } catch {
+        setDetails((d) => ({ ...d, [accountId]: { ownedFilters: [], ownedDashboards: [], authoredRules: [] } }));
+      } finally {
+        setDetailLoading(false);
+      }
+    },
+    [openUser, details],
+  );
 
   const load = React.useCallback(async () => {
     try {
@@ -321,7 +393,9 @@ export function PeopleTab({ intent = null, siteOrigin = "" } = {}) {
     }
   }, []);
 
-  React.useEffect(() => { load(); }, [load]);
+  React.useEffect(() => {
+    load();
+  }, [load]);
 
   // The People pillar of the site health score, fetched on its own so this tab shows the
   // same governance reading the Overview does -- matching ScreensTab and IssueTypesTab.
@@ -329,9 +403,15 @@ export function PeopleTab({ intent = null, siteOrigin = "" } = {}) {
   React.useEffect(() => {
     let cancelled = false;
     invoke("getPillarHealth", { pillar: "users" })
-      .then((result) => { if (!cancelled) setPillar(result?.pillar || null); })
-      .catch(() => { if (!cancelled) setPillar(null); });
-    return () => { cancelled = true; };
+      .then((result) => {
+        if (!cancelled) setPillar(result?.pillar || null);
+      })
+      .catch(() => {
+        if (!cancelled) setPillar(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [data?.refreshedAt]);
 
   const isBuilding = ["building", "queued"].includes(data?.state) && !data?.staleBuild;
@@ -368,13 +448,19 @@ export function PeopleTab({ intent = null, siteOrigin = "" } = {}) {
         buildPrompt={() =>
           buildRovoPrompt({
             task: "Give me an overview of the licensed-user roster on this site and what to look at first.",
-            facts: [["Snapshot built", data?.refreshedAt || "unknown"], ["Licensed accounts", data?.users?.length ?? null], ["Deactivated accounts still owning things", data?.governance?.orphanedOwnershipCount ?? null], ["Accounts named by automation rules", data?.governance?.automationRefUsers ?? null], ["Of those, off-roster", data?.governance?.orphanedAutomationRefUsers ?? null]],
+            facts: [
+              ["Snapshot built", data?.refreshedAt || "unknown"],
+              ["Licensed accounts", data?.users?.length ?? null],
+              ["Deactivated accounts still owning things", data?.governance?.orphanedOwnershipCount ?? null],
+              ["Accounts named by automation rules", data?.governance?.automationRefUsers ?? null],
+              ["Of those, off-roster", data?.governance?.orphanedAutomationRefUsers ?? null],
+            ],
           })
         }
       />
       <button type="button" className="secondary-button" onClick={startBuild} disabled={building || isBuilding}>
-      <Icon name="refreshCw" size={13} />
-      {isBuilding ? "Building…" : data?.neverBuilt ? "Build roster" : "Rebuild"}
+        <Icon name="refreshCw" size={13} />
+        {isBuilding ? "Building…" : data?.neverBuilt ? "Build roster" : "Rebuild"}
       </button>
     </>
   );
@@ -391,10 +477,20 @@ export function PeopleTab({ intent = null, siteOrigin = "" } = {}) {
           description="Every licensed Jira user on the site, from the members of your application-access groups."
           actions={buildAction}
         />
-        {error && <div className="danger-zone__error" role="alert">{error}</div>}
-        {notice && !error && <p className="admin-config-row__hint" role="status">{notice}</p>}
+        {error && (
+          <div className="danger-zone__error" role="alert">
+            {error}
+          </div>
+        )}
+        {notice && !error && (
+          <p className="admin-config-row__hint" role="status">
+            {notice}
+          </p>
+        )}
         {data?.lastError && !isBuilding && (
-          <div className="danger-zone__error" role="alert">Last build failed: {data.lastError}</div>
+          <div className="danger-zone__error" role="alert">
+            Last build failed: {data.lastError}
+          </div>
         )}
         {data?.staleBuild && (
           <p className="admin-config-row__hint">A build was started but is no longer running. Rebuild to recover it.</p>
@@ -402,15 +498,15 @@ export function PeopleTab({ intent = null, siteOrigin = "" } = {}) {
         {isBuilding ? (
           <Panel title="Building the first roster" icon="refreshCw">
             <p>
-              Reading the site's application roles, then enumerating the members of every
-              access group. This page refreshes itself; you can leave it.
+              Reading the site's application roles, then enumerating the members of every access group. This page
+              refreshes itself; you can leave it.
             </p>
             {data?.startedAt && <p className="admin-config-row__hint">Started {formatRelativeTime(data.startedAt)}.</p>}
           </Panel>
         ) : (
           <EmptyState action={buildAction}>
-            No licensed-user roster has been built yet. Build it here — it needs the Jira admin
-            permission the rest of this page already requires.
+            No licensed-user roster has been built yet. Build it here — it needs the Jira admin permission the rest of
+            this page already requires.
           </EmptyState>
         )}
       </div>
@@ -423,21 +519,20 @@ export function PeopleTab({ intent = null, siteOrigin = "" } = {}) {
   const isStale = buildAgeDays != null && buildAgeDays > STALE_AFTER_DAYS;
 
   const seatsUsed = summary.reduce((sum, s) => sum + (Number(s.userCount) || 0), 0);
-  const seatsTotal = summary.reduce(
-    (sum, s) => sum + (s.hasUnlimitedSeats ? 0 : (Number(s.numberOfSeats) || 0)),
-    0
-  );
+  const seatsTotal = summary.reduce((sum, s) => sum + (s.hasUnlimitedSeats ? 0 : Number(s.numberOfSeats) || 0), 0);
 
   const allUsers = data?.users || [];
   const roster = (() => {
     const term = search.trim().toLowerCase();
     let rows = allUsers.filter((u) => matchesRosterFilter(u, rosterFilter));
     if (term) {
-      rows = rows.filter((u) =>
-        u.displayName.toLowerCase().includes(term) ||
-        u.accountId.toLowerCase().includes(term) ||
-        u.applications.some((p) => shortProduct(p.key).includes(term)) ||
-        u.groups.some((gr) => gr.name.toLowerCase().includes(term)));
+      rows = rows.filter(
+        (u) =>
+          u.displayName.toLowerCase().includes(term) ||
+          u.accountId.toLowerCase().includes(term) ||
+          u.applications.some((p) => shortProduct(p.key).includes(term)) ||
+          u.groups.some((gr) => gr.name.toLowerCase().includes(term)),
+      );
     }
     return sortRoster(rows, sort);
   })();
@@ -456,31 +551,53 @@ export function PeopleTab({ intent = null, siteOrigin = "" } = {}) {
         actions={buildAction}
       />
 
-      {error && <div className="danger-zone__error" role="alert">{error}</div>}
-      {notice && !error && <p className="admin-config-row__hint" role="status">{notice}</p>}
+      {error && (
+        <div className="danger-zone__error" role="alert">
+          {error}
+        </div>
+      )}
+      {notice && !error && (
+        <p className="admin-config-row__hint" role="status">
+          {notice}
+        </p>
+      )}
       {isBuilding && <p className="admin-config-row__hint">Building the roster… this page refreshes itself.</p>}
       {data?.staleBuild && (
         <p className="admin-config-row__hint">A build was started but is no longer running. Rebuild to recover it.</p>
       )}
       {data?.lastError && !isBuilding && (
-        <div className="danger-zone__error" role="alert">Last build failed: {data.lastError}</div>
+        <div className="danger-zone__error" role="alert">
+          Last build failed: {data.lastError}
+        </div>
       )}
 
       <StatRow>
-        <StatTile label="Licensed users" value={formatNumber(g?.totalUsers ?? data?.users?.length ?? 0)} hint="Across every access group" icon="user" />
+        <StatTile
+          label="Licensed users"
+          value={formatNumber(g?.totalUsers ?? data?.users?.length ?? 0)}
+          hint="Across every access group"
+          icon="user"
+        />
         <StatTile
           label="Seats used"
           value={seatsTotal > 0 ? `${formatNumber(seatsUsed)} / ${formatNumber(seatsTotal)}` : formatNumber(seatsUsed)}
           hint={seatsTotal > 0 ? "Product seats reported by Jira" : "Jira did not report a seat cap"}
           icon="checkCircle"
         />
-        <StatTile label="Multi-product" value={formatNumber(g?.multiProductUsers ?? 0)} hint="Hold more than one product licence" icon="layers" />
+        <StatTile
+          label="Multi-product"
+          value={formatNumber(g?.multiProductUsers ?? 0)}
+          hint="Hold more than one product licence"
+          icon="layers"
+        />
         <StatTile
           label="Dormant licences"
           value={g?.activityMeasured ? formatNumber(g.dormantAccounts ?? 0) : "—"}
-          hint={g?.activityMeasured
-            ? `No issue activity in ${g.dormantAfterDays ?? 365} days, of ${formatNumber(g.measuredAccounts ?? 0)} measured`
-            : "Run a full scan to measure last activity"}
+          hint={
+            g?.activityMeasured
+              ? `No issue activity in ${g.dormantAfterDays ?? 365} days, of ${formatNumber(g.measuredAccounts ?? 0)} measured`
+              : "Run a full scan to measure last activity"
+          }
           tone={g?.activityMeasured && g.dormantAccounts > 0 ? "warning" : "neutral"}
           icon="clock"
         />
@@ -495,10 +612,7 @@ export function PeopleTab({ intent = null, siteOrigin = "" } = {}) {
 
       {isStale && (
         <Panel title="This roster is stale" icon="alertTriangle">
-          <p>
-            It was built {Math.floor(buildAgeDays)} days ago. Rebuild here to pick up new or
-            removed licences.
-          </p>
+          <p>It was built {Math.floor(buildAgeDays)} days ago. Rebuild here to pick up new or removed licences.</p>
         </Panel>
       )}
 
@@ -584,13 +698,21 @@ export function PeopleTab({ intent = null, siteOrigin = "" } = {}) {
                 <StatTile
                   label="Named in automation"
                   value={formatNumber(g?.automationRefUsers ?? 0)}
-                  hint={data?.automationRefsAvailable === false ? "Import a rule export to measure" : "Accounts a rule assigns to or conditions on"}
+                  hint={
+                    data?.automationRefsAvailable === false
+                      ? "Import a rule export to measure"
+                      : "Accounts a rule assigns to or conditions on"
+                  }
                   icon="refreshCw"
                 />
                 <StatTile
                   label="Referenced off-roster"
                   value={formatNumber(g?.orphanedAutomationRefUsers ?? 0)}
-                  hint={(g?.orphanedAutomationRefUsers ?? 0) > 0 ? "A rule routes work to someone who has left" : "Every referenced account is licensed"}
+                  hint={
+                    (g?.orphanedAutomationRefUsers ?? 0) > 0
+                      ? "A rule routes work to someone who has left"
+                      : "Every referenced account is licensed"
+                  }
                   tone={(g?.orphanedAutomationRefUsers ?? 0) > 0 ? "critical" : "success"}
                   icon="alertTriangle"
                 />
@@ -613,16 +735,22 @@ export function PeopleTab({ intent = null, siteOrigin = "" } = {}) {
               sort={sort}
               onSortChange={setSort}
               sortOptions={ROSTER_SORTS}
-              filters={[{
-                key: "roster",
-                label: "Show",
-                value: rosterFilter,
-                onChange: setRosterFilter,
-                options: ROSTER_FILTERS,
-              }]}
+              filters={[
+                {
+                  key: "roster",
+                  label: "Show",
+                  value: rosterFilter,
+                  onChange: setRosterFilter,
+                  options: ROSTER_FILTERS,
+                },
+              ]}
               resultCount={roster.length}
               totalCount={allUsers.length}
-              onClear={() => { setSearch(""); setSort("name-asc"); setRosterFilter("all"); }}
+              onClear={() => {
+                setSearch("");
+                setSort("name-asc");
+                setRosterFilter("all");
+              }}
             />
 
             {roster.length ? (
@@ -641,7 +769,9 @@ export function PeopleTab({ intent = null, siteOrigin = "" } = {}) {
                 ))}
               </div>
             ) : (
-              <EmptyState inline>{search || rosterFilter !== "all" ? "No users match that filter." : "No licensed users in this roster."}</EmptyState>
+              <EmptyState inline>
+                {search || rosterFilter !== "all" ? "No users match that filter." : "No licensed users in this roster."}
+              </EmptyState>
             )}
           </Panel>
         )}

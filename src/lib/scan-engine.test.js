@@ -118,7 +118,9 @@ vi.mock("./snapshot-engine.js", () => ({
 vi.mock("@forge/api", () => ({
   route: (strings, ...values) => {
     let result = "";
-    strings.forEach((str, i) => { result += str + (values[i] ?? ""); });
+    strings.forEach((str, i) => {
+      result += str + (values[i] ?? "");
+    });
     return result;
   },
   default: { asApp: () => ({ requestJira: vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }) }) },
@@ -232,9 +234,7 @@ describe("queueIssueScanWorker", () => {
     queues.inventorySnapshotQueue.push.mockReset().mockResolvedValue({ queued: true });
 
     await queueIssueScanWorker(INSTALLATION_KEY, 3, { delaySeconds: 8 });
-    expect(queues.inventorySnapshotQueue.push).toHaveBeenCalledWith(
-      expect.objectContaining({ delayInSeconds: 8 })
-    );
+    expect(queues.inventorySnapshotQueue.push).toHaveBeenCalledWith(expect.objectContaining({ delayInSeconds: 8 }));
   });
 });
 
@@ -298,7 +298,7 @@ describe("runIssueScanCoordinator", () => {
       expect.objectContaining({
         state: "ready",
         totalIssues: 0,
-      })
+      }),
     );
     const call = store.writeIssueScanMeta.mock.calls[0][1];
     expect(call.progressLog).toBeDefined();
@@ -312,8 +312,16 @@ describe("runIssueScanCoordinator", () => {
     store.readIssueScanMeta.mockResolvedValue({ state: "queued" });
     store.readSnapshotMeta.mockResolvedValue(null);
     jiraApi.getAllJiraProjectKeys.mockResolvedValue([
-      "PROJ-A", "PROJ-B", "PROJ-C", "PROJ-D", "PROJ-E",
-      "PROJ-F", "PROJ-G", "PROJ-H", "PROJ-I", "PROJ-J",
+      "PROJ-A",
+      "PROJ-B",
+      "PROJ-C",
+      "PROJ-D",
+      "PROJ-E",
+      "PROJ-F",
+      "PROJ-G",
+      "PROJ-H",
+      "PROJ-I",
+      "PROJ-J",
     ]);
     jiraApi.withTimeout.mockResolvedValue({ count: 5000 });
     store.loadIssueScanProjectTotals.mockResolvedValue([]);
@@ -343,9 +351,7 @@ describe("runIssueScanCoordinator", () => {
 
     expect(store.replaceIssueScanWorkers).toHaveBeenCalledWith(
       INSTALLATION_KEY,
-      expect.arrayContaining([
-        expect.objectContaining({ workerId: 0, status: "queued" }),
-      ])
+      expect.arrayContaining([expect.objectContaining({ workerId: 0, status: "queued" })]),
     );
     // ISSUE_SCAN_WORKERS = 4, so array length should be 4
     const [, workers] = store.replaceIssueScanWorkers.mock.calls[0];
@@ -367,7 +373,7 @@ describe("runIssueScanCoordinator", () => {
 
     // One push for each worker (4), plus any per-worker-option-cache pushes
     const workerPushes = queues.inventorySnapshotQueue.push.mock.calls.filter(
-      (c) => c[0].body?.jobType === "run-issue-scan-worker"
+      (c) => c[0].body?.jobType === "run-issue-scan-worker",
     );
     expect(workerPushes).toHaveLength(4);
   });
@@ -462,7 +468,7 @@ describe("runIssueScanCoordinator", () => {
       expect.objectContaining({
         state: "failed",
         lastError: "Jira down",
-      })
+      }),
     );
   });
 
@@ -474,7 +480,7 @@ describe("runIssueScanCoordinator", () => {
 
     expect(store.writeIssueScanMeta).toHaveBeenCalledWith(
       INSTALLATION_KEY,
-      expect.objectContaining({ state: "failed" })
+      expect.objectContaining({ state: "failed" }),
     );
   });
 });
@@ -500,7 +506,7 @@ describe("completeIssueScanFinalization", () => {
 
     expect(store.writeIssueScanMeta).toHaveBeenCalledWith(
       INSTALLATION_KEY,
-      expect.objectContaining({ state: "ready" })
+      expect.objectContaining({ state: "ready" }),
     );
     const call = store.writeIssueScanMeta.mock.calls[0][1];
     expect(call.scanHistory).toHaveLength(1);
@@ -609,9 +615,7 @@ describe("completeIssueScanFinalization", () => {
 
     await completeIssueScanFinalization(INSTALLATION_KEY, "test-tag");
 
-    const failCalls = store.writeIssueScanMeta.mock.calls.filter(
-      (c) => c[1].state === "failed"
-    );
+    const failCalls = store.writeIssueScanMeta.mock.calls.filter((c) => c[1].state === "failed");
     expect(failCalls).toHaveLength(1);
     expect(failCalls[0][1].lastError).toContain("Finalization failed");
   });
@@ -630,11 +634,9 @@ describe("completeIssueScanFinalization", () => {
 
     // Default readIssueScanWorker mock resolves null for every worker -- a missing
     // worker record counts as trivially complete, so full coverage is assumed here.
-    expect(store.promoteIssueScanToSnapshotProjectUsage).toHaveBeenCalledWith(
-      INSTALLATION_KEY,
-      "v1",
-      { syncTotalIssueCount: true }
-    );
+    expect(store.promoteIssueScanToSnapshotProjectUsage).toHaveBeenCalledWith(INSTALLATION_KEY, "v1", {
+      syncTotalIssueCount: true,
+    });
   });
 
   it("promotes usage per item only when every worker finished", async () => {
@@ -644,7 +646,8 @@ describe("completeIssueScanFinalization", () => {
     expect(store.promoteUsageTally).toHaveBeenLastCalledWith(INSTALLATION_KEY, { coverageComplete: true });
 
     store.readIssueScanWorker.mockImplementation((_key, workerId) =>
-      Promise.resolve(workerId === 0 ? { status: "failed" } : { status: "done" }));
+      Promise.resolve(workerId === 0 ? { status: "failed" } : { status: "done" }),
+    );
     await completeIssueScanFinalization(INSTALLATION_KEY, "test-tag");
     expect(store.promoteUsageTally).toHaveBeenLastCalledWith(INSTALLATION_KEY, { coverageComplete: false });
   });
@@ -659,16 +662,14 @@ describe("completeIssueScanFinalization", () => {
       scanHistory: [],
     });
     store.readIssueScanWorker.mockImplementation((_key, workerId) =>
-      Promise.resolve(workerId === 0 ? { status: "failed" } : { status: "done" })
+      Promise.resolve(workerId === 0 ? { status: "failed" } : { status: "done" }),
     );
 
     await completeIssueScanFinalization(INSTALLATION_KEY, "test-tag");
 
-    expect(store.promoteIssueScanToSnapshotProjectUsage).toHaveBeenCalledWith(
-      INSTALLATION_KEY,
-      "v1",
-      { syncTotalIssueCount: false }
-    );
+    expect(store.promoteIssueScanToSnapshotProjectUsage).toHaveBeenCalledWith(INSTALLATION_KEY, "v1", {
+      syncTotalIssueCount: false,
+    });
   });
 
   // The exact bug behind "why did it lose 30,000 issues" — the finalize write set
@@ -678,12 +679,20 @@ describe("completeIssueScanFinalization", () => {
     const store = await getProjectStoreMock();
     store.readSnapshotMeta.mockResolvedValue({ version: "v1" });
     store.readIssueScanMeta.mockResolvedValue({
-      processedIssues: 289617, startedAt: "2026-01-01T00:00:00.000Z", progressLog: [], scanHistory: [],
+      processedIssues: 289617,
+      startedAt: "2026-01-01T00:00:00.000Z",
+      progressLog: [],
+      scanHistory: [],
     });
     store.readIssueScanWorker.mockImplementation((_key, workerId) =>
-      Promise.resolve(workerId === 2
-        ? { status: "queued", lastError: "Paused on a Forge queue limit; resuming automatically once platform limits clear." }
-        : { status: "done" })
+      Promise.resolve(
+        workerId === 2
+          ? {
+              status: "queued",
+              lastError: "Paused on a Forge queue limit; resuming automatically once platform limits clear.",
+            }
+          : { status: "done" },
+      ),
     );
 
     await completeIssueScanFinalization(INSTALLATION_KEY, "test-tag");
@@ -700,7 +709,10 @@ describe("completeIssueScanFinalization", () => {
     const store = await getProjectStoreMock();
     store.readSnapshotMeta.mockResolvedValue({ version: "v1" });
     store.readIssueScanMeta.mockResolvedValue({
-      processedIssues: 321636, startedAt: "2026-01-01T00:00:00.000Z", progressLog: [], scanHistory: [],
+      processedIssues: 321636,
+      startedAt: "2026-01-01T00:00:00.000Z",
+      progressLog: [],
+      scanHistory: [],
     });
     store.readIssueScanWorker.mockResolvedValue({ status: "done" });
 
@@ -728,11 +740,10 @@ describe("completeIssueScanFinalization", () => {
 
     await completeIssueScanFinalization(INSTALLATION_KEY, "test-tag");
 
-    expect(refreshGovernanceFindingsForFields).toHaveBeenCalledWith(
-      INSTALLATION_KEY,
-      "v1",
-      ["customfield_1", "customfield_2"]
-    );
+    expect(refreshGovernanceFindingsForFields).toHaveBeenCalledWith(INSTALLATION_KEY, "v1", [
+      "customfield_1",
+      "customfield_2",
+    ]);
   });
 
   it("does not attempt to refresh findings when nothing was touched", async () => {
@@ -763,7 +774,6 @@ describe("runIssueScanWorkerV2", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
-
 
   // The per-issue loop was never exercised: every existing case returns before the first
   // page is fetched. This feeds real issues through it, which is also the only coverage of
@@ -814,9 +824,15 @@ describe("runIssueScanWorkerV2", () => {
         store.readIssueScanMeta.mockResolvedValue({ state: "building" });
         store.readIssueScanWorker.mockResolvedValue({ status: "queued", jqlFilter: "project = ALPHA", fieldIds: null });
         store.atomicAccumulateIssueScanProgress.mockResolvedValue({ processedPages: 1, totalPages: 1 });
-        store.flushIssueScanTypeTotals.mockImplementation(async (_k, m) => { captured.types = new Map(m); });
-        store.flushIssueScanEstateTotals.mockImplementation(async (_k, m) => { captured.estate = new Map(m); });
-        store.flushIssueScanUserActivity.mockImplementation(async (_k, m) => { captured.activity = new Map(m); });
+        store.flushIssueScanTypeTotals.mockImplementation(async (_k, m) => {
+          captured.types = new Map(m);
+        });
+        store.flushIssueScanEstateTotals.mockImplementation(async (_k, m) => {
+          captured.estate = new Map(m);
+        });
+        store.flushIssueScanUserActivity.mockImplementation(async (_k, m) => {
+          captured.activity = new Map(m);
+        });
         jiraApi.jiraRequest.mockResolvedValue(issuePage(issues));
 
         await runIssueScanWorkerV2(INSTALLATION_KEY, 0);
@@ -840,7 +856,10 @@ describe("runIssueScanWorkerV2", () => {
       it("counts priorities and resolutions, including the unset ones", async () => {
         const { estate } = await countersFor([
           issue("A-1", "10", "ALPHA", "3", "Open", { priority: { id: "1", name: "Highest" }, resolution: null }),
-          issue("A-2", "10", "ALPHA", "3", "Open", { priority: { id: "1", name: "Highest" }, resolution: { id: "10", name: "Done" } }),
+          issue("A-2", "10", "ALPHA", "3", "Open", {
+            priority: { id: "1", name: "Highest" },
+            resolution: { id: "10", name: "Done" },
+          }),
         ]);
 
         expect(estate.get("priority|1")).toMatchObject({ kind: "priority", valueName: "Highest", count: 2 });
@@ -895,7 +914,11 @@ describe("runIssueScanWorkerV2", () => {
 
       it("skips an unassigned issue rather than inventing an account", async () => {
         const { activity } = await countersFor([
-          issue("A-1", "10", "ALPHA", "3", "Open", { updated: "2026-02-02T00:00:00.000Z", assignee: null, reporter: null }),
+          issue("A-1", "10", "ALPHA", "3", "Open", {
+            updated: "2026-02-02T00:00:00.000Z",
+            assignee: null,
+            reporter: null,
+          }),
         ]);
         expect(activity.size).toBe(0);
       });
@@ -1003,7 +1026,10 @@ describe("runIssueScanWorkerV2", () => {
       const { store } = await runWorkerOverPage([
         issue("ALPHA-1", "10", "ALPHA", "3", "In Review", {
           customfield_9: { accountId: "acc-1", displayName: "Ann" },
-          customfield_8: [{ accountId: "acc-2", displayName: "Bo" }, { accountId: "acc-3", displayName: "Cy" }],
+          customfield_8: [
+            { accountId: "acc-2", displayName: "Bo" },
+            { accountId: "acc-3", displayName: "Cy" },
+          ],
           customfield_1: "plain text",
         }),
       ]);
@@ -1062,13 +1088,9 @@ describe("runIssueScanWorkerV2", () => {
     expect(store.updateIssueScanWorker).toHaveBeenCalledWith(
       INSTALLATION_KEY,
       0,
-      expect.objectContaining({ status: "done" })
+      expect.objectContaining({ status: "done" }),
     );
-    expect(store.atomicAccumulateIssueScanProgress).toHaveBeenCalledWith(
-      INSTALLATION_KEY,
-      1,
-      0
-    );
+    expect(store.atomicAccumulateIssueScanProgress).toHaveBeenCalledWith(INSTALLATION_KEY, 1, 0);
   });
 
   it("skips duplicate active worker that is still fresh", async () => {
@@ -1121,9 +1143,7 @@ describe("runIssueScanWorkerV2", () => {
       processedPages: 0,
     });
     jiraApi.jiraRequest.mockResolvedValue({
-      issues: [
-        { key: "TEST-1", fields: { project: { id: "1", key: "TEST", name: "Test" } } },
-      ],
+      issues: [{ key: "TEST-1", fields: { project: { id: "1", key: "TEST", name: "Test" } } }],
       nextPageToken: null,
     });
     store.atomicAccumulateIssueScanProgress.mockResolvedValue({
@@ -1159,7 +1179,8 @@ describe("runIssueScanWorkerV2", () => {
     store.readSnapshotMeta.mockResolvedValue(null);
     store.readIssueScanMeta
       .mockResolvedValueOnce({ state: "building" }) // first call
-      .mockResolvedValue({                           // subsequent calls
+      .mockResolvedValue({
+        // subsequent calls
         processedIssues: 0,
         startedAt: new Date().toISOString(),
         progressLog: [],
@@ -1209,7 +1230,7 @@ describe("queueIssueScanChunk", () => {
     expect(jiraApi.sleep).toHaveBeenCalled();
     expect(store.writeIssueScanMeta).toHaveBeenCalledWith(
       INSTALLATION_KEY,
-      expect.objectContaining({ state: "queued" })
+      expect.objectContaining({ state: "queued" }),
     );
   });
 });
@@ -1262,7 +1283,8 @@ describe("binPackProjects", () => {
     // 5 workers x 3 slices = 15 needed; 22 projects on site is enough for every bin to clear
     // the floor with room to spare.
     const counts = new Map([
-      ["HUGE-1", 60000], ["HUGE-2", 58000],
+      ["HUGE-1", 60000],
+      ["HUGE-2", 58000],
       ...Array.from({ length: 20 }, (_, i) => [`small-${i}`, 500]),
     ]);
     const keys = [...counts.keys()];
@@ -1273,7 +1295,13 @@ describe("binPackProjects", () => {
   });
 
   it("every project is assigned exactly once, across all bins", () => {
-    const counts = new Map([["A", 1000], ["B", 900], ["C", 100], ["D", 50], ["E", 10]]);
+    const counts = new Map([
+      ["A", 1000],
+      ["B", 900],
+      ["C", 100],
+      ["D", 50],
+      ["E", 10],
+    ]);
     const keys = [...counts.keys()];
     const bins = binPackProjects(keys, counts, 2, 3);
     const mentioned = bins.flatMap((b) => b.keys);
@@ -1291,14 +1319,20 @@ describe("binPackProjects", () => {
   it("gets as close to the floor as the site's project count allows, same honesty sliceProjectKeys has about one giant project", () => {
     // Only 2 projects for 5 workers: three bins are unavoidably empty, not a crash or an
     // infinite loop.
-    const counts = new Map([["A", 100], ["B", 100]]);
+    const counts = new Map([
+      ["A", 100],
+      ["B", 100],
+    ]);
     const bins = binPackProjects(["A", "B"], counts, 5, 3);
     expect(bins.filter((b) => b.keys.length > 0)).toHaveLength(2);
     expect(bins.reduce((n, b) => n + b.keys.length, 0)).toBe(2);
   });
 
   it("packs a single bin with everything when workerCount is 1", () => {
-    const counts = new Map([["A", 100], ["B", 50]]);
+    const counts = new Map([
+      ["A", 100],
+      ["B", 50],
+    ]);
     const bins = binPackProjects(["A", "B"], counts, 1, 3);
     expect(bins).toHaveLength(1);
     expect(bins[0].keys.sort()).toEqual(["A", "B"]);
@@ -1306,7 +1340,12 @@ describe("binPackProjects", () => {
 });
 
 describe("sliceProjectKeys", () => {
-  const counts = new Map([["A", 1000], ["B", 900], ["C", 100], ["D", 50]]);
+  const counts = new Map([
+    ["A", 1000],
+    ["B", 900],
+    ["C", 100],
+    ["D", 50],
+  ]);
 
   test("splits projects into balanced, disjoint slices", () => {
     const slices = sliceProjectKeys(["A", "B", "C", "D"], counts, 2);
@@ -1411,7 +1450,11 @@ describe("scan resilience", () => {
   test("a 400 on the first page restarts the slice instead of killing the scan", async () => {
     const { store } = await runWorkerWith({
       workerRow: worker(),
-      jiraImpl: async () => { const e = new Error("400 Bad Request"); e.status = 400; throw e; },
+      jiraImpl: async () => {
+        const e = new Error("400 Bad Request");
+        e.status = 400;
+        throw e;
+      },
     });
 
     // The scan is NOT marked failed. Previously this exact case did mark it failed, because
@@ -1429,7 +1472,11 @@ describe("scan resilience", () => {
       workerRow: worker({
         slices: [{ id: 0, jql: 'project IN ("ALPHA")', keys: ["ALPHA"], token: "cursor-1", done: false }],
       }),
-      jiraImpl: async () => { const e = new Error("400 Bad Request"); e.status = 400; throw e; },
+      jiraImpl: async () => {
+        const e = new Error("400 Bad Request");
+        e.status = 400;
+        throw e;
+      },
     });
 
     const logged = store.appendIssueScanLogEntry.mock.calls.map((c) => c[1]).join(" | ");
@@ -1447,7 +1494,11 @@ describe("scan resilience", () => {
     const { store } = await runWorkerWith({
       // A pre-slice worker row: one JQL, one cursor, no key list.
       workerRow: worker({ nextPageToken: "cursor-1" }),
-      jiraImpl: async () => { const e = new Error("400 Bad Request"); e.status = 400; throw e; },
+      jiraImpl: async () => {
+        const e = new Error("400 Bad Request");
+        e.status = 400;
+        throw e;
+      },
     });
 
     const logged = store.appendIssueScanLogEntry.mock.calls.map((c) => c[1]).join(" | ");
@@ -1458,7 +1509,11 @@ describe("scan resilience", () => {
   test("gives up on one slice rather than looping on it forever", async () => {
     const { store } = await runWorkerWith({
       workerRow: worker({ slices: [{ id: 0, jql: "project = ALPHA", token: null, done: false, restarts: 99 }] }),
-      jiraImpl: async () => { const e = new Error("400 Bad Request"); e.status = 400; throw e; },
+      jiraImpl: async () => {
+        const e = new Error("400 Bad Request");
+        e.status = 400;
+        throw e;
+      },
     });
 
     const logged = store.appendIssueScanLogEntry.mock.calls.map((c) => c[1]).join(" | ");
@@ -1466,13 +1521,15 @@ describe("scan resilience", () => {
     // Abandoning the slice completes the worker, so the remaining workers can finalize rather
     // than waiting on a slot that is never coming back.
     const workerWrites = store.updateIssueScanWorker.mock.calls.map((c) => c[2]);
-    expect(workerWrites.some((w) => w.status === "done")) .toBe(true);
+    expect(workerWrites.some((w) => w.status === "done")).toBe(true);
   });
 
   test("a worker that dies outright still releases its slot so the others can finish", async () => {
     const { store } = await runWorkerWith({
       workerRow: worker(),
-      jiraImpl: async () => { throw new Error("connection reset"); },
+      jiraImpl: async () => {
+        throw new Error("connection reset");
+      },
     });
 
     // The worker is marked failed...
@@ -1501,14 +1558,15 @@ describe("scan resilience", () => {
     // A slice that is never "done" -- every page has a next token -- so the worker checkpoints
     // and re-queues rather than finishing.
     store.readIssueScanWorker.mockResolvedValue(
-      worker({ slices: [{ id: 0, jql: 'project IN ("ALPHA")', keys: ["ALPHA"], token: null, done: false }] })
+      worker({ slices: [{ id: 0, jql: 'project IN ("ALPHA")', keys: ["ALPHA"], token: null, done: false }] }),
     );
     store.atomicAccumulateIssueScanProgress.mockResolvedValue({ processedPages: 4, totalPages: 5 });
     jiraApi.jiraRequest.mockResolvedValue({
       issues: [{ key: "ALPHA-1", fields: { project: { id: "10", key: "ALPHA", name: "ALPHA" } } }],
       nextPageToken: "always-more",
     });
-    queues.inventorySnapshotQueue.push.mockReset()
+    queues.inventorySnapshotQueue.push
+      .mockReset()
       .mockRejectedValue(new Error("Limits for the current installation have been exceeded"));
 
     await runIssueScanWorkerV2(INSTALLATION_KEY, 0);
@@ -1543,8 +1601,11 @@ describe("reviveStalledIssueScanWorkers", () => {
     store.readIssueScanMeta.mockResolvedValue({ state: "building" });
     store.readIssueScanWorker.mockImplementation(async (_k, id) =>
       id === 2
-        ? { status: "queued", lastError: "Paused on a Forge queue limit; resuming automatically once platform limits clear." }
-        : { status: "done" }
+        ? {
+            status: "queued",
+            lastError: "Paused on a Forge queue limit; resuming automatically once platform limits clear.",
+          }
+        : { status: "done" },
     );
     queues.inventorySnapshotQueue.push.mockReset().mockResolvedValue({ queued: true });
 
@@ -1553,7 +1614,7 @@ describe("reviveStalledIssueScanWorkers", () => {
     expect(result.revived).toBe(1);
     expect(queues.inventorySnapshotQueue.push).toHaveBeenCalledTimes(1);
     expect(queues.inventorySnapshotQueue.push).toHaveBeenCalledWith(
-      expect.objectContaining({ body: expect.objectContaining({ jobType: "run-issue-scan-worker", workerId: 2 }) })
+      expect.objectContaining({ body: expect.objectContaining({ jobType: "run-issue-scan-worker", workerId: 2 }) }),
     );
     // Marker cleared before the re-queue so a second tick cannot double-queue it.
     expect(store.updateIssueScanWorker).toHaveBeenCalledWith(INSTALLATION_KEY, 2, { lastError: null });
@@ -1578,17 +1639,22 @@ describe("reviveStalledIssueScanWorkers", () => {
     store.readIssueScanMeta.mockResolvedValue({ state: "building" });
     store.readIssueScanWorker.mockImplementation(async (_k, id) =>
       id === 0
-        ? { status: "queued", lastError: "Paused on a Forge queue limit; resuming automatically once platform limits clear." }
-        : { status: "done" }
+        ? {
+            status: "queued",
+            lastError: "Paused on a Forge queue limit; resuming automatically once platform limits clear.",
+          }
+        : { status: "done" },
     );
-    queues.inventorySnapshotQueue.push.mockReset()
+    queues.inventorySnapshotQueue.push
+      .mockReset()
       .mockRejectedValue(new Error("The limit on cyclic invocation has been reached"));
 
     const result = await reviveStalledIssueScanWorkers(INSTALLATION_KEY);
 
     expect(result.revived).toBe(0);
-    const markerRestored = store.updateIssueScanWorker.mock.calls
-      .some((c) => c[1] === 0 && /Paused on a Forge queue limit/.test(c[2]?.lastError || ""));
+    const markerRestored = store.updateIssueScanWorker.mock.calls.some(
+      (c) => c[1] === 0 && /Paused on a Forge queue limit/.test(c[2]?.lastError || ""),
+    );
     expect(markerRestored).toBe(true);
   });
 
@@ -1606,7 +1672,9 @@ describe("tallyIssueUsage", () => {
   // The suite mocks analysis.js so every value reads as populated; these tests need the real rule.
   beforeEach(async () => {
     const analysis = await import("./analysis.js");
-    analysis.isFieldValueNonEmpty.mockImplementation((v) => v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0));
+    analysis.isFieldValueNonEmpty.mockImplementation(
+      (v) => v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0),
+    );
   });
   const NOW = Date.parse("2026-10-07T00:00:00.000Z");
   const CUTOFF = NOW - 90 * 24 * 60 * 60 * 1000;
@@ -1615,15 +1683,25 @@ describe("tallyIssueUsage", () => {
 
   it("counts every item the issue touches, on each pillar's own date", () => {
     const buf = new Map();
-    tallyIssueUsage(issue({
-      created: "2026-01-02T10:00:00.000+0000",   // old
-      updated: "2026-10-01T10:00:00.000+0000",   // recent
-      resolutiondate: "2026-09-20T10:00:00.000+0000",
-      status: { id: "3" }, issuetype: { id: "1" }, priority: { id: "2" }, resolution: { id: "4" },
-      security: { id: "77" },
-      assignee: { accountId: "u1" }, reporter: { accountId: "u2" },
-      customfield_1: "x", customfield_2: null,
-    }), buf, CUTOFF, new Set());
+    tallyIssueUsage(
+      issue({
+        created: "2026-01-02T10:00:00.000+0000", // old
+        updated: "2026-10-01T10:00:00.000+0000", // recent
+        resolutiondate: "2026-09-20T10:00:00.000+0000",
+        status: { id: "3" },
+        issuetype: { id: "1" },
+        priority: { id: "2" },
+        resolution: { id: "4" },
+        security: { id: "77" },
+        assignee: { accountId: "u1" },
+        reporter: { accountId: "u2" },
+        customfield_1: "x",
+        customfield_2: null,
+      }),
+      buf,
+      CUTOFF,
+      new Set(),
+    );
 
     // created-based: counted, but outside the window
     expect(get(buf, "issuetype|1|10")).toMatchObject({ total: 1, recent: 0, lastAt: "2026-01-02T10:00:00.000Z" });
@@ -1643,7 +1721,12 @@ describe("tallyIssueUsage", () => {
 
   it("counts a person once per issue when they are both assignee and reporter", () => {
     const buf = new Map();
-    tallyIssueUsage(issue({ updated: "2026-10-01T00:00:00.000Z", assignee: { accountId: "u1" }, reporter: { accountId: "u1" } }), buf, CUTOFF, new Set());
+    tallyIssueUsage(
+      issue({ updated: "2026-10-01T00:00:00.000Z", assignee: { accountId: "u1" }, reporter: { accountId: "u1" } }),
+      buf,
+      CUTOFF,
+      new Set(),
+    );
     expect(get(buf, "user|u1|10").total).toBe(1);
   });
 
@@ -1677,7 +1760,9 @@ describe("tallyIssueUsage", () => {
 });
 
 describe("refreshArchivedProjects", () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it("stores the list, keeps archived projects' field counts, and clears restored ones", async () => {
     const store = await getProjectStoreMock();
@@ -1685,7 +1770,9 @@ describe("refreshArchivedProjects", () => {
     store.preserveArchivedFieldUsage.mockResolvedValueOnce({ copied: 3 });
     const r = await refreshArchivedProjects("inst", "v1");
     expect(r).toEqual({ available: true, count: 1, copied: 3, error: null });
-    expect(store.replaceArchivedProjects).toHaveBeenCalledWith("inst", [{ id: "20001", key: "TT", issueCount: 2340 }], { available: true });
+    expect(store.replaceArchivedProjects).toHaveBeenCalledWith("inst", [{ id: "20001", key: "TT", issueCount: 2340 }], {
+      available: true,
+    });
     expect(store.preserveArchivedFieldUsage).toHaveBeenCalledWith("inst", "v1", ["20001"]);
     expect(store.pruneRestoredArchivedUsage).toHaveBeenCalledWith("inst", ["20001"]);
   });
@@ -1695,7 +1782,10 @@ describe("refreshArchivedProjects", () => {
     getArchivedJiraProjects.mockRejectedValueOnce(new Error("403 Forbidden"));
     const r = await refreshArchivedProjects("inst", "v1");
     expect(r).toMatchObject({ available: false, error: "403 Forbidden" });
-    expect(store.replaceArchivedProjects).toHaveBeenCalledWith("inst", [], { available: false, error: "403 Forbidden" });
+    expect(store.replaceArchivedProjects).toHaveBeenCalledWith("inst", [], {
+      available: false,
+      error: "403 Forbidden",
+    });
     expect(store.preserveArchivedFieldUsage).not.toHaveBeenCalled();
     expect(store.pruneRestoredArchivedUsage).not.toHaveBeenCalled();
   });
@@ -1706,9 +1796,17 @@ describe("refreshArchivedProjects", () => {
     store.readSnapshotMeta.mockResolvedValue({ version: "v1" });
     store.readIssueScanMeta.mockResolvedValue({ processedIssues: 1, progressLog: [], scanHistory: [] });
     getArchivedJiraProjects.mockResolvedValueOnce([{ id: "20001", key: "TT" }]);
-    store.preserveArchivedFieldUsage.mockImplementationOnce(async () => { order.push("preserve"); return { copied: 1 }; });
-    store.promoteIssueScanToSnapshotProjectUsage.mockImplementationOnce(async () => { order.push("promote"); return { fieldsPromoted: 0, rowsInserted: 0, touchedFieldIds: [] }; });
-    store.loadArchivedFieldUsage.mockResolvedValueOnce(new Map([["customfield_9", [{ projectId: "20001", issueCount: 40 }]]]));
+    store.preserveArchivedFieldUsage.mockImplementationOnce(async () => {
+      order.push("preserve");
+      return { copied: 1 };
+    });
+    store.promoteIssueScanToSnapshotProjectUsage.mockImplementationOnce(async () => {
+      order.push("promote");
+      return { fieldsPromoted: 0, rowsInserted: 0, touchedFieldIds: [] };
+    });
+    store.loadArchivedFieldUsage.mockResolvedValueOnce(
+      new Map([["customfield_9", [{ projectId: "20001", issueCount: 40 }]]]),
+    );
     await completeIssueScanFinalization(INSTALLATION_KEY, "test-tag");
     expect(order).toEqual(["preserve", "promote"]);
     // The archived-data field is refreshed although no crawl buffer touched it.

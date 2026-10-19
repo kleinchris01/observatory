@@ -1,4 +1,3 @@
-import React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -26,9 +25,11 @@ describe("ADMIN_NAV_TABS", () => {
 
 describe("read-only banner", () => {
   it("says read-only pauses admin work too, and where to turn it off", async () => {
-    invoke.mockImplementation((fnName, payload) => (fnName === "getAdminOverview"
-      ? Promise.resolve(makeOverview({ config: { ...makeOverview().config, readOnlyMode: true } }))
-      : defaultInvokeImpl(fnName, payload)));
+    invoke.mockImplementation((fnName, payload) =>
+      fnName === "getAdminOverview"
+        ? Promise.resolve(makeOverview({ config: { ...makeOverview().config, readOnlyMode: true } }))
+        : defaultInvokeImpl(fnName, payload),
+    );
     await renderAdminApp();
     const banner = await screen.findByText(/Read-only mode is on/i);
     expect(banner.textContent).toMatch(/admins included/i);
@@ -38,9 +39,11 @@ describe("read-only banner", () => {
 
 describe("admin nav", () => {
   const withHealth = (pillars) => {
-    invoke.mockImplementation((fnName, payload) => (fnName === "getAdminOverview"
-      ? Promise.resolve(makeOverview({ health: { score: 80, grade: "B", pillars } }))
-      : defaultInvokeImpl(fnName, payload)));
+    invoke.mockImplementation((fnName, payload) =>
+      fnName === "getAdminOverview"
+        ? Promise.resolve(makeOverview({ health: { score: 80, grade: "B", pillars } }))
+        : defaultInvokeImpl(fnName, payload),
+    );
   };
 
   it("groups the tabs into Pillars / Act / Operate", async () => {
@@ -100,7 +103,10 @@ describe("admin nav", () => {
     await user.click(within(document.querySelector(".admin-nav")).getByRole("button", { name: "Saved Filters" }));
     unmount();
     await renderAdminApp();
-    expect(within(document.querySelector(".admin-nav")).getByRole("button", { name: "Saved Filters" })).toHaveAttribute("aria-current", "page");
+    expect(within(document.querySelector(".admin-nav")).getByRole("button", { name: "Saved Filters" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
   });
 });
 
@@ -172,7 +178,14 @@ describe("theme cycling", () => {
 
 function makeOverview(overrides = {}) {
   return {
-    config: { readOnlyMode: false, apiConcurrency: 4, autoSnapshotEnabled: false, autoSnapshotFrequency: "weekly", governanceThresholds: {}, macroAccess: { restrictAccess: false, allowedGroups: [] } },
+    config: {
+      readOnlyMode: false,
+      apiConcurrency: 4,
+      autoSnapshotEnabled: false,
+      autoSnapshotFrequency: "weekly",
+      governanceThresholds: {},
+      macroAccess: { restrictAccess: false, allowedGroups: [] },
+    },
     snapshot: {
       state: "ready",
       refreshedAt: "2024-01-15T10:00:00Z",
@@ -236,7 +249,7 @@ function makeFieldInventory(overrides = {}) {
 
 // Default mock implementation covering every resolver call AdminApp's tabs make
 // on mount / first visit, returning empty-but-valid shapes.
-function defaultInvokeImpl(fnName, payload) {
+function defaultInvokeImpl(fnName, _payload) {
   switch (fnName) {
     case "getAdminOverview":
       return Promise.resolve(makeOverview());
@@ -245,7 +258,15 @@ function defaultInvokeImpl(fnName, payload) {
     case "getFilteredFieldIds":
       return Promise.resolve({ fieldIds: [] });
     case "getFieldDetails":
-      return Promise.resolve({ field: null, findings: null, totalIssueCount: 0, activeProjectCount: 0, activeProjects: [], usagePage: 1, usageTotalPages: 1 });
+      return Promise.resolve({
+        field: null,
+        findings: null,
+        totalIssueCount: 0,
+        activeProjectCount: 0,
+        activeProjects: [],
+        usagePage: 1,
+        usageTotalPages: 1,
+      });
     case "getProjectUsageJobs":
       return Promise.resolve({ jobs: [] });
     case "getSavedReports":
@@ -280,7 +301,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
   invoke.mockImplementation(defaultInvokeImpl);
-  view.getContext.mockResolvedValue({ siteUrl: "https://example.atlassian.net", extension: { type: "jira:adminPage" } });
+  view.getContext.mockResolvedValue({
+    siteUrl: "https://example.atlassian.net",
+    extension: { type: "jira:adminPage" },
+  });
 });
 
 afterEach(() => {
@@ -299,9 +323,12 @@ describe("AdminApp smoke test", () => {
     // Overview tab is the default active tab. Generous timeout: this boots the whole app
     // with every lazy tab in the graph, and under coverage instrumentation that first
     // paint runs well past the 1s default -- the same reason line ~172 already waits 5s.
-    await waitFor(() => {
-      expect(screen.getByText("Governance")).toBeInTheDocument();
-    }, { timeout: 5000 });
+    await waitFor(
+      () => {
+        expect(screen.getByText("Governance")).toBeInTheDocument();
+      },
+      { timeout: 5000 },
+    );
   });
 });
 
@@ -330,10 +357,7 @@ describe("AdminApp tab navigation", () => {
     // mounts and its first effect runs. Under a full-suite run that occasionally exceeds
     // waitFor's default second; the assertion is unchanged, it is just given room.
     await user.click(within(adminNav).getByText("Project Usage"));
-    await waitFor(
-      () => expect(invoke).toHaveBeenCalledWith("getProjectsView", expect.any(Object)),
-      { timeout: 5000 }
-    );
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("getProjectsView", expect.any(Object)), { timeout: 5000 });
 
     // Reports
     await user.click(within(adminNav).getByText("Reports"));
@@ -391,19 +415,21 @@ describe("AdminApp Scans tab -> Full Scan -- stalled snapshot build recovery", (
     const user = userEvent.setup();
     invoke.mockImplementation((fnName, payload) => {
       if (fnName === "getAdminOverview") {
-        return Promise.resolve(makeOverview({
-          snapshot: {
-            state: "building",
-            refreshedAt: null,
-            startedAt: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
-            completedAt: null,
-            totalFields: 1516,
-            processedFields: 1328,
-            percent: 88,
-            lastError: null,
-            progressLog: [],
-          },
-        }));
+        return Promise.resolve(
+          makeOverview({
+            snapshot: {
+              state: "building",
+              refreshedAt: null,
+              startedAt: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+              completedAt: null,
+              totalFields: 1516,
+              processedFields: 1328,
+              percent: 88,
+              lastError: null,
+              progressLog: [],
+            },
+          }),
+        );
       }
       return defaultInvokeImpl(fnName, payload);
     });
@@ -419,19 +445,21 @@ describe("AdminApp Scans tab -> Full Scan -- stalled snapshot build recovery", (
     const user = userEvent.setup();
     invoke.mockImplementation((fnName, payload) => {
       if (fnName === "getAdminOverview") {
-        return Promise.resolve(makeOverview({
-          snapshot: {
-            state: "building",
-            refreshedAt: null,
-            startedAt: new Date(Date.now() - 25 * 60 * 1000).toISOString(), // stale (> 20 min)
-            completedAt: null,
-            totalFields: 1516,
-            processedFields: 1328,
-            percent: 88,
-            lastError: null,
-            progressLog: [],
-          },
-        }));
+        return Promise.resolve(
+          makeOverview({
+            snapshot: {
+              state: "building",
+              refreshedAt: null,
+              startedAt: new Date(Date.now() - 25 * 60 * 1000).toISOString(), // stale (> 20 min)
+              completedAt: null,
+              totalFields: 1516,
+              processedFields: 1328,
+              percent: 88,
+              lastError: null,
+              progressLog: [],
+            },
+          }),
+        );
       }
       return defaultInvokeImpl(fnName, payload);
     });
@@ -469,7 +497,7 @@ describe("AdminApp Overview tab -- Developer Console links", () => {
     await user.click(screen.getByText("App overview"));
 
     expect(router.open).toHaveBeenCalledWith(
-      "https://developer.atlassian.com/console/myapps/c11559cd-90ed-43a7-9a9b-80866237cd15/"
+      "https://developer.atlassian.com/console/myapps/c11559cd-90ed-43a7-9a9b-80866237cd15/",
     );
   });
 });
@@ -485,13 +513,15 @@ describe("AdminApp Overview tab -- dashboard", () => {
   it("renders the governance ledger and the RQT panel, not the per-pillar stat blocks", async () => {
     invoke.mockImplementation((fnName, payload) => {
       if (fnName === "getAdminOverview") {
-        return Promise.resolve(makeOverview({
-          findingsSummary: { adminAttention: 3, risky: 0 },
-          dashboard: {
-            fieldUsage: { totalFields: 42, findingsBySeverity: { high: 3, medium: 5, low: 1 } },
-            projects: { totalProjects: 2 },
-          },
-        }));
+        return Promise.resolve(
+          makeOverview({
+            findingsSummary: { adminAttention: 3, risky: 0 },
+            dashboard: {
+              fieldUsage: { totalFields: 42, findingsBySeverity: { high: 3, medium: 5, low: 1 } },
+              projects: { totalProjects: 2 },
+            },
+          }),
+        );
       }
       if (fnName === "getRqtIndex") {
         return Promise.resolve({ totalUniqueIssues: 250, fieldCount: 6, uniqueValues: Array.from({ length: 12 }) });
@@ -546,13 +576,15 @@ describe("AdminApp Overview tab -- dashboard", () => {
   it("renders the ledger without crashing when there is no findings data yet", async () => {
     invoke.mockImplementation((fnName, payload) => {
       if (fnName === "getAdminOverview") {
-        return Promise.resolve(makeOverview({
-          findingsSummary: { adminAttention: 0, risky: 0 },
-          dashboard: {
-            fieldUsage: { totalFields: 0, findingsBySeverity: { high: 0, medium: 0, low: 0 } },
-            projects: { totalProjects: 0 },
-          },
-        }));
+        return Promise.resolve(
+          makeOverview({
+            findingsSummary: { adminAttention: 0, risky: 0 },
+            dashboard: {
+              fieldUsage: { totalFields: 0, findingsBySeverity: { high: 0, medium: 0, low: 0 } },
+              projects: { totalProjects: 0 },
+            },
+          }),
+        );
       }
       return defaultInvokeImpl(fnName, payload);
     });
@@ -615,7 +647,10 @@ describe("AdminApp field browser -> reports auto-generate flow", () => {
     // Auto-generate should have fired getProjectUsageReport with the selected field ids
     // (and an empty project scope, since this launch came from the Field Browser).
     await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith("getProjectUsageReport", { fieldIds: ["customfield_10001", "customfield_10002"], projectIds: [] });
+      expect(invoke).toHaveBeenCalledWith("getProjectUsageReport", {
+        fieldIds: ["customfield_10001", "customfield_10002"],
+        projectIds: [],
+      });
     });
 
     const callCountAfterAuto = invoke.mock.calls.filter((c) => c[0] === "getProjectUsageReport").length;
@@ -644,7 +679,9 @@ describe("AdminApp Reports tab generate lifecycle", () => {
   it("shows a building state while loading then renders the completed report table", async () => {
     const user = userEvent.setup();
     let resolveReport;
-    const reportPromise = new Promise((resolve) => { resolveReport = resolve; });
+    const reportPromise = new Promise((resolve) => {
+      resolveReport = resolve;
+    });
 
     invoke.mockImplementation((fnName, payload) => {
       if (fnName === "getFilteredFieldIds") {
@@ -679,7 +716,14 @@ describe("AdminApp Reports tab generate lifecycle", () => {
 
     resolveReport({
       fields: [
-        { fieldId: "customfield_10001", fieldName: "Test Field", fieldType: "text", projects: [{ projectId: "P1", projectKey: "AA", projectName: "Alpha", issueCount: 5, jql: "cf[10001] is not EMPTY" }] },
+        {
+          fieldId: "customfield_10001",
+          fieldName: "Test Field",
+          fieldType: "text",
+          projects: [
+            { projectId: "P1", projectKey: "AA", projectName: "Alpha", issueCount: 5, jql: "cf[10001] is not EMPTY" },
+          ],
+        },
       ],
       projects: [{ projectId: "P1", projectKey: "AA", projectName: "Alpha" }],
       pendingFields: [],
@@ -746,20 +790,26 @@ describe("AdminApp Field Browser select-all-filtered", () => {
     await user.type(searchInput, "alpha");
 
     // Wait for the debounce (350ms) to flush the query into the invoke call
-    await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith("getFieldInventory", expect.objectContaining({ query: "alpha" }));
-    }, { timeout: 2000 });
+    await waitFor(
+      () => {
+        expect(invoke).toHaveBeenCalledWith("getFieldInventory", expect.objectContaining({ query: "alpha" }));
+      },
+      { timeout: 2000 },
+    );
 
     await user.click(screen.getByRole("button", { name: "Select filtered" }));
 
     await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith("getFilteredFieldIds", expect.objectContaining({
-        query: "alpha",
-        type: "all",
-        fieldOrigin: "all",
-        findingsFilter: "all",
-        sortBy: "usage-desc",
-      }));
+      expect(invoke).toHaveBeenCalledWith(
+        "getFilteredFieldIds",
+        expect.objectContaining({
+          query: "alpha",
+          type: "all",
+          fieldOrigin: "all",
+          findingsFilter: "all",
+          sortBy: "usage-desc",
+        }),
+      );
     });
 
     // selectedFieldIds populated -> report bar shows "1 field selected for report"
@@ -809,10 +859,13 @@ describe("AdminApp Field Browser advanced filter panel", () => {
     await vi.advanceTimersByTimeAsync(400);
 
     await vi.waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith("getFieldInventory", expect.objectContaining({
-        minIssuesWithValue: "5",
-        maxIssuesWithValue: "50",
-      }));
+      expect(invoke).toHaveBeenCalledWith(
+        "getFieldInventory",
+        expect.objectContaining({
+          minIssuesWithValue: "5",
+          maxIssuesWithValue: "50",
+        }),
+      );
     });
 
     vi.useRealTimers();
@@ -984,8 +1037,20 @@ describe("ClearSnapshotControl", () => {
 describe("AuditLogPanel", () => {
   const EVENTS = [
     { at: "2026-07-31T10:00:00Z", actorId: "acct-1", action: "clearSnapshot", outcome: "allowed", detail: null },
-    { at: "2026-07-31T09:00:00Z", actorId: "acct-9", action: "startIssueScan", outcome: "denied", detail: "Caller does not hold Jira ADMINISTER permission" },
-    { at: "2026-07-31T08:00:00Z", actorId: "acct-1", action: "saveAdminConfig", outcome: "failed", detail: "sql exploded" },
+    {
+      at: "2026-07-31T09:00:00Z",
+      actorId: "acct-9",
+      action: "startIssueScan",
+      outcome: "denied",
+      detail: "Caller does not hold Jira ADMINISTER permission",
+    },
+    {
+      at: "2026-07-31T08:00:00Z",
+      actorId: "acct-1",
+      action: "saveAdminConfig",
+      outcome: "failed",
+      detail: "sql exploded",
+    },
   ];
 
   it("does not query until asked, since SQL requests are the binding quota", () => {
@@ -1106,9 +1171,7 @@ describe("Ask Rovo prompts", () => {
           totalIssueCount: 312054,
           activeProjectCount: 125,
           contexts: [],
-          projects: [
-            { projectKey: "CAV", projectName: "CAVPSE", issueCount: 57709, jql: 'project = "CAV"' },
-          ],
+          projects: [{ projectKey: "CAV", projectName: "CAVPSE", issueCount: 57709, jql: 'project = "CAV"' }],
           projectUsagePage: 1,
           projectUsageTotalPages: 1,
           progressLog: [],

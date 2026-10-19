@@ -4,29 +4,25 @@
 
 import { sql } from "@forge/sql";
 import { fallbackOn } from "../logger.js";
-import {
-  chunkArray,
-  ensureProjectStoreReady,
-  safeParseJson,
-  toNumber,
-  withSqlRetry,
-} from "./core.js";
+import { chunkArray, ensureProjectStoreReady, safeParseJson, toNumber, withSqlRetry } from "./core.js";
 
 export async function readIssueScanMeta(scopeKey) {
   await ensureProjectStoreReady();
 
   const result = await withSqlRetry(() =>
     sql
-      .prepare(`
+      .prepare(
+        `
         SELECT state, job_token, started_at, completed_at, total_pages, processed_pages,
                total_issues, processed_issues, last_error, progress_log, next_page_token, next_start_at,
                scan_history
         FROM issue_scan_meta
         WHERE scope_key = ?
         LIMIT 1
-      `)
+      `,
+      )
       .bindParams(scopeKey)
-      .execute()
+      .execute(),
   );
 
   const row = result.rows?.[0];
@@ -71,16 +67,13 @@ export async function writeIssueScanMeta(scopeKey, patch) {
     ...patch,
   };
 
-  const progressLogJson = Array.isArray(next.progressLog)
-    ? JSON.stringify(next.progressLog)
-    : (next.progressLog || null);
-  const scanHistoryJson = Array.isArray(next.scanHistory)
-    ? JSON.stringify(next.scanHistory)
-    : (next.scanHistory || null);
+  const progressLogJson = Array.isArray(next.progressLog) ? JSON.stringify(next.progressLog) : next.progressLog || null;
+  const scanHistoryJson = Array.isArray(next.scanHistory) ? JSON.stringify(next.scanHistory) : next.scanHistory || null;
 
   await withSqlRetry(() =>
     sql
-      .prepare(`
+      .prepare(
+        `
         INSERT INTO issue_scan_meta (
           scope_key, state, job_token, started_at, completed_at,
            total_pages, processed_pages, total_issues, processed_issues, last_error, progress_log,
@@ -101,14 +94,25 @@ export async function writeIssueScanMeta(scopeKey, patch) {
           next_page_token = VALUES(next_page_token),
           next_start_at = VALUES(next_start_at),
           scan_history = VALUES(scan_history)
-      `)
-      .bindParams(
-        scopeKey, next.state, next.jobToken, next.startedAt, next.completedAt,
-        next.totalPages, next.processedPages, next.totalIssues, next.processedIssues,
-        next.lastError, progressLogJson, next.nextPageToken || null, next.nextStartAt ?? 0,
-        scanHistoryJson
+      `,
       )
-      .execute()
+      .bindParams(
+        scopeKey,
+        next.state,
+        next.jobToken,
+        next.startedAt,
+        next.completedAt,
+        next.totalPages,
+        next.processedPages,
+        next.totalIssues,
+        next.processedIssues,
+        next.lastError,
+        progressLogJson,
+        next.nextPageToken || null,
+        next.nextStartAt ?? 0,
+        scanHistoryJson,
+      )
+      .execute(),
   );
 
   return next;
@@ -118,10 +122,7 @@ export async function clearIssueScanBuffer(scopeKey) {
   await ensureProjectStoreReady();
 
   await withSqlRetry(() =>
-    sql
-      .prepare("DELETE FROM issue_scan_buffer WHERE scope_key = ?")
-      .bindParams(scopeKey)
-      .execute()
+    sql.prepare("DELETE FROM issue_scan_buffer WHERE scope_key = ?").bindParams(scopeKey).execute(),
   );
 
   // The activity histogram accumulates the same way the buffer does -- one row per project
@@ -133,27 +134,18 @@ export async function clearIssueScanBuffer(scopeKey) {
   // rebuilt per project at finalization -- a crawl that dies partway must not be able to
   // destroy the last good series, which is exactly what wiping the live table up front did.
   await withSqlRetry(() =>
-    sql
-      .prepare("DELETE FROM issue_scan_activity_buffer WHERE scope_key = ?")
-      .bindParams(scopeKey)
-      .execute()
+    sql.prepare("DELETE FROM issue_scan_activity_buffer WHERE scope_key = ?").bindParams(scopeKey).execute(),
   );
 
   // The field x issue-type accumulator, cleared for the same reason: a re-scan on top of
   // last run's rows would add a second lifetime of issues to every count.
   await withSqlRetry(() =>
-    sql
-      .prepare("DELETE FROM issue_scan_type_buffer WHERE scope_key = ?")
-      .bindParams(scopeKey)
-      .execute()
+    sql.prepare("DELETE FROM issue_scan_type_buffer WHERE scope_key = ?").bindParams(scopeKey).execute(),
   );
 
   // The field x user (user-picker value) accumulator -- same lifecycle, same reason.
   await withSqlRetry(() =>
-    sql
-      .prepare("DELETE FROM issue_scan_field_user_buffer WHERE scope_key = ?")
-      .bindParams(scopeKey)
-      .execute()
+    sql.prepare("DELETE FROM issue_scan_field_user_buffer WHERE scope_key = ?").bindParams(scopeKey).execute(),
   );
 
   // The three additive counters. Same reason again: every one of them accumulates with
@@ -164,16 +156,14 @@ export async function clearIssueScanBuffer(scopeKey) {
   // survive a re-scan correctly, but its issue_count is additive -- and an account that has
   // since been removed from every issue should stop appearing, which only a clear achieves.
   for (const table of ["issue_scan_type_totals", "issue_scan_estate_totals", "issue_scan_user_activity"]) {
-    await withSqlRetry(() =>
-      sql.prepare(`DELETE FROM ${table} WHERE scope_key = ?`).bindParams(scopeKey).execute()
-    );
+    await withSqlRetry(() => sql.prepare(`DELETE FROM ${table} WHERE scope_key = ?`).bindParams(scopeKey).execute());
   }
 
   // The per-item usage buffer (store/usage.js): additive per project, so the same reason.
   // Only the buffer -- usage_tally keeps the last good figures until a complete crawl
   // replaces them.
   await withSqlRetry(() =>
-    sql.prepare("DELETE FROM issue_scan_usage_buffer WHERE scope_key = ?").bindParams(scopeKey).execute()
+    sql.prepare("DELETE FROM issue_scan_usage_buffer WHERE scope_key = ?").bindParams(scopeKey).execute(),
   );
 }
 
@@ -181,10 +171,7 @@ export async function resetIssueScanWorkers(scopeKey) {
   await ensureProjectStoreReady();
 
   await withSqlRetry(() =>
-    sql
-      .prepare("DELETE FROM issue_scan_workers WHERE scope_key = ?")
-      .bindParams(scopeKey)
-      .execute()
+    sql.prepare("DELETE FROM issue_scan_workers WHERE scope_key = ?").bindParams(scopeKey).execute(),
   );
 }
 
@@ -212,15 +199,17 @@ export async function replaceIssueScanWorkers(scopeKey, workers) {
 
     await withSqlRetry(() =>
       sql
-        .prepare(`
+        .prepare(
+          `
           INSERT INTO issue_scan_workers (
             scope_key, worker_id, status, jql_filter, field_ids_json, slices_json, next_page_token,
             processed_pages, processed_issues, updated_at, last_error
           )
           VALUES ${valuesSql}
-        `)
+        `,
+        )
         .bindParams(...params)
-        .execute()
+        .execute(),
     );
   }
 }
@@ -229,15 +218,17 @@ export async function readIssueScanWorker(scopeKey, workerId) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
     sql
-      .prepare(`
+      .prepare(
+        `
         SELECT worker_id, status, jql_filter, field_ids_json, slices_json, next_page_token,
                processed_pages, processed_issues, updated_at, last_error
         FROM issue_scan_workers
         WHERE scope_key = ? AND worker_id = ?
         LIMIT 1
-      `)
+      `,
+      )
       .bindParams(scopeKey, workerId)
-      .execute()
+      .execute(),
   );
 
   const row = result.rows?.[0];
@@ -269,7 +260,8 @@ export async function updateIssueScanWorker(scopeKey, workerId, patch) {
 
   await withSqlRetry(() =>
     sql
-      .prepare(`
+      .prepare(
+        `
         UPDATE issue_scan_workers
         SET status = ?,
             jql_filter = ?,
@@ -281,7 +273,8 @@ export async function updateIssueScanWorker(scopeKey, workerId, patch) {
             updated_at = ?,
             last_error = ?
         WHERE scope_key = ? AND worker_id = ?
-      `)
+      `,
+      )
       .bindParams(
         next.status || "queued",
         next.jqlFilter || null,
@@ -293,9 +286,9 @@ export async function updateIssueScanWorker(scopeKey, workerId, patch) {
         next.updatedAt,
         next.lastError || null,
         scopeKey,
-        workerId
+        workerId,
       )
-      .execute()
+      .execute(),
   );
 
   return next;
@@ -322,12 +315,18 @@ export async function flushIssueScanActivity(scopeKey, projectMonths) {
   for (const batch of chunkArray(rows, 100)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((entry) => [
-      scopeKey, entry.projectId, entry.month, entry.count, entry.first, entry.last,
+      scopeKey,
+      entry.projectId,
+      entry.month,
+      entry.count,
+      entry.first,
+      entry.last,
     ]);
 
     await withSqlRetry(() =>
       sql
-        .prepare(`
+        .prepare(
+          `
           INSERT INTO issue_scan_activity_buffer
             (scope_key, project_id, month, issue_count, first_created_at, last_created_at)
           VALUES ${valuesSql}
@@ -335,9 +334,10 @@ export async function flushIssueScanActivity(scopeKey, projectMonths) {
             issue_count = issue_count + VALUES(issue_count),
             first_created_at = LEAST(COALESCE(first_created_at, VALUES(first_created_at)), VALUES(first_created_at)),
             last_created_at = GREATEST(COALESCE(last_created_at, VALUES(last_created_at)), VALUES(last_created_at))
-        `)
+        `,
+        )
         .bindParams(...params)
-        .execute()
+        .execute(),
     );
   }
 }
@@ -356,13 +356,15 @@ export async function promoteIssueScanActivity(scopeKey) {
 
   const result = await withSqlRetry(() =>
     sql
-      .prepare(`
+      .prepare(
+        `
         SELECT project_id, month, issue_count, first_created_at, last_created_at
         FROM issue_scan_activity_buffer
         WHERE scope_key = ?
-      `)
+      `,
+      )
       .bindParams(scopeKey)
-      .execute()
+      .execute(),
   );
 
   const rows = result.rows || [];
@@ -376,25 +378,31 @@ export async function promoteIssueScanActivity(scopeKey) {
       sql
         .prepare(`DELETE FROM issue_scan_project_activity WHERE scope_key = ? AND project_id IN (${placeholders})`)
         .bindParams(scopeKey, ...batch)
-        .execute()
+        .execute(),
     );
   }
 
   for (const batch of chunkArray(rows, 100)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((row) => [
-      scopeKey, String(row.project_id), row.month, toNumber(row.issue_count),
-      row.first_created_at, row.last_created_at,
+      scopeKey,
+      String(row.project_id),
+      row.month,
+      toNumber(row.issue_count),
+      row.first_created_at,
+      row.last_created_at,
     ]);
     await withSqlRetry(() =>
       sql
-        .prepare(`
+        .prepare(
+          `
           INSERT INTO issue_scan_project_activity
             (scope_key, project_id, month, issue_count, first_created_at, last_created_at)
           VALUES ${valuesSql}
-        `)
+        `,
+        )
         .bindParams(...params)
-        .execute()
+        .execute(),
     );
   }
 
@@ -411,12 +419,17 @@ export async function loadProjectActivity(scopeKey) {
   await ensureProjectStoreReady();
 
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT project_id, month, issue_count, first_created_at, last_created_at
       FROM issue_scan_project_activity
       WHERE scope_key = ?
       ORDER BY project_id ASC, month ASC
-    `).bindParams(scopeKey).execute()
+    `,
+      )
+      .bindParams(scopeKey)
+      .execute(),
   );
 
   const byProject = new Map();
@@ -461,18 +474,25 @@ export async function flushIssueScanCounts(scopeKey, fieldProjectCounts, project
   for (const batch of chunkArray(rows, 150)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap(([fieldId, projectId, key, name, count]) => [
-      scopeKey, fieldId, projectId, key, name, count,
+      scopeKey,
+      fieldId,
+      projectId,
+      key,
+      name,
+      count,
     ]);
 
     await withSqlRetry(() =>
       sql
-        .prepare(`
+        .prepare(
+          `
           INSERT INTO issue_scan_buffer (scope_key, field_id, project_id, project_key, project_name, issue_count)
           VALUES ${valuesSql}
           ON DUPLICATE KEY UPDATE issue_count = issue_count + VALUES(issue_count)
-        `)
+        `,
+        )
         .bindParams(...params)
-        .execute()
+        .execute(),
     );
   }
 }
@@ -494,20 +514,20 @@ export async function flushIssueScanTypeCounts(scopeKey, fieldTypeCounts) {
   // the binding Forge quota, not row size. 4 bound params x 150 = 600 per statement.
   for (const batch of chunkArray(rows, 150)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?)").join(", ");
-    const params = batch.flatMap(([fieldId, typeId, typeName, count]) => [
-      scopeKey, fieldId, typeId, typeName, count,
-    ]);
+    const params = batch.flatMap(([fieldId, typeId, typeName, count]) => [scopeKey, fieldId, typeId, typeName, count]);
     await withSqlRetry(() =>
       sql
-        .prepare(`
+        .prepare(
+          `
           INSERT INTO issue_scan_type_buffer (scope_key, field_id, issue_type_id, issue_type_name, issue_count)
           VALUES ${valuesSql}
           ON DUPLICATE KEY UPDATE
             issue_type_name = VALUES(issue_type_name),
             issue_count = issue_count + VALUES(issue_count)
-        `)
+        `,
+        )
         .bindParams(...params)
-        .execute()
+        .execute(),
     );
   }
 }
@@ -522,14 +542,16 @@ export async function promoteIssueScanFieldTypeUsage(scopeKey, version, { covera
 
   const result = await withSqlRetry(() =>
     sql
-      .prepare(`
+      .prepare(
+        `
         SELECT field_id, issue_type_id, issue_type_name, issue_count
         FROM issue_scan_type_buffer
         WHERE scope_key = ?
         ORDER BY field_id, issue_count DESC
-      `)
+      `,
+      )
       .bindParams(scopeKey)
-      .execute()
+      .execute(),
   );
 
   const bufferRows = result.rows || [];
@@ -546,20 +568,27 @@ export async function promoteIssueScanFieldTypeUsage(scopeKey, version, { covera
     for (const batch of chunkArray(fieldRows, 100)) {
       const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
       const params = batch.flatMap((r) => [
-        scopeKey, version, fieldId, String(r.issue_type_id), String(r.issue_type_name || r.issue_type_id), toNumber(r.issue_count),
+        scopeKey,
+        version,
+        fieldId,
+        String(r.issue_type_id),
+        String(r.issue_type_name || r.issue_type_id),
+        toNumber(r.issue_count),
       ]);
       await withSqlRetry(() =>
         sql
-          .prepare(`
+          .prepare(
+            `
             INSERT INTO snapshot_field_type_usage
               (scope_key, version, field_id, issue_type_id, issue_type_name, issue_count)
             VALUES ${valuesSql}
             ON DUPLICATE KEY UPDATE
               issue_type_name = VALUES(issue_type_name),
               issue_count = VALUES(issue_count)
-          `)
+          `,
+          )
           .bindParams(...params)
-          .execute()
+          .execute(),
       );
     }
 
@@ -567,13 +596,15 @@ export async function promoteIssueScanFieldTypeUsage(scopeKey, version, { covera
     const placeholders = keptTypeIds.map(() => "?").join(", ");
     await withSqlRetry(() =>
       sql
-        .prepare(`
+        .prepare(
+          `
           DELETE FROM snapshot_field_type_usage
           WHERE scope_key = ? AND version = ? AND field_id = ?
             AND issue_type_id NOT IN (${placeholders})
-        `)
+        `,
+        )
         .bindParams(scopeKey, version, fieldId, ...keptTypeIds)
-        .execute()
+        .execute(),
     );
 
     fieldsPromoted += 1;
@@ -587,12 +618,14 @@ export async function promoteIssueScanFieldTypeUsage(scopeKey, version, { covera
     const placeholders = crawled.map(() => "?").join(", ");
     await withSqlRetry(() =>
       sql
-        .prepare(`
+        .prepare(
+          `
           DELETE FROM snapshot_field_type_usage
           WHERE scope_key = ? AND version = ? AND field_id NOT IN (${placeholders})
-        `)
+        `,
+        )
         .bindParams(scopeKey, version, ...crawled)
-        .execute()
+        .execute(),
     );
   }
 
@@ -605,14 +638,16 @@ export async function loadFieldTypeUsage(scopeKey, version, fieldId) {
 
   const result = await withSqlRetry(() =>
     sql
-      .prepare(`
+      .prepare(
+        `
         SELECT issue_type_id, issue_type_name, issue_count
         FROM snapshot_field_type_usage
         WHERE scope_key = ? AND version = ? AND field_id = ?
         ORDER BY issue_count DESC, issue_type_name ASC
-      `)
+      `,
+      )
       .bindParams(scopeKey, version, String(fieldId))
-      .execute()
+      .execute(),
   );
 
   return (result.rows || []).map((row) => ({
@@ -640,20 +675,20 @@ export async function flushIssueScanFieldUserCounts(scopeKey, fieldUserCounts) {
 
   for (const batch of chunkArray(rows, 150)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?)").join(", ");
-    const params = batch.flatMap(([fieldId, accountId, name, count]) => [
-      scopeKey, fieldId, accountId, name, count,
-    ]);
+    const params = batch.flatMap(([fieldId, accountId, name, count]) => [scopeKey, fieldId, accountId, name, count]);
     await withSqlRetry(() =>
       sql
-        .prepare(`
+        .prepare(
+          `
           INSERT INTO issue_scan_field_user_buffer (scope_key, field_id, account_id, display_name, issue_count)
           VALUES ${valuesSql}
           ON DUPLICATE KEY UPDATE
             display_name = COALESCE(VALUES(display_name), display_name),
             issue_count = issue_count + VALUES(issue_count)
-        `)
+        `,
+        )
         .bindParams(...params)
-        .execute()
+        .execute(),
     );
   }
 }
@@ -663,14 +698,16 @@ export async function promoteIssueScanFieldUserUsage(scopeKey, version, { covera
 
   const result = await withSqlRetry(() =>
     sql
-      .prepare(`
+      .prepare(
+        `
         SELECT field_id, account_id, display_name, issue_count
         FROM issue_scan_field_user_buffer
         WHERE scope_key = ?
         ORDER BY field_id, issue_count DESC
-      `)
+      `,
+      )
       .bindParams(scopeKey)
-      .execute()
+      .execute(),
   );
 
   const byField = new Map();
@@ -686,20 +723,27 @@ export async function promoteIssueScanFieldUserUsage(scopeKey, version, { covera
     for (const batch of chunkArray(fieldRows, 100)) {
       const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
       const params = batch.flatMap((r) => [
-        scopeKey, version, fieldId, String(r.account_id), r.display_name ?? null, toNumber(r.issue_count),
+        scopeKey,
+        version,
+        fieldId,
+        String(r.account_id),
+        r.display_name ?? null,
+        toNumber(r.issue_count),
       ]);
       await withSqlRetry(() =>
         sql
-          .prepare(`
+          .prepare(
+            `
             INSERT INTO snapshot_field_user_usage
               (scope_key, version, field_id, account_id, display_name, issue_count)
             VALUES ${valuesSql}
             ON DUPLICATE KEY UPDATE
               display_name = COALESCE(VALUES(display_name), display_name),
               issue_count = VALUES(issue_count)
-          `)
+          `,
+          )
           .bindParams(...params)
-          .execute()
+          .execute(),
       );
     }
 
@@ -707,13 +751,15 @@ export async function promoteIssueScanFieldUserUsage(scopeKey, version, { covera
     const placeholders = keptAccounts.map(() => "?").join(", ");
     await withSqlRetry(() =>
       sql
-        .prepare(`
+        .prepare(
+          `
           DELETE FROM snapshot_field_user_usage
           WHERE scope_key = ? AND version = ? AND field_id = ?
             AND account_id NOT IN (${placeholders})
-        `)
+        `,
+        )
         .bindParams(scopeKey, version, fieldId, ...keptAccounts)
-        .execute()
+        .execute(),
     );
 
     fieldsPromoted += 1;
@@ -725,12 +771,14 @@ export async function promoteIssueScanFieldUserUsage(scopeKey, version, { covera
     const placeholders = crawled.map(() => "?").join(", ");
     await withSqlRetry(() =>
       sql
-        .prepare(`
+        .prepare(
+          `
           DELETE FROM snapshot_field_user_usage
           WHERE scope_key = ? AND version = ? AND field_id NOT IN (${placeholders})
-        `)
+        `,
+        )
         .bindParams(scopeKey, version, ...crawled)
-        .execute()
+        .execute(),
     );
   }
 
@@ -745,25 +793,29 @@ export async function loadFieldUserUsage(scopeKey, version, fieldId, { limit = 2
   const [rows, total] = await Promise.all([
     withSqlRetry(() =>
       sql
-        .prepare(`
+        .prepare(
+          `
           SELECT account_id, display_name, issue_count
           FROM snapshot_field_user_usage
           WHERE scope_key = ? AND version = ? AND field_id = ?
           ORDER BY issue_count DESC, account_id ASC
           LIMIT ${Number(limit) || 25}
-        `)
+        `,
+        )
         .bindParams(scopeKey, version, String(fieldId))
-        .execute()
+        .execute(),
     ),
     withSqlRetry(() =>
       sql
-        .prepare(`
+        .prepare(
+          `
           SELECT COUNT(*) AS distinct_users, COALESCE(SUM(issue_count), 0) AS issue_total
           FROM snapshot_field_user_usage
           WHERE scope_key = ? AND version = ? AND field_id = ?
-        `)
+        `,
+        )
         .bindParams(scopeKey, version, String(fieldId))
-        .execute()
+        .execute(),
     ),
   ]);
 
@@ -784,14 +836,16 @@ export async function loadUserFieldAppearances(scopeKey, version, accountId) {
 
   const result = await withSqlRetry(() =>
     sql
-      .prepare(`
+      .prepare(
+        `
         SELECT field_id, issue_count
         FROM snapshot_field_user_usage
         WHERE scope_key = ? AND version = ? AND account_id = ?
         ORDER BY issue_count DESC, field_id ASC
-      `)
+      `,
+      )
       .bindParams(scopeKey, version, String(accountId))
-      .execute()
+      .execute(),
   );
 
   return (result.rows || []).map((row) => ({
@@ -806,13 +860,15 @@ export async function finalizeIssueScan(scopeKey) {
 
   const result = await withSqlRetry(() =>
     sql
-      .prepare(`
+      .prepare(
+        `
         SELECT project_id, project_key, project_name, issue_count
         FROM issue_scan_buffer
         WHERE scope_key = ? AND field_id = '__PROJECT_TOTAL__'
-      `)
+      `,
+      )
       .bindParams(scopeKey)
-      .execute()
+      .execute(),
   );
 
   const rows = result.rows || [];
@@ -821,13 +877,18 @@ export async function finalizeIssueScan(scopeKey) {
   for (const batch of chunkArray(rows, 50)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((row) => [
-      scopeKey, row.project_id, row.project_key, row.project_name,
-      toNumber(row.issue_count), now,
+      scopeKey,
+      row.project_id,
+      row.project_key,
+      row.project_name,
+      toNumber(row.issue_count),
+      now,
     ]);
 
     await withSqlRetry(() =>
       sql
-        .prepare(`
+        .prepare(
+          `
           INSERT INTO issue_scan_project_totals (
             scope_key, project_id, project_key, project_name, unique_issue_count, scanned_at
           )
@@ -837,9 +898,10 @@ export async function finalizeIssueScan(scopeKey) {
             project_name = VALUES(project_name),
             unique_issue_count = VALUES(unique_issue_count),
             scanned_at = VALUES(scanned_at)
-        `)
+        `,
+        )
         .bindParams(...params)
-        .execute()
+        .execute(),
     );
   }
 }
@@ -864,14 +926,16 @@ export async function promoteIssueScanToSnapshotProjectUsage(scopeKey, version, 
 
   const result = await withSqlRetry(() =>
     sql
-      .prepare(`
+      .prepare(
+        `
         SELECT field_id, project_id, project_key, project_name, issue_count
         FROM issue_scan_buffer
         WHERE scope_key = ? AND field_id <> '__PROJECT_TOTAL__'
         ORDER BY field_id, issue_count DESC
-      `)
+      `,
+      )
       .bindParams(scopeKey)
-      .execute()
+      .execute(),
   );
 
   const bufferRows = result.rows || [];
@@ -910,12 +974,22 @@ export async function promoteIssueScanToSnapshotProjectUsage(scopeKey, version, 
     for (const batch of chunkArray(usageRows, 100)) {
       const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
       const params = batch.flatMap((r) => [
-        scopeKey, version, fieldId, r.projectId, r.projectKey, r.projectName,
-        r.issueCount, r.jql, null, null, null,
+        scopeKey,
+        version,
+        fieldId,
+        r.projectId,
+        r.projectKey,
+        r.projectName,
+        r.issueCount,
+        r.jql,
+        null,
+        null,
+        null,
       ]);
       await withSqlRetry(() =>
         sql
-          .prepare(`
+          .prepare(
+            `
             INSERT INTO snapshot_project_usage
               (scope_key, version, field_id, project_id, project_key, project_name,
                 issue_count, jql, latest_field_change_at, latest_issue_key, latest_issue_updated_at)
@@ -928,9 +1002,10 @@ export async function promoteIssueScanToSnapshotProjectUsage(scopeKey, version, 
               latest_field_change_at = COALESCE(snapshot_project_usage.latest_field_change_at, VALUES(latest_field_change_at)),
               latest_issue_key = COALESCE(snapshot_project_usage.latest_issue_key, VALUES(latest_issue_key)),
               latest_issue_updated_at = COALESCE(snapshot_project_usage.latest_issue_updated_at, VALUES(latest_issue_updated_at))
-          `)
+          `,
+          )
           .bindParams(...params)
-          .execute()
+          .execute(),
       );
     }
 
@@ -939,13 +1014,15 @@ export async function promoteIssueScanToSnapshotProjectUsage(scopeKey, version, 
       const placeholders = staleProjectIds.map(() => "?").join(", ");
       await withSqlRetry(() =>
         sql
-          .prepare(`
+          .prepare(
+            `
             DELETE FROM snapshot_project_usage
             WHERE scope_key = ? AND version = ? AND field_id = ?
               AND project_id NOT IN (${placeholders})
-          `)
+          `,
+          )
           .bindParams(scopeKey, version, fieldId, ...staleProjectIds)
-          .execute()
+          .execute(),
       );
     }
 
@@ -955,16 +1032,20 @@ export async function promoteIssueScanToSnapshotProjectUsage(scopeKey, version, 
     if (syncTotalIssueCount) {
       await withSqlRetry(() =>
         sql
-          .prepare("UPDATE snapshot_fields SET active_project_count = ?, total_issue_count = ? WHERE scope_key = ? AND version = ? AND field_id = ?")
+          .prepare(
+            "UPDATE snapshot_fields SET active_project_count = ?, total_issue_count = ? WHERE scope_key = ? AND version = ? AND field_id = ?",
+          )
           .bindParams(usageRows.length, totalIssueCount, scopeKey, version, fieldId)
-          .execute()
+          .execute(),
       );
     } else {
       await withSqlRetry(() =>
         sql
-          .prepare("UPDATE snapshot_fields SET active_project_count = ? WHERE scope_key = ? AND version = ? AND field_id = ?")
+          .prepare(
+            "UPDATE snapshot_fields SET active_project_count = ? WHERE scope_key = ? AND version = ? AND field_id = ?",
+          )
           .bindParams(usageRows.length, scopeKey, version, fieldId)
-          .execute()
+          .execute(),
       );
     }
 
@@ -980,26 +1061,30 @@ export async function promoteIssueScanToSnapshotProjectUsage(scopeKey, version, 
     const placeholders = crawledFieldIds.map(() => "?").join(", ");
     const absentResult = await withSqlRetry(() =>
       sql
-        .prepare(`
+        .prepare(
+          `
           SELECT field_id FROM snapshot_fields
           WHERE scope_key = ? AND version = ? AND field_id NOT IN (${placeholders})
-        `)
+        `,
+        )
         .bindParams(scopeKey, version, ...crawledFieldIds)
-        .execute()
+        .execute(),
     );
     const absentFieldIds = (absentResult.rows || []).map((row) => row.field_id);
     for (const fieldId of absentFieldIds) {
       await withSqlRetry(() =>
         sql
-          .prepare("UPDATE snapshot_fields SET active_project_count = 0, total_issue_count = 0 WHERE scope_key = ? AND version = ? AND field_id = ?")
+          .prepare(
+            "UPDATE snapshot_fields SET active_project_count = 0, total_issue_count = 0 WHERE scope_key = ? AND version = ? AND field_id = ?",
+          )
           .bindParams(scopeKey, version, fieldId)
-          .execute()
+          .execute(),
       );
       await withSqlRetry(() =>
         sql
           .prepare("DELETE FROM snapshot_project_usage WHERE scope_key = ? AND version = ? AND field_id = ?")
           .bindParams(scopeKey, version, fieldId)
-          .execute()
+          .execute(),
       );
       touchedFieldIds.push(fieldId);
     }
@@ -1013,14 +1098,16 @@ export async function loadIssueScanProjectTotals(scopeKey) {
 
   const result = await withSqlRetry(() =>
     sql
-      .prepare(`
+      .prepare(
+        `
         SELECT project_id, project_key, project_name, unique_issue_count, scanned_at
         FROM issue_scan_project_totals
         WHERE scope_key = ?
         ORDER BY unique_issue_count DESC, project_key ASC
-      `)
+      `,
+      )
       .bindParams(scopeKey)
-      .execute()
+      .execute(),
   );
 
   return (result.rows || []).map((row) => ({
@@ -1040,14 +1127,16 @@ export async function loadIssueScanProjectTotals(scopeKey) {
 export async function atomicAccumulateIssueScanProgress(scopeKey, pages, issues) {
   await withSqlRetry(() =>
     sql
-      .prepare(`
+      .prepare(
+        `
         UPDATE issue_scan_meta
         SET processed_pages = processed_pages + ?,
             processed_issues = processed_issues + ?
         WHERE scope_key = ?
-      `)
+      `,
+      )
       .bindParams(pages, issues, scopeKey)
-      .execute()
+      .execute(),
   );
   return readIssueScanMeta(scopeKey);
 }
@@ -1066,7 +1155,7 @@ export async function appendIssueScanLogEntry(scopeKey, msg) {
     sql
       .prepare(`UPDATE issue_scan_meta SET progress_log = ? WHERE scope_key = ?`)
       .bindParams(JSON.stringify(updated), scopeKey)
-      .execute()
+      .execute(),
   );
 }
 
@@ -1078,14 +1167,16 @@ export async function appendIssueScanLogEntry(scopeKey, msg) {
 export async function tryClaimIssueScanFinalization(scopeKey, claimToken) {
   await withSqlRetry(() =>
     sql
-      .prepare(`
+      .prepare(
+        `
         UPDATE issue_scan_meta
         SET state = 'finalizing', job_token = ?
         WHERE scope_key = ? AND state = 'building'
           AND processed_pages >= total_pages AND total_pages > 0
-      `)
+      `,
+      )
       .bindParams(claimToken, scopeKey)
-      .execute()
+      .execute(),
   );
   const meta = await readIssueScanMeta(scopeKey);
   return meta?.state === "finalizing" && meta?.jobToken === claimToken;
@@ -1109,13 +1200,17 @@ export async function clearIssueScanBufferForProjects(scopeKey, projectKeys = []
   for (const batch of chunkArray(keys, 50)) {
     const placeholders = batch.map(() => "?").join(", ");
     await withSqlRetry(() =>
-      sql.prepare(`DELETE FROM issue_scan_buffer WHERE scope_key = ? AND project_key IN (${placeholders})`)
-        .bindParams(scopeKey, ...batch).execute()
+      sql
+        .prepare(`DELETE FROM issue_scan_buffer WHERE scope_key = ? AND project_key IN (${placeholders})`)
+        .bindParams(scopeKey, ...batch)
+        .execute(),
     );
     // The usage buffer is additive per project too; a restarted slice re-counts its pages.
     await withSqlRetry(() =>
-      sql.prepare(`DELETE FROM issue_scan_usage_buffer WHERE scope_key = ? AND project_key IN (${placeholders})`)
-        .bindParams(scopeKey, ...batch).execute()
+      sql
+        .prepare(`DELETE FROM issue_scan_usage_buffer WHERE scope_key = ? AND project_key IN (${placeholders})`)
+        .bindParams(scopeKey, ...batch)
+        .execute(),
     );
   }
   return { cleared: keys.length };
@@ -1137,15 +1232,25 @@ export async function flushIssueScanTypeTotals(scopeKey, typeTotals) {
   for (const batch of chunkArray(rows, 100)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((r) => [
-      scopeKey, r.issueTypeId, r.projectId, r.issueTypeName || null, r.projectKey || null, r.count,
+      scopeKey,
+      r.issueTypeId,
+      r.projectId,
+      r.issueTypeName || null,
+      r.projectKey || null,
+      r.count,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO issue_scan_type_totals
           (scope_key, issue_type_id, project_id, issue_type_name, project_key, issue_count)
         VALUES ${valuesSql}
         ON DUPLICATE KEY UPDATE issue_count = issue_count + VALUES(issue_count)
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 }
@@ -1161,11 +1266,16 @@ export async function flushIssueScanEstateTotals(scopeKey, estateTotals) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((r) => [scopeKey, r.kind, r.valueId ?? "", r.valueName || null, r.count]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO issue_scan_estate_totals (scope_key, kind, value_id, value_name, issue_count)
         VALUES ${valuesSql}
         ON DUPLICATE KEY UPDATE issue_count = issue_count + VALUES(issue_count)
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 }
@@ -1179,10 +1289,16 @@ export async function flushIssueScanUserActivity(scopeKey, userActivity) {
   for (const batch of chunkArray(rows, 100)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((r) => [
-      scopeKey, r.accountId, r.displayName || null, r.lastActivityAt || null, r.count,
+      scopeKey,
+      r.accountId,
+      r.displayName || null,
+      r.lastActivityAt || null,
+      r.count,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO issue_scan_user_activity
           (scope_key, account_id, display_name, last_activity_at, issue_count)
         VALUES ${valuesSql}
@@ -1193,7 +1309,10 @@ export async function flushIssueScanUserActivity(scopeKey, userActivity) {
           last_activity_at = GREATEST(COALESCE(last_activity_at, ''), COALESCE(VALUES(last_activity_at), '')),
           display_name = COALESCE(VALUES(display_name), display_name),
           issue_count = issue_count + VALUES(issue_count)
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 }
@@ -1202,13 +1321,18 @@ export async function flushIssueScanUserActivity(scopeKey, userActivity) {
 export async function loadIssueTypeTotals(scopeKey) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT issue_type_id, MAX(issue_type_name) AS issue_type_name,
              SUM(issue_count) AS issue_count, COUNT(DISTINCT project_id) AS project_count
       FROM issue_scan_type_totals
       WHERE scope_key = ?
       GROUP BY issue_type_id
-    `).bindParams(scopeKey).execute()
+    `,
+      )
+      .bindParams(scopeKey)
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     issueTypeId: String(row.issue_type_id),
@@ -1221,11 +1345,16 @@ export async function loadIssueTypeTotals(scopeKey) {
 export async function loadEstateValueTotals(scopeKey) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT kind, value_id, value_name, issue_count
       FROM issue_scan_estate_totals
       WHERE scope_key = ?
-    `).bindParams(scopeKey).execute()
+    `,
+      )
+      .bindParams(scopeKey)
+      .execute(),
   );
   return (result.rows || []).map((row) => ({
     kind: row.kind,
@@ -1244,16 +1373,19 @@ export async function loadUserActivity(scopeKey, accountIds = null) {
   const batches = Array.isArray(accountIds) ? chunkArray(accountIds, 200) : [null];
 
   for (const batch of batches) {
-    const where = batch
-      ? `scope_key = ? AND account_id IN (${batch.map(() => "?").join(", ")})`
-      : "scope_key = ?";
+    const where = batch ? `scope_key = ? AND account_id IN (${batch.map(() => "?").join(", ")})` : "scope_key = ?";
     const params = batch ? [scopeKey, ...batch] : [scopeKey];
     const result = await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         SELECT account_id, display_name, last_activity_at, issue_count
         FROM issue_scan_user_activity
         WHERE ${where}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
     for (const row of result.rows || []) {
       out.push({

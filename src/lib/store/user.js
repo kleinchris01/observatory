@@ -9,13 +9,7 @@
 // tables; this module is the catalog tier.
 
 import { sql } from "@forge/sql";
-import {
-  chunkArray,
-  ensureProjectStoreReady,
-  safeParseJson,
-  toNumber,
-  withSqlRetry,
-} from "./core.js";
+import { chunkArray, ensureProjectStoreReady, safeParseJson, toNumber, withSqlRetry } from "./core.js";
 
 const DEFAULT_BATCH_SIZE = 50;
 
@@ -25,42 +19,56 @@ export async function replaceUserSnapshot(scopeKey, version, { users = [], acces
   // Scoped deletes only -- an unscoped DELETE in a multi-tenant Forge app destroys another
   // customer's data, and project-store.writes.test.js asserts this mechanically.
   for (const table of ["snapshot_users", "snapshot_user_access"]) {
-    await withSqlRetry(() =>
-      sql.prepare(`DELETE FROM ${table} WHERE scope_key = ?`).bindParams(scopeKey).execute()
-    );
+    await withSqlRetry(() => sql.prepare(`DELETE FROM ${table} WHERE scope_key = ?`).bindParams(scopeKey).execute());
   }
 
   for (const batch of chunkArray(users, DEFAULT_BATCH_SIZE)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((u) => [
-      scopeKey, version, String(u.accountId),
+      scopeKey,
+      version,
+      String(u.accountId),
       u.displayName || null,
       u.active === false ? 0 : 1,
       u.accountType || null,
       u.avatarUrl || null,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_users
           (scope_key, version, account_id, display_name, active, account_type, avatar_url)
         VALUES ${valuesSql}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 
   for (const batch of chunkArray(access, DEFAULT_BATCH_SIZE)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((a) => [
-      scopeKey, version, String(a.accountId),
-      String(a.applicationKey), a.applicationName || null,
-      String(a.viaGroupId), a.viaGroupName || null,
+      scopeKey,
+      version,
+      String(a.accountId),
+      String(a.applicationKey),
+      a.applicationName || null,
+      String(a.viaGroupId),
+      a.viaGroupName || null,
     ]);
     await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT INTO snapshot_user_access
           (scope_key, version, account_id, application_key, application_name, via_group_id, via_group_name)
         VALUES ${valuesSql}
-      `).bindParams(...params).execute()
+      `,
+        )
+        .bindParams(...params)
+        .execute(),
     );
   }
 }
@@ -72,7 +80,9 @@ export async function replaceUserSnapshot(scopeKey, version, { users = [], acces
 export async function loadUsers(scopeKey, version) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT u.account_id, u.display_name, u.active, u.account_type, u.avatar_url,
              a.application_key, a.application_name, a.via_group_id, a.via_group_name
       FROM snapshot_users u
@@ -80,7 +90,10 @@ export async function loadUsers(scopeKey, version) {
         ON a.scope_key = u.scope_key AND a.version = u.version AND a.account_id = u.account_id
       WHERE u.scope_key = ? AND u.version = ?
       ORDER BY u.display_name ASC, u.account_id ASC
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
 
   const byAccount = new Map();
@@ -113,20 +126,27 @@ export async function loadUserGovernanceSummary(scopeKey, version) {
   await ensureProjectStoreReady();
 
   const users = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT
         COUNT(*) AS total,
         SUM(CASE WHEN active = 1 THEN 1 ELSE 0 END) AS active_count,
         SUM(CASE WHEN account_type = 'app' THEN 1 ELSE 0 END) AS app_count
       FROM snapshot_users
       WHERE scope_key = ? AND version = ?
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
 
   // Users who hold more than one product licence -- the multi-product seats an admin most
   // often wants to review.
   const multiProduct = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT COUNT(*) AS multi FROM (
         SELECT account_id
         FROM snapshot_user_access
@@ -134,7 +154,10 @@ export async function loadUserGovernanceSummary(scopeKey, version) {
         GROUP BY account_id
         HAVING COUNT(DISTINCT application_key) > 1
       ) t
-    `).bindParams(scopeKey, version).execute()
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
   );
 
   const row = users.rows?.[0] || {};
@@ -151,11 +174,16 @@ export async function loadUserGovernanceSummary(scopeKey, version) {
 export async function readUserSnapshotMeta(scopeKey) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       SELECT state, version, started_at, completed_at, refreshed_at,
              total_users, active_users, application_summary, last_error
       FROM user_snapshot_meta WHERE scope_key = ?
-    `).bindParams(scopeKey).execute()
+    `,
+      )
+      .bindParams(scopeKey)
+      .execute(),
   );
   const row = result.rows?.[0];
   if (!row) return null;
@@ -179,10 +207,12 @@ export async function writeUserSnapshotMeta(scopeKey, patch = {}) {
   const next = { ...current, ...patch };
   const summaryJson = Array.isArray(next.applicationSummary)
     ? JSON.stringify(next.applicationSummary)
-    : (next.applicationSummary || null);
+    : next.applicationSummary || null;
 
   await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       INSERT INTO user_snapshot_meta
         (scope_key, state, version, started_at, completed_at, refreshed_at,
          total_users, active_users, application_summary, last_error)
@@ -197,18 +227,21 @@ export async function writeUserSnapshotMeta(scopeKey, patch = {}) {
         active_users = VALUES(active_users),
         application_summary = VALUES(application_summary),
         last_error = VALUES(last_error)
-    `).bindParams(
-      scopeKey,
-      next.state || "idle",
-      next.version || null,
-      next.startedAt || null,
-      next.completedAt || null,
-      next.refreshedAt || null,
-      toNumber(next.totalUsers),
-      toNumber(next.activeUsers),
-      summaryJson,
-      next.lastError || null
-    ).execute()
+    `,
+      )
+      .bindParams(
+        scopeKey,
+        next.state || "idle",
+        next.version || null,
+        next.startedAt || null,
+        next.completedAt || null,
+        next.refreshedAt || null,
+        toNumber(next.totalUsers),
+        toNumber(next.activeUsers),
+        summaryJson,
+        next.lastError || null,
+      )
+      .execute(),
   );
   return next;
 }

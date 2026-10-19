@@ -56,12 +56,16 @@ export function verifyTickets({ tickets = [], current = new Map() } = {}) {
     if (newest.get(`${t.findingKey}\u0000${t.itemId}`) !== t) return { ...base, verdict: "superseded" };
     const finding = current.get(t.findingKey);
     if (!finding?.available) {
-      return { ...base, verdict: "unverified", reason: finding?.reason || "The finding's current items could not be read." };
+      return {
+        ...base,
+        verdict: "unverified",
+        reason: finding?.reason || "The finding's current items could not be read.",
+      };
     }
     const flagged = finding.ids.has(String(t.itemId));
     const evidence = !flagged && !isDone(t) ? finding.withdrawn?.get(String(t.itemId)) : null;
     if (evidence) return { ...base, verdict: "withdrawn", evidence };
-    const verdict = isDone(t) ? (flagged ? "regressed" : "held") : (flagged ? "open" : "fixed-open");
+    const verdict = isDone(t) ? (flagged ? "regressed" : "held") : flagged ? "open" : "fixed-open";
     return { ...base, verdict };
   });
 

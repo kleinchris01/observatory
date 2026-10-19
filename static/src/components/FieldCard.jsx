@@ -9,7 +9,6 @@ import {
   isUserPickerField,
   isUsageAvailable,
   mergeFieldMetrics,
-  toDisplayName,
   formatTimestamp,
   formatNumber,
   copyToClipboard,
@@ -21,32 +20,6 @@ import { FieldOptionsModal } from "./FieldOptionsModal";
 // The Rovo affordance is now the shared <AskRovo> from ./ui -- one label shape, one
 // tooltip that names the agent and the read-only guarantee, wired at every panel here and
 // on every pillar tab. The FieldCard-local button that used to live here is gone.
-
-// A one-line, client-side search box for a panel's own already-fetched list.
-//
-// Not a resolver call: Automation/Filter/Dashboard usage are scoped to ONE field, so even a
-// field referenced by every rule on the site is a few hundred rows already sitting in this
-// component's state, not the few-thousand-row estate the Filters and Field Browser tabs had
-// to move server-side. Filtering an array already in memory needs no debounce and no round
-// trip.
-function PanelSearch({ value, onChange, placeholder, matchCount, totalCount }) {
-  if (totalCount <= 1) return null;
-  return (
-    <div className="panel-search">
-      <Icon name="search" size={13} />
-      <input
-        type="text"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        onClick={(event) => event.stopPropagation()}
-      />
-      {value ? (
-        <span className="panel-search__count">{matchCount} of {totalCount}</span>
-      ) : null}
-    </div>
-  );
-}
 
 // A detail section that can be folded away.
 //
@@ -67,25 +40,49 @@ export function CollapsibleSection({ title, badge, actions, defaultOpen = true, 
         <button
           type="button"
           className="section-heading__toggle"
-          onClick={(event) => { event.stopPropagation(); setOpen((v) => !v); }}
+          onClick={(event) => {
+            event.stopPropagation();
+            setOpen((v) => !v);
+          }}
           aria-expanded={open}
           aria-controls={bodyId}
         >
-          <span className="section-heading__chevron" aria-hidden="true">{open ? "▾" : "▸"}</span>
+          <span className="section-heading__chevron" aria-hidden="true">
+            {open ? "▾" : "▸"}
+          </span>
           <h4>{title}</h4>
           {badge != null ? <span className="section-heading__badge">{badge}</span> : null}
         </button>
         {actions ? <div className="section-heading__actions">{actions}</div> : null}
       </div>
-      {open ? <div className="detail-section__body" id={bodyId}>{children}</div> : null}
+      {open ? (
+        <div className="detail-section__body" id={bodyId}>
+          {children}
+        </div>
+      ) : null}
     </section>
   );
 }
 
 const AUTOMATION_DIRECTIONS = [
-  { key: "write", label: "Writes this field", tone: "danger", consequence: "Deleting the field breaks these rules and loses the values they maintain." },
-  { key: "read", label: "Reads this field", tone: "info", consequence: "These rules check the field in a condition and will misbehave without it." },
-  { key: "trigger", label: "Triggers on this field", tone: "warn", consequence: "These rules run when the field changes." },
+  {
+    key: "write",
+    label: "Writes this field",
+    tone: "danger",
+    consequence: "Deleting the field breaks these rules and loses the values they maintain.",
+  },
+  {
+    key: "read",
+    label: "Reads this field",
+    tone: "info",
+    consequence: "These rules check the field in a condition and will misbehave without it.",
+  },
+  {
+    key: "trigger",
+    label: "Triggers on this field",
+    tone: "warn",
+    consequence: "These rules run when the field changes.",
+  },
 ];
 
 // What automation does with one field.
@@ -141,9 +138,15 @@ export function FilterUsageSection({ field, enabled = true, siteOrigin }) {
     // Looked up by NAME, because that is how JQL names a field. The id is the fallback for
     // the cf[10001] escape hatch, which getFilterUsage resolves the same way.
     invoke("getFilterUsage", { kind: "field", label: field.name || field.id })
-      .then((data) => { if (!cancelled) setState({ loading: false, error: "", data }); })
-      .catch((err) => { if (!cancelled) setState({ loading: false, error: err?.message || "Failed to load.", data: null }); });
-    return () => { cancelled = true; };
+      .then((data) => {
+        if (!cancelled) setState({ loading: false, error: "", data });
+      })
+      .catch((err) => {
+        if (!cancelled) setState({ loading: false, error: err?.message || "Failed to load.", data: null });
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [enabled, field.id, field.name]);
 
   const { loading, error, data } = state;
@@ -162,20 +165,18 @@ export function FilterUsageSection({ field, enabled = true, siteOrigin }) {
         // Never phrased as "no filter uses this field". Nothing has been built, so the honest
         // answer is that nobody has looked -- which is not permission to delete anything.
         <div className="empty-state empty-state--inline">
-          No saved filter inventory has been built, so filter usage is unknown for this field.
-          Build one on the Saved Filters tab to find out.
+          No saved filter inventory has been built, so filter usage is unknown for this field. Build one on the Saved
+          Filters tab to find out.
         </div>
       ) : total === 0 ? (
-        <div className="empty-state empty-state--inline">
-          No saved filter searches on, or sorts by, this field.
-        </div>
+        <div className="empty-state empty-state--inline">No saved filter searches on, or sorts by, this field.</div>
       ) : (
         <>
           <p className="ui-note">
             <Icon name="alertTriangle" size={13} />
             <span>
-              These searches would keep running if this field were deleted, and quietly return
-              a different set of issues. Nothing errors and nobody is told.
+              These searches would keep running if this field were deleted, and quietly return a different set of
+              issues. Nothing errors and nobody is told.
             </span>
           </p>
           <ul className="filter-usage__list">
@@ -198,7 +199,8 @@ export function FilterUsageSection({ field, enabled = true, siteOrigin }) {
                   )}
                   {filter.ownerName && (
                     <span className="filter-usage__owner">
-                      {filter.ownerName}{filter.ownerActive === false ? " · inactive" : ""}
+                      {filter.ownerName}
+                      {filter.ownerActive === false ? " · inactive" : ""}
                     </span>
                   )}
                   {/* A subscription makes the silent failure louder in the worst way: the
@@ -239,9 +241,15 @@ export function DashboardUsageSection({ field, enabled = true, siteOrigin }) {
     setState({ loading: true, error: "", data: null });
     // By NAME, like the filter lookup: the join runs through JQL, and JQL names fields.
     invoke("getDashboardUsage", { label: field.name || field.id })
-      .then((data) => { if (!cancelled) setState({ loading: false, error: "", data }); })
-      .catch((err) => { if (!cancelled) setState({ loading: false, error: err?.message || "Failed to load.", data: null }); });
-    return () => { cancelled = true; };
+      .then((data) => {
+        if (!cancelled) setState({ loading: false, error: "", data });
+      })
+      .catch((err) => {
+        if (!cancelled) setState({ loading: false, error: err?.message || "Failed to load.", data: null });
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [enabled, field.id, field.name]);
 
   const { loading, error, data } = state;
@@ -249,11 +257,12 @@ export function DashboardUsageSection({ field, enabled = true, siteOrigin }) {
 
   // Which half is missing changes what an admin has to do about it, so they are not collapsed
   // into one "unavailable".
-  const missing = data?.reason === "no-dashboard-inventory"
-    ? "No dashboard inventory has been built, so dashboard usage is unknown for this field. Build one on the Dashboards tab."
-    : data?.reason === "no-filter-inventory"
-      ? "Dashboards reach fields through saved filters, and no filter inventory has been built. Build one on the Saved Filters tab."
-      : null;
+  const missing =
+    data?.reason === "no-dashboard-inventory"
+      ? "No dashboard inventory has been built, so dashboard usage is unknown for this field. Build one on the Dashboards tab."
+      : data?.reason === "no-filter-inventory"
+        ? "Dashboards reach fields through saved filters, and no filter inventory has been built. Build one on the Saved Filters tab."
+        : null;
 
   return (
     <CollapsibleSection
@@ -281,8 +290,8 @@ export function DashboardUsageSection({ field, enabled = true, siteOrigin }) {
           <p className="ui-note">
             <Icon name="alertTriangle" size={13} />
             <span>
-              These dashboards render through a filter that names this field. Delete the field
-              and the gadget keeps rendering — against a different set of issues.
+              These dashboards render through a filter that names this field. Delete the field and the gadget keeps
+              rendering — against a different set of issues.
             </span>
           </p>
           <ul className="filter-usage__list">
@@ -307,7 +316,11 @@ export function DashboardUsageSection({ field, enabled = true, siteOrigin }) {
                   {/* WHERE on the dashboard, not just which dashboard. "Sprint Health" tells a
                       reader what to look at in a way the dashboard name alone does not. */}
                   <span className="filter-usage__subs">
-                    via {dash.via.map((v) => v.gadgetTitle || v.filterName || "a gadget").slice(0, 3).join(", ")}
+                    via{" "}
+                    {dash.via
+                      .map((v) => v.gadgetTitle || v.filterName || "a gadget")
+                      .slice(0, 3)
+                      .join(", ")}
                     {dash.via.length > 3 ? ` +${dash.via.length - 3} more` : ""}
                   </span>
                 </li>
@@ -334,15 +347,19 @@ export function AutomationUsageSection({ field, enabled = true, siteOrigin, rovo
     let cancelled = false;
     setState({ loading: true, error: "", data: null });
     invoke("getAutomationFieldUsage", { fieldId: field.id, fieldName: field.name })
-      .then((data) => { if (!cancelled) setState({ loading: false, error: "", data }); })
-      .catch((err) => { if (!cancelled) setState({ loading: false, error: err?.message || "Failed to load.", data: null }); });
-    return () => { cancelled = true; };
+      .then((data) => {
+        if (!cancelled) setState({ loading: false, error: "", data });
+      })
+      .catch((err) => {
+        if (!cancelled) setState({ loading: false, error: err?.message || "Failed to load.", data: null });
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [enabled, field.id, field.name]);
 
   const { loading, error, data } = state;
-  const total = data?.referenced
-    ? (data.write?.count ?? 0) + (data.read?.count ?? 0) + (data.trigger?.count ?? 0)
-    : 0;
+  const total = data?.referenced ? (data.write?.count ?? 0) + (data.read?.count ?? 0) + (data.trigger?.count ?? 0) : 0;
 
   return (
     // Deliberately not collapsed-when-unreferenced: `defaultOpen` seeds useState on the
@@ -370,8 +387,8 @@ export function AutomationUsageSection({ field, enabled = true, siteOrigin, rovo
         // Never phrased as "no rules use this field". No analysis has been built, so the
         // honest answer is that nobody has looked.
         <div className="empty-state empty-state--inline">
-          No automation analysis has been built, so automation usage is unknown for this field.
-          Import a rule export on the Automation tab to find out.
+          No automation analysis has been built, so automation usage is unknown for this field. Import a rule export on
+          the Automation tab to find out.
         </div>
       ) : !data.referenced ? (
         <div className="empty-state empty-state--inline">
@@ -386,12 +403,22 @@ export function AutomationUsageSection({ field, enabled = true, siteOrigin, rovo
               <div className={`automation-usage__group automation-usage__group--${tone}`} key={key}>
                 <div className="automation-usage__head">
                   <strong>{label}</strong>
-                  <FindingBadge label={`${formatNumber(group.count)} rule${group.count === 1 ? "" : "s"}`} tone={tone} />
+                  <FindingBadge
+                    label={`${formatNumber(group.count)} rule${group.count === 1 ? "" : "s"}`}
+                    tone={tone}
+                  />
                 </div>
                 <p className="automation-usage__consequence">{consequence}</p>
                 <ul className="automation-usage__rules">
                   {group.rules.map((rule) => (
-                    <li key={`${key}-${rule.id}`} className={rule.enabled === false ? "automation-usage__rule automation-usage__rule--disabled" : "automation-usage__rule"}>
+                    <li
+                      key={`${key}-${rule.id}`}
+                      className={
+                        rule.enabled === false
+                          ? "automation-usage__rule automation-usage__rule--disabled"
+                          : "automation-usage__rule"
+                      }
+                    >
                       <AutomationRuleLink rule={rule} siteOrigin={siteOrigin} />
                       {rule.enabled === false ? <span className="automation-usage__state">disabled</span> : null}
                     </li>
@@ -422,17 +449,27 @@ export function WorkflowRulesSection({ field, enabled = true, siteOrigin }) {
     let cancelled = false;
     setResult(null);
     invoke("getWorkflowRuleUsage", { refType: "field", refId: field.id })
-      .then((data) => { if (!cancelled) setResult(data); })
+      .then((data) => {
+        if (!cancelled) setResult(data);
+      })
       // A failed lookup is "unknown", never "no rule uses this".
-      .catch(() => { if (!cancelled) setResult({ available: false, reason: "error" }); });
-    return () => { cancelled = true; };
+      .catch(() => {
+        if (!cancelled) setResult({ available: false, reason: "error" });
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [enabled, field.id]);
 
   const count = result?.available ? result.total : null;
   return (
     <CollapsibleSection
       title="Workflow Rules"
-      badge={count ? `${formatNumber(count)} in ${formatNumber(result.workflowCount)} workflow${result.workflowCount === 1 ? "" : "s"}` : null}
+      badge={
+        count
+          ? `${formatNumber(count)} in ${formatNumber(result.workflowCount)} workflow${result.workflowCount === 1 ? "" : "s"}`
+          : null
+      }
     >
       <WorkflowUsageList
         result={result}
@@ -454,16 +491,26 @@ export function FieldBehaviourSection({ field, enabled = true }) {
     let cancelled = false;
     setResult(null);
     invoke("getFieldBehaviour", { fieldId: field.id })
-      .then((data) => { if (!cancelled) setResult(data); })
-      .catch(() => { if (!cancelled) setResult({ available: false, reason: "error" }); });
-    return () => { cancelled = true; };
+      .then((data) => {
+        if (!cancelled) setResult(data);
+      })
+      .catch(() => {
+        if (!cancelled) setResult({ available: false, reason: "error" });
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [enabled, field.id]);
 
   const legacy = result?.source === "field-configurations";
   const badge = result?.available
-    ? [result.requiredIn ? `required in ${formatNumber(result.requiredIn)}` : null,
-      legacy && result.hiddenIn ? `hidden in ${formatNumber(result.hiddenIn)}` : null,
-      !legacy && result.missingFrom?.length ? `absent from ${formatNumber(result.missingFrom.length)}` : null].filter(Boolean).join(" · ") || null
+    ? [
+        result.requiredIn ? `required in ${formatNumber(result.requiredIn)}` : null,
+        legacy && result.hiddenIn ? `hidden in ${formatNumber(result.hiddenIn)}` : null,
+        !legacy && result.missingFrom?.length ? `absent from ${formatNumber(result.missingFrom.length)}` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ") || null
     : null;
 
   return (
@@ -475,12 +522,15 @@ export function FieldBehaviourSection({ field, enabled = true }) {
           No field scheme inventory has been built, so where this field is required or hidden is unknown.
         </div>
       ) : !result.owners?.length ? (
-        <div className="empty-state empty-state--inline">No field scheme or configuration in use mentions this field.</div>
+        <div className="empty-state empty-state--inline">
+          No field scheme or configuration in use mentions this field.
+        </div>
       ) : (
         <>
           {legacy && result.conflicts?.length > 0 && (
             <div className="danger-zone__error" role="alert">
-              Required but hidden in {result.conflicts.map((c) => c.name).join(", ")}. Nobody can fill it in there, so creating or editing those issues fails.
+              Required but hidden in {result.conflicts.map((c) => c.name).join(", ")}. Nobody can fill it in there, so
+              creating or editing those issues fails.
             </div>
           )}
           <ul className="ui-wfusage">
@@ -491,19 +541,27 @@ export function FieldBehaviourSection({ field, enabled = true }) {
                   <span className="ui-transition__path">
                     {owner.ownerKind === "scheme"
                       ? `${formatNumber(owner.projectCount)} project${owner.projectCount === 1 ? "" : "s"}${owner.projectKeys?.length ? `: ${owner.projectKeys.join(", ")}` : ""}`
-                      : owner.routes?.length ? owner.routes.map((r) => `${r.schemeName} (${r.workTypeName})`).join("; ") : "No scheme routes to it"}
+                      : owner.routes?.length
+                        ? owner.routes.map((r) => `${r.schemeName} (${r.workTypeName})`).join("; ")
+                        : "No scheme routes to it"}
                   </span>
                 </span>
                 <span className="ui-wfusage__what">
                   {owner.measured === false ? (
                     <Chip>not read</Chip>
                   ) : owner.associated === false ? (
-                    <Chip tone="warning" title="Projects on this scheme do not have the field at all">not in this scheme</Chip>
+                    <Chip tone="warning" title="Projects on this scheme do not have the field at all">
+                      not in this scheme
+                    </Chip>
                   ) : (
                     <>
-                      <Chip tone={owner.required ? "warning" : "neutral"}>{owner.required ? "required" : "optional"}</Chip>
+                      <Chip tone={owner.required ? "warning" : "neutral"}>
+                        {owner.required ? "required" : "optional"}
+                      </Chip>
                       {owner.hidden && <Chip tone={owner.required ? "critical" : "neutral"}>hidden</Chip>}
-                      {owner.restrictedTo?.length > 0 && <Chip title="Only these work types have the field">{`only ${owner.restrictedTo.join(", ")}`}</Chip>}
+                      {owner.restrictedTo?.length > 0 && (
+                        <Chip title="Only these work types have the field">{`only ${owner.restrictedTo.join(", ")}`}</Chip>
+                      )}
                       {(owner.overrides || []).map((o) => (
                         <Chip key={o.workTypeName}>{`${o.workTypeName}: ${o.required ? "required" : "optional"}`}</Chip>
                       ))}
@@ -538,7 +596,8 @@ export function ScreenUsageSection({ result, loading }) {
         // The tri-state again. Never "this field is on no screen" when the truth is that
         // nobody has looked -- that sentence is the premise for deleting the field.
         <div className="empty-state empty-state--inline">
-          {result?.reason || "No screen inventory has been built yet."} Build it from the Screens tab to see which forms carry this field.
+          {result?.reason || "No screen inventory has been built yet."} Build it from the Screens tab to see which forms
+          carry this field.
         </div>
       ) : rows.length === 0 ? (
         <div className="empty-state empty-state--inline">
@@ -565,8 +624,8 @@ export function ScreenUsageSection({ result, loading }) {
           </div>
           {result.unresolvedScreens > 0 && (
             <p className="screen-usage-note">
-              {formatNumber(result.unresolvedScreens)} screen{result.unresolvedScreens === 1 ? "" : "s"} could not be read
-              in the last build, so this list may be incomplete.
+              {formatNumber(result.unresolvedScreens)} screen{result.unresolvedScreens === 1 ? "" : "s"} could not be
+              read in the last build, so this list may be incomplete.
             </p>
           )}
         </>
@@ -602,7 +661,9 @@ export function DeletionSafetySection({ field }) {
     <CollapsibleSection title="Deletion safety" defaultOpen={false}>
       {state.idle && (
         <div className="empty-state empty-state--inline">
-          <button type="button" className="secondary-button" onClick={run}>Check what depends on this field</button>
+          <button type="button" className="secondary-button" onClick={run}>
+            Check what depends on this field
+          </button>
         </div>
       )}
       {state.loading && <div className="empty-state empty-state--inline">Reading every pillar…</div>}
@@ -614,7 +675,13 @@ export function DeletionSafetySection({ field }) {
           <div className="deletion-safety__verdict">
             <MetricChip
               label="Verdict"
-              value={state.result.verdict === "in-use" ? "In use" : state.result.verdict === "unknown" ? "Unknown" : "No evidence of use"}
+              value={
+                state.result.verdict === "in-use"
+                  ? "In use"
+                  : state.result.verdict === "unknown"
+                    ? "Unknown"
+                    : "No evidence of use"
+              }
               tone={verdictTone[state.result.verdict] || "neutral"}
             />
             <span className="deletion-safety__headline">{state.result.headline}</span>
@@ -637,7 +704,9 @@ export function DeletionSafetySection({ field }) {
               <p className="deletion-safety__subhead">Could not be checked</p>
               <ul className="deletion-safety__list">
                 {state.result.gaps.map((g, i) => (
-                  <li key={`${g.source}-${i}`} className="deletion-safety__item deletion-safety__item--gap">{g.reason}</li>
+                  <li key={`${g.source}-${i}`} className="deletion-safety__item deletion-safety__item--gap">
+                    {g.reason}
+                  </li>
                 ))}
               </ul>
             </>
@@ -667,8 +736,7 @@ export function IssueTypeUsageSection({ usage }) {
         // Tri-state, same as Screen Usage: an empty list is "the crawl has not measured this
         // yet", never "this field is used on no issue type".
         <div className="empty-state empty-state--inline">
-          The issue crawl has not recorded which issue types carry this field yet. Run a full
-          scan to populate it.
+          The issue crawl has not recorded which issue types carry this field yet. Run a full scan to populate it.
         </div>
       ) : (
         <div className="screen-usage-list">
@@ -706,8 +774,8 @@ export function PeopleUsageSection({ usage }) {
     >
       {!data || data.distinctUsers === 0 ? (
         <div className="empty-state empty-state--inline">
-          The crawl has recorded no user values for this field. Either it is not a user
-          picker, or a full scan has not run since this measurement was added.
+          The crawl has recorded no user values for this field. Either it is not a user picker, or a full scan has not
+          run since this measurement was added.
         </div>
       ) : (
         <>
@@ -728,7 +796,9 @@ export function PeopleUsageSection({ usage }) {
             ))}
           </div>
           {data.distinctUsers > top.length && (
-            <p className="ui-truncation">Showing the top {top.length} of {formatNumber(data.distinctUsers)} people.</p>
+            <p className="ui-truncation">
+              Showing the top {top.length} of {formatNumber(data.distinctUsers)} people.
+            </p>
           )}
         </>
       )}
@@ -900,8 +970,13 @@ export function InlineOptionsContext({ ctx }) {
     return (
       <div className="inline-options">
         <div className="inline-options__header">
-          <span className="inline-options__ctx-name">{ctx.contextName}{ctx.isGlobalContext ? " (global)" : ""}</span>
-          <span className="field-options-modal__option-chip">{total} option{total !== 1 ? "s" : ""}</span>
+          <span className="inline-options__ctx-name">
+            {ctx.contextName}
+            {ctx.isGlobalContext ? " (global)" : ""}
+          </span>
+          <span className="field-options-modal__option-chip">
+            {total} option{total !== 1 ? "s" : ""}
+          </span>
         </div>
         <div className="empty-state empty-state--inline" style={{ color: "var(--danger, #c0392b)", padding: "6px 0" }}>
           Failed to load: {ctx.fetchError}
@@ -913,31 +988,33 @@ export function InlineOptionsContext({ ctx }) {
   return (
     <div className="inline-options">
       <div className="inline-options__header">
-        <span className="inline-options__ctx-name">{ctx.contextName}{ctx.isGlobalContext ? " (global)" : ""}</span>
-        <span className="field-options-modal__option-chip">{total} option{total !== 1 ? "s" : ""}</span>
+        <span className="inline-options__ctx-name">
+          {ctx.contextName}
+          {ctx.isGlobalContext ? " (global)" : ""}
+        </span>
+        <span className="field-options-modal__option-chip">
+          {total} option{total !== 1 ? "s" : ""}
+        </span>
       </div>
       <div className="inline-options__chips">
         {visibleActive.map((opt) => (
-          <span key={opt.id} className="inline-options__chip">{opt.value}</span>
+          <span key={opt.id} className="inline-options__chip">
+            {opt.value}
+          </span>
         ))}
-        {expanded && disabledOptions.map((opt) => (
-          <span key={opt.id} className="inline-options__chip inline-options__chip--disabled">{opt.value}</span>
-        ))}
+        {expanded &&
+          disabledOptions.map((opt) => (
+            <span key={opt.id} className="inline-options__chip inline-options__chip--disabled">
+              {opt.value}
+            </span>
+          ))}
         {!expanded && hiddenCount > 0 && (
-          <button
-            type="button"
-            className="inline-options__more"
-            onClick={() => setExpanded(true)}
-          >
+          <button type="button" className="inline-options__more" onClick={() => setExpanded(true)}>
             +{hiddenCount} more
           </button>
         )}
         {expanded && total > INLINE_OPTIONS_COLLAPSE_THRESHOLD && (
-          <button
-            type="button"
-            className="inline-options__more"
-            onClick={() => setExpanded(false)}
-          >
+          <button type="button" className="inline-options__more" onClick={() => setExpanded(false)}>
             Show less
           </button>
         )}
@@ -965,7 +1042,6 @@ export function FieldCard({
   screenCount,
   filterCount,
   dashboardGadgetCount,
-  screenSnapshot,
   // Admin only (getPillarUsage("field")); the macro never passes it.
   usage = null,
 }) {
@@ -976,11 +1052,12 @@ export function FieldCard({
   // the field row; expanded, the ternary switched to details.configuredProjectCount and
   // rendered nothing at all when that key was absent -- so opening a card to learn more
   // about it removed a number that had been on screen a moment earlier.
-  const configuredProjectsValue = details?.configuredProjectCount
-    ?? details?.field?.configuredProjectCount
-    ?? field.configuredProjectCount
-    ?? field.usageCount
-    ?? 0;
+  const configuredProjectsValue =
+    details?.configuredProjectCount ??
+    details?.field?.configuredProjectCount ??
+    field.configuredProjectCount ??
+    field.usageCount ??
+    0;
   const fieldIsSelectType = isSelectType(field.type);
   const [fieldOptions, setFieldOptions] = React.useState(null);
   const [fieldOptionsLoading, setFieldOptionsLoading] = React.useState(false);
@@ -998,9 +1075,21 @@ export function FieldCard({
     let cancelled = false;
     setScreensLoading(true);
     invoke("getFieldScreenReachability", { fieldId: field.id })
-      .then((result) => { if (!cancelled) { setScreens(result); setScreensLoading(false); } })
-      .catch(() => { if (!cancelled) { setScreens({ available: false, reason: "Screen usage could not be loaded.", screens: [] }); setScreensLoading(false); } });
-    return () => { cancelled = true; };
+      .then((result) => {
+        if (!cancelled) {
+          setScreens(result);
+          setScreensLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setScreens({ available: false, reason: "Screen usage could not be loaded.", screens: [] });
+          setScreensLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expanded, field.id]);
   React.useEffect(() => {
@@ -1008,14 +1097,33 @@ export function FieldCard({
     let cancelled = false;
     setFieldOptionsLoading(true);
     invoke("getFieldOptions", { fieldId: field.id, projectKeys: [] })
-      .then((result) => { if (!cancelled) { setFieldOptions(result); setFieldOptionsLoading(false); } })
-      .catch(() => { if (!cancelled) { setFieldOptionsLoading(false); } });
-    return () => { cancelled = true; };
+      .then((result) => {
+        if (!cancelled) {
+          setFieldOptions(result);
+          setFieldOptionsLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setFieldOptionsLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [expanded, field.id, fieldIsSelectType]);
   const usageSource = details?.field || details || displayField;
   const usageAvailable = isUsageAvailable(usageSource);
-  const totalIssuesValue = usageAvailable ? (details ? details.totalIssueCount : (field.totalIssueCount ?? 0)) : "Unavailable";
-  const activeProjectsValue = usageAvailable ? (details ? details.activeProjectCount : (field.activeProjectCount ?? 0)) : "Unavailable";
+  const totalIssuesValue = usageAvailable
+    ? details
+      ? details.totalIssueCount
+      : (field.totalIssueCount ?? 0)
+    : "Unavailable";
+  const activeProjectsValue = usageAvailable
+    ? details
+      ? details.activeProjectCount
+      : (field.activeProjectCount ?? 0)
+    : "Unavailable";
   const fieldFindings = details?.findings || details?.field?.findings || field.findings;
 
   const hasDanger = showGovernance && (fieldFindings?.tags?.adminAttention || fieldFindings?.tags?.risky);
@@ -1024,9 +1132,17 @@ export function FieldCard({
 
   return (
     <article className={`field-card ${expanded ? "field-card--open" : ""} ${severityClass}`}>
-      <button className={`field-card__header${loading ? " field-card__header--loading" : ""}`} onClick={onToggle} type="button">
+      <button
+        className={`field-card__header${loading ? " field-card__header--loading" : ""}`}
+        onClick={onToggle}
+        type="button"
+      >
         <div className="field-card__title-wrap">
-          <label className="field-card__checkbox-label" title="Select for report" onClick={(event) => event.stopPropagation()}>
+          <label
+            className="field-card__checkbox-label"
+            title="Select for report"
+            onClick={(event) => event.stopPropagation()}
+          >
             <input
               type="checkbox"
               checked={selected}
@@ -1037,7 +1153,9 @@ export function FieldCard({
           <div className="field-card__field-id">
             <CopyableFieldId fieldId={field.id} />
             {field.isSystemField && <span className="field-badge field-badge--system">System</span>}
-            {!field.isSystemField && field.isJiraBuiltin && <span className="field-badge field-badge--builtin">Jira built-in</span>}
+            {!field.isSystemField && field.isJiraBuiltin && (
+              <span className="field-badge field-badge--builtin">Jira built-in</span>
+            )}
           </div>
           <h3>{field.name}</h3>
           <p>{field.description || "No admin description is set for this field."}</p>
@@ -1058,10 +1176,7 @@ export function FieldCard({
             value={automationCounts ? automationCounts.enabled : "—"}
             tone={automationCounts?.enabled > 0 ? "danger" : "neutral"}
           />
-          <MetricChip
-            label="Disabled rules"
-            value={automationCounts ? automationCounts.disabled : "—"}
-          />
+          <MetricChip label="Disabled rules" value={automationCounts ? automationCounts.disabled : "—"} />
           {/* Same em-dash rule as the rule chips. A field on zero screens cannot be filled
               by a user through any form, which is the strongest delete signal this app has --
               so it must never be confused with a screen inventory that was never built. */}
@@ -1109,69 +1224,101 @@ export function FieldCard({
                   target="_blank"
                   rel="noreferrer"
                   title="Open this field-wide JQL in Jira issue search"
-                  onClick={(e) => handleJiraLinkClick(e, buildJiraSearchUrl(siteOrigin, details.fieldJql || details.field?.fieldJql))}
+                  onClick={(e) =>
+                    handleJiraLinkClick(e, buildJiraSearchUrl(siteOrigin, details.fieldJql || details.field?.fieldJql))
+                  }
                 >
                   <span className="smart-link-card__title">Open field-wide JQL in Jira</span>
                   <code>{details.fieldJql || details.field?.fieldJql}</code>
                 </a>
                 <div className="field-query-bar__meta">
-                  <span>Total populated issues: {usageAvailable ? formatNumber(details.totalIssueCount) : "Unavailable"}</span>
-                  <AskRovo agent="observatory-field-expert" scope="this field" context="this field's scope, usage and findings" disabled={!rovoEnabled} onAsk={onAskField} />
+                  <span>
+                    Total populated issues: {usageAvailable ? formatNumber(details.totalIssueCount) : "Unavailable"}
+                  </span>
+                  <AskRovo
+                    agent="observatory-field-expert"
+                    scope="this field"
+                    context="this field's scope, usage and findings"
+                    disabled={!rovoEnabled}
+                    onAsk={onAskField}
+                  />
                 </div>
               </div>
 
               {!usageAvailable ? (
                 <div className="empty-state empty-state--inline">
-                  {usageSource?.usageStatusDetail || "Jira did not return per-project usage for this field in the app context."}
+                  {usageSource?.usageStatusDetail ||
+                    "Jira did not return per-project usage for this field in the app context."}
                 </div>
               ) : null}
 
-              {showGovernance && <CollapsibleSection
-                title="Governance Findings"
-                actions={
-                  <>
-                    <FindingsStrip findings={fieldFindings} />
-                    <button
-                      className="secondary-button secondary-button--small"
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onRefreshProjectUsage(field.id, details.projectUsagePage || 1);
-                      }}
-                    >
-                      Refresh usage
-                    </button>
-                    <AskRovo agent="observatory-field-expert" scope="this field" context="this field's scope, usage and findings" disabled={!rovoEnabled} onAsk={onAskField} />
-                  </>
-                }
-              >
-                {fieldFindings?.reasons?.length ? (
-                  <div className="findings-list">
-                    {fieldFindings.reasons.map((reason, index) => (
-                      <div className="finding-card" key={`${field.id}-finding-${index}`}>
-                        <div className="finding-card__top">
-                          <strong>{reason.title}</strong>
-                          <FindingBadge
-                            label={reason.severity === "high" ? "High" : "Medium"}
-                            tone={reason.severity === "high" ? "danger" : reason.category === "cleanup" ? "warn" : "info"}
-                          />
+              {showGovernance && (
+                <CollapsibleSection
+                  title="Governance Findings"
+                  actions={
+                    <>
+                      <FindingsStrip findings={fieldFindings} />
+                      <button
+                        className="secondary-button secondary-button--small"
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onRefreshProjectUsage(field.id, details.projectUsagePage || 1);
+                        }}
+                      >
+                        Refresh usage
+                      </button>
+                      <AskRovo
+                        agent="observatory-field-expert"
+                        scope="this field"
+                        context="this field's scope, usage and findings"
+                        disabled={!rovoEnabled}
+                        onAsk={onAskField}
+                      />
+                    </>
+                  }
+                >
+                  {fieldFindings?.reasons?.length ? (
+                    <div className="findings-list">
+                      {fieldFindings.reasons.map((reason, index) => (
+                        <div className="finding-card" key={`${field.id}-finding-${index}`}>
+                          <div className="finding-card__top">
+                            <strong>{reason.title}</strong>
+                            <FindingBadge
+                              label={reason.severity === "high" ? "High" : "Medium"}
+                              tone={
+                                reason.severity === "high" ? "danger" : reason.category === "cleanup" ? "warn" : "info"
+                              }
+                            />
+                          </div>
+                          <p>{reason.detail}</p>
                         </div>
-                        <p>{reason.detail}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="empty-state empty-state--inline">
-                    No immediate governance issues were flagged for this field by the current heuristics.
-                  </div>
-                )}
-              </CollapsibleSection>}
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="empty-state empty-state--inline">
+                      No immediate governance issues were flagged for this field by the current heuristics.
+                    </div>
+                  )}
+                </CollapsibleSection>
+              )}
 
-              {showGovernance ? <AutomationUsageSection field={field} enabled={expanded} siteOrigin={siteOrigin} rovoEnabled={rovoEnabled} /> : null}
-              {showGovernance ? <WorkflowRulesSection field={field} enabled={expanded} siteOrigin={siteOrigin} /> : null}
+              {showGovernance ? (
+                <AutomationUsageSection
+                  field={field}
+                  enabled={expanded}
+                  siteOrigin={siteOrigin}
+                  rovoEnabled={rovoEnabled}
+                />
+              ) : null}
+              {showGovernance ? (
+                <WorkflowRulesSection field={field} enabled={expanded} siteOrigin={siteOrigin} />
+              ) : null}
               {showGovernance ? <FieldBehaviourSection field={field} enabled={expanded} /> : null}
               {showGovernance ? <FilterUsageSection field={field} enabled={expanded} siteOrigin={siteOrigin} /> : null}
-              {showGovernance ? <DashboardUsageSection field={field} enabled={expanded} siteOrigin={siteOrigin} /> : null}
+              {showGovernance ? (
+                <DashboardUsageSection field={field} enabled={expanded} siteOrigin={siteOrigin} />
+              ) : null}
 
               <CollapsibleSection
                 title="Contexts"
@@ -1184,10 +1331,26 @@ export function FieldCard({
                       <div
                         className={`context-card${fieldIsSelectType ? " context-card--clickable" : ""}`}
                         key={context.id}
-                        onClick={fieldIsSelectType ? (e) => { e.stopPropagation(); setContextOptionsOpen(true); } : undefined}
+                        onClick={
+                          fieldIsSelectType
+                            ? (e) => {
+                                e.stopPropagation();
+                                setContextOptionsOpen(true);
+                              }
+                            : undefined
+                        }
                         role={fieldIsSelectType ? "button" : undefined}
                         tabIndex={fieldIsSelectType ? 0 : undefined}
-                        onKeyDown={fieldIsSelectType ? (e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); setContextOptionsOpen(true); } } : undefined}
+                        onKeyDown={
+                          fieldIsSelectType
+                            ? (e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.stopPropagation();
+                                  setContextOptionsOpen(true);
+                                }
+                              }
+                            : undefined
+                        }
                       >
                         <div className="context-card__top">
                           <strong>{context.name}</strong>
@@ -1199,7 +1362,9 @@ export function FieldCard({
                         </div>
                         <p>{context.description || "No context description."}</p>
                         <div className="tag-row">
-                          <span className="tag">{context.isAnyIssueType ? "All issue types" : `${context.issueTypeCount} issue types`}</span>
+                          <span className="tag">
+                            {context.isAnyIssueType ? "All issue types" : `${context.issueTypeCount} issue types`}
+                          </span>
                           <span className="tag">{context.isGlobalContext ? "Global context" : "Scoped context"}</span>
                           {fieldIsSelectType ? <span className="tag tag--action">View options</span> : null}
                         </div>
@@ -1234,9 +1399,7 @@ export function FieldCard({
                   {fieldOptionsLoading ? (
                     <div className="empty-state empty-state--inline">Loading options…</div>
                   ) : fieldOptions?.optionsByContext?.length ? (
-                    fieldOptions.optionsByContext.map((ctx) => (
-                      <InlineOptionsContext key={ctx.contextId} ctx={ctx} />
-                    ))
+                    fieldOptions.optionsByContext.map((ctx) => <InlineOptionsContext key={ctx.contextId} ctx={ctx} />)
                   ) : fieldOptions ? (
                     <div className="empty-state empty-state--inline">No options found for this field.</div>
                   ) : null}
@@ -1258,7 +1421,13 @@ export function FieldCard({
                     <span>
                       {`${details.activeProjectCount} active project${details.activeProjectCount === 1 ? "" : "s"} · Page ${details.projectUsagePage}/${details.projectUsageTotalPages}`}
                     </span>
-                    <AskRovo agent="observatory-field-expert" scope="this field" context="this field's scope, usage and findings" disabled={!rovoEnabled} onAsk={onAskField} />
+                    <AskRovo
+                      agent="observatory-field-expert"
+                      scope="this field"
+                      context="this field's scope, usage and findings"
+                      disabled={!rovoEnabled}
+                      onAsk={onAskField}
+                    />
                   </>
                 }
               >
@@ -1275,7 +1444,13 @@ export function FieldCard({
                             </div>
                             <div className="project-usage-card__head-actions">
                               <MetricChip label="Issues with value" value={project.issueCount} tone="success" />
-                              <AskRovo agent="observatory-field-expert" scope={`${project.projectKey}`} context="how this one project uses the field" disabled={!rovoEnabled} onAsk={() => onAskProject(project)} />
+                              <AskRovo
+                                agent="observatory-field-expert"
+                                scope={`${project.projectKey}`}
+                                context="how this one project uses the field"
+                                disabled={!rovoEnabled}
+                                onAsk={() => onAskProject(project)}
+                              />
                             </div>
                           </div>
                           <div className="project-usage-card__body">
@@ -1297,10 +1472,12 @@ export function FieldCard({
                     </div>
                     <div className="project-usage-pagination">
                       <span className="pagination-bar__status">
-                        Showing {((details.projectUsagePage - 1) * details.projectUsagePageSize) + 1}
-                        -
-                        {Math.min(details.projectUsagePage * details.projectUsagePageSize, details.projectUsageTotalProjects)}
-                        {" "}of {details.projectUsageTotalProjects} active projects
+                        Showing {(details.projectUsagePage - 1) * details.projectUsagePageSize + 1}-
+                        {Math.min(
+                          details.projectUsagePage * details.projectUsagePageSize,
+                          details.projectUsageTotalProjects,
+                        )}{" "}
+                        of {details.projectUsageTotalProjects} active projects
                       </span>
                       <div className="pagination-bar__actions">
                         <button
@@ -1322,7 +1499,12 @@ export function FieldCard({
                         <button
                           className="secondary-button"
                           type="button"
-                          onClick={() => onProjectUsagePageChange(field.id, Math.min(details.projectUsageTotalPages, details.projectUsagePage + 1))}
+                          onClick={() =>
+                            onProjectUsagePageChange(
+                              field.id,
+                              Math.min(details.projectUsageTotalPages, details.projectUsagePage + 1),
+                            )
+                          }
                           disabled={details.projectUsagePage === details.projectUsageTotalPages}
                         >
                           Next
@@ -1350,15 +1532,31 @@ export function FieldCard({
                       {details.estimatedIssueTotal > 0 ? (
                         <div className="status-progress" style={{ marginTop: 10 }}>
                           <div className="status-progress__meta">
-                            <strong>{Math.min(100, Math.round((details.processedIssueCount / details.estimatedIssueTotal) * 100))}%</strong>
-                            <span>{details.processedIssueCount} of {details.estimatedIssueTotal} issues scanned</span>
+                            <strong>
+                              {Math.min(
+                                100,
+                                Math.round((details.processedIssueCount / details.estimatedIssueTotal) * 100),
+                              )}
+                              %
+                            </strong>
+                            <span>
+                              {details.processedIssueCount} of {details.estimatedIssueTotal} issues scanned
+                            </span>
                           </div>
                           <div className="status-progress__bar" aria-hidden="true">
-                            <span style={{ width: `${Math.min(100, Math.round((details.processedIssueCount / details.estimatedIssueTotal) * 100))}%` }} />
+                            <span
+                              style={{
+                                width: `${Math.min(100, Math.round((details.processedIssueCount / details.estimatedIssueTotal) * 100))}%`,
+                              }}
+                            />
                           </div>
                         </div>
                       ) : null}
-                      {details.lastError ? <div className="build-card__error" style={{ marginTop: 10 }}>{details.lastError}</div> : null}
+                      {details.lastError ? (
+                        <div className="build-card__error" style={{ marginTop: 10 }}>
+                          {details.lastError}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 ) : (

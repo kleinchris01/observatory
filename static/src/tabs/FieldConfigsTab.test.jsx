@@ -1,4 +1,3 @@
-import React from "react";
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -11,42 +10,151 @@ import { FieldConfigsTab } from "./FieldConfigsTab";
 
 function legacyInventory(over = {}) {
   return {
-    state: "ready", neverBuilt: false, refreshedAt: "2026-10-05T10:00:00Z",
-    source: "field-configurations", sourceLabel: "Field configurations (legacy)", fallbackReason: "404", unreadOwners: 1,
+    state: "ready",
+    neverBuilt: false,
+    refreshedAt: "2026-10-05T10:00:00Z",
+    source: "field-configurations",
+    sourceLabel: "Field configurations (legacy)",
+    fallbackReason: "404",
+    unreadOwners: 1,
     summary: {
-      source: "field-configurations", schemeCount: 2, configCount: 3, usageJudged: 4, unusedSchemes: 1, unusedConfigs: 1,
-      duplicateJudged: 4, duplicateGroups: 1, reducible: 1, conflictJudged: 2, requiredHiddenConfigs: 1, requiredHiddenPairs: 2,
-      unmeasured: 1, inconsistentRequiredFields: 1,
+      source: "field-configurations",
+      schemeCount: 2,
+      configCount: 3,
+      usageJudged: 4,
+      unusedSchemes: 1,
+      unusedConfigs: 1,
+      duplicateJudged: 4,
+      duplicateGroups: 1,
+      reducible: 1,
+      conflictJudged: 2,
+      requiredHiddenConfigs: 1,
+      requiredHiddenPairs: 2,
+      unmeasured: 1,
+      inconsistentRequiredFields: 1,
     },
     inconsistentRequired: [{ fieldId: "customfield_1", fieldName: "Total Cost", requiredIn: 1, optionalIn: 2 }],
     schemes: [
-      { id: "fcs:default", name: "Default field configuration scheme", isDefault: true, projectCount: 3, projects: [{ projectKey: "OPS" }], codes: [], routes: [] },
-      { id: "fcs:5", name: "Old scheme", isDefault: false, projectCount: 0, projects: [], codes: ["unused"], routes: [] },
+      {
+        id: "fcs:default",
+        name: "Default field configuration scheme",
+        isDefault: true,
+        projectCount: 3,
+        projects: [{ projectKey: "OPS" }],
+        codes: [],
+        routes: [],
+      },
+      {
+        id: "fcs:5",
+        name: "Old scheme",
+        isDefault: false,
+        projectCount: 0,
+        projects: [],
+        codes: ["unused"],
+        routes: [],
+      },
     ],
     configs: [
-      { id: "fc:1", name: "Default Field Configuration", isDefault: true, used: true, itemsRead: true, requiredCount: 1, codes: [], requiredHidden: [], routes: [{ schemeName: "Default field configuration scheme", workTypeName: "Default (unmapped work types)" }] },
-      { id: "fc:2", name: "Build fields", isDefault: false, used: true, itemsRead: true, requiredCount: 3, codes: ["required-hidden", "duplicate"], duplicateOf: "fc:1", requiredHidden: [{ fieldId: "customfield_1", fieldName: "Total Cost" }], routes: [] },
-      { id: "fc:3", name: "Orphan fields", isDefault: false, used: false, itemsRead: false, codes: ["unused", "unmeasured"], requiredHidden: [], routes: [] },
+      {
+        id: "fc:1",
+        name: "Default Field Configuration",
+        isDefault: true,
+        used: true,
+        itemsRead: true,
+        requiredCount: 1,
+        codes: [],
+        requiredHidden: [],
+        routes: [{ schemeName: "Default field configuration scheme", workTypeName: "Default (unmapped work types)" }],
+      },
+      {
+        id: "fc:2",
+        name: "Build fields",
+        isDefault: false,
+        used: true,
+        itemsRead: true,
+        requiredCount: 3,
+        codes: ["required-hidden", "duplicate"],
+        duplicateOf: "fc:1",
+        requiredHidden: [{ fieldId: "customfield_1", fieldName: "Total Cost" }],
+        routes: [],
+      },
+      {
+        id: "fc:3",
+        name: "Orphan fields",
+        isDefault: false,
+        used: false,
+        itemsRead: false,
+        codes: ["unused", "unmeasured"],
+        requiredHidden: [],
+        routes: [],
+      },
     ],
     ...over,
   };
 }
 
-const schemesInventory = () => legacyInventory({
-  source: "field-schemes", sourceLabel: "Field schemes", fallbackReason: null, unreadOwners: 0,
-  summary: { source: "field-schemes", schemeCount: 2, configCount: 0, usageJudged: 1, unusedSchemes: 0, unusedConfigs: 0, duplicateJudged: 2, duplicateGroups: 0, reducible: 0, conflictJudged: null },
-  schemes: [{ id: "fs:1", name: "Default field scheme", isDefault: true, projectCount: 9, fieldCount: 120, requiredCount: 4, projects: [{ projectKey: "BLD" }], codes: [] }],
-  configs: [],
-});
+const schemesInventory = () =>
+  legacyInventory({
+    source: "field-schemes",
+    sourceLabel: "Field schemes",
+    fallbackReason: null,
+    unreadOwners: 0,
+    summary: {
+      source: "field-schemes",
+      schemeCount: 2,
+      configCount: 0,
+      usageJudged: 1,
+      unusedSchemes: 0,
+      unusedConfigs: 0,
+      duplicateJudged: 2,
+      duplicateGroups: 0,
+      reducible: 0,
+      conflictJudged: null,
+    },
+    schemes: [
+      {
+        id: "fs:1",
+        name: "Default field scheme",
+        isDefault: true,
+        projectCount: 9,
+        fieldCount: 120,
+        requiredCount: 4,
+        projects: [{ projectKey: "BLD" }],
+        codes: [],
+      },
+    ],
+    configs: [],
+  });
 
 function route(inventory) {
   invoke.mockImplementation(async (name) => {
     if (name === "getFieldConfigInventory") return inventory;
     if (name === "getPillarHealth") return { pillar: null };
-    if (name === "getFieldConfigItems") return { available: true, total: 2, items: [
-      { fieldId: "customfield_1", fieldName: "Total Cost", workTypeId: "*", workTypeName: "All work types", required: true, hidden: true, restrictedToNames: [] },
-      { fieldId: "summary", fieldName: "Summary", workTypeId: "*", workTypeName: "All work types", required: true, hidden: false, restrictedToNames: [] },
-    ] };
+    if (name === "getFieldConfigItems")
+      return {
+        available: true,
+        total: 2,
+        items: [
+          {
+            fieldId: "customfield_1",
+            fieldName: "Total Cost",
+            workTypeId: "*",
+            workTypeName: "All work types",
+            required: true,
+            hidden: true,
+            restrictedToNames: [],
+          },
+          {
+            fieldId: "summary",
+            fieldName: "Summary",
+            workTypeId: "*",
+            workTypeName: "All work types",
+            required: true,
+            hidden: false,
+            restrictedToNames: [],
+          },
+        ],
+      };
     if (name === "buildFieldConfigInventory") return { queued: true };
     return {};
   });
@@ -61,7 +169,9 @@ describe("FieldConfigsTab", () => {
   test("on a legacy site, says so, why field schemes were not read, and how many owners were not read", async () => {
     route(legacyInventory());
     render(<FieldConfigsTab />);
-    expect(await screen.findByText(/This site uses/)).toHaveTextContent(/field configurations.*Field schemes were not available: 404.*1 could not be read/);
+    expect(await screen.findByText(/This site uses/)).toHaveTextContent(
+      /field configurations.*Field schemes were not available: 404.*1 could not be read/,
+    );
     expect(screen.getByText("Required but hidden").closest(".ui-stat")).toHaveClass("ui-stat--critical");
     expect(screen.getByRole("button", { name: /Field configurations/ })).toBeInTheDocument();
   });
@@ -98,11 +208,18 @@ describe("FieldConfigsTab", () => {
     render(<FieldConfigsTab intent={{ view: "configs", filter: "all" }} />);
     await user.click(await screen.findByRole("button", { name: /Build fields/ }));
     expect(await screen.findByText("Total Cost")).toBeInTheDocument();
-    expect(screen.getByText(/Only fields this configuration hides, requires or describes are listed/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Only fields this configuration hides, requires or describes are listed/),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Ask Rovo about this field configuration/ })).toBeInTheDocument();
 
     await user.click(screen.getByLabelText("Required only"));
-    await waitFor(() => expect(invoke).toHaveBeenLastCalledWith("getFieldConfigItems", expect.objectContaining({ ownerId: "fc:2", requiredOnly: true })));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenLastCalledWith(
+        "getFieldConfigItems",
+        expect.objectContaining({ ownerId: "fc:2", requiredOnly: true }),
+      ),
+    );
   });
 
   test("never built offers the build, and the build queues it", async () => {
@@ -118,9 +235,13 @@ describe("FieldConfigsTab", () => {
   test("a build refused in read-only mode says why", async () => {
     const user = userEvent.setup();
     route(legacyInventory());
-    invoke.mockImplementation(async (name) => (name === "buildFieldConfigInventory"
-      ? { queued: false, error: "Read-only mode is enabled." }
-      : name === "getFieldConfigInventory" ? legacyInventory() : { pillar: null }));
+    invoke.mockImplementation(async (name) =>
+      name === "buildFieldConfigInventory"
+        ? { queued: false, error: "Read-only mode is enabled." }
+        : name === "getFieldConfigInventory"
+          ? legacyInventory()
+          : { pillar: null },
+    );
     render(<FieldConfigsTab />);
     await user.click(await screen.findByRole("button", { name: /Rebuild/ }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Read-only mode is enabled.");

@@ -1,4 +1,3 @@
-import React from "react";
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -20,18 +19,39 @@ const inventory = (over = {}) => ({
   totalTypes: 3,
   totalSchemes: 2,
   governance: {
-    totalTypes: 3, subtaskTypes: 1, projectScopedTypes: 1, hierarchyLevels: 3,
-    totalSchemes: 2, unusedSchemes: 1, orphanTypes: 0,
+    totalTypes: 3,
+    subtaskTypes: 1,
+    projectScopedTypes: 1,
+    hierarchyLevels: 3,
+    totalSchemes: 2,
+    unusedSchemes: 1,
+    orphanTypes: 0,
   },
   hierarchy: [
-    { level: 1, label: "Epic", types: [{ id: "1", name: "Epic", subtask: false, hierarchyLevel: 1, scopeProjectId: null }] },
-    { level: 0, label: "Base (Story, Task, Bug)", types: [{ id: "2", name: "Story", subtask: false, hierarchyLevel: 0, scopeProjectId: null }] },
-    { level: -1, label: "Sub-task", types: [{ id: "3", name: "Sub-task", subtask: true, hierarchyLevel: -1, scopeProjectId: null }] },
+    {
+      level: 1,
+      label: "Epic",
+      types: [{ id: "1", name: "Epic", subtask: false, hierarchyLevel: 1, scopeProjectId: null }],
+    },
+    {
+      level: 0,
+      label: "Base (Story, Task, Bug)",
+      types: [{ id: "2", name: "Story", subtask: false, hierarchyLevel: 0, scopeProjectId: null }],
+    },
+    {
+      level: -1,
+      label: "Sub-task",
+      types: [{ id: "3", name: "Sub-task", subtask: true, hierarchyLevel: -1, scopeProjectId: null }],
+    },
   ],
   schemes: [
     {
-      schemeId: "5", name: "Default Issue Type Scheme", description: "", defaultIssueTypeId: "2",
-      isDefault: true, projectCount: 8,
+      schemeId: "5",
+      name: "Default Issue Type Scheme",
+      description: "",
+      defaultIssueTypeId: "2",
+      isDefault: true,
+      projectCount: 8,
       issueTypes: [
         { id: "1", name: "Epic", hierarchyLevel: 1, subtask: false, missing: false },
         { id: "2", name: "Story", hierarchyLevel: 0, subtask: false, missing: false },
@@ -39,15 +59,21 @@ const inventory = (over = {}) => ({
       projects: [{ projectId: "10000", projectKey: "OBS", projectName: "Observatory" }],
     },
     {
-      schemeId: "6", name: "Unused Scheme", description: "", defaultIssueTypeId: null,
-      isDefault: false, projectCount: 0,
+      schemeId: "6",
+      name: "Unused Scheme",
+      description: "",
+      defaultIssueTypeId: null,
+      isDefault: false,
+      projectCount: 0,
       issueTypes: [{ id: "999", name: null, hierarchyLevel: null, subtask: null, missing: true }],
       projects: [],
     },
   ],
   issueTypeScreenSchemes: [
     {
-      itssId: "9", name: "Default ITSS", projectCount: 4,
+      itssId: "9",
+      name: "Default ITSS",
+      projectCount: 4,
       mappings: [
         { issueTypeId: "1", issueTypeName: "Epic", screenSchemeId: "5", isDefault: false },
         { issueTypeId: "default", issueTypeName: "All unmapped types", screenSchemeId: "6", isDefault: true },
@@ -108,23 +134,46 @@ describe("SchemeCard", () => {
 
 describe("IssueTypeFindings", () => {
   test("renders nothing-to-report when every count is clean", () => {
-    render(<IssueTypeFindings findings={{ available: true, orphanTypeCount: 0, hierarchyFlaggedSchemeCount: 0, reducibleTypeCount: 0, unusedSchemeCount: 0 }} />);
+    render(
+      <IssueTypeFindings
+        findings={{
+          available: true,
+          orphanTypeCount: 0,
+          hierarchyFlaggedSchemeCount: 0,
+          reducibleTypeCount: 0,
+          unusedSchemeCount: 0,
+        }}
+      />,
+    );
     expect(screen.getByText(/No issue type governance findings/i)).toBeInTheDocument();
   });
 
   test("ranks orphan types and broken schemes above naming and unused", () => {
-    render(<IssueTypeFindings findings={{
-      available: true,
-      orphanTypeCount: 3, orphanSubtaskCount: 1, orphanTypes: [{ name: "Spike" }, { name: "Old Bug" }],
-      hierarchyFlaggedSchemeCount: 1, flaggedSchemes: [{ name: "Subs only" }],
-      reducibleTypeCount: 4, duplicateTypeGroupCount: 2,
-      unusedSchemeCount: 2,
-    }} />);
+    render(
+      <IssueTypeFindings
+        findings={{
+          available: true,
+          orphanTypeCount: 3,
+          orphanSubtaskCount: 1,
+          orphanTypes: [{ name: "Spike" }, { name: "Old Bug" }],
+          hierarchyFlaggedSchemeCount: 1,
+          flaggedSchemes: [{ name: "Subs only" }],
+          reducibleTypeCount: 4,
+          duplicateTypeGroupCount: 2,
+          unusedSchemeCount: 2,
+        }}
+      />,
+    );
 
     const titles = [...document.querySelectorAll(".ui-finding__title")].map((n) => n.textContent);
     expect(titles[0]).toMatch(/on no scheme/);
     expect(titles[1]).toMatch(/cannot start an issue/);
-    expect(titles).toEqual(expect.arrayContaining([expect.stringMatching(/Near-duplicate/), expect.stringMatching(/assigned to no project/)]));
+    expect(titles).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/Near-duplicate/),
+        expect.stringMatching(/assigned to no project/),
+      ]),
+    );
     expect(screen.getByText(/1 are sub-tasks/)).toBeInTheDocument();
   });
 
@@ -137,9 +186,8 @@ describe("IssueTypeFindings", () => {
 describe("IssueTypesTab", () => {
   test("reports never-built rather than an empty catalog", async () => {
     invoke.mockImplementation((fn) =>
-      fn === "getIssueTypeInventory"
-        ? Promise.resolve({ neverBuilt: true, state: "idle" })
-        : Promise.resolve({}));
+      fn === "getIssueTypeInventory" ? Promise.resolve({ neverBuilt: true, state: "idle" }) : Promise.resolve({}),
+    );
     render(<IssueTypesTab />);
     expect(await screen.findByText(/No issue type inventory has been built yet/i)).toBeInTheDocument();
   });
@@ -241,7 +289,10 @@ describe("TypeUsageChip", () => {
 describe("IssueTypesTab usage", () => {
   test("each type shows how many issues, how many created in 90 days, and when last", () => {
     const usage = {
-      available: true, basis: "created", windowDays: 90, measuredAt: "2026-10-07T00:00:00.000Z",
+      available: true,
+      basis: "created",
+      windowDays: 90,
+      measuredAt: "2026-10-07T00:00:00.000Z",
       items: { 2: { total: 4200, recent: 130, lastAt: new Date().toISOString(), projectCount: 12 } },
     };
     render(<HierarchyLevelPanel level={inventory().hierarchy[1]} search="" measurement="measured" usage={usage} />);
@@ -257,6 +308,8 @@ describe("IssueTypesTab usage", () => {
     });
     render(<IssueTypesTab />);
     await screen.findByText("Issue types");
-    expect(invoke.mock.calls.filter(([fn]) => fn === "getPillarUsage")).toEqual([["getPillarUsage", { pillar: "issuetype" }]]);
+    expect(invoke.mock.calls.filter(([fn]) => fn === "getPillarUsage")).toEqual([
+      ["getPillarUsage", { pillar: "issuetype" }],
+    ]);
   });
 });

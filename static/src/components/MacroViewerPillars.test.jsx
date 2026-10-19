@@ -1,4 +1,3 @@
-import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -18,21 +17,41 @@ import {
   MacroBoardsView,
 } from "./MacroViewerPillars";
 
-beforeEach(() => { invoke.mockReset(); });
+beforeEach(() => {
+  invoke.mockReset();
+});
 
 describe("MacroFiltersView", () => {
   it("lists the viewer's project filters with the scope note and JQL", async () => {
     invoke.mockResolvedValue({
-      available: true, projectCount: 1, total: 1, matchedTotal: 1, page: 1, totalPages: 1,
+      available: true,
+      projectCount: 1,
+      total: 1,
+      matchedTotal: 1,
+      page: 1,
+      totalPages: 1,
       snapshotRefreshedAt: new Date().toISOString(),
-      filters: [{ id: "5", name: "Solve open bugs", jql: "project = SOLVE AND status != Done", owner: "Bo", projects: ["SOLVE"], fields: ["Priority"], viewUrl: null }],
+      filters: [
+        {
+          id: "5",
+          name: "Solve open bugs",
+          jql: "project = SOLVE AND status != Done",
+          owner: "Bo",
+          projects: ["SOLVE"],
+          fields: ["Priority"],
+          viewUrl: null,
+        },
+      ],
     });
     render(<MacroFiltersView siteOrigin="https://x.atlassian.net" />);
 
     expect(await screen.findByText("Solve open bugs")).toBeInTheDocument();
     expect(screen.getByText(/Scoped to the 1 project you can browse/i)).toBeInTheDocument();
     expect(screen.getByText(/project = SOLVE AND status != Done/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Solve open bugs" })).toHaveAttribute("href", "https://x.atlassian.net/issues/?filter=5");
+    expect(screen.getByRole("link", { name: "Solve open bugs" })).toHaveAttribute(
+      "href",
+      "https://x.atlassian.net/issues/?filter=5",
+    );
   });
 
   it("says the inventory has not been built rather than erroring", async () => {
@@ -42,7 +61,15 @@ describe("MacroFiltersView", () => {
   });
 
   it("debounces a search into the resolver call", async () => {
-    invoke.mockResolvedValue({ available: true, projectCount: 1, total: 0, matchedTotal: 0, page: 1, totalPages: 1, filters: [] });
+    invoke.mockResolvedValue({
+      available: true,
+      projectCount: 1,
+      total: 0,
+      matchedTotal: 0,
+      page: 1,
+      totalPages: 1,
+      filters: [],
+    });
     render(<MacroFiltersView siteOrigin="" />);
     await screen.findByText(/No saved filter targets a project you can browse/i);
 
@@ -56,8 +83,23 @@ describe("MacroFiltersView", () => {
 describe("MacroDashboardsView", () => {
   it("shows dashboards with their field dependencies and a shared-to-project marker", async () => {
     invoke.mockResolvedValue({
-      available: true, projectCount: 2, total: 1, matchedTotal: 1, page: 1, totalPages: 1,
-      dashboards: [{ id: "D1", name: "Solve delivery", owner: "Al", gadgetCount: 4, fields: ["Story Points", "Sprint"], sharedToProject: true, viewUrl: null }],
+      available: true,
+      projectCount: 2,
+      total: 1,
+      matchedTotal: 1,
+      page: 1,
+      totalPages: 1,
+      dashboards: [
+        {
+          id: "D1",
+          name: "Solve delivery",
+          owner: "Al",
+          gadgetCount: 4,
+          fields: ["Story Points", "Sprint"],
+          sharedToProject: true,
+          viewUrl: null,
+        },
+      ],
     });
     render(<MacroDashboardsView siteOrigin="https://x.atlassian.net" />);
 
@@ -70,11 +112,23 @@ describe("MacroDashboardsView", () => {
 describe("MacroWorkflowsView", () => {
   it("groups the viewer's projects by scheme and renders each scheme's statuses", async () => {
     invoke.mockResolvedValue({
-      available: true, projectCount: 1,
-      schemes: [{ schemeId: "WS1", name: "Solve workflow", projects: ["SOLVE"], statuses: [
-        { id: "s1", name: "Open", category: "To Do" }, { id: "s2", name: "Done", category: "Done" },
-      ] }],
-      statuses: [{ id: "s1", name: "Open", category: "To Do" }, { id: "s2", name: "Done", category: "Done" }],
+      available: true,
+      projectCount: 1,
+      schemes: [
+        {
+          schemeId: "WS1",
+          name: "Solve workflow",
+          projects: ["SOLVE"],
+          statuses: [
+            { id: "s1", name: "Open", category: "To Do" },
+            { id: "s2", name: "Done", category: "Done" },
+          ],
+        },
+      ],
+      statuses: [
+        { id: "s1", name: "Open", category: "To Do" },
+        { id: "s2", name: "Done", category: "Done" },
+      ],
       snapshotRefreshedAt: new Date().toISOString(),
     });
     render(<MacroWorkflowsView />);
@@ -87,7 +141,9 @@ describe("MacroWorkflowsView", () => {
   it("explains when none of the viewer's projects resolve to a scheme", async () => {
     invoke.mockResolvedValue({ available: true, projectCount: 3, schemes: [], statuses: [] });
     render(<MacroWorkflowsView />);
-    expect(await screen.findByText(/none of the projects you can browse resolve to a workflow scheme/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/none of the projects you can browse resolve to a workflow scheme/i),
+    ).toBeInTheDocument();
   });
 });
 
@@ -100,13 +156,25 @@ describe("MacroScreensView", () => {
     available: true,
     projectCount: 1,
     refreshedAt: new Date().toISOString(),
-    projects: [{
-      projectId: "10", projectKey: "OPS", projectName: "Operations", createFieldCount: 34,
-      screens: [
-        { screenId: "1", name: "Create issue", fieldCount: 34, tabCount: 2, unreadable: false, operations: ["create", "view"] },
-        { screenId: "2", name: "Edit issue", fieldCount: 12, tabCount: 1, unreadable: false, operations: ["edit"] },
-      ],
-    }],
+    projects: [
+      {
+        projectId: "10",
+        projectKey: "OPS",
+        projectName: "Operations",
+        createFieldCount: 34,
+        screens: [
+          {
+            screenId: "1",
+            name: "Create issue",
+            fieldCount: 34,
+            tabCount: 2,
+            unreadable: false,
+            operations: ["create", "view"],
+          },
+          { screenId: "2", name: "Edit issue", fieldCount: 12, tabCount: 1, unreadable: false, operations: ["edit"] },
+        ],
+      },
+    ],
     ...over,
   });
 
@@ -126,12 +194,28 @@ describe("MacroScreensView", () => {
   });
 
   it("never shows a screen it could not read as having no fields", async () => {
-    invoke.mockResolvedValue(payload({
-      projects: [{
-        projectId: "10", projectKey: "OPS", projectName: "Operations", createFieldCount: 0,
-        screens: [{ screenId: "1", name: "Create issue", fieldCount: 0, tabCount: 0, unreadable: true, operations: ["create"] }],
-      }],
-    }));
+    invoke.mockResolvedValue(
+      payload({
+        projects: [
+          {
+            projectId: "10",
+            projectKey: "OPS",
+            projectName: "Operations",
+            createFieldCount: 0,
+            screens: [
+              {
+                screenId: "1",
+                name: "Create issue",
+                fieldCount: 0,
+                tabCount: 0,
+                unreadable: true,
+                operations: ["create"],
+              },
+            ],
+          },
+        ],
+      }),
+    );
     render(<MacroScreensView />);
 
     expect(await screen.findByText("not readable")).toBeInTheDocument();
@@ -161,13 +245,17 @@ describe("MacroIssueTypesView", () => {
     available: true,
     projectCount: 2,
     refreshedAt: new Date().toISOString(),
-    schemes: [{
-      schemeId: "S1", name: "Default scheme", projects: ["OPS", "FIN"],
-      issueTypes: [
-        { id: "1", name: "Bug", subtask: false, missing: false },
-        { id: "2", name: "Sub-task", subtask: true, missing: false },
-      ],
-    }],
+    schemes: [
+      {
+        schemeId: "S1",
+        name: "Default scheme",
+        projects: ["OPS", "FIN"],
+        issueTypes: [
+          { id: "1", name: "Bug", subtask: false, missing: false },
+          { id: "2", name: "Sub-task", subtask: true, missing: false },
+        ],
+      },
+    ],
     ...over,
   });
 
@@ -184,9 +272,18 @@ describe("MacroIssueTypesView", () => {
   });
 
   it("shows a member type the catalogue has lost rather than hiding it", async () => {
-    invoke.mockResolvedValue(payload({
-      schemes: [{ schemeId: "S1", name: "Default", projects: ["OPS"], issueTypes: [{ id: "999", name: null, subtask: false, missing: true }] }],
-    }));
+    invoke.mockResolvedValue(
+      payload({
+        schemes: [
+          {
+            schemeId: "S1",
+            name: "Default",
+            projects: ["OPS"],
+            issueTypes: [{ id: "999", name: null, subtask: false, missing: true }],
+          },
+        ],
+      }),
+    );
     render(<MacroIssueTypesView />);
     expect(await screen.findByText(/#999 — missing/)).toBeInTheDocument();
   });
@@ -214,9 +311,20 @@ describe("MacroBoardsView", () => {
   it("keeps an unreadable board and says its detail is unknown", async () => {
     // Team-managed boards routinely refuse the configuration endpoint. Dropping them reads as
     // "you have no board here" to somebody looking straight at one.
-    invoke.mockResolvedValue(payload({
-      boards: [{ boardId: "9", name: "Team board", type: "kanban", projectKey: "OPS", columnCount: 0, configReadable: false }],
-    }));
+    invoke.mockResolvedValue(
+      payload({
+        boards: [
+          {
+            boardId: "9",
+            name: "Team board",
+            type: "kanban",
+            projectKey: "OPS",
+            columnCount: 0,
+            configReadable: false,
+          },
+        ],
+      }),
+    );
     render(<MacroBoardsView />);
 
     expect(await screen.findByText("Team board")).toBeInTheDocument();

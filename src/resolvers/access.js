@@ -2,13 +2,7 @@
 //
 // Moved verbatim from src/resolvers.js; see docs/resolvers-refactor.md.
 
-import {
-  incrMetric,
-  METRIC_NAMES,
-  getInstallationKey,
-  probeEndpoint,
-  getPermissionCatalog,
-} from "../lib/jira-api.js";
+import { incrMetric, METRIC_NAMES, getInstallationKey, probeEndpoint, getPermissionCatalog } from "../lib/jira-api.js";
 import {
   ensureProjectStoreReady,
   readUserSnapshotMeta,
@@ -59,10 +53,18 @@ export async function getAccessInventory({ context }, { listLimit = 25 } = {}) {
   const rosterAccountIds = (await loadActiveRoster(installationKey)) || new Set();
 
   const [
-    permSchemes, permHolders, permProjects,
-    secSchemes, secHolders, secProjects, levels,
-    notifSchemes, notifHolders, notifProjects,
-    roleSchemes, roleHolders,
+    permSchemes,
+    permHolders,
+    permProjects,
+    secSchemes,
+    secHolders,
+    secProjects,
+    levels,
+    notifSchemes,
+    notifHolders,
+    notifProjects,
+    roleSchemes,
+    roleHolders,
   ] = await Promise.all([
     loadSchemes(installationKey, meta.version, "permission"),
     loadSchemeHolders(installationKey, meta.version, "permission"),
@@ -100,18 +102,37 @@ export async function getAccessInventory({ context }, { listLimit = 25 } = {}) {
     permissions: {
       schemes: decorate(permSchemes, permProjects),
       holders: permHolders,
-      governance: summarizePermissionInsights({ schemes: permSchemes, holders: permHolders, schemeProjects: permProjects, rosterAccountIds, listLimit }),
+      governance: summarizePermissionInsights({
+        schemes: permSchemes,
+        holders: permHolders,
+        schemeProjects: permProjects,
+        rosterAccountIds,
+        listLimit,
+      }),
     },
     security: {
       schemes: decorate(secSchemes, secProjects),
       levels,
       holders: secHolders,
-      governance: summarizeSecurityInsights({ schemes: secSchemes, levels, holders: secHolders, schemeProjects: secProjects, rosterAccountIds, listLimit }),
+      governance: summarizeSecurityInsights({
+        schemes: secSchemes,
+        levels,
+        holders: secHolders,
+        schemeProjects: secProjects,
+        rosterAccountIds,
+        listLimit,
+      }),
     },
     notifications: {
       schemes: decorate(notifSchemes, notifProjects),
       holders: notifHolders,
-      governance: summarizeNotificationInsights({ schemes: notifSchemes, holders: notifHolders, schemeProjects: notifProjects, rosterAccountIds, listLimit }),
+      governance: summarizeNotificationInsights({
+        schemes: notifSchemes,
+        holders: notifHolders,
+        schemeProjects: notifProjects,
+        rosterAccountIds,
+        listLimit,
+      }),
     },
     roles: {
       // projectCount here means "on how many projects does this role have at least one
@@ -127,7 +148,14 @@ export async function getAccessInventory({ context }, { listLimit = 25 } = {}) {
         return roleSchemes.map((s) => ({ ...s, projectCount: withActor.get(s.id)?.size || 0 }));
       })(),
       holders: roleHolders,
-      governance: summarizeRoleInsights({ roles: roleSchemes, holders: roleHolders, rosterAccountIds, listLimit, permHolders, permProjects }),
+      governance: summarizeRoleInsights({
+        roles: roleSchemes,
+        holders: roleHolders,
+        rosterAccountIds,
+        listLimit,
+        permHolders,
+        permProjects,
+      }),
     },
   };
 }
@@ -174,7 +202,9 @@ export async function probeGlobalPermissions() {
   let catalog = {};
   try {
     catalog = await getPermissionCatalog();
-  } catch { /* reflected in rows above */ }
+  } catch {
+    /* reflected in rows above */
+  }
   const globalKeys = Object.values(catalog)
     .filter((p) => String(p?.type || "").toUpperCase() === "GLOBAL")
     .map((p) => p.key);

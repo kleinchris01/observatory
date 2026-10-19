@@ -3,13 +3,7 @@
 // Moved verbatim from src/resolvers.js; see docs/resolvers-refactor.md.
 
 import { incrMetric, METRIC_NAMES } from "../../lib/jira-api.js";
-import {
-  pillarUnavailable,
-  agentOk,
-  agentNotFound,
-  rankMatches,
-  clampResults,
-} from "../../lib/rovo-agents.js";
+import { pillarUnavailable, agentOk, agentNotFound, rankMatches, clampResults } from "../../lib/rovo-agents.js";
 import { getBoardInventory } from "../boards.js";
 
 // ── Rovo: boards expert ────────────────────────────────────────────────────
@@ -22,7 +16,9 @@ export async function rovoBoardSearch(payload, context) {
   incrMetric(METRIC_NAMES.resolver);
   try {
     const query = String(payload?.query || "").trim();
-    const type = String(payload?.type || "any").trim().toLowerCase();
+    const type = String(payload?.type || "any")
+      .trim()
+      .toLowerCase();
     const limit = clampResults(payload?.maxResults, 10, 25);
     if (!query) return { status: "error", message: "A search query is required." };
 
@@ -39,7 +35,8 @@ export async function rovoBoardSearch(payload, context) {
         boardId: b.boardId,
         name: b.name,
         type: b.type,
-        location: b.locationType === "user" ? `personal (${b.locationName || "unknown"})` : (b.locationKey || "no project"),
+        location:
+          b.locationType === "user" ? `personal (${b.locationName || "unknown"})` : b.locationKey || "no project",
         backingFilterId: b.filterId,
         columnCount: b.columnCount,
         configReadable: b.configReadable,
@@ -67,7 +64,11 @@ export async function rovoBoardInspect(payload, context) {
     const board = boardId
       ? rows.find((b) => String(b.boardId) === boardId)
       : rows.find((b) => String(b.name || "").toLowerCase() === name.toLowerCase());
-    if (!board) return agentNotFound(inv.refreshedAt || null, `No board ${boardId ? `with id ${boardId}` : `named "${name}"`} in the current snapshot.`);
+    if (!board)
+      return agentNotFound(
+        inv.refreshedAt || null,
+        `No board ${boardId ? `with id ${boardId}` : `named "${name}"`} in the current snapshot.`,
+      );
 
     const flagged = (inv.insights?.flagged || []).find((f) => String(f.boardId) === String(board.boardId));
 
@@ -76,14 +77,21 @@ export async function rovoBoardInspect(payload, context) {
         boardId: board.boardId,
         name: board.name,
         type: board.type,
-        location: board.locationType === "user" ? `personal (${board.locationName || "unknown"})` : (board.locationKey || "no project"),
+        location:
+          board.locationType === "user"
+            ? `personal (${board.locationName || "unknown"})`
+            : board.locationKey || "no project",
         backingFilterId: board.filterId,
         estimationField: board.estimationField || null,
         rankingField: board.rankingField || null,
         subQuery: board.subQuery || null,
         configReadable: board.configReadable,
       },
-      columns: (board.columns || []).map((c) => ({ index: c.index, name: c.name, statusCount: (c.statusIds || []).length })),
+      columns: (board.columns || []).map((c) => ({
+        index: c.index,
+        name: c.name,
+        statusCount: (c.statusIds || []).length,
+      })),
       unmappedColumns: board.unmappedColumns,
       issues: flagged?.issues || [],
       joinsRun: { filters: inv.insights?.joinedFilters ?? false, statuses: inv.insights?.joinedStatuses ?? false },
@@ -103,7 +111,11 @@ export async function rovoBoardImpact(payload, context) {
     const filterId = String(payload?.filterId || "").trim();
     const statusId = String(payload?.statusId || "").trim();
     if (!filterId && !statusId) {
-      return { status: "error", message: "A filterId or statusId is required -- this answers which boards would break if that filter or status changed." };
+      return {
+        status: "error",
+        message:
+          "A filterId or statusId is required -- this answers which boards would break if that filter or status changed.",
+      };
     }
 
     const inv = await getBoardInventory({ context });
@@ -122,11 +134,9 @@ export async function rovoBoardImpact(payload, context) {
       boardsMappingStatus: byStatus.map((b) => ({
         boardId: b.boardId,
         name: b.name,
-        columns: (b.columns || [])
-          .filter((c) => (c.statusIds || []).map(String).includes(statusId))
-          .map((c) => c.name),
+        columns: (b.columns || []).filter((c) => (c.statusIds || []).map(String).includes(statusId)).map((c) => c.name),
       })),
-      verdict: (byFilter.length + byStatus.length) === 0 ? "no-board-references-it" : "referenced",
+      verdict: byFilter.length + byStatus.length === 0 ? "no-board-references-it" : "referenced",
       verdictCaveat:
         "Only boards whose configuration was readable are covered -- team-managed boards whose /configuration endpoint 404'd are not in this answer.",
     });

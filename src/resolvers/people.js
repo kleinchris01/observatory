@@ -78,7 +78,9 @@ export async function getUserInventory({ context }) {
   // so the roster lists exactly the accounts the dormant-licences dimension counted.
   const activity = classifyUserActivity(
     users,
-    await loadUserActivity(installationKey, [...rosterIds]).catch(fallbackOn("people.activity_load_failed", () => [], { installationKey }))
+    await loadUserActivity(installationKey, [...rosterIds]).catch(
+      fallbackOn("people.activity_load_failed", () => [], { installationKey }),
+    ),
   );
   const withOwnership = users.map((u) => {
     const owned = ownership.byAccount.get(u.accountId);
@@ -116,7 +118,10 @@ export async function getUserInventory({ context }) {
     users: withOwnership,
     applicationSummary: meta.applicationSummary || [],
     governance: {
-      ...governance, ...orphaned, automationRefUsers, orphanedAutomationRefUsers,
+      ...governance,
+      ...orphaned,
+      automationRefUsers,
+      orphanedAutomationRefUsers,
       activityMeasured: activity.measured,
       measuredAccounts: activity.measuredAccounts,
       dormantAccounts: activity.dormantAccounts,
@@ -174,8 +179,8 @@ export async function getUserDetails({ payload, context }) {
       user.groups.map((g) =>
         loadSchemesGrantingHolder(installationKey, accessMeta.version, "group", g.id)
           .then((rows) => rows.map((r) => ({ ...r, viaGroup: g.name || g.id })))
-          .catch(() => [])
-      )
+          .catch(() => []),
+      ),
     );
     grantedByGroups = perGroup.flat();
   }
@@ -189,7 +194,11 @@ export async function getUserDetails({ payload, context }) {
   // joined from the field snapshot. Empty until a scan has run since this feature landed.
   let fieldAppearances = [];
   if (fieldAppearanceRows.length && fieldMeta?.version) {
-    const names = await loadSnapshotFieldNames(installationKey, fieldMeta.version, fieldAppearanceRows.map((r) => r.fieldId)).catch(() => new Map());
+    const names = await loadSnapshotFieldNames(
+      installationKey,
+      fieldMeta.version,
+      fieldAppearanceRows.map((r) => r.fieldId),
+    ).catch(() => new Map());
     fieldAppearances = fieldAppearanceRows.map((r) => ({
       fieldId: r.fieldId,
       fieldName: names.get(r.fieldId) || r.fieldId,

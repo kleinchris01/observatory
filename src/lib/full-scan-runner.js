@@ -111,21 +111,28 @@ const health = {
 // A cheap signature of a handoff sub-build's progress. When it changes between polls the
 // build is alive and working, however slowly, so the orchestrator resets its patience
 // counter rather than counting down to "abandoned".
-const buildSig = (meta) =>
-  meta ? `${meta.state ?? ""}|${meta.processed ?? ""}|${meta.updatedAt ?? ""}` : null;
+const buildSig = (meta) => (meta ? `${meta.state ?? ""}|${meta.processed ?? ""}|${meta.updatedAt ?? ""}` : null);
 
 const filters = {
   start: (key) => queueFilterSnapshotBuild(key),
   poll: async (key) => {
     const meta = await readFilterSnapshotMeta(key);
-    return { state: handoffStageState(meta, { stale: isFilterBuildStale(meta) }), sig: buildSig(meta), lastError: meta?.lastError ?? null };
+    return {
+      state: handoffStageState(meta, { stale: isFilterBuildStale(meta) }),
+      sig: buildSig(meta),
+      lastError: meta?.lastError ?? null,
+    };
   },
 };
 const dashboards = {
   start: (key) => queueDashboardSnapshotBuild(key),
   poll: async (key) => {
     const meta = await readDashboardSnapshotMeta(key);
-    return { state: handoffStageState(meta, { stale: isDashboardBuildStale(meta) }), sig: buildSig(meta), lastError: meta?.lastError ?? null };
+    return {
+      state: handoffStageState(meta, { stale: isDashboardBuildStale(meta) }),
+      sig: buildSig(meta),
+      lastError: meta?.lastError ?? null,
+    };
   },
 };
 
@@ -359,8 +366,8 @@ async function runScanStep(spec, installationKey, message = {}, { now = Date.now
     const runner = spec.runners[meta.currentStage];
     const polled = await runner.poll(installationKey, meta);
     const verdict = typeof polled === "string" ? polled : polled.state;
-    const sig = typeof polled === "object" && polled ? polled.sig ?? null : null;
-    const subError = typeof polled === "object" && polled ? polled.lastError ?? null : null;
+    const sig = typeof polled === "object" && polled ? (polled.sig ?? null) : null;
+    const subError = typeof polled === "object" && polled ? (polled.lastError ?? null) : null;
 
     if (verdict === "running") {
       // The sub-build's own progress signature moved since the last poll -- it is alive and
@@ -370,11 +377,19 @@ async function runScanStep(spec, installationKey, message = {}, { now = Date.now
       const polls = progressed ? 1 : Number(meta.polls || 0) + 1;
 
       if (!progressed && polls > maxPollsFor(meta.currentStage)) {
-        const { stages: next, retried, attempts } = retryStageOrFail(
-          stages, meta.currentStage, subError || "the stage stopped reporting progress", { now }
-        );
-        logger.warn(`${spec.scanType}-scan.stage_${retried ? "retry_frozen" : "abandoned"}`, { installationKey, stage: meta.currentStage, polls });
-        return advance(spec, installationKey, next, meta.jobToken, now, { delaySeconds: retried ? scanRetryDelaySeconds(attempts) : 0 });
+        const {
+          stages: next,
+          retried,
+          attempts,
+        } = retryStageOrFail(stages, meta.currentStage, subError || "the stage stopped reporting progress", { now });
+        logger.warn(`${spec.scanType}-scan.stage_${retried ? "retry_frozen" : "abandoned"}`, {
+          installationKey,
+          stage: meta.currentStage,
+          polls,
+        });
+        return advance(spec, installationKey, next, meta.jobToken, now, {
+          delaySeconds: retried ? scanRetryDelaySeconds(attempts) : 0,
+        });
       }
 
       await writeFullScanMeta(installationKey, {
@@ -390,11 +405,18 @@ async function runScanStep(spec, installationKey, message = {}, { now = Date.now
       // The pillar's own build reported failure. Retry the stage rather than marking it
       // failed on the first bad run -- a scan should exhaust its retries before it tells
       // anyone a pillar did not build.
-      const { stages: next, retried, attempts } = retryStageOrFail(
-        stages, meta.currentStage, subError || "the pillar build reported a failure", { now }
-      );
-      logger.warn(`${spec.scanType}-scan.stage_${retried ? "retry_failed" : "failed"}`, { installationKey, stage: meta.currentStage });
-      return advance(spec, installationKey, next, meta.jobToken, now, { delaySeconds: retried ? scanRetryDelaySeconds(attempts) : 0 });
+      const {
+        stages: next,
+        retried,
+        attempts,
+      } = retryStageOrFail(stages, meta.currentStage, subError || "the pillar build reported a failure", { now });
+      logger.warn(`${spec.scanType}-scan.stage_${retried ? "retry_failed" : "failed"}`, {
+        installationKey,
+        stage: meta.currentStage,
+      });
+      return advance(spec, installationKey, next, meta.jobToken, now, {
+        delaySeconds: retried ? scanRetryDelaySeconds(attempts) : 0,
+      });
     }
 
     // A handoff pillar can finish "ready" while still carrying a caveat -- the issue crawl
@@ -407,7 +429,12 @@ async function runScanStep(spec, installationKey, message = {}, { now = Date.now
       completedAt: new Date(now).toISOString(),
       error: subError || null,
     });
-    logger.info(`${spec.scanType}-scan.stage_finished`, { installationKey, stage: meta.currentStage, verdict, caveat: subError || undefined });
+    logger.info(`${spec.scanType}-scan.stage_finished`, {
+      installationKey,
+      stage: meta.currentStage,
+      verdict,
+      caveat: subError || undefined,
+    });
     return advance(spec, installationKey, stages, meta.jobToken, now);
   }
 
@@ -470,7 +497,11 @@ async function runScanStep(spec, installationKey, message = {}, { now = Date.now
     if (definition.mode === "handoff") {
       await runner.start(installationKey, meta);
       await queueScanStep(spec, installationKey, definition.key, meta.jobToken, FULL_SCAN_POLL_DELAY_SECONDS);
-      logger.info(`${spec.scanType}-scan.stage_handed_off`, { installationKey, stage: definition.key, attempts: definition.attempts ?? 0 });
+      logger.info(`${spec.scanType}-scan.stage_handed_off`, {
+        installationKey,
+        stage: definition.key,
+        attempts: definition.attempts ?? 0,
+      });
       return { handedOff: true, stage: definition.key };
     }
 
@@ -490,10 +521,11 @@ async function runScanStep(spec, installationKey, message = {}, { now = Date.now
     const { stages: next, retried, attempts } = retryStageOrFail(stages, definition.key, message_, { now });
     stages = next;
     retryDelaySeconds = retried ? scanRetryDelaySeconds(attempts) : 0;
-    logger[retried ? "warn" : "error"](
-      `${spec.scanType}-scan.stage_${retried ? "retry_threw" : "failed"}`,
-      { installationKey, stage: definition.key, error: message_ }
-    );
+    logger[retried ? "warn" : "error"](`${spec.scanType}-scan.stage_${retried ? "retry_threw" : "failed"}`, {
+      installationKey,
+      stage: definition.key,
+      error: message_,
+    });
   }
 
   return advance(spec, installationKey, stages, meta.jobToken, now, { delaySeconds: retryDelaySeconds });
@@ -533,7 +565,7 @@ async function advance(spec, installationKey, stages, jobToken, now, { delaySeco
       const reset = stages.map((stage) =>
         stage.state === "failed" || stage.state === "skipped"
           ? { ...stage, state: "pending", startedAt: null, completedAt: null, attempts: 0, error: null }
-          : stage
+          : stage,
       );
       await writeFullScanMeta(installationKey, {
         stages: reset,
@@ -546,7 +578,10 @@ async function advance(spec, installationKey, stages, jobToken, now, { delaySeco
       });
       await queueScanStep(spec, installationKey, null, jobToken);
       logger.warn(`${spec.scanType}-scan.retry_sweep`, {
-        installationKey, sweep: sweep + 1, failed: summary.failed, skipped: summary.skipped,
+        installationKey,
+        sweep: sweep + 1,
+        failed: summary.failed,
+        skipped: summary.skipped,
       });
       return { sweeping: true, sweep: sweep + 1, failed: summary.failed, skipped: summary.skipped };
     }
@@ -578,7 +613,12 @@ export async function readStageProducedCounts(installationKey, scanType) {
     put("workflows", readWorkflowSnapshotMeta, (m) => m.totalSchemes),
     put("screens", readScreenSnapshotMeta, (m) => m.totalScreens),
     put("issue-types", readIssueTypeSnapshotMeta, (m) => m.totalTypes),
-    put("access", readAccessSnapshotMeta, (m) => m.totalPermissionSchemes + m.totalSecuritySchemes + m.totalNotificationSchemes + (m.totalProjectRoles || 0)),
+    put(
+      "access",
+      readAccessSnapshotMeta,
+      (m) =>
+        m.totalPermissionSchemes + m.totalSecuritySchemes + m.totalNotificationSchemes + (m.totalProjectRoles || 0),
+    ),
     put("estate", readEstateSnapshotMeta, (m) => m.totalResolutions + m.totalPriorities),
     // Schemes plus legacy configurations: the owners whose fields were walked.
     put("field-configs", readFieldConfigSnapshotMeta, (m) => m.totalSchemes + m.totalConfigs),
@@ -614,9 +654,7 @@ function buildStageRecords(stages, summary) {
   return (stages || []).map((stage) => {
     const startMs = Date.parse(stage.startedAt || "");
     const endMs = Date.parse(stage.completedAt || "");
-    const durationMs = Number.isFinite(startMs) && Number.isFinite(endMs) && endMs >= startMs
-      ? endMs - startMs
-      : null;
+    const durationMs = Number.isFinite(startMs) && Number.isFinite(endMs) && endMs >= startMs ? endMs - startMs : null;
     return {
       key: stage.key,
       state: stage.state,
@@ -648,9 +686,10 @@ async function finish(spec, installationKey, stages, now) {
     jobToken: null,
     completedAt,
     updatedAt: completedAt,
-    lastError: summary.failed || summary.skipped
-      ? `${summary.failed} failed, ${summary.skipped} skipped of ${summary.total} stages.`
-      : null,
+    lastError:
+      summary.failed || summary.skipped
+        ? `${summary.failed} failed, ${summary.skipped} skipped of ${summary.total} stages.`
+        : null,
   });
 
   // Record the run for run-over-run comparison. After the terminal write, and swallowing its
@@ -676,7 +715,8 @@ async function finish(spec, installationKey, stages, now) {
     });
   } catch (error) {
     logger.warn(`${spec.scanType}-scan.run_history_write_failed`, {
-      installationKey, error: String(error?.message || error),
+      installationKey,
+      error: String(error?.message || error),
     });
   }
 
@@ -749,7 +789,8 @@ export async function recoverStalledScan(installationKey, { now = Date.now(), fo
       return stage;
     });
     logger.error(`${spec.scanType}-scan.total_duration_exceeded`, {
-      installationKey, hours: ((now - startedMs) / 3_600_000).toFixed(1),
+      installationKey,
+      hours: ((now - startedMs) / 3_600_000).toFixed(1),
     });
     return finish(spec, installationKey, stages, now);
   }
@@ -787,7 +828,7 @@ export async function recoverStalledScan(installationKey, { now = Date.now(), fo
   // own poll rather than being re-run from scratch, so leave those.
   if (!meta.currentStage) {
     stages = stages.map((stage) =>
-      stage.state === "running" ? { ...stage, state: "pending", startedAt: null } : stage
+      stage.state === "running" ? { ...stage, state: "pending", startedAt: null } : stage,
     );
   }
 
@@ -843,7 +884,7 @@ export async function resumeScanRun(installationKey, { now = Date.now() } = {}) 
   const stages = (meta.stages || []).map((stage) =>
     stage.state === "failed" || stage.state === "skipped"
       ? { ...stage, state: "pending", startedAt: null, completedAt: null, attempts: 0, error: null }
-      : stage
+      : stage,
   );
   const freshToken = makeJobToken();
   const startedAt = new Date(now).toISOString();

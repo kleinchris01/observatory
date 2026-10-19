@@ -32,10 +32,12 @@ describe("firstSchemaId", () => {
 
 describe("workspaceReason", () => {
   test("calls a 401 a scope gap, not a licence problem", () => {
-    expect(workspaceReason({ status: 401, ok: false, sample: '{"message":"scope does not match"}' }))
-      .toMatch(/missing the scope/i);
-    expect(workspaceReason({ status: 200, ok: true, sample: '{"code":401,"message":"scope does not match"}' }))
-      .toMatch(/missing the scope/i);
+    expect(workspaceReason({ status: 401, ok: false, sample: '{"message":"scope does not match"}' })).toMatch(
+      /missing the scope/i,
+    );
+    expect(workspaceReason({ status: 200, ok: true, sample: '{"code":401,"message":"scope does not match"}' })).toMatch(
+      /missing the scope/i,
+    );
   });
 
   test("calls a 403/404 the real not-enabled case", () => {
@@ -61,7 +63,12 @@ describe("probeAssetsApi", () => {
   });
 
   test("names a 401 on the workspace hop as a scope gap", async () => {
-    probeEndpoint.mockResolvedValue({ status: 401, ok: false, ms: 5, sample: '{"code":401,"message":"Unauthorized; scope does not match"}' });
+    probeEndpoint.mockResolvedValue({
+      status: 401,
+      ok: false,
+      ms: 5,
+      sample: '{"code":401,"message":"Unauthorized; scope does not match"}',
+    });
 
     const result = await probeAssetsApi();
 

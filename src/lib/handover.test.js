@@ -5,11 +5,16 @@ const details = (over = {}) => ({
   available: true,
   inRoster: true,
   user: {
-    accountId: "acc-1", displayName: "Pat Leaver", active: true,
+    accountId: "acc-1",
+    displayName: "Pat Leaver",
+    active: true,
     groups: [{ id: "g1", name: "jira-software-users" }],
     applications: [{ key: "jira-software", name: "Jira Software" }],
   },
-  ownedFilters: [{ id: 10, name: "Sprint scope", viewUrl: "https://x/filters/10" }, { id: 11, name: "My bugs" }],
+  ownedFilters: [
+    { id: 10, name: "Sprint scope", viewUrl: "https://x/filters/10" },
+    { id: 11, name: "My bugs" },
+  ],
   ownedDashboards: [{ id: 20, name: "Team wallboard" }],
   authoredRules: [{ id: "r1", name: "Auto-triage", enabled: true }],
   referencedInRules: [
@@ -17,7 +22,9 @@ const details = (over = {}) => ({
     { id: "r3", name: "Notify if assignee", enabled: true, direction: "read" },
   ],
   fieldAppearances: [{ fieldId: "customfield_1", fieldName: "Approver", issueCount: 42 }],
-  grantedBySchemes: [{ schemeName: "Default permissions", schemeType: "permission", context: "BROWSE", contextLabel: "Browse projects" }],
+  grantedBySchemes: [
+    { schemeName: "Default permissions", schemeType: "permission", context: "BROWSE", contextLabel: "Browse projects" },
+  ],
   grantedByGroups: [],
   automationRefsAvailable: true,
   fieldAppearancesAvailable: true,
@@ -47,7 +54,9 @@ describe("buildHandoverReport", () => {
 
   test("lists what is deleted with the account", () => {
     expect(sectionOf(report, "deleted").items.map((i) => [i.kind, i.name])).toEqual([
-      ["filter", "Sprint scope"], ["filter", "My bugs"], ["dashboard", "Team wallboard"],
+      ["filter", "Sprint scope"],
+      ["filter", "My bugs"],
+      ["dashboard", "Team wallboard"],
     ]);
   });
 
@@ -56,13 +65,19 @@ describe("buildHandoverReport", () => {
     const breaks = sectionOf(report, "breaks");
     expect(breaks.items.map((i) => i.kind)).toEqual(["board", "gadget"]);
     expect(breaks.items[0]).toMatchObject({ name: "Team board", detail: 'Board in TEAM, built on "Sprint scope"' });
-    expect(breaks.items[1]).toMatchObject({ name: "Exec view › Open bugs", detail: 'Gadget reading "My bugs", on Sam\'s dashboard' });
+    expect(breaks.items[1]).toMatchObject({
+      name: "Exec view › Open bugs",
+      detail: 'Gadget reading "My bugs", on Sam\'s dashboard',
+    });
   });
 
   test("routes work: open issues, projects led, and only the rules that assign to them", () => {
     const work = sectionOf(report, "work");
     expect(work.items.map((i) => i.kind)).toEqual(["issues", "project", "rule"]);
-    expect(work.items[0]).toMatchObject({ name: "23 open issues", jql: 'assignee = "acc-1" AND statusCategory != Done' });
+    expect(work.items[0]).toMatchObject({
+      name: "23 open issues",
+      jql: 'assignee = "acc-1" AND statusCategory != Done',
+    });
     expect(work.items[2].name).toBe("Assign escalations");
     expect(work.reason).toBeNull();
   });
@@ -70,8 +85,8 @@ describe("buildHandoverReport", () => {
   test("counts what must be handled before removal and summarises it in one sentence", () => {
     expect(report.beforeRemoval).toBe(3 + 2 + 3);
     expect(report.summary).toBe(
-      "Removing this account deletes 2 filters and 1 dashboard, breaking 1 board and 1 dashboard gadget. "
-      + "Hand over 23 open issues assigned to them, 1 project they lead, 1 automation rule routing work to them."
+      "Removing this account deletes 2 filters and 1 dashboard, breaking 1 board and 1 dashboard gadget. " +
+        "Hand over 23 open issues assigned to them, 1 project they lead, 1 automation rule routing work to them.",
     );
   });
 
@@ -82,7 +97,13 @@ describe("buildHandoverReport", () => {
 
 describe("buildHandoverReport — what could not be read", () => {
   test("an unbuilt board or dashboard snapshot makes the cascade unmeasured, not empty", () => {
-    const report = buildHandoverReport({ details: details(), boards: null, gadgets: [], projectsLed: [], openAssigned: 0 });
+    const report = buildHandoverReport({
+      details: details(),
+      boards: null,
+      gadgets: [],
+      projectsLed: [],
+      openAssigned: 0,
+    });
     expect(sectionOf(report, "breaks")).toMatchObject({ status: "unmeasured", count: null });
     expect(sectionOf(report, "breaks").reason).toMatch(/Build the board and dashboard inventories/);
   });
@@ -93,9 +114,15 @@ describe("buildHandoverReport — what could not be read", () => {
   });
 
   test("names each live read that failed instead of reporting no work", () => {
-    const report = buildHandoverReport({ details: details({ automationRefsAvailable: false }), boards, gadgets, projectsLed: null, openAssigned: null });
+    const report = buildHandoverReport({
+      details: details({ automationRefsAvailable: false }),
+      boards,
+      gadgets,
+      projectsLed: null,
+      openAssigned: null,
+    });
     expect(sectionOf(report, "work").reason).toBe(
-      "Could not read open issues assigned to them, projects they lead, automation rules that route work to them; check those by hand."
+      "Could not read open issues assigned to them, projects they lead, automation rules that route work to them; check those by hand.",
     );
   });
 
@@ -106,7 +133,10 @@ describe("buildHandoverReport — what could not be read", () => {
         fieldAppearancesAvailable: false,
         accessGrantsAvailable: false,
       }),
-      boards, gadgets, projectsLed, openAssigned: 0,
+      boards,
+      gadgets,
+      projectsLed,
+      openAssigned: 0,
     });
     for (const key of ["deleted", "rules", "named", "access"]) {
       expect(sectionOf(report, key).status).toBe("unmeasured");
@@ -116,8 +146,19 @@ describe("buildHandoverReport — what could not be read", () => {
 
   test("an account with nothing to hand over says so", () => {
     const report = buildHandoverReport({
-      details: details({ ownedFilters: [], ownedDashboards: [], authoredRules: [], referencedInRules: [], fieldAppearances: [], grantedBySchemes: [], user: { accountId: "a", displayName: "A", groups: [], applications: [] } }),
-      boards, gadgets, projectsLed: [], openAssigned: 0,
+      details: details({
+        ownedFilters: [],
+        ownedDashboards: [],
+        authoredRules: [],
+        referencedInRules: [],
+        fieldAppearances: [],
+        grantedBySchemes: [],
+        user: { accountId: "a", displayName: "A", groups: [], applications: [] },
+      }),
+      boards,
+      gadgets,
+      projectsLed: [],
+      openAssigned: 0,
     });
     expect(report.beforeRemoval).toBe(0);
     expect(report.summary).toBe("Nothing is deleted with this account and no work is routed to it.");
@@ -125,7 +166,11 @@ describe("buildHandoverReport — what could not be read", () => {
   });
 
   test("passes through an unavailable roster", () => {
-    expect(buildHandoverReport({ details: { available: false, reason: "no-roster" } })).toEqual({ available: false, reason: "no-roster", sections: [] });
+    expect(buildHandoverReport({ details: { available: false, reason: "no-roster" } })).toEqual({
+      available: false,
+      reason: "no-roster",
+      sections: [],
+    });
     expect(buildHandoverReport({})).toMatchObject({ available: false, reason: "no-roster" });
   });
 });

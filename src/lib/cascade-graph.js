@@ -148,7 +148,10 @@ function cycleWithin(component, edges) {
       if (edge.to === start) {
         const path = [node];
         let cursor = node;
-        while (parent.has(cursor)) { cursor = parent.get(cursor); path.push(cursor); }
+        while (parent.has(cursor)) {
+          cursor = parent.get(cursor);
+          path.push(cursor);
+        }
         return path.reverse().concat(start);
       }
       if (seen.has(edge.to)) continue;
@@ -170,8 +173,7 @@ export function findCascadeLoops(graph) {
   const loops = [];
 
   for (const component of findStronglyConnectedComponents(graph)) {
-    const selfLoop = component.length === 1
-      && (edges.get(component[0]) ?? []).some((e) => e.to === component[0]);
+    const selfLoop = component.length === 1 && (edges.get(component[0]) ?? []).some((e) => e.to === component[0]);
     if (component.length === 1 && !selfLoop) continue;
 
     const path = selfLoop ? [component[0], component[0]] : cycleWithin(component, edges);
@@ -207,7 +209,11 @@ export function findCascadeChains(graph, { maxDepth = MAX_CHAIN_DEPTH, maxChains
   for (const root of roots) {
     const stack = [{ path: [root], visited: new Set([root]) }];
     while (stack.length) {
-      if (budget-- <= 0 || chains.length >= maxChains) { truncated = true; stack.length = 0; break; }
+      if (budget-- <= 0 || chains.length >= maxChains) {
+        truncated = true;
+        stack.length = 0;
+        break;
+      }
       const { path, visited } = stack.pop();
       const outgoing = (edges.get(path[path.length - 1]) ?? []).filter((e) => !visited.has(e.to));
 
@@ -221,7 +227,10 @@ export function findCascadeChains(graph, { maxDepth = MAX_CHAIN_DEPTH, maxChains
         stack.push({ path: [...path, edge.to], visited: new Set(visited).add(edge.to) });
       }
     }
-    if (chains.length >= maxChains) { truncated = true; break; }
+    if (chains.length >= maxChains) {
+      truncated = true;
+      break;
+    }
   }
 
   const shaped = chains

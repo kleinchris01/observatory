@@ -33,12 +33,7 @@ import {
 import { assessStatusDeletion } from "../lib/deletion-safety.js";
 import { loadStatusAutomationReferences } from "../lib/store/automation.js";
 import { logger, fallbackOn } from "../lib/logger.js";
-import {
-  requireNonEmptyString,
-  requirePositiveInt,
-  requireBoundedInt,
-  optionalString,
-} from "../lib/validate.js";
+import { requireNonEmptyString, requirePositiveInt, requireBoundedInt, optionalString } from "../lib/validate.js";
 import { getFilterUsage } from "./filters-dashboards.js";
 
 export async function getWorkflowInventory({ payload, context }) {
@@ -47,13 +42,16 @@ export async function getWorkflowInventory({ payload, context }) {
     await ensureProjectStoreReady();
     const filters = payload || {};
     if (filters.page !== undefined && filters.page !== null) requirePositiveInt(filters.page, "page");
-    if (filters.pageSize !== undefined && filters.pageSize !== null) requireBoundedInt(filters.pageSize, "pageSize", 1, 100);
+    if (filters.pageSize !== undefined && filters.pageSize !== null)
+      requireBoundedInt(filters.pageSize, "pageSize", 1, 100);
     optionalString(filters.search, "search");
 
     const installationKey = getInstallationKey(context);
     const pageSize = Math.max(1, Math.min(50, Number(filters.pageSize) || 10));
     const requestedPage = Math.max(1, Number(filters.page) || 1);
-    const search = String(filters.search || "").trim().toLowerCase();
+    const search = String(filters.search || "")
+      .trim()
+      .toLowerCase();
 
     let meta = await readWorkflowSnapshotMeta(installationKey);
     // A stale "building" row does not block a rebuild. Without this, one invocation killed
@@ -89,8 +87,13 @@ export async function getWorkflowInventory({ payload, context }) {
 
     if (!meta?.version) {
       return {
-        schemes: [], statuses: [], page: requestedPage, pageSize,
-        totalCount: 0, totalPages: 0, snapshotStatus,
+        schemes: [],
+        statuses: [],
+        page: requestedPage,
+        pageSize,
+        totalCount: 0,
+        totalPages: 0,
+        snapshotStatus,
       };
     }
 
@@ -99,8 +102,14 @@ export async function getWorkflowInventory({ payload, context }) {
       loadStatusesCatalog(installationKey, meta.version),
       // Both are optional and measured by different mechanisms, so each failure degrades
       // to "unknown" rather than to zero -- zero is what makes a status look deletable.
-      loadStatusIssueCounts(installationKey).catch(fallbackOn("workflow.status_counts_load_failed", () => new Map(), { installationKey })),
-      loadStatusHistoryCounts(installationKey).catch(fallbackOn("workflow.status_history_load_failed", () => ({ counts: new Map(), measuredAt: null }), { installationKey })),
+      loadStatusIssueCounts(installationKey).catch(
+        fallbackOn("workflow.status_counts_load_failed", () => new Map(), { installationKey }),
+      ),
+      loadStatusHistoryCounts(installationKey).catch(
+        fallbackOn("workflow.status_history_load_failed", () => ({ counts: new Map(), measuredAt: null }), {
+          installationKey,
+        }),
+      ),
     ]);
 
     const hasCurrentCounts = currentCounts.size > 0;
@@ -130,8 +139,9 @@ export async function getWorkflowInventory({ payload, context }) {
     // enrichment adds fields without ever removing a scheme, so neither the membership
     // of `searched` nor totalCount depends on it.
     const searched = search
-      ? schemes.filter((s) =>
-          s.name.toLowerCase().includes(search) || (s.description || "").toLowerCase().includes(search))
+      ? schemes.filter(
+          (s) => s.name.toLowerCase().includes(search) || (s.description || "").toLowerCase().includes(search),
+        )
       : schemes;
 
     const totalCount = searched.length;
@@ -146,7 +156,7 @@ export async function getWorkflowInventory({ payload, context }) {
       const projects = await loadWorkflowSchemeProjects(installationKey, meta.version, scheme.id);
       const browsableProjectIds = await getBrowsableProjectIds(
         context?.accountId,
-        projects.map((p) => p.projectId)
+        projects.map((p) => p.projectId),
       );
       const visibleProjects = projects.filter((p) => browsableProjectIds.has(String(p.projectId)));
       return {
@@ -224,13 +234,19 @@ export async function computeWorkflowInsightsFull(installationKey, version) {
   // Issue counts are optional. They come from the universe scan, which is versioned
   // independently and may never have run -- an empty map means "unknown", and every
   // downstream claim about a status being safe to delete is suppressed accordingly.
-  const issueCounts = await loadStatusIssueCounts(installationKey).catch(fallbackOn("insights.status_counts_load_failed", () => new Map(), { installationKey }));
+  const issueCounts = await loadStatusIssueCounts(installationKey).catch(
+    fallbackOn("insights.status_counts_load_failed", () => new Map(), { installationKey }),
+  );
   const hasIssueCounts = issueCounts.size > 0;
 
   // "Ever been in" is measured separately from "currently in": the first comes from JQL
   // WAS queries, the second from the universe scan. They refresh independently, so each
   // is reported with its own availability flag rather than assumed to arrive together.
-  const history = await loadStatusHistoryCounts(installationKey).catch(fallbackOn("insights.status_history_load_failed", () => ({ counts: new Map(), measuredAt: null }), { installationKey }));
+  const history = await loadStatusHistoryCounts(installationKey).catch(
+    fallbackOn("insights.status_history_load_failed", () => ({ counts: new Map(), measuredAt: null }), {
+      installationKey,
+    }),
+  );
   const hasHistoryCounts = history.counts.size > 0;
 
   // The scheme->status mapping is best-effort in the build: if the workflow expansion
@@ -239,9 +255,7 @@ export async function computeWorkflowInsightsFull(installationKey, version) {
   const schemeStatusesAvailable = schemeStatuses.length > 0;
 
   const duplicateGroups = findDuplicateStatusGroups(statuses);
-  const balance = schemeStatusesAvailable
-    ? computeSchemeCategoryBalance(schemes, schemeStatuses, statuses)
-    : [];
+  const balance = schemeStatusesAvailable ? computeSchemeCategoryBalance(schemes, schemeStatuses, statuses) : [];
 
   // Which of these statuses an automation rule actually references.
   //
@@ -271,11 +285,12 @@ export async function computeWorkflowInsightsFull(installationKey, version) {
     try {
       automationByStatus = await loadStatusAutomationReferences(
         installationKey,
-        provisionalOrphans.map((o) => o.name).filter(Boolean)
+        provisionalOrphans.map((o) => o.name).filter(Boolean),
       );
     } catch (error) {
       logger.warn("workflow-insights.status_automation_lookup_failed", {
-        installationKey, error: String(error?.message || error),
+        installationKey,
+        error: String(error?.message || error),
       });
     }
   }
@@ -285,18 +300,34 @@ export async function computeWorkflowInsightsFull(installationKey, version) {
   // above: no board inventory degrades to "not checked" rather than a false all-clear.
   const boardStatusIds = await computeBoardStatusIds(installationKey).catch((error) => {
     logger.warn("workflow-insights.status_board_lookup_failed", {
-      installationKey, error: String(error?.message || error),
+      installationKey,
+      error: String(error?.message || error),
     });
     return null;
   });
 
   const orphans = schemeStatusesAvailable
-    ? findOrphanedStatuses(statuses, schemeStatuses, hasIssueCounts ? issueCounts : null, automationByStatus, boardStatusIds)
+    ? findOrphanedStatuses(
+        statuses,
+        schemeStatuses,
+        hasIssueCounts ? issueCounts : null,
+        automationByStatus,
+        boardStatusIds,
+      )
     : [];
 
   return {
-    schemes, statuses, schemeStatusesAvailable, issueCounts, hasIssueCounts, history, hasHistoryCounts,
-    duplicateGroups, balance, orphans, automationByStatus,
+    schemes,
+    statuses,
+    schemeStatusesAvailable,
+    issueCounts,
+    hasIssueCounts,
+    history,
+    hasHistoryCounts,
+    duplicateGroups,
+    balance,
+    orphans,
+    automationByStatus,
   };
 }
 
@@ -316,8 +347,16 @@ export async function getWorkflowInsights({ context }) {
     }
 
     const {
-      statuses, schemeStatusesAvailable, issueCounts, hasIssueCounts, history, hasHistoryCounts,
-      duplicateGroups, balance, orphans, automationByStatus,
+      statuses,
+      schemeStatusesAvailable,
+      issueCounts,
+      hasIssueCounts,
+      history,
+      hasHistoryCounts,
+      duplicateGroups,
+      balance,
+      orphans,
+      automationByStatus,
     } = await computeWorkflowInsightsFull(installationKey, meta.version);
     const orphanPage = orphans.slice(0, 200);
 
@@ -415,21 +454,25 @@ export async function computeStatusDetail(installationKey, context, lookup) {
   if (!wf.available) return { available: false, snapshotStatus: wf.snapshotStatus };
 
   const byId = lookup?.statusId != null && lookup.statusId !== "" ? String(lookup.statusId) : null;
-  const byName = String(lookup?.name || "").trim().toLowerCase();
-  const status = wf.statuses.find((s) => (byId
-    ? String(s.statusId ?? s.id) === byId
-    : String(s.name || "").toLowerCase() === byName));
+  const byName = String(lookup?.name || "")
+    .trim()
+    .toLowerCase();
+  const status = wf.statuses.find((s) =>
+    byId ? String(s.statusId ?? s.id) === byId : String(s.name || "").toLowerCase() === byName,
+  );
   if (!status) return { available: true, found: false, refreshedAt: wf.refreshedAt };
 
   const sid = String(status.statusId ?? status.id);
   const reachingSchemeIds = new Set(
-    wf.schemeStatuses.filter((p) => String(p.statusId) === sid).map((p) => String(p.schemeId))
+    wf.schemeStatuses.filter((p) => String(p.statusId) === sid).map((p) => String(p.schemeId)),
   );
   const reachingSchemes = wf.schemes.filter((s) => reachingSchemeIds.has(String(s.schemeId)));
   let projectCount = 0;
   const projectSample = [];
   for (const scheme of reachingSchemes.slice(0, 25)) {
-    const projects = await loadWorkflowSchemeProjects(installationKey, wf.meta.version, scheme.schemeId).catch(() => []);
+    const projects = await loadWorkflowSchemeProjects(installationKey, wf.meta.version, scheme.schemeId).catch(
+      () => [],
+    );
     projectCount += projects.length;
     for (const p of projects.slice(0, 10)) projectSample.push(p.projectKey);
   }
@@ -439,7 +482,9 @@ export async function computeStatusDetail(installationKey, context, lookup) {
   // Board columns and saved filters: joins over data other pillars already hold.
   const boardStatusIds = await computeBoardStatusIds(installationKey).catch(() => null);
   const onBoard = boardStatusIds ? boardStatusIds.has(sid) : null;
-  const filterUsage = await getFilterUsage({ payload: { kind: "status", label: status.name }, context }).catch(() => null);
+  const filterUsage = await getFilterUsage({ payload: { kind: "status", label: status.name }, context }).catch(
+    () => null,
+  );
   const referencingFilters = filterUsage?.available ? filterUsage.filters : null;
   const issueCount = wf.hasIssueCounts ? Number(wf.issueCounts.get(sid) ?? 0) : null;
 
@@ -466,7 +511,12 @@ export async function computeStatusDetail(installationKey, context, lookup) {
       ? { available: true, count: referencingFilters.length, names: referencingFilters.map((f) => f.name) }
       : null,
     workflows: workflowNames
-      ? { available: true, count: workflowNames.length, names: workflowNames, ruleRefCount: ruleUsage?.available ? ruleUsage.total : 0 }
+      ? {
+          available: true,
+          count: workflowNames.length,
+          names: workflowNames,
+          ruleRefCount: ruleUsage?.available ? ruleUsage.total : 0,
+        }
       : null,
   });
 
@@ -510,7 +560,9 @@ export async function getStatusDetail({ payload, context }) {
   const names = new Map();
   // Names for the transition endpoints come from the restriction/rule readers' status map;
   // here the catalogue the detail already loaded is enough.
-  const wfStatuses = await loadWorkflowForAgent(installationKey).then((wf) => wf.statuses || []).catch(() => []);
+  const wfStatuses = await loadWorkflowForAgent(installationKey)
+    .then((wf) => wf.statuses || [])
+    .catch(() => []);
   for (const s of wfStatuses) names.set(String(s.statusId ?? s.id), s.name);
   const sid = d.statusRow.statusId;
   const label = (id) => (id == null ? null : names.get(String(id)) || `Status ${id}`);
@@ -520,7 +572,11 @@ export async function getStatusDetail({ payload, context }) {
     found: true,
     refreshedAt: d.refreshedAt,
     status: d.statusRow,
-    schemes: d.reachingSchemes.map((s) => ({ schemeId: s.schemeId, name: s.name, projectCount: s.projectCount ?? null })),
+    schemes: d.reachingSchemes.map((s) => ({
+      schemeId: s.schemeId,
+      name: s.name,
+      projectCount: s.projectCount ?? null,
+    })),
     schemeCount: d.reachingSchemeCount,
     projectCount: d.projectCount,
     projectSample: d.projectSample,
@@ -533,7 +589,12 @@ export async function getStatusDetail({ payload, context }) {
           workflowName: t.workflowName,
           name: t.transitionName,
           direction: t.toStatusId === sid ? "into" : "out",
-          from: t.transitionType === "INITIAL" ? ["Create"] : !t.fromStatusIds.length ? ["Any status"] : t.fromStatusIds.map(label),
+          from:
+            t.transitionType === "INITIAL"
+              ? ["Create"]
+              : !t.fromStatusIds.length
+                ? ["Any status"]
+                : t.fromStatusIds.map(label),
           to: label(t.toStatusId),
           ruleCount: t.ruleCount,
         }))

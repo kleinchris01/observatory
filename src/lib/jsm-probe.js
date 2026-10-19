@@ -100,7 +100,10 @@ export function summarizeAreas(results) {
       if (failing.every((r) => r.verdict === "skipped")) return { state: "untested", detail: failing[0].sample };
       const scope = failing.filter((r) => r.verdict === "missing-scope");
       if (scope.length) {
-        return { state: "missing-scope", detail: `Scope not granted for: ${scope.map((r) => r.step).join(", ")}. Redeploy and upgrade the install.` };
+        return {
+          state: "missing-scope",
+          detail: `Scope not granted for: ${scope.map((r) => r.step).join(", ")}. Redeploy and upgrade the install.`,
+        };
       }
       return {
         state: "blocked",
@@ -118,7 +121,8 @@ export function availabilityReason(desksRow) {
     return "The service desk list returned 401 (scope does not match): the app is missing a Service Management scope. Redeploy and upgrade the install.";
   }
   if (verdict === "not-found") return "Jira Service Management is not on this site.";
-  if (verdict === "forbidden") return "The service desk list returned 403: the app is not allowed to read service desks on this site.";
+  if (verdict === "forbidden")
+    return "The service desk list returned 403: the app is not allowed to read service desks on this site.";
   if (desksRow.ok) return "Jira Service Management answered but has no service desks.";
   return `The service desk list returned ${desksRow.status ?? "no response"}.`;
 }
@@ -145,7 +149,15 @@ export async function probeServiceManagementApi({ cloudId = null } = {}) {
     return row;
   };
   const skip = (meta, reason) => {
-    const row = { ...meta, path: meta.path ?? null, status: null, ok: false, ms: 0, sample: reason, verdict: "skipped" };
+    const row = {
+      ...meta,
+      path: meta.path ?? null,
+      status: null,
+      ok: false,
+      ms: 0,
+      sample: reason,
+      verdict: "skipped",
+    };
     results.push(row);
     return row;
   };
@@ -158,10 +170,13 @@ export async function probeServiceManagementApi({ cloudId = null } = {}) {
   // ---- Site level -------------------------------------------------------------------------
   const info = await probeEndpoint(`${SD}/info`, { keepBody: true });
   add({ step: "info", area: null, stage: 1, required: false, note: "JSM version on this site" }, info);
-  const version = info.ok ? parseJson(info.body)?.version ?? null : null;
+  const version = info.ok ? (parseJson(info.body)?.version ?? null) : null;
 
   const desksProbe = await probeEndpoint(`${SD}/servicedesk?limit=50`, { keepBody: true });
-  const desksRow = add({ step: "serviceDesks", area: null, stage: 1, required: true, note: "Every service desk, with its project" }, desksProbe);
+  const desksRow = add(
+    { step: "serviceDesks", area: null, stage: 1, required: true, note: "Every service desk, with its project" },
+    desksProbe,
+  );
   const desksParsed = desksProbe.ok ? parseJson(desksProbe.body) : null;
   const desks = pageValues(desksParsed);
   counted(desksRow, desksParsed);
@@ -169,15 +184,27 @@ export async function probeServiceManagementApi({ cloudId = null } = {}) {
 
   const fieldsProbe = await probeEndpoint("/rest/api/3/field", { keepBody: true });
   const { slaFields, requestTypeField } = serviceFields(fieldsProbe.ok ? parseJson(fieldsProbe.body) : null);
-  const catalogRow = add({ step: "slaFieldDiscovery", area: "slas", stage: 1, required: true, note: "SLA fields, found by type in the field catalog" }, fieldsProbe);
+  const catalogRow = add(
+    {
+      step: "slaFieldDiscovery",
+      area: "slas",
+      stage: 1,
+      required: true,
+      note: "SLA fields, found by type in the field catalog",
+    },
+    fieldsProbe,
+  );
   if (fieldsProbe.ok) {
-    catalogRow.sample = `SLA fields: ${slaFields.map((f) => `${f.name} (${f.id})`).join(", ") || "none"}. `
-      + `Request type field: ${requestTypeField ? requestTypeField.id : "none"}.`;
+    catalogRow.sample =
+      `SLA fields: ${slaFields.map((f) => `${f.name} (${f.id})`).join(", ") || "none"}. ` +
+      `Request type field: ${requestTypeField ? requestTypeField.id : "none"}.`;
     catalogRow.count = slaFields.length;
   }
 
   // ---- One sampled service desk -----------------------------------------------------------
-  const noDesk = desksProbe.ok ? "Skipped: no service desk to sample." : "Skipped: the service desk list did not answer.";
+  const noDesk = desksProbe.ok
+    ? "Skipped: no service desk to sample."
+    : "Skipped: the service desk list did not answer.";
   const deskPath = desk ? `${SD}/servicedesk/${desk.id}` : null;
   const projectClause = desk ? `project = ${jqlString(desk.projectKey)}` : null;
 
@@ -186,49 +213,118 @@ export async function probeServiceManagementApi({ cloudId = null } = {}) {
   if (desk) {
     const probe = await probeEndpoint(`${deskPath}/requesttype?limit=50`, { keepBody: true });
     const parsed = probe.ok ? parseJson(probe.body) : null;
-    counted(add({ step: "requestTypes", area: "requestTypes", stage: 1, required: true, note: "The desk's request types" }, probe), parsed);
+    counted(
+      add(
+        { step: "requestTypes", area: "requestTypes", stage: 1, required: true, note: "The desk's request types" },
+        probe,
+      ),
+      parsed,
+    );
     requestType = pageValues(parsed)[0] || null;
     const groups = await probeEndpoint(`${deskPath}/requesttypegroup`, { keepBody: true });
-    counted(add({ step: "portalGroups", area: "requestTypes", stage: 1, required: true, note: "Portal groups (a request type in none is hidden)" }, groups), groups.ok ? parseJson(groups.body) : null);
+    counted(
+      add(
+        {
+          step: "portalGroups",
+          area: "requestTypes",
+          stage: 1,
+          required: true,
+          note: "Portal groups (a request type in none is hidden)",
+        },
+        groups,
+      ),
+      groups.ok ? parseJson(groups.body) : null,
+    );
   } else {
     skip({ step: "requestTypes", area: "requestTypes", stage: 1, required: true }, noDesk);
     skip({ step: "portalGroups", area: "requestTypes", stage: 1, required: true }, noDesk);
   }
   if (desk && requestType) {
     const probe = await probeEndpoint(`${deskPath}/requesttype/${requestType.id}/field`, { keepBody: true });
-    counted(add({ step: "requestTypeFields", area: "requestTypes", stage: 1, required: true, note: "Fields a request type shows, with labels and required flags" }, probe), probe.ok ? parseJson(probe.body) : null);
+    counted(
+      add(
+        {
+          step: "requestTypeFields",
+          area: "requestTypes",
+          stage: 1,
+          required: true,
+          note: "Fields a request type shows, with labels and required flags",
+        },
+        probe,
+      ),
+      probe.ok ? parseJson(probe.body) : null,
+    );
   } else {
-    skip({ step: "requestTypeFields", area: "requestTypes", stage: 1, required: true }, desk ? "Skipped: the desk has no request types to sample." : noDesk);
+    skip(
+      { step: "requestTypeFields", area: "requestTypes", stage: 1, required: true },
+      desk ? "Skipped: the desk has no request types to sample." : noDesk,
+    );
   }
   // Every request type on the site in one call, if this answers -- one call instead of one per desk.
   const allTypes = await probeEndpoint(`${SD}/requesttype?limit=1`, { keepBody: true });
-  counted(add({ step: "allRequestTypes", area: "requestTypes", stage: 1, required: false, note: "Site-wide request type list (saves a call per desk)" }, allTypes), allTypes.ok ? parseJson(allTypes.body) : null);
+  counted(
+    add(
+      {
+        step: "allRequestTypes",
+        area: "requestTypes",
+        stage: 1,
+        required: false,
+        note: "Site-wide request type list (saves a call per desk)",
+      },
+      allTypes,
+    ),
+    allTypes.ok ? parseJson(allTypes.body) : null,
+  );
 
   // Forms live on the gateway; whether requestJira's proxy reaches them is the open question.
   if (cloudId && desk?.projectId) {
     const forms = await probeEndpoint(`/jira/forms/cloud/${cloudId}/project/${desk.projectId}/form`);
-    add({ step: "forms", area: "requestTypes", stage: 1, required: false, note: "Form templates on the project (Forms API)" }, forms);
+    add(
+      {
+        step: "forms",
+        area: "requestTypes",
+        stage: 1,
+        required: false,
+        note: "Form templates on the project (Forms API)",
+      },
+      forms,
+    );
   } else {
-    skip({ step: "forms", area: "requestTypes", stage: 1, required: false }, cloudId ? noDesk : "Skipped: no cloud id in the install context.");
+    skip(
+      { step: "forms", area: "requestTypes", stage: 1, required: false },
+      cloudId ? noDesk : "Skipped: no cloud id in the install context.",
+    );
   }
 
   // Queues: the engine needs each queue's JQL, and its count for usage.
   if (desk) {
     const probe = await probeEndpoint(`${deskPath}/queue?includeCount=true&limit=50`, { keepBody: true });
     const parsed = probe.ok ? parseJson(probe.body) : null;
-    const row = counted(add({ step: "queues", area: "queues", stage: 1, required: true, note: "Queues with their JQL" }, probe), parsed);
+    const row = counted(
+      add({ step: "queues", area: "queues", stage: 1, required: true, note: "Queues with their JQL" }, probe),
+      parsed,
+    );
     const first = pageValues(parsed)[0];
     if (probe.ok && first && typeof first.jql !== "string") {
       row.verdict = "unexpected-shape";
       row.sample = `Queues answered without a jql property: ${probe.sample}`;
     }
     const countsRow = {
-      step: "queueCounts", area: "queues", stage: 2, required: true, path: row.path,
-      note: "Issue count per queue (includeCount)", status: probe.status, ok: probe.ok, ms: 0,
+      step: "queueCounts",
+      area: "queues",
+      stage: 2,
+      required: true,
+      path: row.path,
+      note: "Issue count per queue (includeCount)",
+      status: probe.status,
+      ok: probe.ok,
+      ms: 0,
     };
     if (!probe.ok) countsRow.sample = "See the queues row.";
-    else if (!first) Object.assign(countsRow, { verdict: "skipped", sample: "Skipped: the desk has no queues to sample." });
-    else if (typeof first.issueCount !== "number") Object.assign(countsRow, { verdict: "unexpected-shape", sample: "Queues answered without issueCount." });
+    else if (!first)
+      Object.assign(countsRow, { verdict: "skipped", sample: "Skipped: the desk has no queues to sample." });
+    else if (typeof first.issueCount !== "number")
+      Object.assign(countsRow, { verdict: "unexpected-shape", sample: "Queues answered without issueCount." });
     else countsRow.sample = `First queue holds ${first.issueCount} issues.`;
     countsRow.verdict = countsRow.verdict ?? verdictOf(countsRow);
     results.push(countsRow);
@@ -239,12 +335,42 @@ export async function probeServiceManagementApi({ cloudId = null } = {}) {
 
   // Customers and organizations: counts only.
   const orgs = await probeEndpoint(`${SD}/organization?limit=50`, { keepBody: true, headers: EXPERIMENTAL });
-  counted(add({ step: "organizations", area: "customers", stage: 1, required: true, note: "Every organization on the site" }, orgs, { personal: true }), orgs.ok ? parseJson(orgs.body) : null);
+  counted(
+    add(
+      { step: "organizations", area: "customers", stage: 1, required: true, note: "Every organization on the site" },
+      orgs,
+      { personal: true },
+    ),
+    orgs.ok ? parseJson(orgs.body) : null,
+  );
   if (desk) {
-    const deskOrgs = await probeEndpoint(`${deskPath}/organization?limit=50`, { keepBody: true, headers: EXPERIMENTAL });
-    counted(add({ step: "deskOrganizations", area: "customers", stage: 1, required: true, note: "Organizations attached to the desk" }, deskOrgs, { personal: true }), deskOrgs.ok ? parseJson(deskOrgs.body) : null);
+    const deskOrgs = await probeEndpoint(`${deskPath}/organization?limit=50`, {
+      keepBody: true,
+      headers: EXPERIMENTAL,
+    });
+    counted(
+      add(
+        {
+          step: "deskOrganizations",
+          area: "customers",
+          stage: 1,
+          required: true,
+          note: "Organizations attached to the desk",
+        },
+        deskOrgs,
+        { personal: true },
+      ),
+      deskOrgs.ok ? parseJson(deskOrgs.body) : null,
+    );
     const customers = await probeEndpoint(`${deskPath}/customer?limit=50`, { keepBody: true, headers: EXPERIMENTAL });
-    counted(add({ step: "deskCustomers", area: "customers", stage: 1, required: true, note: "Customers of the desk" }, customers, { personal: true }), customers.ok ? parseJson(customers.body) : null);
+    counted(
+      add(
+        { step: "deskCustomers", area: "customers", stage: 1, required: true, note: "Customers of the desk" },
+        customers,
+        { personal: true },
+      ),
+      customers.ok ? parseJson(customers.body) : null,
+    );
   } else {
     skip({ step: "deskOrganizations", area: "customers", stage: 1, required: true }, noDesk);
     skip({ step: "deskCustomers", area: "customers", stage: 1, required: true }, noDesk);
@@ -252,7 +378,10 @@ export async function probeServiceManagementApi({ cloudId = null } = {}) {
 
   // ---- Stage 2: usage and outcomes, by JQL count -----------------------------------------
   const sla = slaFields[0] ? cfRef(slaFields[0].id) : null;
-  for (const [step, fn] of [["slaBreached", "breached()"], ["slaRunning", "running()"]]) {
+  for (const [step, fn] of [
+    ["slaBreached", "breached()"],
+    ["slaRunning", "running()"],
+  ]) {
     const meta = { step, area: "slas", stage: 2, required: true, note: `Issues whose first SLA is ${fn}` };
     if (desk && sla) add(meta, await probeJqlCount(`${projectClause} AND ${sla} = ${fn}`));
     else skip(meta, desk ? "Skipped: no SLA field on this site." : noDesk);
@@ -260,17 +389,44 @@ export async function probeServiceManagementApi({ cloudId = null } = {}) {
 
   const rtRef = requestTypeField ? cfRef(requestTypeField.id) : null;
   {
-    const meta = { step: "requestTypeVolume", area: "requestTypes", stage: 2, required: true, note: "Requests raised through one request type" };
-    if (desk && rtRef && requestType) add(meta, await probeJqlCount(`${projectClause} AND ${rtRef} = ${jqlString(requestType.name)}`));
-    else skip(meta, !desk ? noDesk : !rtRef ? "Skipped: no request type field found." : "Skipped: the desk has no request types to sample.");
+    const meta = {
+      step: "requestTypeVolume",
+      area: "requestTypes",
+      stage: 2,
+      required: true,
+      note: "Requests raised through one request type",
+    };
+    if (desk && rtRef && requestType)
+      add(meta, await probeJqlCount(`${projectClause} AND ${rtRef} = ${jqlString(requestType.name)}`));
+    else
+      skip(
+        meta,
+        !desk
+          ? noDesk
+          : !rtRef
+            ? "Skipped: no request type field found."
+            : "Skipped: the desk has no request types to sample.",
+      );
   }
   {
-    const meta = { step: "portalChannel", area: "requestTypes", stage: 2, required: false, note: "Requests raised on the portal in the last 90 days" };
+    const meta = {
+      step: "portalChannel",
+      area: "requestTypes",
+      stage: 2,
+      required: false,
+      note: "Requests raised on the portal in the last 90 days",
+    };
     if (desk) add(meta, await probeJqlCount(`${projectClause} AND request-channel-type = portal AND created >= -90d`));
     else skip(meta, noDesk);
   }
   {
-    const meta = { step: "organizationRequests", area: "customers", stage: 2, required: true, note: "Requests raised on behalf of an organization" };
+    const meta = {
+      step: "organizationRequests",
+      area: "customers",
+      stage: 2,
+      required: true,
+      note: "Requests raised on behalf of an organization",
+    };
     if (desk) add(meta, await probeJqlCount(`${projectClause} AND organizations IS NOT EMPTY`));
     else skip(meta, noDesk);
   }
@@ -279,10 +435,16 @@ export async function probeServiceManagementApi({ cloudId = null } = {}) {
   if (desk) {
     const jql = encodeURIComponent(`${projectClause} ORDER BY created DESC`);
     const search = await probeEndpoint(`/rest/api/3/search/jql?jql=${jql}&maxResults=1&fields=key`, { keepBody: true });
-    const key = search.ok ? parseJson(search.body)?.issues?.[0]?.key ?? null : null;
+    const key = search.ok ? (parseJson(search.body)?.issues?.[0]?.key ?? null) : null;
     const meta = { step: "requestSla", area: "slas", stage: 2, required: false, note: "SLA cycles on one request" };
     if (key) add(meta, await probeEndpoint(`${SD}/request/${key}/sla`));
-    else skip(meta, search.ok ? "Skipped: the desk has no requests." : `Skipped: could not read a recent request (${search.status ?? "no response"}).`);
+    else
+      skip(
+        meta,
+        search.ok
+          ? "Skipped: the desk has no requests."
+          : `Skipped: could not read a recent request (${search.status ?? "no response"}).`,
+      );
   } else {
     skip({ step: "requestSla", area: "slas", stage: 2, required: false }, noDesk);
   }
@@ -304,7 +466,13 @@ export async function probeServiceManagementApi({ cloudId = null } = {}) {
     version,
     serviceDeskCount: desks.length,
     moreServiceDesks: hasMorePages(desksParsed),
-    sampledDesk: desk ? { id: String(desk.id), projectKey: desk.projectKey ?? null, projectId: desk.projectId != null ? String(desk.projectId) : null } : null,
+    sampledDesk: desk
+      ? {
+          id: String(desk.id),
+          projectKey: desk.projectKey ?? null,
+          projectId: desk.projectId != null ? String(desk.projectId) : null,
+        }
+      : null,
     slaFields,
     areas,
     results,

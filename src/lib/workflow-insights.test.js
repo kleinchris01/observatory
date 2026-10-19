@@ -50,7 +50,9 @@ describe("editDistanceWithin", () => {
 describe("findDuplicateStatusGroups", () => {
   test("reports the same literal name used more than once as identical", () => {
     const groups = findDuplicateStatusGroups([
-      status(1, "Discovery"), status(2, "Discovery"), status(3, "Discovery"),
+      status(1, "Discovery"),
+      status(2, "Discovery"),
+      status(3, "Discovery"),
       status(4, "Approved"),
     ]);
 
@@ -76,15 +78,18 @@ describe("findDuplicateStatusGroups", () => {
   });
 
   test("leaves genuinely distinct statuses alone", () => {
-    expect(findDuplicateStatusGroups([
-      status(1, "Backlog"), status(2, "In Review"), status(3, "Delivered"),
-    ])).toEqual([]);
+    expect(findDuplicateStatusGroups([status(1, "Backlog"), status(2, "In Review"), status(3, "Delivered")])).toEqual(
+      [],
+    );
   });
 
   test("orders the largest group first so the worst offender leads", () => {
     const groups = findDuplicateStatusGroups([
-      status(1, "Delivery"), status(2, "Delivery"),
-      status(3, "Discovery"), status(4, "Discovery"), status(5, "Discovery"),
+      status(1, "Delivery"),
+      status(2, "Delivery"),
+      status(3, "Discovery"),
+      status(4, "Discovery"),
+      status(5, "Discovery"),
     ]);
 
     expect(groups[0].count).toBe(3);
@@ -92,18 +97,16 @@ describe("findDuplicateStatusGroups", () => {
   });
 
   test("never places one status in two groups", () => {
-    const groups = findDuplicateStatusGroups([
-      status(1, "Backlog"), status(2, "Back Log"), status(3, "Backlogs"),
-    ]);
+    const groups = findDuplicateStatusGroups([status(1, "Backlog"), status(2, "Back Log"), status(3, "Backlogs")]);
 
     const ids = groups.flatMap((g) => g.statuses.map((s) => s.statusId));
     expect(new Set(ids).size).toBe(ids.length);
   });
 
   test("ignores unnamed statuses rather than grouping them all together", () => {
-    expect(findDuplicateStatusGroups([
-      { statusId: "1", name: "" }, { statusId: "2", name: null }, { statusId: "3" },
-    ])).toEqual([]);
+    expect(
+      findDuplicateStatusGroups([{ statusId: "1", name: "" }, { statusId: "2", name: null }, { statusId: "3" }]),
+    ).toEqual([]);
   });
 });
 
@@ -117,7 +120,10 @@ describe("findOrphanedStatuses", () => {
   });
 
   test("marks a zero-issue orphan as safe to remove", () => {
-    const counts = new Map([["2", 0], ["3", 412]]);
+    const counts = new Map([
+      ["2", 0],
+      ["3", 412],
+    ]);
     const orphans = findOrphanedStatuses(statuses, pairs, counts);
 
     const unused = orphans.find((o) => o.statusId === "2");
@@ -144,7 +150,10 @@ describe("findOrphanedStatuses", () => {
   // Workflows tab's JSX as `safeToRemove && !automationRuleCount`, so the model asserted
   // one thing and one call site quietly disagreed. The health score read the model.
   describe("automation references", () => {
-    const counts = new Map([["2", 0], ["3", 0]]);
+    const counts = new Map([
+      ["2", 0],
+      ["3", 0],
+    ]);
 
     test("a rule reference stops a status being safe to remove", () => {
       const orphans = findOrphanedStatuses(statuses, pairs, counts, {
@@ -181,7 +190,10 @@ describe("findOrphanedStatuses", () => {
   // status a board maps is load-bearing even at zero issues and zero rules -- deleting it
   // drops that column's cards off the board with no error anywhere.
   describe("board references", () => {
-    const counts = new Map([["2", 0], ["3", 0]]);
+    const counts = new Map([
+      ["2", 0],
+      ["3", 0],
+    ]);
 
     test("a board column mapping the status stops it being safe to remove", () => {
       const boardStatusIds = new Set(["2"]);
@@ -217,9 +229,7 @@ describe("computeSchemeCategoryBalance", () => {
   const schemes = [{ id: "s1", name: "Alpha", projectCount: 4 }];
 
   test("counts statuses by category", () => {
-    const statuses = [
-      status(1, "Open", "To Do"), status(2, "Doing", "In Progress"), status(3, "Shipped", "Done"),
-    ];
+    const statuses = [status(1, "Open", "To Do"), status(2, "Doing", "In Progress"), status(3, "Shipped", "Done")];
     const pairs = statuses.map((s) => ({ schemeId: "s1", statusId: s.statusId }));
 
     const [balance] = computeSchemeCategoryBalance(schemes, pairs, statuses);
@@ -257,8 +267,10 @@ describe("computeSchemeCategoryBalance", () => {
 
   test("does not flag a small healthy scheme", () => {
     const statuses = [
-      status(1, "Open", "To Do"), status(2, "Doing", "In Progress"),
-      status(3, "Review", "In Progress"), status(4, "Shipped", "Done"),
+      status(1, "Open", "To Do"),
+      status(2, "Doing", "In Progress"),
+      status(3, "Review", "In Progress"),
+      status(4, "Shipped", "Done"),
     ];
     const pairs = statuses.map((s) => ({ schemeId: "s1", statusId: s.statusId }));
 
@@ -272,7 +284,8 @@ describe("computeSchemeCategoryBalance", () => {
     ];
     const statuses = [status(1, "Open", "To Do"), status(2, "Shipped", "Done")];
     const pairs = [
-      { schemeId: "clean", statusId: "1" }, { schemeId: "clean", statusId: "2" },
+      { schemeId: "clean", statusId: "1" },
+      { schemeId: "clean", statusId: "2" },
       { schemeId: "broken", statusId: "1" },
     ];
 
@@ -370,8 +383,12 @@ describe("summarizeWorkflowInsights", () => {
 
   test("is all zeroes for a clean site", () => {
     expect(summarizeWorkflowInsights({})).toMatchObject({
-      duplicateGroupCount: 0, reducibleStatusCount: 0, orphanCount: 0, flaggedSchemeCount: 0,
-      unreachableWithIssuesCount: 0, noDoneSchemeCount: 0,
+      duplicateGroupCount: 0,
+      reducibleStatusCount: 0,
+      orphanCount: 0,
+      flaggedSchemeCount: 0,
+      unreachableWithIssuesCount: 0,
+      noDoneSchemeCount: 0,
     });
   });
 });
@@ -397,10 +414,13 @@ describe("isSpellingVariant — false positives", () => {
 
   test("groups the real catalog's variants without merging its series", () => {
     const groups = findDuplicateStatusGroups([
-      status(1, "CP3 Sign Off Complete"), status(2, "CP4 Sign Off Complete"),
+      status(1, "CP3 Sign Off Complete"),
+      status(2, "CP4 Sign Off Complete"),
       status(3, "CP5 Sign Off Complete"),
-      status(4, "CHOLD"), status(5, "UHOLD"),
-      status(6, "Cancelled"), status(7, "Canceled"),
+      status(4, "CHOLD"),
+      status(5, "UHOLD"),
+      status(6, "Cancelled"),
+      status(7, "Canceled"),
     ]);
 
     const names = groups.flatMap((g) => g.statuses.map((s) => s.name));

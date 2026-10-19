@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@forge/bridge", () => ({
@@ -9,11 +9,25 @@ vi.mock("@forge/bridge", () => ({
 }));
 
 import { invoke } from "@forge/bridge";
-import { TopFieldsChart, FieldTypeDonut, ProjectsTabView,
-  ProjectOverview, buildProjectFilters, projectFilterCount, ProjectAdoptionPanel, ActivitySparkbars,
-  ProjectHealthPanel, ProjectFiltersPanel, ProjectScreenReportPanel,
-  sortProjectList, projectCardFindings, overConfiguredFloor,
-  filterProjectsByRanges, activeRangeKeys, PROJECT_METRICS, PROJECT_SORT_OPTIONS,
+import {
+  TopFieldsChart,
+  FieldTypeDonut,
+  ProjectsTabView,
+  ProjectOverview,
+  buildProjectFilters,
+  projectFilterCount,
+  ProjectAdoptionPanel,
+  ActivitySparkbars,
+  ProjectHealthPanel,
+  ProjectFiltersPanel,
+  ProjectScreenReportPanel,
+  sortProjectList,
+  projectCardFindings,
+  overConfiguredFloor,
+  filterProjectsByRanges,
+  activeRangeKeys,
+  PROJECT_METRICS,
+  PROJECT_SORT_OPTIONS,
 } from "./ProjectsTab";
 
 // ---------------------------------------------------------------------------
@@ -85,8 +99,7 @@ describe("FieldTypeDonut", () => {
     const { container } = render(<FieldTypeDonut fields={fields} />);
     // Retitled when system fields were excluded: the chart now describes how the project
     // is configured, not which fields Jira puts on every issue.
-    expect(container.querySelector(".chart-title").textContent)
-      .toMatch(/Custom field types on this project/);
+    expect(container.querySelector(".chart-title").textContent).toMatch(/Custom field types on this project/);
   });
 
   it("renders SVG donut chart", () => {
@@ -174,8 +187,22 @@ describe("ProjectsTabView", () => {
   it("renders project buttons when data contains projects", () => {
     const data = {
       projects: [
-        { projectId: "P1", projectKey: "DEMO", projectName: "Demo Project", totalIssueCount: 50, fieldCount: 3, uniqueIssueCount: null },
-        { projectId: "P2", projectKey: "TEST", projectName: "Test Project", totalIssueCount: 20, fieldCount: 1, uniqueIssueCount: null },
+        {
+          projectId: "P1",
+          projectKey: "DEMO",
+          projectName: "Demo Project",
+          totalIssueCount: 50,
+          fieldCount: 3,
+          uniqueIssueCount: null,
+        },
+        {
+          projectId: "P2",
+          projectKey: "TEST",
+          projectName: "Test Project",
+          totalIssueCount: 20,
+          fieldCount: 1,
+          uniqueIssueCount: null,
+        },
       ],
       selectedProject: null,
       fields: [],
@@ -193,7 +220,14 @@ describe("ProjectsTabView", () => {
   it("renders project detail section when a project is selected", () => {
     const data = {
       projects: [
-        { projectId: "P1", projectKey: "DEMO", projectName: "Demo Project", totalIssueCount: 50, fieldCount: 3, uniqueIssueCount: null },
+        {
+          projectId: "P1",
+          projectKey: "DEMO",
+          projectName: "Demo Project",
+          totalIssueCount: 50,
+          fieldCount: 3,
+          uniqueIssueCount: null,
+        },
       ],
       selectedProject: {
         projectId: "P1",
@@ -210,17 +244,19 @@ describe("ProjectsTabView", () => {
       totalPages: 1,
       refreshedAt: null,
     };
-    const { container } = render(<ProjectsTabView
-      {...defaultProps}
-      data={data}
-      selectedProjectId="P1"
-      overview={{
-        available: true,
-        workflow: { available: false, reason: "No workflow inventory has been built yet." },
-        screens: { available: false, reason: "No screen inventory has been built yet." },
-        automation: { available: false, reason: "No automation analysis has been built yet." },
-      }}
-    />);
+    const { container } = render(
+      <ProjectsTabView
+        {...defaultProps}
+        data={data}
+        selectedProjectId="P1"
+        overview={{
+          available: true,
+          workflow: { available: false, reason: "No workflow inventory has been built yet." },
+          screens: { available: false, reason: "No screen inventory has been built yet." },
+          automation: { available: false, reason: "No automation analysis has been built yet." },
+        }}
+      />,
+    );
     // The selected project's card is expanded in place, field-browser style.
     expect(container.querySelector(".field-card--open")).toBeInTheDocument();
     // The key is its own Jira link now, so the heading is no longer one text node.
@@ -231,12 +267,7 @@ describe("ProjectsTabView", () => {
   });
 
   it("shows the 'Restore from field summaries' button when handler is provided", () => {
-    render(
-      <ProjectsTabView
-        {...defaultProps}
-        onRestoreProjectUsageCache={vi.fn()}
-      />
-    );
+    render(<ProjectsTabView {...defaultProps} onRestoreProjectUsageCache={vi.fn()} />);
     expect(screen.getByRole("button", { name: /restore from field summaries/i })).toBeInTheDocument();
   });
 });
@@ -263,8 +294,24 @@ describe("ProjectsTabView workflow correlation", () => {
 
   function dataWith(workflowScheme) {
     return {
-      projects: [{ projectId: "100", projectKey: "AAA", projectName: "Project A", fieldCount: 12, totalIssueCount: 40, uniqueIssueCount: null }],
-      selectedProject: { projectId: "100", projectKey: "AAA", projectName: "Project A", fieldCount: 12, totalIssueCount: 40, uniqueIssueCount: null },
+      projects: [
+        {
+          projectId: "100",
+          projectKey: "AAA",
+          projectName: "Project A",
+          fieldCount: 12,
+          totalIssueCount: 40,
+          uniqueIssueCount: null,
+        },
+      ],
+      selectedProject: {
+        projectId: "100",
+        projectKey: "AAA",
+        projectName: "Project A",
+        fieldCount: 12,
+        totalIssueCount: 40,
+        uniqueIssueCount: null,
+      },
       workflowScheme,
       fields: [],
       page: 1,
@@ -328,16 +375,18 @@ describe("ProjectsTabView workflow correlation", () => {
   // exist. The overview must report that pillar as unbuilt rather than as a project with
   // no process, and the field view must not depend on it at all.
   it("reports the workflow pillar unbuilt without breaking the rest of the page", () => {
-    render(<ProjectsTabView
-      {...props}
-      data={dataWith(null)}
-      overview={{
-        available: true,
-        workflow: { available: false, reason: "No workflow inventory has been built yet." },
-        screens: { available: false, reason: "No screen inventory has been built yet." },
-        automation: { available: false, reason: "No automation analysis has been built yet." },
-      }}
-    />);
+    render(
+      <ProjectsTabView
+        {...props}
+        data={dataWith(null)}
+        overview={{
+          available: true,
+          workflow: { available: false, reason: "No workflow inventory has been built yet." },
+          screens: { available: false, reason: "No screen inventory has been built yet." },
+          automation: { available: false, reason: "No automation analysis has been built yet." },
+        }}
+      />,
+    );
 
     expect(screen.getByText(/No workflow inventory/i)).toBeInTheDocument();
     expect(screen.getAllByText(/Fields in use/i).length).toBeGreaterThan(0);
@@ -376,13 +425,17 @@ describe("FieldTypeDonut — system field exclusion", () => {
   });
 
   test("renders nothing when a project has only system fields", () => {
-    const { container } = render(<FieldTypeDonut fields={fields.filter((f) => !f.fieldId.startsWith("customfield_"))} />);
+    const { container } = render(
+      <FieldTypeDonut fields={fields.filter((f) => !f.fieldId.startsWith("customfield_"))} />,
+    );
     // An empty donut is worse than no donut: it implies the project has no configuration.
     expect(container.firstChild).toBeNull();
   });
 
   test("omits the excluded note when every field is custom", () => {
-    const { container } = render(<FieldTypeDonut fields={fields.filter((f) => f.fieldId.startsWith("customfield_"))} />);
+    const { container } = render(
+      <FieldTypeDonut fields={fields.filter((f) => f.fieldId.startsWith("customfield_"))} />,
+    );
     expect(container.querySelector(".chart-title").textContent).not.toMatch(/system field/i);
   });
 });
@@ -391,15 +444,30 @@ describe("FieldTypeDonut — system field exclusion", () => {
 // beside it: no mention of the forms a project routes to, none at all of the automation
 // firing inside it.
 describe("ProjectOverview", () => {
-  const project = { projectKey: "CAVPSE", projectName: "Advanced Connected Vehicle", fieldCount: 170, uniqueIssueCount: 60185, totalFieldFills: 4192973 };
+  const project = {
+    projectKey: "CAVPSE",
+    projectName: "Advanced Connected Vehicle",
+    fieldCount: 170,
+    uniqueIssueCount: 60185,
+    totalFieldFills: 4192973,
+  };
   const overview = (over = {}) => ({
     available: true,
     workflow: { available: true, scheme: { name: "SW Workflow Scheme v1", sharedWithCount: 5 } },
-    screens: { available: true, unresolvedScreens: 0, screens: [{ screenId: "100", name: "Default Screen", fieldCount: 28, tabsResolved: "resolved" }] },
-    automation: { available: true, enabledCount: 3, disabledCount: 1, rules: [
-      { ruleId: "1", name: "Send to Approval", enabled: true, triggerType: "Issue created" },
-      { ruleId: "2", name: "Retired rule", enabled: false, triggerType: "Scheduled" },
-    ] },
+    screens: {
+      available: true,
+      unresolvedScreens: 0,
+      screens: [{ screenId: "100", name: "Default Screen", fieldCount: 28, tabsResolved: "resolved" }],
+    },
+    automation: {
+      available: true,
+      enabledCount: 3,
+      disabledCount: 1,
+      rules: [
+        { ruleId: "1", name: "Send to Approval", enabled: true, triggerType: "Issue created" },
+        { ruleId: "2", name: "Retired rule", enabled: false, triggerType: "Scheduled" },
+      ],
+    },
     ...over,
   });
 
@@ -422,14 +490,16 @@ describe("ProjectOverview", () => {
 
   // Em dash, never 0. "No forms route here" and "we have not looked" are opposite claims.
   it("reports an unbuilt pillar as unknown rather than as zero", () => {
-    render(<ProjectOverview
-      project={project}
-      loading={false}
-      overview={overview({
-        screens: { available: false, reason: "No screen inventory has been built yet." },
-        automation: { available: false, reason: "No automation analysis has been built yet." },
-      })}
-    />);
+    render(
+      <ProjectOverview
+        project={project}
+        loading={false}
+        overview={overview({
+          screens: { available: false, reason: "No screen inventory has been built yet." },
+          automation: { available: false, reason: "No automation analysis has been built yet." },
+        })}
+      />,
+    );
 
     expect(screen.getByText(/No screen inventory/i)).toBeInTheDocument();
     // Twice: both the scoped-rules panel and the inferred site-wide one report the same
@@ -440,38 +510,55 @@ describe("ProjectOverview", () => {
 
   // Distinct from the above: the pillar IS built and the answer is genuinely none.
   it("distinguishes a built pillar with nothing in it from an unbuilt one", () => {
-    render(<ProjectOverview
-      project={project}
-      loading={false}
-      overview={overview({ automation: { available: true, enabledCount: 0, disabledCount: 0, rules: [] } })}
-    />);
+    render(
+      <ProjectOverview
+        project={project}
+        loading={false}
+        overview={overview({ automation: { available: true, enabledCount: 0, disabledCount: 0, rules: [] } })}
+      />,
+    );
 
     expect(screen.getByText("No rule is scoped specifically to this project.")).toBeInTheDocument();
   });
 
   it("caveats the form list when part of the screen catalog could not be read", () => {
-    render(<ProjectOverview
-      project={project}
-      loading={false}
-      overview={overview({ screens: { available: true, unresolvedScreens: 14, screens: [{ screenId: "100", name: "Default Screen", fieldCount: 28, tabsResolved: "resolved" }] } })}
-    />);
+    render(
+      <ProjectOverview
+        project={project}
+        loading={false}
+        overview={overview({
+          screens: {
+            available: true,
+            unresolvedScreens: 14,
+            screens: [{ screenId: "100", name: "Default Screen", fieldCount: 28, tabsResolved: "resolved" }],
+          },
+        })}
+      />,
+    );
 
     expect(screen.getByText(/may be incomplete/i)).toBeInTheDocument();
   });
 
   it("names the permission / security / notification scheme this project resolves to", () => {
-    render(<ProjectOverview
-      project={project}
-      loading={false}
-      overview={overview({
-        schemes: {
-          available: true,
-          permission: { schemeType: "permission", schemeId: "1", schemeName: "Prod permissions", isDefault: false },
-          security: null,
-          notification: { schemeType: "notification", schemeId: "n1", schemeName: "Default Notification Scheme", isDefault: true },
-        },
-      })}
-    />);
+    render(
+      <ProjectOverview
+        project={project}
+        loading={false}
+        overview={overview({
+          schemes: {
+            available: true,
+            permission: { schemeType: "permission", schemeId: "1", schemeName: "Prod permissions", isDefault: false },
+            security: null,
+            notification: {
+              schemeType: "notification",
+              schemeId: "n1",
+              schemeName: "Default Notification Scheme",
+              isDefault: true,
+            },
+          },
+        })}
+      />,
+    );
 
     expect(screen.getByText("Prod permissions")).toBeInTheDocument();
     expect(screen.getByText("Default Notification Scheme")).toBeInTheDocument();
@@ -479,30 +566,38 @@ describe("ProjectOverview", () => {
   });
 
   it("reports the access schemes as unknown when that inventory has not been built", () => {
-    render(<ProjectOverview
-      project={project}
-      loading={false}
-      overview={overview({ schemes: { available: false, reason: "No access scheme inventory has been built yet." } })}
-    />);
+    render(
+      <ProjectOverview
+        project={project}
+        loading={false}
+        overview={overview({ schemes: { available: false, reason: "No access scheme inventory has been built yet." } })}
+      />,
+    );
 
     // Both the schemes and the roles panel report the same unbuilt inventory.
     expect(screen.getAllByText(/No access scheme inventory/i).length).toBeGreaterThan(0);
   });
 
   it("summarises each role, flags an empty one, and reveals actors on request", async () => {
-    render(<ProjectOverview
-      project={project}
-      loading={false}
-      overview={overview({
-        roles: {
-          available: true,
-          byRole: [
-            { roleId: "10002", roleName: "Administrators", actors: [{ type: "group", value: "g-admins", label: "site-admins" }] },
-            { roleId: "10003", roleName: "Members", actors: [] },
-          ],
-        },
-      })}
-    />);
+    render(
+      <ProjectOverview
+        project={project}
+        loading={false}
+        overview={overview({
+          roles: {
+            available: true,
+            byRole: [
+              {
+                roleId: "10002",
+                roleName: "Administrators",
+                actors: [{ type: "group", value: "g-admins", label: "site-admins" }],
+              },
+              { roleId: "10003", roleName: "Members", actors: [] },
+            ],
+          },
+        })}
+      />,
+    );
 
     expect(screen.getByText("Administrators")).toBeInTheDocument();
     // Empty role is flagged without a click; it is the finding this panel exists for.
@@ -517,7 +612,13 @@ describe("ProjectOverview", () => {
 // Site-wide rules are only worth listing per project if there is evidence they act there.
 // Otherwise the list is "all of them", which says nothing.
 describe("ProjectOverview — inferred site-wide rules", () => {
-  const project = { projectKey: "CAVPSE", projectName: "Advanced Connected Vehicle", fieldCount: 170, uniqueIssueCount: 60185, totalFieldFills: 4192973 };
+  const project = {
+    projectKey: "CAVPSE",
+    projectName: "Advanced Connected Vehicle",
+    fieldCount: 170,
+    uniqueIssueCount: 60185,
+    totalFieldFills: 4192973,
+  };
   const base = (automation) => ({
     available: true,
     workflow: { available: false, reason: "No workflow inventory has been built yet." },
@@ -526,11 +627,20 @@ describe("ProjectOverview — inferred site-wide rules", () => {
   });
 
   it("shows the evidence behind the inference, not just the rule name", () => {
-    render(<ProjectOverview project={project} loading={false} overview={base({
-      available: true, enabledCount: 0, disabledCount: 0, rules: [],
-      globalRulesAvailable: true,
-      globalRules: [{ ruleId: "9", name: "Stamp Last Reviewed", fieldsTouched: 2, issuesTouched: 5000 }],
-    })} />);
+    render(
+      <ProjectOverview
+        project={project}
+        loading={false}
+        overview={base({
+          available: true,
+          enabledCount: 0,
+          disabledCount: 0,
+          rules: [],
+          globalRulesAvailable: true,
+          globalRules: [{ ruleId: "9", name: "Stamp Last Reviewed", fieldsTouched: 2, issuesTouched: 5000 }],
+        })}
+      />,
+    );
 
     expect(screen.getByText("Stamp Last Reviewed")).toBeInTheDocument();
     expect(screen.getByText(/5,000 issues · 2 fields/)).toBeInTheDocument();
@@ -539,33 +649,61 @@ describe("ProjectOverview — inferred site-wide rules", () => {
   // The distinction that matters: configured-for-this-project is a fact, reaches-this-project
   // is a judgement, and the second must not borrow the authority of the first.
   it("labels the list as inferred rather than confirmed", () => {
-    render(<ProjectOverview project={project} loading={false} overview={base({
-      available: true, enabledCount: 0, disabledCount: 0, rules: [],
-      globalRulesAvailable: true,
-      globalRules: [{ ruleId: "9", name: "Stamp", fieldsTouched: 1, issuesTouched: 10 }],
-    })} />);
+    render(
+      <ProjectOverview
+        project={project}
+        loading={false}
+        overview={base({
+          available: true,
+          enabledCount: 0,
+          disabledCount: 0,
+          rules: [],
+          globalRulesAvailable: true,
+          globalRules: [{ ruleId: "9", name: "Stamp", fieldsTouched: 1, issuesTouched: 10 }],
+        })}
+      />,
+    );
 
     expect(screen.getByText(/Inferred, not confirmed/i)).toBeInTheDocument();
     expect(screen.getByText(/no execution log/i)).toBeInTheDocument();
   });
 
   it("says why it cannot infer, rather than reporting none", () => {
-    render(<ProjectOverview project={project} loading={false} overview={base({
-      available: true, enabledCount: 0, disabledCount: 0, rules: [],
-      globalRulesAvailable: false,
-      globalRulesReason: "Needs the field snapshot to tell which site-wide rules act on this project.",
-      globalRules: [],
-    })} />);
+    render(
+      <ProjectOverview
+        project={project}
+        loading={false}
+        overview={base({
+          available: true,
+          enabledCount: 0,
+          disabledCount: 0,
+          rules: [],
+          globalRulesAvailable: false,
+          globalRulesReason: "Needs the field snapshot to tell which site-wide rules act on this project.",
+          globalRules: [],
+        })}
+      />,
+    );
 
     expect(screen.getByText(/Needs the field snapshot/i)).toBeInTheDocument();
     expect(screen.queryByText(/No site-wide rule shows evidence/i)).not.toBeInTheDocument();
   });
 
   it("distinguishes no evidence found from unable to look", () => {
-    render(<ProjectOverview project={project} loading={false} overview={base({
-      available: true, enabledCount: 0, disabledCount: 0, rules: [],
-      globalRulesAvailable: true, globalRules: [],
-    })} />);
+    render(
+      <ProjectOverview
+        project={project}
+        loading={false}
+        overview={base({
+          available: true,
+          enabledCount: 0,
+          disabledCount: 0,
+          rules: [],
+          globalRulesAvailable: true,
+          globalRules: [],
+        })}
+      />,
+    );
 
     expect(screen.getByText(/No site-wide rule shows evidence/i)).toBeInTheDocument();
   });
@@ -588,9 +726,27 @@ describe("overConfiguredFloor", () => {
 
 describe("sortProjectList", () => {
   const rows = [
-    { projectKey: "CCC", fieldCount: 5, uniqueIssueCount: 10, latestIssueUpdatedAt: "2026-01-01T00:00:00Z", adoption: { score: 40 } },
-    { projectKey: "AAA", fieldCount: 90, uniqueIssueCount: 900, latestIssueUpdatedAt: "2026-09-01T00:00:00Z", adoption: { score: 99 } },
-    { projectKey: "BBB", fieldCount: 12, uniqueIssueCount: 50, latestIssueUpdatedAt: "2026-05-01T00:00:00Z", adoption: null },
+    {
+      projectKey: "CCC",
+      fieldCount: 5,
+      uniqueIssueCount: 10,
+      latestIssueUpdatedAt: "2026-01-01T00:00:00Z",
+      adoption: { score: 40 },
+    },
+    {
+      projectKey: "AAA",
+      fieldCount: 90,
+      uniqueIssueCount: 900,
+      latestIssueUpdatedAt: "2026-09-01T00:00:00Z",
+      adoption: { score: 99 },
+    },
+    {
+      projectKey: "BBB",
+      fieldCount: 12,
+      uniqueIssueCount: 50,
+      latestIssueUpdatedAt: "2026-05-01T00:00:00Z",
+      adoption: null,
+    },
   ];
   const keys = (list) => list.map((r) => r.projectKey);
 
@@ -619,7 +775,9 @@ describe("sortProjectList", () => {
   });
   it("every metric has an asc and a desc sort option", () => {
     for (const m of PROJECT_METRICS) {
-      expect(PROJECT_SORT_OPTIONS.map((o) => o.value)).toEqual(expect.arrayContaining([`${m.key}-asc`, `${m.key}-desc`]));
+      expect(PROJECT_SORT_OPTIONS.map((o) => o.value)).toEqual(
+        expect.arrayContaining([`${m.key}-asc`, `${m.key}-desc`]),
+      );
     }
   });
   it("an unknown sort key falls back to adoption desc", () => {
@@ -646,7 +804,9 @@ describe("filterProjectsByRanges", () => {
     expect(keys(filterProjectsByRanges(rows, { fields: { max: "10" } }))).toEqual(["A"]);
   });
   it("applies both bounds, and combines ranges across metrics with AND", () => {
-    expect(keys(filterProjectsByRanges(rows, { issues: { min: "50", max: "1000" }, fields: { min: "10" } }))).toEqual(["C"]);
+    expect(keys(filterProjectsByRanges(rows, { issues: { min: "50", max: "1000" }, fields: { min: "10" } }))).toEqual([
+      "C",
+    ]);
   });
   it("a range on a metric a project has no value for excludes that project", () => {
     // 'adoption' is null on C -> excluded by any adoption range
@@ -660,13 +820,20 @@ describe("filterProjectsByRanges", () => {
 
 describe("activeRangeKeys", () => {
   it("lists only the metrics with a real bound", () => {
-    expect(activeRangeKeys({ issues: { min: "10" }, fields: { min: "", max: "" }, adoption: { max: "5" } }).sort())
-      .toEqual(["adoption", "issues"]);
+    expect(
+      activeRangeKeys({ issues: { min: "10" }, fields: { min: "", max: "" }, adoption: { max: "5" } }).sort(),
+    ).toEqual(["adoption", "issues"]);
   });
 });
 
 describe("projectCardFindings", () => {
-  const base = { projectKey: "X", fieldCount: 5, totalIssueCount: 100, uniqueIssueCount: 100, latestIssueUpdatedAt: new Date().toISOString() };
+  const base = {
+    projectKey: "X",
+    fieldCount: 5,
+    totalIssueCount: 100,
+    uniqueIssueCount: 100,
+    latestIssueUpdatedAt: new Date().toISOString(),
+  };
 
   it("flags a project configured past the floor", () => {
     expect(projectCardFindings({ ...base, fieldCount: 40 }, 30).overConfigured).toBe(true);
@@ -696,9 +863,14 @@ describe("projectCardFindings", () => {
 // the rail is permission-filtered and the score is not.
 describe("buildProjectFilters", () => {
   const project = (key, over = {}) => ({
-    projectId: key, projectKey: key, projectName: key,
-    fieldCount: 20, totalIssueCount: 5000, uniqueIssueCount: null,
-    latestIssueUpdatedAt: new Date().toISOString(), ...over,
+    projectId: key,
+    projectKey: key,
+    projectName: key,
+    fieldCount: 20,
+    totalIssueCount: 5000,
+    uniqueIssueCount: null,
+    latestIssueUpdatedAt: new Date().toISOString(),
+    ...over,
   });
   const match = (projects, key) => {
     const filter = buildProjectFilters(projects).find((f) => f.key === key);
@@ -706,14 +878,20 @@ describe("buildProjectFilters", () => {
   };
 
   it("derives the over-configured floor from the site's own median", () => {
-    const projects = [...Array.from({ length: 20 }, (_, i) => project(`B${i}`, { fieldCount: 30 })), project("BIG", { fieldCount: 90 })];
+    const projects = [
+      ...Array.from({ length: 20 }, (_, i) => project(`B${i}`, { fieldCount: 30 })),
+      project("BIG", { fieldCount: 90 }),
+    ];
     // max(10, median * 2) -- the same floor the score judges against.
     expect(buildProjectFilters(projects).find((f) => f.key === "over-configured").label).toBe("60+ fields");
     expect(match(projects, "over-configured")).toEqual(["BIG"]);
   });
 
   it("guards the floor on a site whose median project carries one field", () => {
-    const projects = [...Array.from({ length: 10 }, (_, i) => project(`B${i}`, { fieldCount: 1 })), project("SMALL", { fieldCount: 6 })];
+    const projects = [
+      ...Array.from({ length: 10 }, (_, i) => project(`B${i}`, { fieldCount: 1 })),
+      project("SMALL", { fieldCount: 6 }),
+    ];
     // Twice the median is 2, which would make a six-field project an outlier. It is not.
     expect(match(projects, "over-configured")).toEqual([]);
   });
@@ -721,19 +899,28 @@ describe("buildProjectFilters", () => {
   it("counts a busy project past the norm as over-configured", () => {
     // The measure is field count alone. Requiring light volume too is what made this
     // finding impossible to trip on an active site.
-    const projects = [...Array.from({ length: 10 }, (_, i) => project(`B${i}`, { fieldCount: 20 })), project("BUSY", { fieldCount: 90, totalIssueCount: 400000 })];
+    const projects = [
+      ...Array.from({ length: 10 }, (_, i) => project(`B${i}`, { fieldCount: 20 })),
+      project("BUSY", { fieldCount: 90, totalIssueCount: 400000 }),
+    ];
     expect(match(projects, "over-configured")).toEqual(["BUSY"]);
   });
 
   it("finds projects with fields and no work", () => {
-    const projects = [project("A", { uniqueIssueCount: 500 }), project("EMPTY", { fieldCount: 12, uniqueIssueCount: 0, totalIssueCount: 0 })];
+    const projects = [
+      project("A", { uniqueIssueCount: 500 }),
+      project("EMPTY", { fieldCount: 12, uniqueIssueCount: 0, totalIssueCount: 0 }),
+    ];
     expect(match(projects, "no-work")).toEqual(["EMPTY"]);
   });
 
   // A project the scan has not reached is unmeasured, not empty. Coercing it to zero would
   // report most of the estate as abandoned halfway through every scan.
   it("does not call an unmeasured project empty", () => {
-    const projects = [project("SCANNED", { uniqueIssueCount: 5000 }), project("PENDING", { uniqueIssueCount: null, totalIssueCount: 0 })];
+    const projects = [
+      project("SCANNED", { uniqueIssueCount: 5000 }),
+      project("PENDING", { uniqueIssueCount: null, totalIssueCount: 0 }),
+    ];
     expect(match(projects, "no-work")).toEqual([]);
   });
 
@@ -746,7 +933,9 @@ describe("buildProjectFilters", () => {
   it("does not call a project that never started stale", () => {
     // Staleness needs recorded work to have gone quiet. A project that never started is the
     // other finding, and counting it as both would double-charge one project.
-    const projects = [project("NEVER", { totalIssueCount: 0, uniqueIssueCount: 0, latestIssueUpdatedAt: "2019-01-01T00:00:00Z" })];
+    const projects = [
+      project("NEVER", { totalIssueCount: 0, uniqueIssueCount: 0, latestIssueUpdatedAt: "2019-01-01T00:00:00Z" }),
+    ];
     expect(match(projects, "stale")).toEqual([]);
   });
 
@@ -756,55 +945,107 @@ describe("buildProjectFilters", () => {
   });
 
   it("survives an empty rail", () => {
-    expect(buildProjectFilters([]).map((f) => f.key)).toEqual(["all", "over-configured", "no-work", "fell-off", "stale"]);
+    expect(buildProjectFilters([]).map((f) => f.key)).toEqual([
+      "all",
+      "over-configured",
+      "no-work",
+      "fell-off",
+      "stale",
+    ]);
   });
 });
 
 describe("ProjectsTabView — arriving from a finding", () => {
   const project = (key, over = {}) => ({
-    projectId: key, projectKey: key, projectName: `Project ${key}`,
-    fieldCount: 20, totalIssueCount: 5000, uniqueIssueCount: 500,
-    latestIssueUpdatedAt: new Date().toISOString(), ...over,
+    projectId: key,
+    projectKey: key,
+    projectName: `Project ${key}`,
+    fieldCount: 20,
+    totalIssueCount: 5000,
+    uniqueIssueCount: 500,
+    latestIssueUpdatedAt: new Date().toISOString(),
+    ...over,
   });
   const data = {
-    projects: [
-      ...Array.from({ length: 10 }, (_, i) => project(`B${i}`)),
-      project("BIG", { fieldCount: 90 }),
-    ],
-    selectedProject: null, fields: [], availableTypes: [], totalFields: 0, page: 1, totalPages: 1,
+    projects: [...Array.from({ length: 10 }, (_, i) => project(`B${i}`)), project("BIG", { fieldCount: 90 })],
+    selectedProject: null,
+    fields: [],
+    availableTypes: [],
+    totalFields: 0,
+    page: 1,
+    totalPages: 1,
   };
   const noop = () => {};
 
   it("narrows the rail to the projects the finding counted", () => {
-    const { container } = render(<ProjectsTabView
-      data={data} loading={false} selectedProjectId="BIG" onSelectProject={noop}
-      projectQuery="" onProjectQueryChange={noop} fieldQuery="" onFieldQueryChange={noop}
-      fieldType="all" onFieldTypeChange={noop} fieldSort="issues-desc" onFieldSortChange={noop}
-      onChangePage={noop} projectFilter="over-configured" onProjectFilterChange={noop}
-    />);
+    const { container } = render(
+      <ProjectsTabView
+        data={data}
+        loading={false}
+        selectedProjectId="BIG"
+        onSelectProject={noop}
+        projectQuery=""
+        onProjectQueryChange={noop}
+        fieldQuery=""
+        onFieldQueryChange={noop}
+        fieldType="all"
+        onFieldTypeChange={noop}
+        fieldSort="issues-desc"
+        onFieldSortChange={noop}
+        onChangePage={noop}
+        projectFilter="over-configured"
+        onProjectFilterChange={noop}
+      />,
+    );
 
     const keys = [...container.querySelectorAll(".field-card .copy-field-id__value")].map((n) => n.textContent);
     expect(keys).toEqual(["BIG"]);
   });
 
   it("shows every project when opened normally", () => {
-    const { container } = render(<ProjectsTabView
-      data={data} loading={false} selectedProjectId="BIG" onSelectProject={noop}
-      projectQuery="" onProjectQueryChange={noop} fieldQuery="" onFieldQueryChange={noop}
-      fieldType="all" onFieldTypeChange={noop} fieldSort="issues-desc" onFieldSortChange={noop}
-      onChangePage={noop} projectFilter="all" onProjectFilterChange={noop}
-    />);
+    const { container } = render(
+      <ProjectsTabView
+        data={data}
+        loading={false}
+        selectedProjectId="BIG"
+        onSelectProject={noop}
+        projectQuery=""
+        onProjectQueryChange={noop}
+        fieldQuery=""
+        onFieldQueryChange={noop}
+        fieldType="all"
+        onFieldTypeChange={noop}
+        fieldSort="issues-desc"
+        onFieldSortChange={noop}
+        onChangePage={noop}
+        projectFilter="all"
+        onProjectFilterChange={noop}
+      />,
+    );
 
     expect(container.querySelectorAll(".field-card")).toHaveLength(11);
   });
 
   it("says the filter matched nothing rather than looking like an empty site", () => {
-    const { container } = render(<ProjectsTabView
-      data={data} loading={false} selectedProjectId="BIG" onSelectProject={noop}
-      projectQuery="" onProjectQueryChange={noop} fieldQuery="" onFieldQueryChange={noop}
-      fieldType="all" onFieldTypeChange={noop} fieldSort="issues-desc" onFieldSortChange={noop}
-      onChangePage={noop} projectFilter="no-work" onProjectFilterChange={noop}
-    />);
+    const { container } = render(
+      <ProjectsTabView
+        data={data}
+        loading={false}
+        selectedProjectId="BIG"
+        onSelectProject={noop}
+        projectQuery=""
+        onProjectQueryChange={noop}
+        fieldQuery=""
+        onFieldQueryChange={noop}
+        fieldType="all"
+        onFieldTypeChange={noop}
+        fieldSort="issues-desc"
+        onFieldSortChange={noop}
+        onChangePage={noop}
+        projectFilter="no-work"
+        onProjectFilterChange={noop}
+      />,
+    );
 
     expect(container.textContent).toMatch(/No project matches/);
     expect(container.textContent).not.toMatch(/No projects with cached field usage/);
@@ -815,9 +1056,14 @@ describe("ProjectsTabView — arriving from a finding", () => {
 // lost it, which a lifetime total can never show.
 describe("buildProjectFilters — adoption", () => {
   const project = (key, over = {}) => ({
-    projectId: key, projectKey: key, projectName: key,
-    fieldCount: 20, totalIssueCount: 5000, uniqueIssueCount: 500,
-    latestIssueUpdatedAt: new Date().toISOString(), ...over,
+    projectId: key,
+    projectKey: key,
+    projectName: key,
+    fieldCount: 20,
+    totalIssueCount: 5000,
+    uniqueIssueCount: 500,
+    latestIssueUpdatedAt: new Date().toISOString(),
+    ...over,
   });
 
   it("narrows to the projects people left", () => {
@@ -840,12 +1086,21 @@ describe("buildProjectFilters — adoption", () => {
 
 describe("ProjectAdoptionPanel", () => {
   const adoption = (over = {}) => ({
-    measured: true, oldEnough: true,
+    measured: true,
+    oldEnough: true,
     firstIssueCreatedAt: "2019-03-11T09:00:00.000Z",
-    ageDays: 2726, issuesPerDay: 22.2, recentIssuesPerDay: 0.4, momentum: 0.02,
-    fillsPerIssue: 14.2, score: 45, volumePercentile: 75,
-    peakMonth: "2022-07", peakIssues: 1910, declineFrom: "2023-02",
-    fellOff: true, neverAdopted: false,
+    ageDays: 2726,
+    issuesPerDay: 22.2,
+    recentIssuesPerDay: 0.4,
+    momentum: 0.02,
+    fillsPerIssue: 14.2,
+    score: 45,
+    volumePercentile: 75,
+    peakMonth: "2022-07",
+    peakIssues: 1910,
+    declineFrom: "2023-02",
+    fellOff: true,
+    neverAdopted: false,
     months: [
       { month: "2022-06", issueCount: 1800 },
       { month: "2022-07", issueCount: 1910 },
@@ -875,18 +1130,30 @@ describe("ProjectAdoptionPanel", () => {
   // indistinguishable: a project with no captured dates would read as created today and
   // never adopted.
   it("asks for a scan rather than reporting a project as unused", () => {
-    render(<ProjectAdoptionPanel adoption={{ measured: false, reason: "No issue dates captured. Run a Universal Scan." }} />);
+    render(
+      <ProjectAdoptionPanel adoption={{ measured: false, reason: "No issue dates captured. Run a Universal Scan." }} />,
+    );
     expect(screen.getByText(/Run a Universal Scan/)).toBeInTheDocument();
     expect(screen.queryByText(/Adoption score/)).not.toBeInTheDocument();
   });
 
   it("refuses to judge a project too new to judge", () => {
-    render(<ProjectAdoptionPanel adoption={adoption({ oldEnough: false, fellOff: false, declineFrom: null })} context={{}} />);
+    render(
+      <ProjectAdoptionPanel
+        adoption={adoption({ oldEnough: false, fellOff: false, declineFrom: null })}
+        context={{}}
+      />,
+    );
     expect(screen.getByText(/Too new to judge/)).toBeInTheDocument();
   });
 
   it("says a project never picked up, which is a different finding from falling off", () => {
-    render(<ProjectAdoptionPanel adoption={adoption({ fellOff: false, declineFrom: null, neverAdopted: true })} context={{}} />);
+    render(
+      <ProjectAdoptionPanel
+        adoption={adoption({ fellOff: false, declineFrom: null, neverAdopted: true })}
+        context={{}}
+      />,
+    );
     expect(screen.getByText(/Never picked up/)).toBeInTheDocument();
   });
 
@@ -915,15 +1182,31 @@ describe("ProjectAdoptionPanel", () => {
 });
 
 describe("ProjectScreenReportPanel", () => {
-  beforeEach(() => { invoke.mockReset(); });
+  beforeEach(() => {
+    invoke.mockReset();
+  });
 
   const inputs = {
     available: true,
     projectId: "10000",
     scopeProjectIds: ["10000"],
     schemes: [
-      { schemeId: "SS_STORY", schemeName: "Story screens", issueTypeCount: 1, isDefault: true, fieldIds: ["cf_1", "cf_2"], screens: [{ screenId: "S1", name: "Story", fieldIds: ["cf_1", "cf_2"] }] },
-      { schemeId: "SS_BUG", schemeName: "Bug screens", issueTypeCount: 2, isDefault: false, fieldIds: ["cf_3"], screens: [{ screenId: "S2", name: "Bug", fieldIds: ["cf_3"] }] },
+      {
+        schemeId: "SS_STORY",
+        schemeName: "Story screens",
+        issueTypeCount: 1,
+        isDefault: true,
+        fieldIds: ["cf_1", "cf_2"],
+        screens: [{ screenId: "S1", name: "Story", fieldIds: ["cf_1", "cf_2"] }],
+      },
+      {
+        schemeId: "SS_BUG",
+        schemeName: "Bug screens",
+        issueTypeCount: 2,
+        isDefault: false,
+        fieldIds: ["cf_3"],
+        screens: [{ screenId: "S2", name: "Bug", fieldIds: ["cf_3"] }],
+      },
     ],
     allFieldIds: ["cf_1", "cf_2", "cf_3"],
   };
@@ -953,7 +1236,12 @@ describe("ProjectScreenReportPanel", () => {
   });
 
   it("says so when the project's screens do not resolve through an ITSS", async () => {
-    invoke.mockResolvedValue({ available: true, projectId: "10000", schemes: [], reason: "This project's screens could not be resolved through an issue type screen scheme." });
+    invoke.mockResolvedValue({
+      available: true,
+      projectId: "10000",
+      schemes: [],
+      reason: "This project's screens could not be resolved through an issue type screen scheme.",
+    });
     render(<ProjectScreenReportPanel projectId="10000" onBuildFieldReport={vi.fn()} />);
     expect(await screen.findByText(/could not be resolved through an issue type screen scheme/i)).toBeInTheDocument();
   });
@@ -965,7 +1253,13 @@ describe("ProjectHealthPanel", () => {
     headline: "Worth a look",
     signals: [
       { key: "adoption", label: "Adoption", value: 38, detail: "busier than 60% of projects here", tone: "neutral" },
-      { key: "configuration", label: "Configuration weight", value: "64.6 fields/issue", detail: "site median 12.0 — 5.4× heavier", tone: "warning" },
+      {
+        key: "configuration",
+        label: "Configuration weight",
+        value: "64.6 fields/issue",
+        detail: "site median 12.0 — 5.4× heavier",
+        tone: "warning",
+      },
     ],
     ...over,
   });
@@ -978,9 +1272,22 @@ describe("ProjectHealthPanel", () => {
   });
 
   it("carries a critical signal's tone into the tile", () => {
-    const { container } = render(<ProjectHealthPanel health={health({ band: "critical", signals: [
-      { key: "adoption", label: "Adoption", value: "—", detail: "running far below its own historical rate", tone: "critical" },
-    ] })} />);
+    const { container } = render(
+      <ProjectHealthPanel
+        health={health({
+          band: "critical",
+          signals: [
+            {
+              key: "adoption",
+              label: "Adoption",
+              value: "—",
+              detail: "running far below its own historical rate",
+              tone: "critical",
+            },
+          ],
+        })}
+      />,
+    );
     expect(container.querySelector(".ui-stat--critical")).not.toBeNull();
   });
 
@@ -995,7 +1302,14 @@ describe("ProjectFiltersPanel", () => {
     available: true,
     total: 2,
     filters: [
-      { id: "5", name: "PT2 open bugs", ownerName: "Bo", ownerActive: true, subscriptionCount: 3, lastUsedAt: "2026-08-01T00:00:00Z" },
+      {
+        id: "5",
+        name: "PT2 open bugs",
+        ownerName: "Bo",
+        ownerActive: true,
+        subscriptionCount: 3,
+        lastUsedAt: "2026-08-01T00:00:00Z",
+      },
       { id: "6", name: "PT2 backlog", ownerName: "Al", ownerActive: false, subscriptionCount: 0, lastUsedAt: null },
     ],
     ...over,
@@ -1012,13 +1326,21 @@ describe("ProjectFiltersPanel", () => {
   it("distinguishes 'no filter targets this' from 'no inventory built'", () => {
     const { rerender } = render(<ProjectFiltersPanel filters={filters({ filters: [], total: 0 })} siteOrigin="" />);
     expect(screen.getByText(/No saved filter scopes its JQL/)).toBeInTheDocument();
-    rerender(<ProjectFiltersPanel filters={{ available: false, reason: "No saved-filter inventory has been built yet." }} siteOrigin="" />);
+    rerender(
+      <ProjectFiltersPanel
+        filters={{ available: false, reason: "No saved-filter inventory has been built yet." }}
+        siteOrigin=""
+      />,
+    );
     expect(screen.getByText(/No saved-filter inventory/)).toBeInTheDocument();
   });
 });
 
 describe("ActivitySparkbars", () => {
-  const months = Array.from({ length: 60 }, (_, i) => ({ month: `20${20 + Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, "0")}`, issueCount: 100 }));
+  const months = Array.from({ length: 60 }, (_, i) => ({
+    month: `20${20 + Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, "0")}`,
+    issueCount: 100,
+  }));
 
   it("caps how much history it draws", () => {
     // A long-lived project has more months than there are pixels.
@@ -1043,9 +1365,14 @@ describe("ActivitySparkbars", () => {
 // the field card two tabs over already renders a dash for exactly this case.
 describe("buildProjectFilters — measured, or honestly not", () => {
   const project = (key, over = {}) => ({
-    projectId: key, projectKey: key, projectName: key,
-    fieldCount: 20, totalIssueCount: 5000, uniqueIssueCount: 500,
-    latestIssueUpdatedAt: new Date().toISOString(), ...over,
+    projectId: key,
+    projectKey: key,
+    projectName: key,
+    fieldCount: 20,
+    totalIssueCount: 5000,
+    uniqueIssueCount: 500,
+    latestIssueUpdatedAt: new Date().toISOString(),
+    ...over,
   });
   const option = (projects, key) => buildProjectFilters(projects).find((f) => f.key === key);
 
@@ -1107,24 +1434,53 @@ describe("buildProjectFilters — measured, or honestly not", () => {
 
 describe("ProjectsTabView — an unanswerable filter", () => {
   const project = (key, over = {}) => ({
-    projectId: key, projectKey: key, projectName: key,
-    fieldCount: 20, totalIssueCount: 5000, uniqueIssueCount: 500,
-    latestIssueUpdatedAt: new Date().toISOString(), ...over,
+    projectId: key,
+    projectKey: key,
+    projectName: key,
+    fieldCount: 20,
+    totalIssueCount: 5000,
+    uniqueIssueCount: 500,
+    latestIssueUpdatedAt: new Date().toISOString(),
+    ...over,
   });
-  const data = { projects: [project("A"), project("B")], selectedProject: null, fields: [], availableTypes: [], totalFields: 0, page: 1, totalPages: 1 };
+  const data = {
+    projects: [project("A"), project("B")],
+    selectedProject: null,
+    fields: [],
+    availableTypes: [],
+    totalFields: 0,
+    page: 1,
+    totalPages: 1,
+  };
   const noop = () => {};
 
-  const render_ = (props = {}) => render(<ProjectsTabView
-    data={data} loading={false} selectedProjectId="A" onSelectProject={noop}
-    projectQuery="" onProjectQueryChange={noop} fieldQuery="" onFieldQueryChange={noop}
-    fieldType="all" onFieldTypeChange={noop} fieldSort="issues-desc" onFieldSortChange={noop}
-    onChangePage={noop} projectFilter="all" onProjectFilterChange={noop} {...props}
-  />);
+  const render_ = (props = {}) =>
+    render(
+      <ProjectsTabView
+        data={data}
+        loading={false}
+        selectedProjectId="A"
+        onSelectProject={noop}
+        projectQuery=""
+        onProjectQueryChange={noop}
+        fieldQuery=""
+        onFieldQueryChange={noop}
+        fieldType="all"
+        onFieldTypeChange={noop}
+        fieldSort="issues-desc"
+        onFieldSortChange={noop}
+        onChangePage={noop}
+        projectFilter="all"
+        onProjectFilterChange={noop}
+        {...props}
+      />,
+    );
 
   it("shows a dash rather than a zero", () => {
     const { container } = render_();
-    const fellOff = [...container.querySelectorAll(".findings-filter-button")]
-      .find((b) => b.textContent.includes("Fell off"));
+    const fellOff = [...container.querySelectorAll(".findings-filter-button")].find((b) =>
+      b.textContent.includes("Fell off"),
+    );
 
     expect(fellOff.textContent).toContain("—");
     expect(fellOff.textContent).not.toMatch(/Fell off\s*0/);
@@ -1132,8 +1488,9 @@ describe("ProjectsTabView — an unanswerable filter", () => {
 
   it("will not let a reader select a filter that cannot answer", () => {
     const { container } = render_();
-    const fellOff = [...container.querySelectorAll(".findings-filter-button")]
-      .find((b) => b.textContent.includes("Fell off"));
+    const fellOff = [...container.querySelectorAll(".findings-filter-button")].find((b) =>
+      b.textContent.includes("Fell off"),
+    );
 
     expect(fellOff).toBeDisabled();
     expect(fellOff.getAttribute("title")).toMatch(/Universal Scan/);
@@ -1141,8 +1498,9 @@ describe("ProjectsTabView — an unanswerable filter", () => {
 
   it("keeps a measurable filter clickable", () => {
     const { container } = render_();
-    const overConfigured = [...container.querySelectorAll(".findings-filter-button")]
-      .find((b) => b.textContent.includes("fields"));
+    const overConfigured = [...container.querySelectorAll(".findings-filter-button")].find((b) =>
+      b.textContent.includes("fields"),
+    );
 
     expect(overConfigured).not.toBeDisabled();
   });
@@ -1155,4 +1513,3 @@ describe("ProjectsTabView — an unanswerable filter", () => {
     expect(container.textContent).not.toMatch(/No project matches/);
   });
 });
-

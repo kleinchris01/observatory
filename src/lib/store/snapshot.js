@@ -3,32 +3,25 @@
 // Split out of project-store.js; imports only from core.js.
 
 import { sql } from "@forge/sql";
-import {
-  chunkArray,
-  ensureProjectStoreReady,
-  safeParseJson,
-  toNumber,
-  withSqlRetry,
-} from "./core.js";
+import { chunkArray, ensureProjectStoreReady, safeParseJson, toNumber, withSqlRetry } from "./core.js";
 
 export async function replaceSnapshotFields(scopeKey, version, fields) {
   await ensureProjectStoreReady();
 
-  await sql
-    .prepare("DELETE FROM snapshot_fields WHERE scope_key = ?")
-    .bindParams(scopeKey)
-    .execute();
+  await sql.prepare("DELETE FROM snapshot_fields WHERE scope_key = ?").bindParams(scopeKey).execute();
 
   for (const field of fields) {
     await sql
-      .prepare(`
+      .prepare(
+        `
         INSERT INTO snapshot_fields (
           scope_key, version, field_id, name, description, type, primitive_type, custom_type,
           searcher_key, usage_count, configured_project_count, total_issue_count,
           active_project_count, usage_status, usage_status_detail, project_usage_fingerprint, field_jql, findings_json
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `)
+      `,
+      )
       .bindParams(
         scopeKey,
         version,
@@ -47,7 +40,7 @@ export async function replaceSnapshotFields(scopeKey, version, fields) {
         field.usageStatusDetail || null,
         field.projectUsageFingerprint || null,
         field.fieldJql || null,
-        JSON.stringify(field.findings || null)
+        JSON.stringify(field.findings || null),
       )
       .execute();
   }
@@ -59,10 +52,8 @@ export async function appendSnapshotFields(scopeKey, version, fields) {
   if (!fields.length) return;
 
   for (const batch of chunkArray(fields, 50)) {
-    const valuesSql = batch
-      .map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .join(", ");
-    const params = batch.flatMap((field) => ([
+    const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
+    const params = batch.flatMap((field) => [
       scopeKey,
       version,
       field.id,
@@ -81,20 +72,22 @@ export async function appendSnapshotFields(scopeKey, version, fields) {
       field.projectUsageFingerprint || null,
       field.fieldJql || null,
       JSON.stringify(field.findings || null),
-    ]));
+    ]);
 
     await withSqlRetry(() =>
       sql
-        .prepare(`
+        .prepare(
+          `
           INSERT INTO snapshot_fields (
             scope_key, version, field_id, name, description, type, primitive_type, custom_type,
             searcher_key, usage_count, configured_project_count, total_issue_count,
             active_project_count, usage_status, usage_status_detail, project_usage_fingerprint, field_jql, findings_json
           )
           VALUES ${valuesSql}
-        `)
+        `,
+        )
         .bindParams(...params)
-        .execute()
+        .execute(),
     );
   }
 }
@@ -112,12 +105,14 @@ export async function loadSnapshotFieldNames(scopeKey, version, fieldIds = []) {
     const placeholders = batch.map(() => "?").join(", ");
     const result = await withSqlRetry(() =>
       sql
-        .prepare(`
+        .prepare(
+          `
           SELECT field_id, name FROM snapshot_fields
           WHERE scope_key = ? AND version = ? AND field_id IN (${placeholders})
-        `)
+        `,
+        )
         .bindParams(scopeKey, version, ...batch)
-        .execute()
+        .execute(),
     );
     for (const row of result.rows || []) out.set(String(row.field_id), row.name || String(row.field_id));
   }
@@ -128,7 +123,8 @@ export async function loadSnapshotFields(scopeKey, version) {
   await ensureProjectStoreReady();
 
   const result = await sql
-    .prepare(`
+    .prepare(
+      `
       SELECT
         field_id,
         name,
@@ -154,7 +150,8 @@ export async function loadSnapshotFields(scopeKey, version) {
       FROM snapshot_fields
       WHERE scope_key = ? AND version = ?
       ORDER BY LOWER(name) ASC, field_id ASC
-    `)
+    `,
+    )
     .bindParams(scopeKey, version)
     .execute();
 
@@ -182,8 +179,10 @@ export async function loadSnapshotFields(scopeKey, version) {
 export async function loadSnapshotField(scopeKey, version, fieldId) {
   await ensureProjectStoreReady();
 
-  const result = await withSqlRetry(() => sql
-    .prepare(`
+  const result = await withSqlRetry(() =>
+    sql
+      .prepare(
+        `
       SELECT
         field_id,
         name,
@@ -209,9 +208,11 @@ export async function loadSnapshotField(scopeKey, version, fieldId) {
       FROM snapshot_fields
       WHERE scope_key = ? AND version = ? AND field_id = ?
       LIMIT 1
-    `)
-    .bindParams(scopeKey, version, fieldId)
-    .execute());
+    `,
+      )
+      .bindParams(scopeKey, version, fieldId)
+      .execute(),
+  );
 
   const row = result.rows?.[0];
   if (!row) {
@@ -242,20 +243,19 @@ export async function loadSnapshotField(scopeKey, version, fieldId) {
 export async function replaceSnapshotProjectUsage(scopeKey, version, rows) {
   await ensureProjectStoreReady();
 
-  await sql
-    .prepare("DELETE FROM snapshot_project_usage WHERE scope_key = ?")
-    .bindParams(scopeKey)
-    .execute();
+  await sql.prepare("DELETE FROM snapshot_project_usage WHERE scope_key = ?").bindParams(scopeKey).execute();
 
   for (const row of rows) {
     await sql
-      .prepare(`
+      .prepare(
+        `
         INSERT INTO snapshot_project_usage (
           scope_key, version, field_id, project_id, project_key, project_name, issue_count, jql,
           latest_field_change_at, latest_issue_key, latest_issue_updated_at
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `)
+      `,
+      )
       .bindParams(
         scopeKey,
         version,
@@ -267,7 +267,7 @@ export async function replaceSnapshotProjectUsage(scopeKey, version, rows) {
         row.jql || null,
         row.latestFieldChangeAt || null,
         row.latestIssueKey || null,
-        row.latestIssueUpdatedAt || null
+        row.latestIssueUpdatedAt || null,
       )
       .execute();
   }
@@ -279,10 +279,8 @@ export async function appendSnapshotProjectUsage(scopeKey, version, rows) {
   if (!rows.length) return;
 
   for (const batch of chunkArray(rows, 100)) {
-    const valuesSql = batch
-      .map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .join(", ");
-    const params = batch.flatMap((row) => ([
+    const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
+    const params = batch.flatMap((row) => [
       scopeKey,
       version,
       row.fieldId,
@@ -294,16 +292,18 @@ export async function appendSnapshotProjectUsage(scopeKey, version, rows) {
       row.latestFieldChangeAt || null,
       row.latestIssueKey || null,
       row.latestIssueUpdatedAt || null,
-    ]));
+    ]);
 
     await sql
-      .prepare(`
+      .prepare(
+        `
         INSERT INTO snapshot_project_usage (
           scope_key, version, field_id, project_id, project_key, project_name, issue_count, jql,
           latest_field_change_at, latest_issue_key, latest_issue_updated_at
         )
         VALUES ${valuesSql}
-      `)
+      `,
+      )
       .bindParams(...params)
       .execute();
   }
@@ -313,7 +313,8 @@ export async function copySnapshotField(scopeKey, fromVersion, toVersion, fieldI
   await ensureProjectStoreReady();
 
   await sql
-    .prepare(`
+    .prepare(
+      `
       INSERT INTO snapshot_fields (
         scope_key, version, field_id, name, description, type, primitive_type, custom_type,
         searcher_key, usage_count, configured_project_count, total_issue_count,
@@ -325,7 +326,8 @@ export async function copySnapshotField(scopeKey, fromVersion, toVersion, fieldI
         active_project_count, usage_status, usage_status_detail, project_usage_fingerprint, field_jql, findings_json
       FROM snapshot_fields
       WHERE scope_key = ? AND version = ? AND field_id = ?
-    `)
+    `,
+    )
     .bindParams(toVersion, scopeKey, fromVersion, fieldId)
     .execute();
 }
@@ -334,7 +336,8 @@ export async function copySnapshotProjectUsage(scopeKey, fromVersion, toVersion,
   await ensureProjectStoreReady();
 
   await sql
-    .prepare(`
+    .prepare(
+      `
       INSERT INTO snapshot_project_usage (
         scope_key, version, field_id, project_id, project_key, project_name, issue_count, jql,
         latest_field_change_at, latest_issue_key, latest_issue_updated_at
@@ -344,7 +347,8 @@ export async function copySnapshotProjectUsage(scopeKey, fromVersion, toVersion,
         latest_field_change_at, latest_issue_key, latest_issue_updated_at
       FROM snapshot_project_usage
       WHERE scope_key = ? AND version = ? AND field_id = ?
-    `)
+    `,
+    )
     .bindParams(toVersion, scopeKey, fromVersion, fieldId)
     .execute();
 }
@@ -356,7 +360,8 @@ export async function loadSnapshotProjectUsage(scopeKey, version, fieldId, limit
   const safeOffset = Math.max(0, Math.trunc(Number(offset)) || 0);
 
   const result = await sql
-    .prepare(`
+    .prepare(
+      `
         SELECT
           project_id,
           project_key,
@@ -370,7 +375,8 @@ export async function loadSnapshotProjectUsage(scopeKey, version, fieldId, limit
       WHERE scope_key = ? AND version = ? AND field_id = ?
       ORDER BY issue_count DESC, project_key ASC
       LIMIT ${safeLimit} OFFSET ${safeOffset}
-    `)
+    `,
+    )
     .bindParams(scopeKey, version, fieldId)
     .execute();
 
@@ -389,8 +395,10 @@ export async function loadSnapshotProjectUsage(scopeKey, version, fieldId, limit
 export async function loadAllSnapshotProjectUsage(scopeKey, version, fieldId) {
   await ensureProjectStoreReady();
 
-  const result = await withSqlRetry(() => sql
-    .prepare(`
+  const result = await withSqlRetry(() =>
+    sql
+      .prepare(
+        `
         SELECT
           project_id,
           project_key,
@@ -403,9 +411,11 @@ export async function loadAllSnapshotProjectUsage(scopeKey, version, fieldId) {
       FROM snapshot_project_usage
       WHERE scope_key = ? AND version = ? AND field_id = ?
       ORDER BY issue_count DESC, project_key ASC
-    `)
-    .bindParams(scopeKey, version, fieldId)
-    .execute());
+    `,
+      )
+      .bindParams(scopeKey, version, fieldId)
+      .execute(),
+  );
 
   return (result.rows || []).map((row) => ({
     projectId: row.project_id,
@@ -433,16 +443,20 @@ export async function loadPopulatedProjectUsage(scopeKey, version, { limit = 200
   await ensureProjectStoreReady();
   const safeLimit = Math.max(1, Math.min(50000, Math.trunc(Number(limit)) || 20000));
 
-  const result = await withSqlRetry(() => sql
-    .prepare(`
+  const result = await withSqlRetry(() =>
+    sql
+      .prepare(
+        `
       SELECT field_id, project_id, project_key, project_name, issue_count
       FROM snapshot_project_usage
       WHERE scope_key = ? AND version = ? AND issue_count > 0
       ORDER BY issue_count DESC, field_id ASC
       LIMIT ${safeLimit + 1}
-    `)
-    .bindParams(scopeKey, version)
-    .execute());
+    `,
+      )
+      .bindParams(scopeKey, version)
+      .execute(),
+  );
 
   const rows = result.rows || [];
   const truncated = rows.length > safeLimit;
@@ -468,7 +482,11 @@ export async function loadPopulatedProjectUsage(scopeKey, version, { limit = 200
 // became a finding. So clutter gets its own read, keyset-paged to completion, carrying only
 // the two ids it needs. The ceiling is a guard against a runaway loop, not a sampling cap;
 // hitting it is reported, and the caller withholds the finding rather than guess.
-export async function loadPopulatedFieldProjectPairs(scopeKey, version, { minIssues = 0, pageSize = 10000, ceiling = 500000 } = {}) {
+export async function loadPopulatedFieldProjectPairs(
+  scopeKey,
+  version,
+  { minIssues = 0, pageSize = 10000, ceiling = 500000 } = {},
+) {
   await ensureProjectStoreReady();
   const floor = Math.max(0, Math.trunc(Number(minIssues)) || 0);
   const size = Math.max(1, Math.min(20000, Math.trunc(Number(pageSize)) || 10000));
@@ -477,17 +495,21 @@ export async function loadPopulatedFieldProjectPairs(scopeKey, version, { minIss
   let lastField = "";
   let lastProject = "";
   for (;;) {
-    const result = await withSqlRetry(() => sql
-      .prepare(`
+    const result = await withSqlRetry(() =>
+      sql
+        .prepare(
+          `
         SELECT field_id, project_id
         FROM snapshot_project_usage
         WHERE scope_key = ? AND version = ? AND issue_count > ?
           AND (field_id > ? OR (field_id = ? AND project_id > ?))
         ORDER BY field_id ASC, project_id ASC
         LIMIT ${size}
-      `)
-      .bindParams(scopeKey, version, floor, lastField, lastField, lastProject)
-      .execute());
+      `,
+        )
+        .bindParams(scopeKey, version, floor, lastField, lastField, lastProject)
+        .execute(),
+    );
 
     const rows = result.rows || [];
     for (const row of rows) pairs.add(`${row.project_id}|${row.field_id}`);
@@ -502,8 +524,10 @@ export async function loadPopulatedFieldProjectPairs(scopeKey, version, { minIss
 export async function loadAnySnapshotProjectUsage(scopeKey, fieldId) {
   await ensureProjectStoreReady();
 
-  const result = await withSqlRetry(() => sql
-    .prepare(`
+  const result = await withSqlRetry(() =>
+    sql
+      .prepare(
+        `
         SELECT
           project_id,
           project_key,
@@ -516,9 +540,11 @@ export async function loadAnySnapshotProjectUsage(scopeKey, fieldId) {
       FROM snapshot_project_usage
       WHERE scope_key = ? AND field_id = ?
       ORDER BY issue_count DESC, project_key ASC
-    `)
-    .bindParams(scopeKey, fieldId)
-    .execute());
+    `,
+      )
+      .bindParams(scopeKey, fieldId)
+      .execute(),
+  );
 
   return (result.rows || []).map((row) => ({
     projectId: row.project_id,
@@ -547,7 +573,8 @@ export async function listSnapshotProjects(scopeKey, version, query = "") {
 
   const result = await withSqlRetry(() =>
     sql
-      .prepare(`
+      .prepare(
+        `
         SELECT
           project_id,
           project_key,
@@ -559,9 +586,10 @@ export async function listSnapshotProjects(scopeKey, version, query = "") {
         WHERE ${whereClauses.join(" AND ")}
         GROUP BY project_id, project_key, project_name
         ORDER BY total_issue_count DESC, project_key ASC
-      `)
+      `,
+      )
       .bindParams(...params)
-      .execute()
+      .execute(),
   );
 
   return (result.rows || []).map((row) => ({
@@ -612,7 +640,8 @@ export async function loadSnapshotProjectFields(scopeKey, version, projectId, fi
 
   const countResult = await withSqlRetry(() =>
     sql
-      .prepare(`
+      .prepare(
+        `
         SELECT COUNT(*) AS total
         FROM snapshot_project_usage pu
         LEFT JOIN snapshot_fields sf
@@ -620,16 +649,18 @@ export async function loadSnapshotProjectFields(scopeKey, version, projectId, fi
           AND sf.version = pu.version
           AND sf.field_id = pu.field_id
         WHERE ${whereClauses.join(" AND ")}
-      `)
+      `,
+      )
       .bindParams(...params)
-      .execute()
+      .execute(),
   );
 
   const total = toNumber(countResult.rows?.[0]?.total, 0);
 
   const result = await withSqlRetry(() =>
     sql
-      .prepare(`
+      .prepare(
+        `
         SELECT
           pu.field_id,
           pu.issue_count,
@@ -653,9 +684,10 @@ export async function loadSnapshotProjectFields(scopeKey, version, projectId, fi
         WHERE ${whereClauses.join(" AND ")}
         ORDER BY ${orderBy}
         LIMIT ${safeLimit} OFFSET ${safeOffset}
-      `)
+      `,
+      )
       .bindParams(...params)
-      .execute()
+      .execute(),
   );
 
   return {
@@ -683,11 +715,13 @@ export async function countSnapshotProjectUsage(scopeKey, version, fieldId) {
   await ensureProjectStoreReady();
 
   const result = await sql
-    .prepare(`
+    .prepare(
+      `
       SELECT COUNT(*) AS total
       FROM snapshot_project_usage
       WHERE scope_key = ? AND version = ? AND field_id = ?
-    `)
+    `,
+    )
     .bindParams(scopeKey, version, fieldId)
     .execute();
 
@@ -698,12 +732,14 @@ export async function loadSnapshotFieldIssueSums(scopeKey, version) {
   await ensureProjectStoreReady();
 
   const result = await sql
-    .prepare(`
+    .prepare(
+      `
       SELECT field_id, SUM(issue_count) AS total_issue_count
       FROM snapshot_project_usage
       WHERE scope_key = ? AND version = ?
       GROUP BY field_id
-    `)
+    `,
+    )
     .bindParams(scopeKey, version)
     .execute();
 
@@ -714,11 +750,13 @@ export async function sumSnapshotFieldIssueCount(scopeKey, version, fieldId) {
   await ensureProjectStoreReady();
 
   const result = await sql
-    .prepare(`
+    .prepare(
+      `
       SELECT SUM(issue_count) AS total_issue_count
       FROM snapshot_project_usage
       WHERE scope_key = ? AND version = ? AND field_id = ?
-    `)
+    `,
+    )
     .bindParams(scopeKey, version, fieldId)
     .execute();
 
@@ -749,7 +787,7 @@ export async function replaceFieldOptionsCache(scopeKey, fieldId, optionsByConte
     sql
       .prepare("DELETE FROM field_options_cache WHERE scope_key = ? AND field_id = ?")
       .bindParams(scopeKey, fieldId)
-      .execute()
+      .execute(),
   );
 
   const rows = [];
@@ -783,15 +821,17 @@ export async function replaceFieldOptionsCache(scopeKey, fieldId, optionsByConte
 
     await withSqlRetry(() =>
       sql
-        .prepare(`
+        .prepare(
+          `
           INSERT INTO field_options_cache (
             scope_key, field_id, context_id, context_name, is_global_context,
             option_id, option_value, disabled, refreshed_at
           )
           VALUES ${valuesSql}
-        `)
+        `,
+        )
         .bindParams(...params)
-        .execute()
+        .execute(),
     );
   }
 
@@ -802,14 +842,16 @@ export async function loadFieldOptionsCache(scopeKey, fieldId) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
     sql
-      .prepare(`
+      .prepare(
+        `
         SELECT context_id, context_name, is_global_context, option_id, option_value, disabled, refreshed_at
         FROM field_options_cache
         WHERE scope_key = ? AND field_id = ?
         ORDER BY context_name ASC, option_value ASC
-      `)
+      `,
+      )
       .bindParams(scopeKey, fieldId)
-      .execute()
+      .execute(),
   );
 
   const byContext = new Map();
@@ -845,16 +887,18 @@ export async function searchFieldOptionsCache(scopeKey, optionQuery, limit = 200
   const safeLimit = Math.max(1, Math.min(500, Number(limit) || 200));
   const result = await withSqlRetry(() =>
     sql
-      .prepare(`
+      .prepare(
+        `
         SELECT field_id, COUNT(*) AS match_count, MAX(refreshed_at) AS refreshed_at
         FROM field_options_cache
         WHERE scope_key = ? AND LOWER(option_value) LIKE ?
         GROUP BY field_id
         ORDER BY match_count DESC, field_id ASC
         LIMIT ${safeLimit}
-      `)
+      `,
+      )
       .bindParams(scopeKey, `%${q.toLowerCase()}%`)
-      .execute()
+      .execute(),
   );
 
   return (result.rows || []).map((row) => ({
@@ -933,7 +977,7 @@ export async function clearAllSnapshotData(scopeKey) {
   const deleted = {};
   for (const table of SNAPSHOT_CLEAR_TABLES) {
     const result = await withSqlRetry(() =>
-      sql.prepare(`DELETE FROM ${table} WHERE scope_key = ?`).bindParams(scopeKey).execute()
+      sql.prepare(`DELETE FROM ${table} WHERE scope_key = ?`).bindParams(scopeKey).execute(),
     );
     deleted[table] = toNumber(result?.rowsAffected, 0);
   }
@@ -956,7 +1000,8 @@ export async function carryForwardSnapshotProjectUsage(scopeKey, newVersion) {
 
   await withSqlRetry(() =>
     sql
-      .prepare(`
+      .prepare(
+        `
         INSERT IGNORE INTO snapshot_project_usage
           (scope_key, version, field_id, project_id, project_key, project_name,
            issue_count, jql, latest_field_change_at, latest_issue_key, latest_issue_updated_at)
@@ -965,9 +1010,10 @@ export async function carryForwardSnapshotProjectUsage(scopeKey, newVersion) {
           issue_count, jql, latest_field_change_at, latest_issue_key, latest_issue_updated_at
         FROM snapshot_project_usage
         WHERE scope_key = ? AND version <> ?
-      `)
+      `,
+      )
       .bindParams(newVersion, scopeKey, newVersion)
-      .execute()
+      .execute(),
   );
 }
 
@@ -990,13 +1036,15 @@ export async function fillSnapshotProjectUsageFromSummaries(scopeKey, version, i
 
   const result = await withSqlRetry(() =>
     sql
-      .prepare(`
+      .prepare(
+        `
         SELECT field_id, active_projects_json, field_jql
         FROM field_summaries
         WHERE scope_key = ? AND summary_status = 'ready' AND active_project_count > 0
-      `)
+      `,
+      )
       .bindParams(scopeKey)
-      .execute()
+      .execute(),
   );
 
   const summaryRows = result.rows || [];
@@ -1029,15 +1077,24 @@ export async function fillSnapshotProjectUsageFromSummaries(scopeKey, version, i
         sql
           .prepare("DELETE FROM snapshot_project_usage WHERE scope_key = ? AND version = ? AND field_id = ?")
           .bindParams(scopeKey, version, fieldId)
-          .execute()
+          .execute(),
       );
     }
 
     for (const batch of chunkArray(rows, 50)) {
       const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
       const params = batch.flatMap((row) => [
-        scopeKey, version, row.fieldId, row.projectId, row.projectKey, row.projectName,
-        row.issueCount, row.jql, row.latestFieldChangeAt, row.latestIssueKey, row.latestIssueUpdatedAt,
+        scopeKey,
+        version,
+        row.fieldId,
+        row.projectId,
+        row.projectKey,
+        row.projectName,
+        row.issueCount,
+        row.jql,
+        row.latestFieldChangeAt,
+        row.latestIssueKey,
+        row.latestIssueUpdatedAt,
       ]);
 
       const insertSql = ignoreExisting
@@ -1054,7 +1111,7 @@ export async function fillSnapshotProjectUsageFromSummaries(scopeKey, version, i
         sql
           .prepare(insertSql)
           .bindParams(...params)
-          .execute()
+          .execute(),
       );
     }
 
@@ -1085,23 +1142,27 @@ export async function syncActiveProjectCountsFromUsage(scopeKey, version) {
 
   const result = await withSqlRetry(() =>
     sql
-      .prepare(`
+      .prepare(
+        `
         SELECT field_id, COUNT(*) AS active_count
         FROM snapshot_project_usage
         WHERE scope_key = ? AND version = ?
         GROUP BY field_id
-      `)
+      `,
+      )
       .bindParams(scopeKey, version)
-      .execute()
+      .execute(),
   );
 
   const rows = result.rows || [];
   for (const row of rows) {
     await withSqlRetry(() =>
       sql
-        .prepare("UPDATE snapshot_fields SET active_project_count = ? WHERE scope_key = ? AND version = ? AND field_id = ?")
+        .prepare(
+          "UPDATE snapshot_fields SET active_project_count = ? WHERE scope_key = ? AND version = ? AND field_id = ?",
+        )
         .bindParams(toNumber(row.active_count), scopeKey, version, row.field_id)
-        .execute()
+        .execute(),
     );
   }
 
@@ -1128,14 +1189,18 @@ export async function replaceSnapshotProjectUsageForField(scopeKey, version, fie
     .execute();
 
   if (rows.length) {
-    await appendSnapshotProjectUsage(scopeKey, version, rows.map((row) => ({
-      fieldId,
-      projectId: row.projectId,
-      projectKey: row.projectKey,
-      projectName: row.projectName,
-      issueCount: row.issueCount,
-      jql: row.jql || null,
-    })));
+    await appendSnapshotProjectUsage(
+      scopeKey,
+      version,
+      rows.map((row) => ({
+        fieldId,
+        projectId: row.projectId,
+        projectKey: row.projectKey,
+        projectName: row.projectName,
+        issueCount: row.issueCount,
+        jql: row.jql || null,
+      })),
+    );
   }
 }
 
@@ -1143,7 +1208,8 @@ export async function replaceFieldSummary(scopeKey, fieldId, summary) {
   await ensureProjectStoreReady();
 
   await sql
-    .prepare(`
+    .prepare(
+      `
       INSERT INTO field_summaries (
         scope_key, field_id, refreshed_at, field_json, field_jql, configured_project_count,
         has_global_context, active_project_count, total_issue_count, active_projects_json,
@@ -1172,7 +1238,8 @@ export async function replaceFieldSummary(scopeKey, fieldId, summary) {
         estimated_issue_total = VALUES(estimated_issue_total),
         next_start_at = VALUES(next_start_at),
         next_page_token = VALUES(next_page_token)
-    `)
+    `,
+    )
     .bindParams(
       scopeKey,
       fieldId,
@@ -1195,7 +1262,7 @@ export async function replaceFieldSummary(scopeKey, fieldId, summary) {
       summary.processedIssueCount ?? 0,
       summary.estimatedIssueTotal ?? 0,
       summary.nextStartAt ?? 0,
-      summary.nextPageToken || null
+      summary.nextPageToken || null,
     )
     .execute();
 }
@@ -1204,7 +1271,8 @@ export async function loadFieldSummary(scopeKey, fieldId) {
   await ensureProjectStoreReady();
 
   const result = await sql
-    .prepare(`
+    .prepare(
+      `
       SELECT
         refreshed_at,
         field_json,
@@ -1228,7 +1296,8 @@ export async function loadFieldSummary(scopeKey, fieldId) {
         next_page_token
       FROM field_summaries
       WHERE scope_key = ? AND field_id = ?
-    `)
+    `,
+    )
     .bindParams(scopeKey, fieldId)
     .execute();
 
@@ -1277,14 +1346,16 @@ export async function countFieldSummariesByStatus(scopeKey) {
 
   const result = await withSqlRetry(() =>
     sql
-      .prepare(`
+      .prepare(
+        `
         SELECT summary_status, COUNT(*) AS total
         FROM field_summaries
         WHERE scope_key = ?
         GROUP BY summary_status
-      `)
+      `,
+      )
       .bindParams(scopeKey)
-      .execute()
+      .execute(),
   );
 
   const counts = { queued: 0, building: 0, ready: 0, failed: 0, cancelled: 0, unbuilt: 0 };
@@ -1305,7 +1376,8 @@ export async function listFieldSummaries(scopeKey, limit = 200) {
   const safeLimit = Math.max(1, Math.min(5000, Math.trunc(Number(limit)) || 200));
   const result = await withSqlRetry(() =>
     sql
-      .prepare(`
+      .prepare(
+        `
         SELECT
           field_id,
           refreshed_at,
@@ -1334,9 +1406,10 @@ export async function listFieldSummaries(scopeKey, limit = 200) {
           END,
           COALESCE(started_at, refreshed_at) DESC
         LIMIT ${safeLimit}
-      `)
+      `,
+      )
       .bindParams(scopeKey)
-      .execute()
+      .execute(),
   );
 
   return (result.rows || []).map((row) => ({
@@ -1364,9 +1437,11 @@ export async function readSnapshotMeta(scopeKey) {
 
   const result = await withSqlRetry(() =>
     sql
-      .prepare("SELECT state, version, building_version, job_token, started_at, completed_at, refreshed_at, total_fields, last_error, processed_fields, progress_log FROM snapshot_meta WHERE scope_key = ? LIMIT 1")
+      .prepare(
+        "SELECT state, version, building_version, job_token, started_at, completed_at, refreshed_at, total_fields, last_error, processed_fields, progress_log FROM snapshot_meta WHERE scope_key = ? LIMIT 1",
+      )
       .bindParams(scopeKey)
-      .execute()
+      .execute(),
   );
 
   const row = result.rows?.[0];
@@ -1398,7 +1473,8 @@ export async function upsertProjectTotalsForDelta(scopeKey, rows) {
     const params = batch.flatMap((r) => [scopeKey, r.projectId, r.projectKey, r.projectName, r.uniqueIssueCount, now]);
     await withSqlRetry(() =>
       sql
-        .prepare(`
+        .prepare(
+          `
           INSERT INTO issue_scan_project_totals (scope_key, project_id, project_key, project_name, unique_issue_count, scanned_at)
           VALUES ${valuesSql}
           ON DUPLICATE KEY UPDATE
@@ -1406,9 +1482,10 @@ export async function upsertProjectTotalsForDelta(scopeKey, rows) {
             project_name = VALUES(project_name),
             unique_issue_count = VALUES(unique_issue_count),
             scanned_at = VALUES(scanned_at)
-        `)
+        `,
+        )
         .bindParams(...params)
-        .execute()
+        .execute(),
     );
   }
 }
@@ -1427,11 +1504,19 @@ export async function upsertDeltaFieldProjectUsage(scopeKey, version, rows) {
     const batch = rows.slice(i, i + BATCH);
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((r) => [
-      scopeKey, version, r.fieldId, r.projectId, r.projectKey, r.projectName, r.issueCount, r.jql,
+      scopeKey,
+      version,
+      r.fieldId,
+      r.projectId,
+      r.projectKey,
+      r.projectName,
+      r.issueCount,
+      r.jql,
     ]);
     await withSqlRetry(() =>
       sql
-        .prepare(`
+        .prepare(
+          `
           INSERT INTO snapshot_project_usage
             (scope_key, version, field_id, project_id, project_key, project_name, issue_count, jql)
           VALUES ${valuesSql}
@@ -1440,9 +1525,10 @@ export async function upsertDeltaFieldProjectUsage(scopeKey, version, rows) {
             project_name = VALUES(project_name),
             issue_count = VALUES(issue_count),
             jql = VALUES(jql)
-        `)
+        `,
+        )
         .bindParams(...params)
-        .execute()
+        .execute(),
     );
     rowsInserted += batch.length;
   }
@@ -1462,13 +1548,25 @@ export async function updateSnapshotFieldMetadata(scopeKey, version, fields) {
   for (const field of fields) {
     await withSqlRetry(() =>
       sql
-        .prepare(`
+        .prepare(
+          `
           UPDATE snapshot_fields
           SET name = ?, description = ?, type = ?, primitive_type = ?, custom_type = ?, searcher_key = ?
           WHERE scope_key = ? AND version = ? AND field_id = ?
-        `)
-        .bindParams(field.name, field.description, field.type, field.primitiveType, field.customType, field.searcherKey, scopeKey, version, field.id)
-        .execute()
+        `,
+        )
+        .bindParams(
+          field.name,
+          field.description,
+          field.type,
+          field.primitiveType,
+          field.customType,
+          field.searcherKey,
+          scopeKey,
+          version,
+          field.id,
+        )
+        .execute(),
     );
   }
   return { updatedCount: fields.length };
@@ -1486,13 +1584,15 @@ export async function updateSnapshotFieldFindings(scopeKey, version, updates) {
   for (const update of updates) {
     await withSqlRetry(() =>
       sql
-        .prepare(`
+        .prepare(
+          `
           UPDATE snapshot_fields
           SET findings_json = ?, usage_status = 'ready', usage_status_detail = NULL
           WHERE scope_key = ? AND version = ? AND field_id = ?
-        `)
+        `,
+        )
         .bindParams(JSON.stringify(update.findings || null), scopeKey, version, update.id)
-        .execute()
+        .execute(),
     );
   }
   return { updatedCount: updates.length };
@@ -1522,14 +1622,16 @@ export async function loadFieldLastChangeMap(scopeKey, version, fieldIds = null)
     const params = batch ? [scopeKey, version, ...batch] : [scopeKey, version];
     const result = await withSqlRetry(() =>
       sql
-        .prepare(`
+        .prepare(
+          `
           SELECT field_id, MAX(latest_field_change_at) AS last_change_at
           FROM snapshot_project_usage
           WHERE scope_key = ? AND version = ? AND latest_field_change_at IS NOT NULL${filterSql}
           GROUP BY field_id
-        `)
+        `,
+        )
         .bindParams(...params)
-        .execute()
+        .execute(),
     );
     for (const row of result.rows || []) {
       if (row?.field_id && row?.last_change_at) map.set(String(row.field_id), String(row.last_change_at));
@@ -1571,13 +1673,12 @@ export async function writeSnapshotMeta(scopeKey, patch) {
     ...patch,
   };
 
-  const progressLogJson = Array.isArray(next.progressLog)
-    ? JSON.stringify(next.progressLog)
-    : (next.progressLog || null);
+  const progressLogJson = Array.isArray(next.progressLog) ? JSON.stringify(next.progressLog) : next.progressLog || null;
 
   await withSqlRetry(() =>
     sql
-      .prepare(`
+      .prepare(
+        `
         INSERT INTO snapshot_meta (scope_key, state, version, building_version, job_token, started_at, completed_at, refreshed_at, total_fields, last_error, processed_fields, progress_log)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
@@ -1592,9 +1693,23 @@ export async function writeSnapshotMeta(scopeKey, patch) {
           last_error = VALUES(last_error),
           processed_fields = VALUES(processed_fields),
           progress_log = VALUES(progress_log)
-      `)
-      .bindParams(scopeKey, next.state, next.version, next.buildingVersion, next.jobToken, next.startedAt, next.completedAt, next.refreshedAt, next.totalFields, next.lastError, next.processedFields, progressLogJson)
-      .execute()
+      `,
+      )
+      .bindParams(
+        scopeKey,
+        next.state,
+        next.version,
+        next.buildingVersion,
+        next.jobToken,
+        next.startedAt,
+        next.completedAt,
+        next.refreshedAt,
+        next.totalFields,
+        next.lastError,
+        next.processedFields,
+        progressLogJson,
+      )
+      .execute(),
   );
 
   return next;
@@ -1614,16 +1729,16 @@ export async function countOldScopeKeyRows(newScopeKey) {
 
   const [summaryResult, usageResult, metaResult] = await Promise.all([
     withSqlRetry(() =>
-      sql.prepare("SELECT COUNT(*) AS cnt FROM field_summaries WHERE scope_key = ?")
-        .bindParams(oldScopeKey).execute()
+      sql.prepare("SELECT COUNT(*) AS cnt FROM field_summaries WHERE scope_key = ?").bindParams(oldScopeKey).execute(),
     ),
     withSqlRetry(() =>
-      sql.prepare("SELECT COUNT(*) AS cnt FROM snapshot_project_usage WHERE scope_key = ?")
-        .bindParams(oldScopeKey).execute()
+      sql
+        .prepare("SELECT COUNT(*) AS cnt FROM snapshot_project_usage WHERE scope_key = ?")
+        .bindParams(oldScopeKey)
+        .execute(),
     ),
     withSqlRetry(() =>
-      sql.prepare("SELECT COUNT(*) AS cnt FROM snapshot_meta WHERE scope_key = ?")
-        .bindParams(oldScopeKey).execute()
+      sql.prepare("SELECT COUNT(*) AS cnt FROM snapshot_meta WHERE scope_key = ?").bindParams(oldScopeKey).execute(),
     ),
   ]);
 
@@ -1641,14 +1756,14 @@ export async function pruneOldSnapshotVersions(scopeKey, keepVersion) {
     sql
       .prepare("DELETE FROM snapshot_fields WHERE scope_key = ? AND version != ?")
       .bindParams(scopeKey, keepVersion)
-      .execute()
+      .execute(),
   );
 
   const usageResult = await withSqlRetry(() =>
     sql
       .prepare("DELETE FROM snapshot_project_usage WHERE scope_key = ? AND version != ?")
       .bindParams(scopeKey, keepVersion)
-      .execute()
+      .execute(),
   );
 
   return {
@@ -1670,12 +1785,10 @@ export async function migrateOldScopeKeys(newScopeKey) {
   // Resolve versions: old snapshot version (for project usage) and new snapshot version
   const [oldMetaResult, newMetaResult] = await Promise.all([
     withSqlRetry(() =>
-      sql.prepare("SELECT version FROM snapshot_meta WHERE scope_key = ?")
-        .bindParams(oldScopeKey).execute()
+      sql.prepare("SELECT version FROM snapshot_meta WHERE scope_key = ?").bindParams(oldScopeKey).execute(),
     ),
     withSqlRetry(() =>
-      sql.prepare("SELECT version FROM snapshot_meta WHERE scope_key = ?")
-        .bindParams(newScopeKey).execute()
+      sql.prepare("SELECT version FROM snapshot_meta WHERE scope_key = ?").bindParams(newScopeKey).execute(),
     ),
   ]);
   const oldVersion = oldMetaResult.rows?.[0]?.version || null;
@@ -1685,7 +1798,9 @@ export async function migrateOldScopeKeys(newScopeKey) {
   let migratedUsage = 0;
   if (oldVersion && newVersion) {
     const usageInsert = await withSqlRetry(() =>
-      sql.prepare(`
+      sql
+        .prepare(
+          `
         INSERT IGNORE INTO snapshot_project_usage
           (scope_key, version, field_id, project_id, project_key, project_name,
            issue_count, jql, latest_field_change_at, latest_issue_key, latest_issue_updated_at)
@@ -1694,16 +1809,19 @@ export async function migrateOldScopeKeys(newScopeKey) {
           issue_count, jql, latest_field_change_at, latest_issue_key, latest_issue_updated_at
         FROM snapshot_project_usage
         WHERE scope_key = ? AND version = ?
-      `)
+      `,
+        )
         .bindParams(newScopeKey, newVersion, oldScopeKey, oldVersion)
-        .execute()
+        .execute(),
     );
     migratedUsage = toNumber(usageInsert?.rowsAffected, 0);
   }
 
   // Migrate field_summaries (not version-keyed)
   const summaryInsert = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       INSERT IGNORE INTO field_summaries
         (scope_key, field_id, refreshed_at, field_json, field_jql, configured_project_count,
          has_global_context, active_project_count, total_issue_count, active_projects_json,
@@ -1718,44 +1836,81 @@ export async function migrateOldScopeKeys(newScopeKey) {
         next_start_at, next_page_token
       FROM field_summaries
       WHERE scope_key = ?
-    `)
+    `,
+      )
       .bindParams(newScopeKey, oldScopeKey)
-      .execute()
+      .execute(),
   );
   const migratedSummaries = toNumber(summaryInsert?.rowsAffected, 0);
 
   // Migrate saved_reports
   const reportInsert = await withSqlRetry(() =>
-    sql.prepare(`
+    sql
+      .prepare(
+        `
       INSERT IGNORE INTO saved_reports (scope_key, report_id, name, field_ids_json, created_at, updated_at)
       SELECT ?, report_id, name, field_ids_json, created_at, updated_at
       FROM saved_reports WHERE scope_key = ?
-    `)
+    `,
+      )
       .bindParams(newScopeKey, oldScopeKey)
-      .execute()
+      .execute(),
   );
   const migratedReports = toNumber(reportInsert?.rowsAffected, 0);
 
   // Clean up all old-key rows across every table
   await Promise.all([
-    withSqlRetry(() => sql.prepare("DELETE FROM field_summaries WHERE scope_key = ?").bindParams(oldScopeKey).execute()),
+    withSqlRetry(() =>
+      sql.prepare("DELETE FROM field_summaries WHERE scope_key = ?").bindParams(oldScopeKey).execute(),
+    ),
     withSqlRetry(() => sql.prepare("DELETE FROM saved_reports WHERE scope_key = ?").bindParams(oldScopeKey).execute()),
-    withSqlRetry(() => sql.prepare("DELETE FROM snapshot_project_usage WHERE scope_key = ?").bindParams(oldScopeKey).execute()),
-    withSqlRetry(() => sql.prepare("DELETE FROM snapshot_fields WHERE scope_key = ?").bindParams(oldScopeKey).execute()),
+    withSqlRetry(() =>
+      sql.prepare("DELETE FROM snapshot_project_usage WHERE scope_key = ?").bindParams(oldScopeKey).execute(),
+    ),
+    withSqlRetry(() =>
+      sql.prepare("DELETE FROM snapshot_fields WHERE scope_key = ?").bindParams(oldScopeKey).execute(),
+    ),
     withSqlRetry(() => sql.prepare("DELETE FROM snapshot_meta WHERE scope_key = ?").bindParams(oldScopeKey).execute()),
-    withSqlRetry(() => sql.prepare("DELETE FROM issue_scan_meta WHERE scope_key = ?").bindParams(oldScopeKey).execute()),
-    withSqlRetry(() => sql.prepare("DELETE FROM issue_scan_buffer WHERE scope_key = ?").bindParams(oldScopeKey).execute()),
-    withSqlRetry(() => sql.prepare("DELETE FROM issue_scan_project_totals WHERE scope_key = ?").bindParams(oldScopeKey).execute()),
-    withSqlRetry(() => sql.prepare("DELETE FROM issue_scan_workers WHERE scope_key = ?").bindParams(oldScopeKey).execute()),
-    withSqlRetry(() => sql.prepare("DELETE FROM field_options_cache WHERE scope_key = ?").bindParams(oldScopeKey).execute()),
-    withSqlRetry(() => sql.prepare("DELETE FROM rqt_field_index WHERE scope_key = ?").bindParams(oldScopeKey).execute()),
+    withSqlRetry(() =>
+      sql.prepare("DELETE FROM issue_scan_meta WHERE scope_key = ?").bindParams(oldScopeKey).execute(),
+    ),
+    withSqlRetry(() =>
+      sql.prepare("DELETE FROM issue_scan_buffer WHERE scope_key = ?").bindParams(oldScopeKey).execute(),
+    ),
+    withSqlRetry(() =>
+      sql.prepare("DELETE FROM issue_scan_project_totals WHERE scope_key = ?").bindParams(oldScopeKey).execute(),
+    ),
+    withSqlRetry(() =>
+      sql.prepare("DELETE FROM issue_scan_workers WHERE scope_key = ?").bindParams(oldScopeKey).execute(),
+    ),
+    withSqlRetry(() =>
+      sql.prepare("DELETE FROM field_options_cache WHERE scope_key = ?").bindParams(oldScopeKey).execute(),
+    ),
+    withSqlRetry(() =>
+      sql.prepare("DELETE FROM rqt_field_index WHERE scope_key = ?").bindParams(oldScopeKey).execute(),
+    ),
     withSqlRetry(() => sql.prepare("DELETE FROM rqt_issue_keys WHERE scope_key = ?").bindParams(oldScopeKey).execute()),
-    withSqlRetry(() => sql.prepare("DELETE FROM rqt_value_issue_index WHERE scope_key = ?").bindParams(oldScopeKey).execute()),
-    withSqlRetry(() => sql.prepare("DELETE FROM rqt_field_issue_index WHERE scope_key = ?").bindParams(oldScopeKey).execute()),
-    withSqlRetry(() => sql.prepare("DELETE FROM snapshot_workflow_schemes WHERE scope_key = ?").bindParams(oldScopeKey).execute()),
-    withSqlRetry(() => sql.prepare("DELETE FROM snapshot_workflow_scheme_projects WHERE scope_key = ?").bindParams(oldScopeKey).execute()),
-    withSqlRetry(() => sql.prepare("DELETE FROM snapshot_statuses WHERE scope_key = ?").bindParams(oldScopeKey).execute()),
-    withSqlRetry(() => sql.prepare("DELETE FROM workflow_snapshot_meta WHERE scope_key = ?").bindParams(oldScopeKey).execute()),
+    withSqlRetry(() =>
+      sql.prepare("DELETE FROM rqt_value_issue_index WHERE scope_key = ?").bindParams(oldScopeKey).execute(),
+    ),
+    withSqlRetry(() =>
+      sql.prepare("DELETE FROM rqt_field_issue_index WHERE scope_key = ?").bindParams(oldScopeKey).execute(),
+    ),
+    withSqlRetry(() =>
+      sql.prepare("DELETE FROM snapshot_workflow_schemes WHERE scope_key = ?").bindParams(oldScopeKey).execute(),
+    ),
+    withSqlRetry(() =>
+      sql
+        .prepare("DELETE FROM snapshot_workflow_scheme_projects WHERE scope_key = ?")
+        .bindParams(oldScopeKey)
+        .execute(),
+    ),
+    withSqlRetry(() =>
+      sql.prepare("DELETE FROM snapshot_statuses WHERE scope_key = ?").bindParams(oldScopeKey).execute(),
+    ),
+    withSqlRetry(() =>
+      sql.prepare("DELETE FROM workflow_snapshot_meta WHERE scope_key = ?").bindParams(oldScopeKey).execute(),
+    ),
   ]);
 
   return { skipped: false, migratedUsage, migratedSummaries, migratedReports };

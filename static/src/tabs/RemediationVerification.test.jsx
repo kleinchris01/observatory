@@ -1,4 +1,3 @@
-import React from "react";
 import { describe, test, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -10,10 +9,42 @@ const verification = (over = {}) => ({
   counts: { held: 3, regressed: 1, "fixed-open": 2, open: 4, superseded: 0, unverified: 1 },
   heldRate: 0.75,
   rows: [
-    { issueKey: "ADMIN-2", verdict: "regressed", findingKey: "filter-ownership", itemId: "7", summary: "Reassign filter Orphaned", status: "Done", period: "2026-Q4" },
-    { issueKey: "ADMIN-4", verdict: "fixed-open", findingKey: "filter-ownership", itemId: "9", summary: "Reassign filter Old", status: "To Do", period: "2026-Q4", assigneeName: "Sam" },
-    { issueKey: "ADMIN-5", verdict: "fixed-open", findingKey: "filter-ownership", itemId: "10", summary: "Reassign filter Older", status: "In Progress", period: "2026-Q3" },
-    { issueKey: "ADMIN-6", verdict: "held", findingKey: "filter-ownership", itemId: "11", summary: "Done right", status: "Done" },
+    {
+      issueKey: "ADMIN-2",
+      verdict: "regressed",
+      findingKey: "filter-ownership",
+      itemId: "7",
+      summary: "Reassign filter Orphaned",
+      status: "Done",
+      period: "2026-Q4",
+    },
+    {
+      issueKey: "ADMIN-4",
+      verdict: "fixed-open",
+      findingKey: "filter-ownership",
+      itemId: "9",
+      summary: "Reassign filter Old",
+      status: "To Do",
+      period: "2026-Q4",
+      assigneeName: "Sam",
+    },
+    {
+      issueKey: "ADMIN-5",
+      verdict: "fixed-open",
+      findingKey: "filter-ownership",
+      itemId: "10",
+      summary: "Reassign filter Older",
+      status: "In Progress",
+      period: "2026-Q3",
+    },
+    {
+      issueKey: "ADMIN-6",
+      verdict: "held",
+      findingKey: "filter-ownership",
+      itemId: "11",
+      summary: "Done right",
+      status: "Done",
+    },
   ],
   ...over,
 });
@@ -30,15 +61,32 @@ describe("RemediationVerification — withdrawn advice", () => {
     labels: { "field-cleanup": "Fields with no populated issues" },
     counts: { "fixed-open": 1, withdrawn: 1 },
     rows: [
-      { issueKey: "ADMIN-50", verdict: "withdrawn", findingKey: "field-cleanup", itemId: "customfield_500", summary: "Delete Hiring Manager",
-        evidence: "it holds values on 2,340 issues in archived projects (TT), which Jira's search cannot see. Deleting it would destroy that data" },
-      { issueKey: "ADMIN-52", verdict: "fixed-open", findingKey: "field-cleanup", itemId: "customfield_502", summary: "Delete Gone Field" },
+      {
+        issueKey: "ADMIN-50",
+        verdict: "withdrawn",
+        findingKey: "field-cleanup",
+        itemId: "customfield_500",
+        summary: "Delete Hiring Manager",
+        evidence:
+          "it holds values on 2,340 issues in archived projects (TT), which Jira's search cannot see. Deleting it would destroy that data",
+      },
+      {
+        issueKey: "ADMIN-52",
+        verdict: "fixed-open",
+        findingKey: "field-cleanup",
+        itemId: "customfield_502",
+        summary: "Delete Gone Field",
+      },
     ],
   };
 
   test("lists withdrawn tasks apart from fixed ones, with the evidence, and withdraws on confirmation", async () => {
-    const load = vi.fn(async (name) => (name === "getRemediationVerification" ? withdrawn : { applied: 1, results: [] }));
-    render(<RemediationVerification load={load} findingKey="field-cleanup" findingLabel="Fields with no populated issues" />);
+    const load = vi.fn(async (name) =>
+      name === "getRemediationVerification" ? withdrawn : { applied: 1, results: [] },
+    );
+    render(
+      <RemediationVerification load={load} findingKey="field-cleanup" findingLabel="Fields with no populated issues" />,
+    );
 
     expect(await screen.findByText("Advice withdrawn, still open (1)")).toBeInTheDocument();
     expect(screen.getByText("Fixed, but still open (1)")).toBeInTheDocument();
@@ -49,9 +97,14 @@ describe("RemediationVerification — withdrawn advice", () => {
     await userEvent.click(screen.getByLabelText(/ADMIN-50/));
     await userEvent.click(screen.getByRole("button", { name: "Withdraw as Won't Do (1)" }));
     const dialog = screen.getByRole("alertdialog", { name: "Confirm the change in Jira" });
-    expect(within(dialog).getByText(/Withdraw 1 ticket in Jira, as you, .*telling the assignee not to act/)).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(/Withdraw 1 ticket in Jira, as you, .*telling the assignee not to act/),
+    ).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Withdraw as Won't Do" }));
-    expect(load).toHaveBeenCalledWith("applyRemediationVerification", { issueKeys: ["ADMIN-50"], findingKey: "field-cleanup" });
+    expect(load).toHaveBeenCalledWith("applyRemediationVerification", {
+      issueKeys: ["ADMIN-50"],
+      findingKey: "field-cleanup",
+    });
   });
 });
 
@@ -70,7 +123,10 @@ describe("RemediationVerification", () => {
 
   test("links each ticket to Jira when the site is known", async () => {
     render(<RemediationVerification siteOrigin="https://acme.atlassian.net" load={loader()} />);
-    expect(await screen.findByRole("link", { name: "ADMIN-2" })).toHaveAttribute("href", "https://acme.atlassian.net/browse/ADMIN-2");
+    expect(await screen.findByRole("link", { name: "ADMIN-2" })).toHaveAttribute(
+      "href",
+      "https://acme.atlassian.net/browse/ADMIN-2",
+    );
   });
 
   // Nothing moves in Jira until the admin selects tickets and confirms on the page.
@@ -107,18 +163,31 @@ describe("RemediationVerification", () => {
   });
 
   test("reports tickets Jira would not move, with the reason", async () => {
-    const load = loader({ applied: 0, results: [{ issueKey: "ADMIN-2", transitioned: false, reason: "No transition from its current status leads to an open status." }] });
+    const load = loader({
+      applied: 0,
+      results: [
+        {
+          issueKey: "ADMIN-2",
+          transitioned: false,
+          reason: "No transition from its current status leads to an open status.",
+        },
+      ],
+    });
     render(<RemediationVerification load={load} />);
     await screen.findByText("Closed, but still flagged (1)");
     await userEvent.click(screen.getByLabelText(/ADMIN-2/));
     await userEvent.click(screen.getByRole("button", { name: "Reopen with evidence (1)" }));
-    await userEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Reopen with evidence" }));
+    await userEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Reopen with evidence" }),
+    );
 
     expect(await screen.findByText(/0 tickets moved\. ADMIN-2: No transition/)).toBeInTheDocument();
   });
 
   test("says so when there is nothing to act on, or no tasks at all", async () => {
-    const quiet = vi.fn(async () => verification({ rows: [{ issueKey: "A-1", verdict: "held", findingKey: "f" }], counts: { held: 1 } }));
+    const quiet = vi.fn(async () =>
+      verification({ rows: [{ issueKey: "A-1", verdict: "held", findingKey: "f" }], counts: { held: 1 } }),
+    );
     const { unmount } = render(<RemediationVerification load={quiet} />);
     expect(await screen.findByText("Every closed task held, and no open task is already fixed.")).toBeInTheDocument();
     unmount();

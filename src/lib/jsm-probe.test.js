@@ -25,21 +25,34 @@ function site(overrides = {}) {
   const page = (values, more = false) => JSON.stringify({ size: values.length, isLastPage: !more, values });
   const answers = {
     [`${SD}/info`]: { status: 200, body: JSON.stringify({ version: "10.4.0" }) },
-    [`${SD}/servicedesk?`]: { status: 200, body: page([{ id: "1", projectId: "10000", projectKey: "SD", projectName: "Service" }]) },
+    [`${SD}/servicedesk?`]: {
+      status: 200,
+      body: page([{ id: "1", projectId: "10000", projectKey: "SD", projectName: "Service" }]),
+    },
     "/rest/api/3/field": {
       status: 200,
       body: JSON.stringify([
-        { id: "customfield_10030", name: "Time to resolution", schema: { custom: "com.atlassian.servicedesk:sd-sla-field" } },
+        {
+          id: "customfield_10030",
+          name: "Time to resolution",
+          schema: { custom: "com.atlassian.servicedesk:sd-sla-field" },
+        },
         { id: "customfield_10010", name: "Request Type", schema: { custom: "com.atlassian.servicedesk:vp-origin" } },
         { id: "summary", name: "Summary", schema: { system: "summary" } },
       ]),
     },
-    [`${SD}/servicedesk/1/requesttype/7/field`]: { status: 200, body: JSON.stringify({ requestTypeFields: [{ fieldId: "summary" }] }) },
+    [`${SD}/servicedesk/1/requesttype/7/field`]: {
+      status: 200,
+      body: JSON.stringify({ requestTypeFields: [{ fieldId: "summary" }] }),
+    },
     [`${SD}/servicedesk/1/requesttype?`]: { status: 200, body: page([{ id: "7", name: 'Get "IT" help' }]) },
     [`${SD}/servicedesk/1/requesttypegroup`]: { status: 200, body: page([{ id: "g1", name: "General" }]) },
     [`${SD}/requesttype?`]: { status: 200, body: page([{ id: "7" }], true) },
     "/jira/forms/": { status: 200, body: "[]" },
-    [`${SD}/servicedesk/1/queue?`]: { status: 200, body: page([{ id: "q1", name: "Open", jql: "project = SD", issueCount: 12 }]) },
+    [`${SD}/servicedesk/1/queue?`]: {
+      status: 200,
+      body: page([{ id: "q1", name: "Open", jql: "project = SD", issueCount: 12 }]),
+    },
     [`${SD}/organization?`]: { status: 200, body: page([{ id: "o1", name: "Acme" }]) },
     [`${SD}/servicedesk/1/organization?`]: { status: 200, body: page([{ id: "o1", name: "Acme" }]) },
     [`${SD}/servicedesk/1/customer?`]: { status: 200, body: page([{ accountId: "a1", emailAddress: EMAIL }]) },
@@ -48,12 +61,28 @@ function site(overrides = {}) {
     ...overrides,
   };
   mocks.probeEndpoint.mockImplementation(async (path, opts = {}) => {
-    const key = Object.keys(answers).filter((k) => path.startsWith(k)).sort((a, b) => b.length - a.length)[0];
+    const key = Object.keys(answers)
+      .filter((k) => path.startsWith(k))
+      .sort((a, b) => b.length - a.length)[0];
     const a = key ? answers[key] : { status: 404, body: "not found" };
     const ok = a.status >= 200 && a.status < 300;
-    return { path, status: a.status, ok, ms: 1, sample: String(a.body).slice(0, 300), ...(opts.keepBody ? { body: a.body } : {}) };
+    return {
+      path,
+      status: a.status,
+      ok,
+      ms: 1,
+      sample: String(a.body).slice(0, 300),
+      ...(opts.keepBody ? { body: a.body } : {}),
+    };
   });
-  mocks.probeJqlCount.mockImplementation(async (jql) => ({ jql, status: 200, ok: true, count: 3, ms: 1, sample: '{"count":3}' }));
+  mocks.probeJqlCount.mockImplementation(async (jql) => ({
+    jql,
+    status: 200,
+    ok: true,
+    count: 3,
+    ms: 1,
+    sample: '{"count":3}',
+  }));
 }
 
 const row = (result, step) => result.results.find((r) => r.step === step);
@@ -128,7 +157,10 @@ describe("probeServiceManagementApi — failures it must tell apart", () => {
 
   test("a missing scope is reported as a scope gap, not as JSM being absent", async () => {
     site({
-      [`${SD}/servicedesk/1/requesttype?`]: { status: 401, body: '{"code":401,"message":"Unauthorized; scope does not match"}' },
+      [`${SD}/servicedesk/1/requesttype?`]: {
+        status: 401,
+        body: '{"code":401,"message":"Unauthorized; scope does not match"}',
+      },
     });
     const result = await probeServiceManagementApi({ cloudId: "cloud-1" });
 
@@ -138,7 +170,12 @@ describe("probeServiceManagementApi — failures it must tell apart", () => {
   });
 
   test("queues that answer without their JQL block the queues pillar", async () => {
-    site({ [`${SD}/servicedesk/1/queue?`]: { status: 200, body: JSON.stringify({ isLastPage: true, values: [{ id: "q1", name: "Open" }] }) } });
+    site({
+      [`${SD}/servicedesk/1/queue?`]: {
+        status: 200,
+        body: JSON.stringify({ isLastPage: true, values: [{ id: "q1", name: "Open" }] }),
+      },
+    });
     const result = await probeServiceManagementApi({ cloudId: "cloud-1" });
 
     expect(row(result, "queues").verdict).toBe("unexpected-shape");
@@ -157,7 +194,14 @@ describe("probeServiceManagementApi — failures it must tell apart", () => {
 
   test("a rejected JQL function blocks only the stage that needs it", async () => {
     site();
-    mocks.probeJqlCount.mockImplementationOnce(async (jql) => ({ jql, status: 400, ok: false, count: null, ms: 1, sample: "bad function" }));
+    mocks.probeJqlCount.mockImplementationOnce(async (jql) => ({
+      jql,
+      status: 400,
+      ok: false,
+      count: null,
+      ms: 1,
+      sample: "bad function",
+    }));
     const result = await probeServiceManagementApi({ cloudId: "cloud-1" });
 
     expect(row(result, "slaBreached").verdict).toBe("jql-rejected");
@@ -165,7 +209,10 @@ describe("probeServiceManagementApi — failures it must tell apart", () => {
   });
 
   test("optional steps never block a stage", async () => {
-    site({ "/jira/forms/": { status: 401, body: "scope does not match" }, [`${SD}/request/SD-9/sla`]: { status: 403, body: "no" } });
+    site({
+      "/jira/forms/": { status: 401, body: "scope does not match" },
+      [`${SD}/request/SD-9/sla`]: { status: 403, body: "no" },
+    });
     const result = await probeServiceManagementApi({ cloudId: "cloud-1" });
 
     expect(row(result, "forms").verdict).toBe("missing-scope");
@@ -177,11 +224,16 @@ describe("probeServiceManagementApi — failures it must tell apart", () => {
     site();
     const result = await probeServiceManagementApi({});
 
-    expect(row(result, "forms")).toMatchObject({ verdict: "skipped", sample: "Skipped: no cloud id in the install context." });
+    expect(row(result, "forms")).toMatchObject({
+      verdict: "skipped",
+      sample: "Skipped: no cloud id in the install context.",
+    });
   });
 
   test("a desk with no request types skips the steps that need one", async () => {
-    site({ [`${SD}/servicedesk/1/requesttype?`]: { status: 200, body: JSON.stringify({ isLastPage: true, values: [] }) } });
+    site({
+      [`${SD}/servicedesk/1/requesttype?`]: { status: 200, body: JSON.stringify({ isLastPage: true, values: [] }) },
+    });
     const result = await probeServiceManagementApi({ cloudId: "cloud-1" });
 
     expect(row(result, "requestTypeFields").sample).toBe("Skipped: the desk has no request types to sample.");
@@ -192,7 +244,10 @@ describe("probeServiceManagementApi — failures it must tell apart", () => {
     site({ "/rest/api/3/search/jql?": { status: 200, body: JSON.stringify({ issues: [] }) } });
     const result = await probeServiceManagementApi({ cloudId: "cloud-1" });
 
-    expect(row(result, "requestSla")).toMatchObject({ verdict: "skipped", sample: "Skipped: the desk has no requests." });
+    expect(row(result, "requestSla")).toMatchObject({
+      verdict: "skipped",
+      sample: "Skipped: the desk has no requests.",
+    });
   });
 });
 

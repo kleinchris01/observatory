@@ -2,7 +2,20 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { Icon } from "./Icons";
 import { formatNumber } from "../utils";
-import { StatTile, StatRow, Panel, EmptyState, LinkButton, GovernanceRow, TrendDelta, bandFromScore, RemediationStatus, FindingRow, GOVERNANCE_BANDS, SegmentedToggle } from "./ui";
+import {
+  StatTile,
+  StatRow,
+  Panel,
+  EmptyState,
+  LinkButton,
+  GovernanceRow,
+  TrendDelta,
+  bandFromScore,
+  RemediationStatus,
+  FindingRow,
+  GOVERNANCE_BANDS,
+  SegmentedToggle,
+} from "./ui";
 import { rankPriorities, formatLift } from "./priorities";
 import { usePersistentState } from "../hooks";
 import { HEALTH_PILLARS } from "../../../src/lib/health-score";
@@ -21,7 +34,23 @@ import { HEALTH_PILLARS } from "../../../src/lib/health-score";
 // omitted rather than rendered as zero, because "0 duplicate statuses" and "we have never
 // looked for duplicate statuses" are completely different statements.
 
-function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, issueTypes, users, assets, access, estate, fieldConfigs, automation, filters, dashboards, onNavigate }) {
+function buildFindings({
+  findingsSummary,
+  findingsByCode,
+  dashboard,
+  workflow,
+  screens,
+  issueTypes,
+  users,
+  assets,
+  access,
+  estate,
+  fieldConfigs,
+  automation,
+  filters,
+  dashboards,
+  onNavigate,
+}) {
   const findings = [];
 
   if (findingsSummary?.adminAttention > 0) {
@@ -60,9 +89,10 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       tone: "warning",
       count: workflow.duplicateGroupCount,
       title: "Groups of duplicate statuses",
-      detail: workflow.reducibleStatusCount > 0
-        ? `Consolidating them removes ${formatNumber(workflow.reducibleStatusCount)} statuses from the site.`
-        : "Statuses that almost certainly mean the same thing.",
+      detail:
+        workflow.reducibleStatusCount > 0
+          ? `Consolidating them removes ${formatNumber(workflow.reducibleStatusCount)} statuses from the site.`
+          : "Statuses that almost certainly mean the same thing.",
       onOpen: () => onNavigate("workflows", { view: "insights", panel: "duplicates" }),
       openLabel: "Workflows",
     });
@@ -100,7 +130,8 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       tone: "warning",
       count: workflow.ruleOnlyStatusCount,
       title: "Statuses only an automation rule can reach",
-      detail: "No scheme contains them, so they are invisible in Jira's workflow admin — but a rule transitions issues into them.",
+      detail:
+        "No scheme contains them, so they are invisible in Jira's workflow admin — but a rule transitions issues into them.",
       onOpen: () => onNavigate("workflows", { view: "insights", panel: "orphans", statuses: "rule-only" }),
       openLabel: "Workflows",
     });
@@ -178,7 +209,8 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       tone: "critical",
       count: workflow.unreachableWithIssuesCount,
       title: "Unreachable statuses still holding live issues",
-      detail: "No scheme maps to them and no automation rule targets them, so nothing in Jira can move these issues out of this status.",
+      detail:
+        "No scheme maps to them and no automation rule targets them, so nothing in Jira can move these issues out of this status.",
       onOpen: () => onNavigate("workflows", { view: "insights", panel: "orphans" }),
       openLabel: "Workflows",
     });
@@ -192,7 +224,8 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       tone: "critical",
       count: workflow.noDoneSchemeCount,
       title: "Workflow schemes with no Done status",
-      detail: "A scheme with nothing in the Done category cannot represent completion — a correctness problem, not a tidiness one.",
+      detail:
+        "A scheme with nothing in the Done category cannot represent completion — a correctness problem, not a tidiness one.",
       onOpen: () => onNavigate("workflows", { view: "insights", panel: "balance" }),
       openLabel: "Workflows",
     });
@@ -294,7 +327,8 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       tone: "info",
       count: fieldCode("stale"),
       title: "Fields with no activity in over a year",
-      detail: "Carried values once; nothing has changed them recently. Different from never-used — this data is historical.",
+      detail:
+        "Carried values once; nothing has changed them recently. Different from never-used — this data is historical.",
       onOpen: () => onNavigate("fields", { findings: "stale" }),
       openLabel: "Field Browser",
     });
@@ -347,7 +381,8 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       tone: "critical",
       count: automation.credentialRuleCount,
       title: "Automation rules storing a credential in plaintext",
-      detail: "Anyone who can view the rule can read the secret. Rotate them, then move to a smart-value reference or an Automation connection.",
+      detail:
+        "Anyone who can view the rule can read the secret. Rotate them, then move to a smart-value reference or an Automation connection.",
       onOpen: () => onNavigate("automation", { section: "findings", risk: "embedded-credential" }),
       openLabel: "Automation",
     });
@@ -361,7 +396,8 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       tone: "warning",
       count: automation.selfTriggeringCount,
       title: "Rules that write a field they trigger on",
-      detail: "These loop without a second rule involved. Check the conditions guarding them before the next execution-limit surprise.",
+      detail:
+        "These loop without a second rule involved. Check the conditions guarding them before the next execution-limit surprise.",
       onOpen: () => onNavigate("automation", { section: "cascades", cascadeKind: "self" }),
       openLabel: "Automation",
     });
@@ -403,7 +439,8 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       tone: "info",
       count: automation.disabledCount,
       title: "Disabled automation rules",
-      detail: "A large disabled estate hides which rules were retired on purpose and which were forgotten. Decide per rule: revive or delete.",
+      detail:
+        "A large disabled estate hides which rules were retired on purpose and which were forgotten. Decide per rule: revive or delete.",
       onOpen: () => onNavigate("automation", { section: "findings", risk: "disabled" }),
       openLabel: "Automation",
     });
@@ -527,7 +564,8 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       tone: "warning",
       count: filters.brokenProjectCount,
       title: "Filters naming a project that does not exist",
-      detail: "These error rather than returning the wrong answer quietly, which makes them the cheapest of the filter findings to justify fixing.",
+      detail:
+        "These error rather than returning the wrong answer quietly, which makes them the cheapest of the filter findings to justify fixing.",
       onOpen: () => onNavigate("filters", { view: "broken" }),
       openLabel: "Filters",
     });
@@ -544,7 +582,8 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       tone: "info",
       count: filters.unknownTypeRefCount,
       title: "Filters naming an issue type nothing defines",
-      detail: "The JQL references a type no scheme allows, so that clause matches nothing and the filter returns less than expected — with no error to say why.",
+      detail:
+        "The JQL references a type no scheme allows, so that clause matches nothing and the filter returns less than expected — with no error to say why.",
       onOpen: () => onNavigate("filters", { view: "broken" }),
       openLabel: "Filters",
     });
@@ -558,7 +597,8 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       tone: "warning",
       count: filters.subscribedButUnusedCount,
       title: "Email subscriptions on filters nobody opens",
-      detail: "Recurring email from a search no one reads is what teaches people to filter Jira to trash, taking the useful mail with it.",
+      detail:
+        "Recurring email from a search no one reads is what teaches people to filter Jira to trash, taking the useful mail with it.",
       onOpen: () => onNavigate("filters", { view: "filters", finding: "subscribed-but-unused" }),
       openLabel: "Filters",
     });
@@ -572,7 +612,8 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       tone: "critical",
       count: filters.sharedPubliclyCount,
       title: "Filters shared publicly",
-      detail: "Shared globally: on a site that allows anonymous access, anyone with the link can run them and read every issue they return.",
+      detail:
+        "Shared globally: on a site that allows anonymous access, anyone with the link can run them and read every issue they return.",
       onOpen: () => onNavigate("filters", { view: "filters", finding: "shared-publicly" }),
       openLabel: "Filters",
     });
@@ -586,7 +627,8 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       tone: "info",
       count: filters.sharedWithEveryoneCount,
       title: "Filters shared with every logged-in user",
-      detail: "Anyone on the site can run these, against every project they can browse. Usually deliberate — worth confirming it still is.",
+      detail:
+        "Anyone on the site can run these, against every project they can browse. Usually deliberate — worth confirming it still is.",
       onOpen: () => onNavigate("filters", { view: "filters", finding: "shared-with-everyone" }),
       openLabel: "Filters",
     });
@@ -619,7 +661,8 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       tone: "critical",
       count: screens.danglingOperations,
       title: "Scheme operations pointing at a missing screen",
-      detail: "Jira falls back silently when one of these resolves, so the form a user sees is not the one the scheme names.",
+      detail:
+        "Jira falls back silently when one of these resolves, so the form a user sees is not the one the scheme names.",
       onOpen: () => onNavigate("screens", { view: "schemes", schemes: "dangling" }),
       openLabel: "Screens",
     });
@@ -668,7 +711,8 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       tone: "info",
       count: screens.transitionOnlyScreens,
       title: "Screens used only by a workflow transition",
-      detail: "No screen scheme references them, so they look orphaned in the scheme view — but a transition opens them. Do not delete these.",
+      detail:
+        "No screen scheme references them, so they look orphaned in the scheme view — but a transition opens them. Do not delete these.",
       onOpen: () => onNavigate("screens", { view: "screens", filter: "transition-only" }),
       openLabel: "Screens",
     });
@@ -802,7 +846,8 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       tone: "critical",
       count: users.orphanedAutomationRefUsers,
       title: "Automation rules routing work to someone off the roster",
-      detail: "A rule assigns to or conditions on an account that is no longer licensed — the work lands nowhere, or the condition silently never matches.",
+      detail:
+        "A rule assigns to or conditions on an account that is no longer licensed — the work lands nowhere, or the condition silently never matches.",
       onOpen: () => onNavigate("people", { view: "overview" }),
       openLabel: "People",
     });
@@ -820,7 +865,8 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       tone: "critical",
       count: assets.brokenReferenceCount,
       title: "Assets reference attributes pointing at a type that is gone",
-      detail: "The attribute still shows on every object of its type and resolves to nothing — the CMDB analogue of a filter scoped to a deleted project.",
+      detail:
+        "The attribute still shows on every object of its type and resolves to nothing — the CMDB analogue of a filter scoped to a deleted project.",
       onOpen: () => onNavigate("assets", { view: "attributes" }),
       openLabel: "Assets",
     });
@@ -848,7 +894,8 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       tone: "warning",
       count: assets.deadSchemaCount,
       title: "Object schemas with nothing in them",
-      detail: "No object types, or types but no objects — a namespace in every AQL autocomplete that resolves to nothing.",
+      detail:
+        "No object types, or types but no objects — a namespace in every AQL autocomplete that resolves to nothing.",
       onOpen: () => onNavigate("assets", { view: "schemas" }),
       openLabel: "Assets",
     });
@@ -881,7 +928,8 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       tone: "critical",
       count: perm.riskySchemeCount,
       title: "Permission schemes that break least privilege",
-      detail: "Browse open to anyone, project admin handed to a whole group, or a permission held by a named individual — grants nobody reviews.",
+      detail:
+        "Browse open to anyone, project admin handed to a whole group, or a permission held by a named individual — grants nobody reviews.",
       onOpen: () => onNavigate("access", { view: "permissions" }),
       openLabel: "Access",
     });
@@ -910,7 +958,8 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       tone: "critical",
       count: (sec.emptyLevelCount || 0) + (sec.noLevelSchemeCount || 0),
       title: "Issue security levels nobody can see through",
-      detail: "Levels with no members, or schemes with no levels at all. An issue set to one is invisible to everyone but a site admin.",
+      detail:
+        "Levels with no members, or schemes with no levels at all. An issue set to one is invisible to everyone but a site admin.",
       onOpen: () => onNavigate("access", { view: "security" }),
       openLabel: "Access",
     });
@@ -993,42 +1042,122 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
   // Departed-account findings appear only once the People roster is measured.
   const accessFinding = (key, pillar, view, tone, count, title, detail) => {
     if (count > 0) {
-      findings.push({ key, dimension: key, pillar, tone, count, title, detail, onOpen: () => onNavigate("access", { view }), openLabel: "Access" });
+      findings.push({
+        key,
+        dimension: key,
+        pillar,
+        tone,
+        count,
+        title,
+        detail,
+        onOpen: () => onNavigate("access", { view }),
+        openLabel: "Access",
+      });
     }
   };
   if (perm?.available) {
-    accessFinding("permission-public-access", "permissions", "permissions", "critical", perm.publicSchemeCount,
-      "Permission schemes open to anonymous users", "Anyone at all can use these permissions, on a site that allows public access.");
-    accessFinding("permission-everyone-sensitive", "permissions", "permissions", "warning", perm.loggedInSensitiveSchemeCount,
-      "Sensitive permissions granted to every logged-in user", "Delete, move, administer or edit others' work, open to anyone with a licence.");
-    accessFinding("permission-direct-grants", "permissions", "permissions", "info", perm.directUserGrantCount,
-      "Permissions granted to named individuals", "A grant to one person is reviewed by nobody. Move it to a project role.");
+    accessFinding(
+      "permission-public-access",
+      "permissions",
+      "permissions",
+      "critical",
+      perm.publicSchemeCount,
+      "Permission schemes open to anonymous users",
+      "Anyone at all can use these permissions, on a site that allows public access.",
+    );
+    accessFinding(
+      "permission-everyone-sensitive",
+      "permissions",
+      "permissions",
+      "warning",
+      perm.loggedInSensitiveSchemeCount,
+      "Sensitive permissions granted to every logged-in user",
+      "Delete, move, administer or edit others' work, open to anyone with a licence.",
+    );
+    accessFinding(
+      "permission-direct-grants",
+      "permissions",
+      "permissions",
+      "info",
+      perm.directUserGrantCount,
+      "Permissions granted to named individuals",
+      "A grant to one person is reviewed by nobody. Move it to a project role.",
+    );
     if (perm.rosterMeasured !== false) {
-      accessFinding("permission-departed-grants", "permissions", "permissions", "warning", perm.offRosterUserGrantCount,
-        "Permissions granted to accounts that have left", "They grant nothing today and hide what the scheme really allows.");
+      accessFinding(
+        "permission-departed-grants",
+        "permissions",
+        "permissions",
+        "warning",
+        perm.offRosterUserGrantCount,
+        "Permissions granted to accounts that have left",
+        "They grant nothing today and hide what the scheme really allows.",
+      );
     }
   }
   if (sec?.available) {
-    accessFinding("security-direct-members", "security", "security", "info", sec.userMemberCount,
-      "Security level members who are named individuals", "Who sees a restricted issue depends on a list nobody maintains.");
+    accessFinding(
+      "security-direct-members",
+      "security",
+      "security",
+      "info",
+      sec.userMemberCount,
+      "Security level members who are named individuals",
+      "Who sees a restricted issue depends on a list nobody maintains.",
+    );
     if (sec.rosterMeasured !== false) {
-      accessFinding("security-departed-members", "security", "security", "warning", sec.offRosterMemberCount,
-        "Security level members who have left", "If they were a level's only members, its issues are now visible to nobody.");
+      accessFinding(
+        "security-departed-members",
+        "security",
+        "security",
+        "warning",
+        sec.offRosterMemberCount,
+        "Security level members who have left",
+        "If they were a level's only members, its issues are now visible to nobody.",
+      );
     }
   }
   if (notif?.available) {
-    accessFinding("notification-external-email", "notifications", "notifications", "warning", notif.emailRecipientCount,
-      "Notifications sent to raw email addresses", "Outside the directory: issue content goes wherever that mailbox forwards.");
+    accessFinding(
+      "notification-external-email",
+      "notifications",
+      "notifications",
+      "warning",
+      notif.emailRecipientCount,
+      "Notifications sent to raw email addresses",
+      "Outside the directory: issue content goes wherever that mailbox forwards.",
+    );
     if (notif.rosterMeasured !== false) {
-      accessFinding("notification-departed-recipients", "notifications", "notifications", "warning", notif.offRosterRecipientCount,
-        "Notifications sent to accounts that have left", "Those events now reach nobody.");
+      accessFinding(
+        "notification-departed-recipients",
+        "notifications",
+        "notifications",
+        "warning",
+        notif.offRosterRecipientCount,
+        "Notifications sent to accounts that have left",
+        "Those events now reach nobody.",
+      );
     }
   }
   if (roleGov?.available) {
-    accessFinding("role-group-actors", "roles", "roles", "info", roleGov.directUserActorCount,
-      "Project-role members who are individuals", "A group is one place to change membership; a person per project is many.");
-    accessFinding("role-unused", "roles", "roles", "info", roleGov.emptyRoleCount,
-      "Project roles nobody holds", "No user or group in any project, yet the role shows in every picker.");
+    accessFinding(
+      "role-group-actors",
+      "roles",
+      "roles",
+      "info",
+      roleGov.directUserActorCount,
+      "Project-role members who are individuals",
+      "A group is one place to change membership; a person per project is many.",
+    );
+    accessFinding(
+      "role-unused",
+      "roles",
+      "roles",
+      "info",
+      roleGov.emptyRoleCount,
+      "Project roles nobody holds",
+      "No user or group in any project, yet the role shows in every picker.",
+    );
   }
 
   // ── Field schemes / field configurations ──────────────────────────────
@@ -1057,7 +1186,11 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       count: fcUnused,
       title: fcLegacy ? "Field configurations and schemes no project uses" : "Field schemes no project uses",
       detail: "Configuration nobody sees, still maintained.",
-      onOpen: () => onNavigate("fieldConfigs", { view: fcLegacy && (fc.unusedConfigs || 0) > (fc.unusedSchemes || 0) ? "configs" : "schemes", filter: "unused" }),
+      onOpen: () =>
+        onNavigate("fieldConfigs", {
+          view: fcLegacy && (fc.unusedConfigs || 0) > (fc.unusedSchemes || 0) ? "configs" : "schemes",
+          filter: "unused",
+        }),
       openLabel: "Field schemes",
     });
   }
@@ -1127,12 +1260,40 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
   if (estate?.available) {
     const unused = (rows) => (estate.usageMeasured ? (rows || []).filter((v) => v.issueCount === 0).length : 0);
     const estateFinding = (key, view, count, title, detail) => {
-      if (count > 0) findings.push({ key, dimension: key, pillar: "estate", tone: "info", count, title, detail, onOpen: () => onNavigate("priorities", { view }), openLabel: "Priorities" });
+      if (count > 0)
+        findings.push({
+          key,
+          dimension: key,
+          pillar: "estate",
+          tone: "info",
+          count,
+          title,
+          detail,
+          onOpen: () => onNavigate("priorities", { view }),
+          openLabel: "Priorities",
+        });
     };
-    estateFinding("priority-usage", "priorities", unused(estate.priorities), "Priorities no issue uses", "Options everyone reads past when creating an issue.");
-    estateFinding("resolution-usage", "resolutions", unused(estate.resolutions), "Resolutions no issue uses", "One more choice on every resolve screen.");
-    estateFinding("estate-defaults", "priorities", (estate.prioritiesWithoutDefault ? 1 : 0) + (estate.resolutionsWithoutDefault ? 1 : 0),
-      "Value lists with no default", "Every create or resolve has to choose, or leaves the value empty.");
+    estateFinding(
+      "priority-usage",
+      "priorities",
+      unused(estate.priorities),
+      "Priorities no issue uses",
+      "Options everyone reads past when creating an issue.",
+    );
+    estateFinding(
+      "resolution-usage",
+      "resolutions",
+      unused(estate.resolutions),
+      "Resolutions no issue uses",
+      "One more choice on every resolve screen.",
+    );
+    estateFinding(
+      "estate-defaults",
+      "priorities",
+      (estate.prioritiesWithoutDefault ? 1 : 0) + (estate.resolutionsWithoutDefault ? 1 : 0),
+      "Value lists with no default",
+      "Every create or resolve has to choose, or leaves the value empty.",
+    );
   }
 
   // ── Projects ────────────────────────────────────────────────────────────
@@ -1184,7 +1345,8 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       tone: "info",
       count: dashboard.adoption.neverAdoptedCount,
       title: "Projects that never took off",
-      detail: "Old enough to judge and carrying under an issue a month across their whole life. Worth asking what people used instead.",
+      detail:
+        "Old enough to judge and carrying under an issue a month across their whole life. Worth asking what people used instead.",
       onOpen: () => onNavigate("projects", { filter: "no-work" }),
       openLabel: "Project Usage",
     });
@@ -1212,7 +1374,8 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       tone: "info",
       count: dashboard.projects.staleProjectCount ?? dashboard.projects.staleProjects.length,
       title: "Projects with no activity in over six months",
-      detail: "Still carrying field configuration. The cheapest place to retire fields, if the project is genuinely done.",
+      detail:
+        "Still carrying field configuration. The cheapest place to retire fields, if the project is genuinely done.",
       onOpen: () => onNavigate("projects", { filter: "stale" }),
       openLabel: "Project Usage",
     });
@@ -1255,8 +1418,10 @@ function worstBand(bands) {
 // and drawing a flat line would assert a stability nobody observed.
 export function buildGovernanceLedger({ health, findings = [], history = null }) {
   const trendByKey = new Map(
-    (history?.available && history.hasTrend ? history.dimensions ?? [] : [])
-      .map((entry) => [entry.key, { delta: entry.delta, points: entry.points, title: `${entry.key} over ${history.days} days` }])
+    (history?.available && history.hasTrend ? (history.dimensions ?? []) : []).map((entry) => [
+      entry.key,
+      { delta: entry.delta, points: entry.points, title: `${entry.key} over ${history.days} days` },
+    ]),
   );
 
   // A cached measurement from before pillars existed carries only a flat dimensions array.
@@ -1265,7 +1430,17 @@ export function buildGovernanceLedger({ health, findings = [], history = null })
   const scoredPillars = health?.pillars?.length
     ? health.pillars
     : health?.dimensions?.length
-      ? [{ key: "all", label: null, available: true, score: null, grade: null, total: health.dimensions.length, dimensions: health.dimensions }]
+      ? [
+          {
+            key: "all",
+            label: null,
+            available: true,
+            score: null,
+            grade: null,
+            total: health.dimensions.length,
+            dimensions: health.dimensions,
+          },
+        ]
       : [];
 
   // Findings grouped by the dimension they are evidence for. A dimension can have several:
@@ -1273,7 +1448,10 @@ export function buildGovernanceLedger({ health, findings = [], history = null })
   const findingsByDimension = new Map();
   const unmeasured = [];
   for (const finding of findings) {
-    if (!finding.dimension) { unmeasured.push(finding); continue; }
+    if (!finding.dimension) {
+      unmeasured.push(finding);
+      continue;
+    }
     if (!findingsByDimension.has(finding.dimension)) findingsByDimension.set(finding.dimension, []);
     findingsByDimension.get(finding.dimension).push(finding);
   }
@@ -1307,7 +1485,7 @@ export function buildGovernanceLedger({ health, findings = [], history = null })
         // collapse into the pillar's one-line reason.
         available: dim.available || own.length > 0,
         score: dim.available ? dim.score : null,
-        band: dim.available ? band : (own.length ? worstBand(own.map((f) => f.tone)) : "clear"),
+        band: dim.available ? band : own.length ? worstBand(own.map((f) => f.tone)) : "clear",
         // The dimension's evidence sentence, which already names the rate it was derived
         // from. The findings beneath it carry the counts and the links.
         detail: dim.available ? dim.detail : null,
@@ -1327,10 +1505,7 @@ export function buildGovernanceLedger({ health, findings = [], history = null })
   // principle but not in this payload, which is the normal state before the site has ever
   // been scored: the Overview must still route attention on a site with no health score at
   // all, because that is exactly the site with the most to fix.
-  const orphans = [
-    ...unmeasured,
-    ...findings.filter((f) => f.dimension && !claimed.has(f.key)),
-  ];
+  const orphans = [...unmeasured, ...findings.filter((f) => f.dimension && !claimed.has(f.key))];
   for (const finding of orphans) {
     const row = {
       key: finding.key,
@@ -1362,7 +1537,11 @@ export function buildGovernanceLedger({ health, findings = [], history = null })
         // is a statement about scoring, and printing it beside three findings would say
         // the opposite of what the rows show.
         fromScore: false,
-        available: false, score: null, grade: null, total: 0, rows: [],
+        available: false,
+        score: null,
+        grade: null,
+        total: 0,
+        rows: [],
       });
     }
     byKey.get(pillarKey).rows.push(row);
@@ -1379,8 +1558,10 @@ export function buildGovernanceLedger({ health, findings = [], history = null })
 
   // Urgency first inside each pillar, then worst score. A pillar's rows are a worklist.
   for (const pillar of pillars) {
-    pillar.rows.sort((a, b) =>
-      BAND_RANK[a.band] - BAND_RANK[b.band] || (a.score ?? 101) - (b.score ?? 101) || a.label.localeCompare(b.label));
+    pillar.rows.sort(
+      (a, b) =>
+        BAND_RANK[a.band] - BAND_RANK[b.band] || (a.score ?? 101) - (b.score ?? 101) || a.label.localeCompare(b.label),
+    );
   }
 
   const allRows = pillars.flatMap((p) => p.rows);
@@ -1411,9 +1592,15 @@ export function useHealthHistory({ days = 90, load = invoke } = {}) {
   React.useEffect(() => {
     let cancelled = false;
     load("getHealthHistory", { days })
-      .then((result) => { if (!cancelled) setHistory(result); })
-      .catch(() => { if (!cancelled) setHistory(null); });
-    return () => { cancelled = true; };
+      .then((result) => {
+        if (!cancelled) setHistory(result);
+      })
+      .catch(() => {
+        if (!cancelled) setHistory(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [days, load]);
 
   return history;
@@ -1428,8 +1615,14 @@ function useRemediationTickets() {
   const [remediation, setRemediation] = React.useState(null);
   React.useEffect(() => {
     let live = true;
-    invoke("getRemediationTickets", {}).then((r) => { if (live) setRemediation(r); }).catch(() => {});
-    return () => { live = false; };
+    invoke("getRemediationTickets", {})
+      .then((r) => {
+        if (live) setRemediation(r);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
   }, []);
   return remediation;
 }
@@ -1444,25 +1637,30 @@ export function PriorityList({ ledger, health, remediation, onNavigate }) {
   const [showMethod, setShowMethod] = React.useState(false);
 
   const summary = [
-    ranked.totalLift >= 0.05 ? `Together worth about ${formatLift(ranked.totalLift).replace("+", "")} on the site score.` : null,
+    ranked.totalLift >= 0.05
+      ? `Together worth about ${formatLift(ranked.totalLift).replace("+", "")} on the site score.`
+      : null,
     ranked.inProgress.length ? `${ranked.inProgress.length} more already in progress this quarter.` : null,
     ranked.remaining ? `${ranked.remaining} more ranked below these; switch to By pillar to see everything.` : null,
-  ].filter(Boolean).join(" ");
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <div className="priority-view">
       <p className="priority-intro">
-        Ranked across every pillar by how much fixing each raises the site score, how urgent it
-        is, and how many items it touches.{" "}
-        <LinkButton onClick={() => setShowMethod((v) => !v)}>{showMethod ? "Hide how" : "How this is ranked"}</LinkButton>
+        Ranked across every pillar by how much fixing each raises the site score, how urgent it is, and how many items
+        it touches.{" "}
+        <LinkButton onClick={() => setShowMethod((v) => !v)}>
+          {showMethod ? "Hide how" : "How this is ranked"}
+        </LinkButton>
       </p>
       {showMethod && (
         <p className="priority-method">
-          Each row's value is its score lift × urgency ÷ effort. The lift is exactly how many
-          points the site score gains if that check is fully fixed. Urgency is 3 for Act now,
-          2 for Worth reviewing and 1 for Cleanup. Effort grows with the number of items, but
-          slowly: ten items count as about twice the work of one. A finding the score does not
-          measure counts as half a point. Work with open tasks this quarter is left out.
+          Each row's value is its score lift × urgency ÷ effort. The lift is exactly how many points the site score
+          gains if that check is fully fixed. Urgency is 3 for Act now, 2 for Worth reviewing and 1 for Cleanup. Effort
+          grows with the number of items, but slowly: ten items count as about twice the work of one. A finding the
+          score does not measure counts as half a point. Work with open tasks this quarter is left out.
         </p>
       )}
       {ranked.items.length ? (
@@ -1473,17 +1671,16 @@ export function PriorityList({ ledger, health, remediation, onNavigate }) {
                 tone={item.band}
                 title={item.title}
                 count={typeof item.count === "number" ? formatNumber(item.count) : undefined}
-                detail={[
-                  item.pillarLabel,
-                  formatLift(item.lift) || "not scored",
-                  BAND_LABELS[item.band],
-                  item.action,
-                ].filter(Boolean).join(" · ")}
+                detail={[item.pillarLabel, formatLift(item.lift) || "not scored", BAND_LABELS[item.band], item.action]
+                  .filter(Boolean)
+                  .join(" · ")}
                 action={
                   <span className="priority-actions">
                     {item.onOpen && <LinkButton onClick={item.onOpen}>Open</LinkButton>}
                     {item.playbook && (
-                      <LinkButton onClick={() => onNavigate?.("remediation", { finding: item.playbook })}>Plan the fix</LinkButton>
+                      <LinkButton onClick={() => onNavigate?.("remediation", { finding: item.playbook })}>
+                        Plan the fix
+                      </LinkButton>
                     )}
                   </span>
                 }
@@ -1503,21 +1700,41 @@ export function PriorityList({ ledger, health, remediation, onNavigate }) {
   );
 }
 
-function GovernanceLedgerPanel({ ledger, remediation, health, history, order = "pillar", onOrderChange, workflow, screens, access, estate, fieldConfigs, automation, filters, dashboards, onNavigate, siteOrigin = "" }) {
-  const remediationFor = React.useCallback((findingKey) => {
-    const playbookKey = remediation?.findingIndex?.[findingKey];
-    if (!playbookKey) return null;
-    const group = (remediation.groups || []).find((g) => g.findingKey === playbookKey) || null;
-    return (
-      <RemediationStatus
-        group={group}
-        period={remediation.period}
-        siteOrigin={siteOrigin}
-        compact
-        onOpen={() => onNavigate?.("remediation", { finding: playbookKey })}
-      />
-    );
-  }, [remediation, siteOrigin, onNavigate]);
+function GovernanceLedgerPanel({
+  ledger,
+  remediation,
+  health,
+  history,
+  order = "pillar",
+  onOrderChange,
+  workflow,
+  screens,
+  access,
+  estate,
+  fieldConfigs,
+  automation,
+  filters,
+  dashboards,
+  onNavigate,
+  siteOrigin = "",
+}) {
+  const remediationFor = React.useCallback(
+    (findingKey) => {
+      const playbookKey = remediation?.findingIndex?.[findingKey];
+      if (!playbookKey) return null;
+      const group = (remediation.groups || []).find((g) => g.findingKey === playbookKey) || null;
+      return (
+        <RemediationStatus
+          group={group}
+          period={remediation.period}
+          siteOrigin={siteOrigin}
+          compact
+          onOpen={() => onNavigate?.("remediation", { finding: playbookKey })}
+        />
+      );
+    },
+    [remediation, siteOrigin, onNavigate],
+  );
 
   // Which pillars have never been built. Named individually, because "nothing flagged" while
   // three of five pillars have never been looked at is not a clean bill of health -- it is a
@@ -1540,7 +1757,11 @@ function GovernanceLedgerPanel({ ledger, remediation, health, history, order = "
     return (
       <Panel title="Governance" icon="activity">
         <EmptyState
-          action={unbuilt.length ? <LinkButton onClick={() => onNavigate(unbuilt[0].tab)}>Build {unbuilt[0].label}</LinkButton> : null}
+          action={
+            unbuilt.length ? (
+              <LinkButton onClick={() => onNavigate(unbuilt[0].tab)}>Build {unbuilt[0].label}</LinkButton>
+            ) : null
+          }
         >
           {unbuilt.length === 0
             ? "Nothing flagged. Fields, workflows, screens, automation and project shape all look clean."
@@ -1563,9 +1784,11 @@ function GovernanceLedgerPanel({ ledger, remediation, health, history, order = "
     <Panel
       title="Governance"
       icon="activity"
-      description={dimensions.length
-        ? `Every measure of the site, worst first. Scored across ${scored.length} of ${dimensions.length} dimensions.`
-        : "Every finding on the site, worst first. Nothing has been scored yet."}
+      description={
+        dimensions.length
+          ? `Every measure of the site, worst first. Scored across ${scored.length} of ${dimensions.length} dimensions.`
+          : "Every finding on the site, worst first. Nothing has been scored yet."
+      }
       action={<LinkButton onClick={() => onNavigate("reports")}>Trends</LinkButton>}
     >
       <div className="ui-health">
@@ -1581,8 +1804,12 @@ function GovernanceLedgerPanel({ ledger, remediation, health, history, order = "
           {/* The counts the old findings panel led with, kept as the one-line summary of
               what the table below holds. */}
           <span className="ui-health__tally">
-            {critical > 0 && <span className="ui-health__tallyitem ui-health__tallyitem--critical">{critical} to act on</span>}
-            {warning > 0 && <span className="ui-health__tallyitem ui-health__tallyitem--warning">{warning} to review</span>}
+            {critical > 0 && (
+              <span className="ui-health__tallyitem ui-health__tallyitem--critical">{critical} to act on</span>
+            )}
+            {warning > 0 && (
+              <span className="ui-health__tallyitem ui-health__tallyitem--warning">{warning} to review</span>
+            )}
             {info > 0 && <span className="ui-health__tallyitem ui-health__tallyitem--info">{info} to clean up</span>}
             {critical + warning + info === 0 && <span className="ui-health__tallyitem">nothing flagged</span>}
           </span>
@@ -1600,84 +1827,89 @@ function GovernanceLedgerPanel({ ledger, remediation, health, history, order = "
           label="Order the findings"
           value={order}
           onChange={onOrderChange}
-          options={[{ value: "priority", label: "By priority" }, { value: "pillar", label: "By pillar" }]}
+          options={[
+            { value: "priority", label: "By priority" },
+            { value: "pillar", label: "By pillar" },
+          ]}
         />
       )}
 
       {order === "priority" ? (
         <PriorityList ledger={ledger} health={health} remediation={remediation} onNavigate={onNavigate} />
       ) : (
-      <div className="ui-gov-pillars">
-        {ledger.pillars.map((pillar) => (
-          <section key={pillar.key} className="ui-gov-pillar">
-            <header className="ui-health__pillarhead">
-              <h4 className="ui-health__pillartitle">{pillar.label}</h4>
-              {pillar.available ? (
-                <span className={`ui-health__pillarscore ui-health__score--${(pillar.grade || "e").toLowerCase()}`}>
-                  {pillar.score}
-                </span>
-              ) : pillar.fromScore ? (
-                <span className="ui-health__pillarscore ui-health__pillarscore--none">not measured</span>
-              ) : null}
-            </header>
+        <div className="ui-gov-pillars">
+          {ledger.pillars.map((pillar) => (
+            <section key={pillar.key} className="ui-gov-pillar">
+              <header className="ui-health__pillarhead">
+                <h4 className="ui-health__pillartitle">{pillar.label}</h4>
+                {pillar.available ? (
+                  <span className={`ui-health__pillarscore ui-health__score--${(pillar.grade || "e").toLowerCase()}`}>
+                    {pillar.score}
+                  </span>
+                ) : pillar.fromScore ? (
+                  <span className="ui-health__pillarscore ui-health__pillarscore--none">not measured</span>
+                ) : null}
+              </header>
 
-            {pillar.rows.every((row) => !row.available) ? (
-              // One line for the whole pillar instead of one dark row per dimension. The
-              // reason is identical across them, and repeating it reads as three problems
-              // rather than one unbuilt snapshot.
-              <p className="ui-health__pillarempty">{pillar.reason || "Not measured yet."}</p>
-            ) : (
-              <div className="ui-gov-list">
-                {pillar.rows.filter((row) => row.available).map((row) => (
-                  <GovernanceRow
-                    key={row.key}
-                    label={row.label}
-                    score={row.score}
-                    band={row.band}
-                    detail={row.detail}
-                    trend={ledger.hasTrends ? row.trend : null}
-                    count={row.count === undefined ? undefined : formatNumber(row.count)}
-                    action={row.onOpen ? <LinkButton onClick={row.onOpen}>{row.openLabel}</LinkButton> : null}
-                  >
-                    {/* The findings beneath the metric: what to do, how many, and the way
+              {pillar.rows.every((row) => !row.available) ? (
+                // One line for the whole pillar instead of one dark row per dimension. The
+                // reason is identical across them, and repeating it reads as three problems
+                // rather than one unbuilt snapshot.
+                <p className="ui-health__pillarempty">{pillar.reason || "Not measured yet."}</p>
+              ) : (
+                <div className="ui-gov-list">
+                  {pillar.rows
+                    .filter((row) => row.available)
+                    .map((row) => (
+                      <GovernanceRow
+                        key={row.key}
+                        label={row.label}
+                        score={row.score}
+                        band={row.band}
+                        detail={row.detail}
+                        trend={ledger.hasTrends ? row.trend : null}
+                        count={row.count === undefined ? undefined : formatNumber(row.count)}
+                        action={row.onOpen ? <LinkButton onClick={row.onOpen}>{row.openLabel}</LinkButton> : null}
+                      >
+                        {/* The findings beneath the metric: what to do, how many, and the way
                         in. A dimension with no finding shows its own advice instead. */}
-                    {row.findings.length > 0 ? (
-                      <div className="ui-gov__findings">
-                        {row.findings.map((finding) => (
-                          // The chip, then where its remediation stands. Siblings, not
-                          // nested: the status line carries its own links and a button
-                          // cannot contain another.
-                          <div className="ui-gov__findingwrap" key={finding.key}>
-                            <button
-                              type="button"
-                              className={`ui-gov__finding ui-gov__finding--${finding.tone}`}
-                              onClick={finding.onOpen}
-                              title={finding.detail}
-                            >
-                              <span className="ui-gov__findingcount">{formatNumber(finding.count)}</span>
-                              <span className="ui-gov__findingtitle">{finding.title}</span>
-                              {/* The destination, not a bare arrow. A reader has to be able to
+                        {row.findings.length > 0 ? (
+                          <div className="ui-gov__findings">
+                            {row.findings.map((finding) => (
+                              // The chip, then where its remediation stands. Siblings, not
+                              // nested: the status line carries its own links and a button
+                              // cannot contain another.
+                              <div className="ui-gov__findingwrap" key={finding.key}>
+                                <button
+                                  type="button"
+                                  className={`ui-gov__finding ui-gov__finding--${finding.tone}`}
+                                  onClick={finding.onOpen}
+                                  title={finding.detail}
+                                >
+                                  <span className="ui-gov__findingcount">{formatNumber(finding.count)}</span>
+                                  <span className="ui-gov__findingtitle">{finding.title}</span>
+                                  {/* The destination, not a bare arrow. A reader has to be able to
                                   tell where a chip goes before clicking it, and the old
                                   findings list said so explicitly. */}
-                              <span className="ui-gov__findingarrow">&#8594; {finding.openLabel}</span>
-                            </button>
-                            {remediationFor(finding.key)}
+                                  <span className="ui-gov__findingarrow">&#8594; {finding.openLabel}</span>
+                                </button>
+                                {remediationFor(finding.key)}
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    ) : row.unscored ? (
-                      // A finding rendered as its own row: its remediation sits beneath it.
-                      remediationFor(row.key)
-                    ) : row.action ? (
-                      <span className="ui-gov__advice">{row.action}</span>
-                    ) : null}
-                  </GovernanceRow>
-                ))}
-              </div>
-            )}
-          </section>
-        ))}
-      </div>
+                        ) : row.unscored ? (
+                          // A finding rendered as its own row: its remediation sits beneath it.
+                          remediationFor(row.key)
+                        ) : row.action ? (
+                          <span className="ui-gov__advice">{row.action}</span>
+                        ) : null}
+                      </GovernanceRow>
+                    ))}
+                </div>
+              )}
+            </section>
+          ))}
+        </div>
       )}
 
       {missing.length > 0 && (
@@ -1685,8 +1917,8 @@ function GovernanceLedgerPanel({ ledger, remediation, health, history, order = "
           <Icon name="info" size={13} />
           <span>
             {missing.length} dimension{missing.length === 1 ? "" : "s"} could not be scored:{" "}
-            {missing.map((d) => d.label).join(", ")}. The score reflects only what has been
-            measured, so it will move as more data is collected.
+            {missing.map((d) => d.label).join(", ")}. The score reflects only what has been measured, so it will move as
+            more data is collected.
           </span>
         </p>
       )}
@@ -1695,9 +1927,8 @@ function GovernanceLedgerPanel({ ledger, remediation, health, history, order = "
         <p className="ui-note">
           <Icon name="info" size={13} />
           <span>
-            No {unbuilt.map((u) => u.label).join(", no ")} has been built, so those are
-            unchecked rather than clean and nothing above reflects{" "}
-            {unbuilt.length === 1 ? "it" : "them"}.
+            No {unbuilt.map((u) => u.label).join(", no ")} has been built, so those are unchecked rather than clean and
+            nothing above reflects {unbuilt.length === 1 ? "it" : "them"}.
           </span>
         </p>
       )}
@@ -1715,20 +1946,24 @@ function RqtPanel({ onOpenRqtIndex }) {
   React.useEffect(() => {
     let cancelled = false;
     invoke("getRqtIndex")
-      .then((data) => { if (!cancelled) setRqt(data); })
-      .catch(() => { if (!cancelled) setError(true); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+      .then((data) => {
+        if (!cancelled) setRqt(data);
+      })
+      .catch(() => {
+        if (!cancelled) setError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const show = (value) => (loading ? "…" : error ? "—" : formatNumber(value ?? 0));
 
   return (
-    <Panel
-      title="RQT values"
-      icon="zap"
-      action={<LinkButton onClick={onOpenRqtIndex}>Open RQT Index</LinkButton>}
-    >
+    <Panel title="RQT values" icon="zap" action={<LinkButton onClick={onOpenRqtIndex}>Open RQT Index</LinkButton>}>
       <StatRow>
         <StatTile label="Unique issues" value={show(rqt?.totalUniqueIssues)} icon="barChart" />
         <StatTile label="Fields with RQT values" value={show(rqt?.fieldCount)} icon="layers" />
@@ -1738,15 +1973,55 @@ function RqtPanel({ onOpenRqtIndex }) {
   );
 }
 
-export function OverviewDashboard({ dashboard, findingsSummary, findingsByCode, workflow, screens, issueTypes, users, assets, access, estate, fieldConfigs, automation, filters, dashboards, health, history, onOpenRqtIndex, onNavigate, siteOrigin = "", initialOrder = null }) {
+export function OverviewDashboard({
+  dashboard,
+  findingsSummary,
+  findingsByCode,
+  workflow,
+  screens,
+  issueTypes,
+  users,
+  assets,
+  access,
+  estate,
+  fieldConfigs,
+  automation,
+  filters,
+  dashboards,
+  health,
+  history,
+  onOpenRqtIndex,
+  onNavigate,
+  siteOrigin = "",
+  initialOrder = null,
+}) {
   // onNavigate is optional so this stays renderable in isolation; without it the deep
   // links become inert rather than throwing.
   const navigate = onNavigate || (() => {});
-  const findings = buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, issueTypes, users, assets, access, estate, fieldConfigs, automation, filters, dashboards, onNavigate: navigate });
+  const findings = buildFindings({
+    findingsSummary,
+    findingsByCode,
+    dashboard,
+    workflow,
+    screens,
+    issueTypes,
+    users,
+    assets,
+    access,
+    estate,
+    fieldConfigs,
+    automation,
+    filters,
+    dashboards,
+    onNavigate: navigate,
+  });
   // A caller may pass history in -- tests do -- but nobody has to.
   const fetched = useHealthHistory();
   const series = history ?? fetched;
-  const ledger = React.useMemo(() => buildGovernanceLedger({ health, findings, history: series }), [health, findings, series]);
+  const ledger = React.useMemo(
+    () => buildGovernanceLedger({ health, findings, history: series }),
+    [health, findings, series],
+  );
   const remediation = useRemediationTickets();
   // Priority first: the question an admin opens the app with is what to do, and the pillar
   // view is one click away. Remembered per browser.

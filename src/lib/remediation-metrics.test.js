@@ -38,7 +38,9 @@ describe("periodBounds", () => {
 describe("computeRemediationMetrics", () => {
   it("counts only tasks, never epics", () => {
     const m = computeRemediationMetrics({
-      tickets: [task(), { ...task(), isEpic: true }], now: NOW, period: PERIOD,
+      tickets: [task(), { ...task(), isEpic: true }],
+      now: NOW,
+      period: PERIOD,
     });
     expect(m.totals.tasks).toBe(1);
   });
@@ -51,9 +53,18 @@ describe("computeRemediationMetrics", () => {
         task({ doneAt: "2026-09-27T10:00:00.000Z" }), // 1 day ago
         task({ doneAt: "2026-09-10T10:00:00.000Z" }), // 18 days ago
       ],
-      now: NOW, period: PERIOD,
+      now: NOW,
+      period: PERIOD,
     });
-    expect(m.totals).toMatchObject({ tasks: 4, open: 2, closed: 2, pctClosed: 50, closedLast7: 1, closedLast30: 2, unassignedOpen: 1 });
+    expect(m.totals).toMatchObject({
+      tasks: 4,
+      open: 2,
+      closed: 2,
+      pctClosed: 50,
+      closedLast7: 1,
+      closedLast30: 2,
+      unassignedOpen: 1,
+    });
   });
 
   it("scopes to this quarter unless asked for everything", () => {
@@ -69,7 +80,8 @@ describe("computeRemediationMetrics", () => {
         task({ createdAt: "2026-09-01T00:00:00.000Z", doneAt: "2026-09-11T00:00:00.000Z" }), // 10 days
         task({ createdAt: "2026-09-01T00:00:00.000Z", doneAt: "2026-09-05T00:00:00.000Z" }), // 4 days
       ],
-      now: NOW, period: PERIOD,
+      now: NOW,
+      period: PERIOD,
     });
     expect(m.timing.medianDaysToClose).toBe(4);
   });
@@ -81,7 +93,8 @@ describe("computeRemediationMetrics", () => {
         task({ createdAt: "2026-09-08T12:00:00.000Z" }), // 20 days
         task({ createdAt: "2026-07-01T12:00:00.000Z" }), // 89 days
       ],
-      now: NOW, period: PERIOD,
+      now: NOW,
+      period: PERIOD,
     });
     expect(m.ageing.map((b) => b.count)).toEqual([1, 1, 1, 0]);
     expect(m.ageing.map((b) => b.key)).toEqual(AGE_BUCKETS.map((b) => b.key));
@@ -90,7 +103,8 @@ describe("computeRemediationMetrics", () => {
 
   it("projects a clear date from the last two weeks' pace, and says whether that beats quarter end", () => {
     const closedRecently = Array.from({ length: 14 }, (_, i) =>
-      task({ doneAt: new Date(NOW.getTime() - (i + 1) * 86400000).toISOString() }));
+      task({ doneAt: new Date(NOW.getTime() - (i + 1) * 86400000).toISOString() }),
+    );
     const m = computeRemediationMetrics({ tickets: [...closedRecently, task(), task()], now: NOW, period: PERIOD });
     expect(m.timing.ratePerWeek).toBe(7); // 1 a day
     expect(m.timing.projectedClearDate).toBe("2026-09-30"); // 2 open at 1/day
@@ -109,9 +123,17 @@ describe("computeRemediationMetrics", () => {
         task({ createdAt: "2026-09-25T09:00:00.000Z" }),
         task({ createdAt: "2026-09-25T09:00:00.000Z", doneAt: "2026-09-27T09:00:00.000Z" }),
       ],
-      now: NOW, period: PERIOD,
+      now: NOW,
+      period: PERIOD,
     });
-    expect(m.burndown.map((p) => p.date)).toEqual(["2026-09-25", "2026-09-26", "2026-09-27", "2026-09-28", "2026-09-29", "2026-09-30"]);
+    expect(m.burndown.map((p) => p.date)).toEqual([
+      "2026-09-25",
+      "2026-09-26",
+      "2026-09-27",
+      "2026-09-28",
+      "2026-09-29",
+      "2026-09-30",
+    ]);
     expect(m.burndown.map((p) => p.open)).toEqual([2, 2, 1, 1, null, null]);
     // Pace: from the first day's 2 open to zero at quarter end.
     expect(m.burndown[0].pace).toBe(2);
@@ -120,8 +142,15 @@ describe("computeRemediationMetrics", () => {
 
   it("puts a done task with no done date on the burn-down at its sync time", () => {
     const m = computeRemediationMetrics({
-      tickets: [task({ createdAt: "2026-09-26T09:00:00.000Z", lastStatusCategory: "done", syncedAt: "2026-09-27T16:00:00.000Z" })],
-      now: NOW, period: PERIOD,
+      tickets: [
+        task({
+          createdAt: "2026-09-26T09:00:00.000Z",
+          lastStatusCategory: "done",
+          syncedAt: "2026-09-27T16:00:00.000Z",
+        }),
+      ],
+      now: NOW,
+      period: PERIOD,
     });
     expect(m.burndown.map((p) => p.open).slice(0, 3)).toEqual([1, 0, 0]);
   });
@@ -132,7 +161,8 @@ describe("computeRemediationMetrics", () => {
         task({ createdAt: "2026-09-28T08:00:00.000Z", doneAt: "2026-09-28T09:00:00.000Z" }), // this week (Mon 28 Sep)
         task({ createdAt: "2026-09-21T08:00:00.000Z", doneAt: "2026-09-22T09:00:00.000Z" }), // last week
       ],
-      now: NOW, period: PERIOD,
+      now: NOW,
+      period: PERIOD,
     });
     expect(m.throughput).toHaveLength(12);
     expect(m.throughput[11]).toEqual({ weekStart: "2026-09-28", closed: 1, created: 1 });
@@ -143,17 +173,32 @@ describe("computeRemediationMetrics", () => {
     const m = computeRemediationMetrics({
       tickets: [
         task({ findingKey: "a" }),
-        task({ findingKey: "b" }), task({ findingKey: "b" }), task({ findingKey: "b", doneAt: "2026-09-20T00:00:00.000Z" }),
+        task({ findingKey: "b" }),
+        task({ findingKey: "b" }),
+        task({ findingKey: "b", doneAt: "2026-09-20T00:00:00.000Z" }),
       ],
-      now: NOW, period: PERIOD, labels: { a: "Finding A", b: "Finding B" },
+      now: NOW,
+      period: PERIOD,
+      labels: { a: "Finding A", b: "Finding B" },
     });
-    expect(m.byFinding[0]).toMatchObject({ findingKey: "b", label: "Finding B", total: 3, open: 2, closed: 1, pctClosed: 33 });
+    expect(m.byFinding[0]).toMatchObject({
+      findingKey: "b",
+      label: "Finding B",
+      total: 3,
+      open: 2,
+      closed: 1,
+      pctClosed: 33,
+    });
     expect(m.byFinding[1].label).toBe("Finding A");
   });
 
   it("groups open work by assignee, folding the tail into 'Everyone else'", () => {
     const people = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
-    const m = computeRemediationMetrics({ tickets: people.map((p) => task({ assigneeName: p })), now: NOW, period: PERIOD });
+    const m = computeRemediationMetrics({
+      tickets: people.map((p) => task({ assigneeName: p })),
+      now: NOW,
+      period: PERIOD,
+    });
     expect(m.byAssignee).toHaveLength(9);
     expect(m.byAssignee[8]).toEqual({ name: "Everyone else", count: 2 });
   });
@@ -165,7 +210,8 @@ describe("computeRemediationMetrics", () => {
         task({ itemId: "x" }),
         task({ itemId: "y" }),
       ],
-      now: NOW, period: PERIOD,
+      now: NOW,
+      period: PERIOD,
     });
     expect(m.totals.cameBack).toBe(1);
   });
@@ -173,7 +219,8 @@ describe("computeRemediationMetrics", () => {
   it("reports the last sync and how many tasks have never synced", () => {
     const m = computeRemediationMetrics({
       tickets: [task({ syncedAt: "2026-09-28T08:00:00.000Z" }), task({ syncedAt: null })],
-      now: NOW, period: PERIOD,
+      now: NOW,
+      period: PERIOD,
     });
     expect(m.sync).toEqual({ lastSyncedAt: "2026-09-28T08:00:00.000Z", neverSynced: 1 });
   });

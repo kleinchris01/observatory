@@ -114,7 +114,7 @@ export async function startResumableBuild(spec, installationKey, { now = Date.no
  * either re-queues itself or finalizes. It is deliberately the only place that writes the
  * terminal states, so "ready" cannot be reached without the cursor being exhausted.
  */
-export async function runBuildChunk(spec, installationKey, message = {}, { now = Date.now() } = {}) {
+export async function runBuildChunk(spec, installationKey, message = {}, _options = {}) {
   const meta = await spec.readMeta(installationKey);
 
   if (meta?.state !== "building") {
@@ -205,14 +205,16 @@ export async function runBuildChunk(spec, installationKey, message = {}, { now =
 // consumer must not let Forge retry a message forever.
 async function failBuild(spec, installationKey, message) {
   logger.error(`${spec.name}.build_failed`, { installationKey, error: message });
-  await spec.writeMeta(installationKey, {
-    state: "failed",
-    buildCursor: null,
-    buildToken: null,
-    completedAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    lastError: message.slice(0, 500),
-  }).catch(() => {});
+  await spec
+    .writeMeta(installationKey, {
+      state: "failed",
+      buildCursor: null,
+      buildToken: null,
+      completedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      lastError: message.slice(0, 500),
+    })
+    .catch(() => {});
 }
 
 // Cursors round-trip through a TEXT column as JSON so a build can carry whatever shape it

@@ -55,12 +55,21 @@ function groupDuplicates(owners) {
   return [...byPrint.values()]
     .filter((group) => group.length > 1)
     .map((group) => {
-      const sorted = group.slice().sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || (b.projectCount || 0) - (a.projectCount || 0));
+      const sorted = group
+        .slice()
+        .sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || (b.projectCount || 0) - (a.projectCount || 0));
       return { key: sorted[0].id, keep: sorted[0].id, members: sorted.map((o) => o.id) };
     });
 }
 
-export function analyzeFieldBehaviour({ source, schemes = [], schemeProjects = [], configs = [], mappings = [], items = [] } = {}) {
+export function analyzeFieldBehaviour({
+  source,
+  schemes = [],
+  schemeProjects = [],
+  configs = [],
+  mappings = [],
+  items = [],
+} = {}) {
   const legacy = source === "field-configurations";
   const itemsByOwner = new Map();
   for (const item of items) {
@@ -109,9 +118,10 @@ export function analyzeFieldBehaviour({ source, schemes = [], schemeProjects = [
       // configurations are the same scheme, so a configuration counts by its duplicate group.
       const routes = mappingsByScheme.get(scheme.id) || [];
       measured = routes.every((m) => configById.get(m.configId)?.itemsRead);
-      print = routes.length && measured
-        ? fingerprint(routes.map((m) => `${m.workTypeId}->${configGroupOf.get(m.configId) || m.configId}`).sort())
-        : null;
+      print =
+        routes.length && measured
+          ? fingerprint(routes.map((m) => `${m.workTypeId}->${configGroupOf.get(m.configId) || m.configId}`).sort())
+          : null;
     } else {
       measured = Boolean(scheme.fieldsRead);
       print = measured ? fingerprint(ownerItems("scheme", scheme.id).map(itemKey).sort()) : null;
@@ -159,10 +169,20 @@ export function analyzeFieldBehaviour({ source, schemes = [], schemeProjects = [
   };
   if (legacy) {
     const readUsed = finalConfigs.filter((c) => c.used && c.itemsRead);
-    const requiredByConfig = new Map(readUsed.map((c) => [c.id, new Set(ownerItems("config", c.id).filter((i) => i.required).map((i) => i.fieldId))]));
+    const requiredByConfig = new Map(
+      readUsed.map((c) => [
+        c.id,
+        new Set(
+          ownerItems("config", c.id)
+            .filter((i) => i.required)
+            .map((i) => i.fieldId),
+        ),
+      ]),
+    );
     const anyRequired = new Set([...requiredByConfig.values()].flatMap((s) => [...s]));
     for (const fieldId of anyRequired) {
-      for (const [configId, set] of requiredByConfig) note(set.has(fieldId) ? requiredIn : optionalIn, fieldId, configId);
+      for (const [configId, set] of requiredByConfig)
+        note(set.has(fieldId) ? requiredIn : optionalIn, fieldId, configId);
     }
   } else {
     for (const scheme of finalSchemes.filter((s) => s.used && s.measured)) {

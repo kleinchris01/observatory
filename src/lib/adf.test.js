@@ -72,10 +72,16 @@ The filter has an active owner.
 
 describe("renderADF links", () => {
   it("turns [label](https://...) into a linked text node inside paragraphs and bullets", () => {
-    const doc = renderADF("See [the filter](https://x.atlassian.net/issues/?filter=1) now.\n\n- [A](https://a.b/c) and b");
+    const doc = renderADF(
+      "See [the filter](https://x.atlassian.net/issues/?filter=1) now.\n\n- [A](https://a.b/c) and b",
+    );
     expect(doc.content[0].content).toEqual([
       { type: "text", text: "See " },
-      { type: "text", text: "the filter", marks: [{ type: "link", attrs: { href: "https://x.atlassian.net/issues/?filter=1" } }] },
+      {
+        type: "text",
+        text: "the filter",
+        marks: [{ type: "link", attrs: { href: "https://x.atlassian.net/issues/?filter=1" } }],
+      },
       { type: "text", text: " now." },
     ]);
     expect(doc.content[1].content[0].content[0].content[0]).toMatchObject({ text: "A", marks: [{ type: "link" }] });

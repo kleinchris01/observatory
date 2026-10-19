@@ -116,7 +116,10 @@ export async function buildWorkflowSnapshot(installationKey) {
 
     for (const assoc of schemeAssociations) {
       if (!assoc.scheme || assoc.error) {
-        logger.warn("workflow-snapshot.scheme-lookup-failed", { projectId: assoc.projectId, error: assoc.error || "no scheme returned" });
+        logger.warn("workflow-snapshot.scheme-lookup-failed", {
+          projectId: assoc.projectId,
+          error: assoc.error || "no scheme returned",
+        });
         continue;
       }
       const project = projects.find((p) => String(p.id) === String(assoc.projectId));
@@ -239,9 +242,8 @@ export async function buildWorkflowSnapshot(installationKey) {
     // What each workflow enforces. Same response as the screens above; only ever absent when
     // the workflow read itself failed, in which case nothing is written and the meta says
     // null ("never read"), not zero.
-    const workflowRules = workflows.length > 0
-      ? await buildLabelledRuleRows(workflows, countSchemesByWorkflow(schemeRows))
-      : null;
+    const workflowRules =
+      workflows.length > 0 ? await buildLabelledRuleRows(workflows, countSchemesByWorkflow(schemeRows)) : null;
 
     await replaceWorkflowSnapshot(installationKey, version, {
       schemes: schemeRows,
@@ -259,7 +261,10 @@ export async function buildWorkflowSnapshot(installationKey) {
     // zero is what once told a site with hundreds of transition screens that it had none.
     const transitionScreensKnown = workflows.length > 0;
     logger.info("workflow-snapshot.transition-screens", {
-      installationKey, captured: transitionScreenRows.length, workflows: workflows.length, known: transitionScreensKnown,
+      installationKey,
+      captured: transitionScreenRows.length,
+      workflows: workflows.length,
+      known: transitionScreensKnown,
     });
 
     const completedAt = new Date().toISOString();
@@ -294,7 +299,6 @@ export async function buildWorkflowSnapshot(installationKey) {
     throw error;
   }
 }
-
 
 // Rule rows with every reference labelled and, where it can be told, marked missing.
 //

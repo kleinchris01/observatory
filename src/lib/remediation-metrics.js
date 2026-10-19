@@ -100,8 +100,10 @@ export function computeRemediationMetrics({ tickets = [], now = new Date(), peri
   const recentClosed = closedWithin(RATE_WINDOW_DAYS);
   const ratePerDay = recentClosed / RATE_WINDOW_DAYS;
   const projectedClearDate =
-    open.length === 0 ? isoDay(today)
-      : ratePerDay > 0 ? isoDay(new Date(today.getTime() + Math.ceil(open.length / ratePerDay) * DAY_MS))
+    open.length === 0
+      ? isoDay(today)
+      : ratePerDay > 0
+        ? isoDay(new Date(today.getTime() + Math.ceil(open.length / ratePerDay) * DAY_MS))
         : null;
 
   // Burn-down: open tasks at the end of each day, from the first day any task existed (or the
@@ -110,7 +112,8 @@ export function computeRemediationMetrics({ tickets = [], now = new Date(), peri
   const bounds = scope === "quarter" ? periodBounds(period) : null;
   const createdDates = tasks.map((t) => parse(t.createdAt)).filter(Boolean);
   const firstCreated = createdDates.length ? dayStart(new Date(Math.min(...createdDates))) : null;
-  const seriesStart = bounds && firstCreated ? (firstCreated < bounds.start ? bounds.start : firstCreated) : firstCreated;
+  const seriesStart =
+    bounds && firstCreated ? (firstCreated < bounds.start ? bounds.start : firstCreated) : firstCreated;
   const seriesEnd = bounds ? bounds.end : today;
 
   const burndown = [];
@@ -119,18 +122,22 @@ export function computeRemediationMetrics({ tickets = [], now = new Date(), peri
     for (let d = seriesStart; d <= seriesEnd; d = new Date(d.getTime() + stepDays * DAY_MS)) {
       const endOfDay = d.getTime() + DAY_MS - 1;
       const isFuture = d > today;
-      const openThen = isFuture ? null : tasks.filter((t) => {
-        const c = parse(t.createdAt);
-        if (!c || c.getTime() > endOfDay) return false;
-        const done = closedAt(t);
-        return !(done && done.getTime() <= endOfDay);
-      }).length;
+      const openThen = isFuture
+        ? null
+        : tasks.filter((t) => {
+            const c = parse(t.createdAt);
+            if (!c || c.getTime() > endOfDay) return false;
+            const done = closedAt(t);
+            return !(done && done.getTime() <= endOfDay);
+          }).length;
       burndown.push({ date: isoDay(d), open: openThen });
     }
     if (bounds && burndown.length > 1) {
       const startOpen = burndown.find((p) => p.open != null)?.open ?? 0;
       const span = burndown.length - 1;
-      burndown.forEach((p, i) => { p.pace = round1(startOpen * (1 - i / span)); });
+      burndown.forEach((p, i) => {
+        p.pace = round1(startOpen * (1 - i / span));
+      });
     }
   }
 
@@ -151,7 +158,15 @@ export function computeRemediationMetrics({ tickets = [], now = new Date(), peri
   const byFindingMap = new Map();
   for (const t of tasks) {
     if (!byFindingMap.has(t.findingKey)) {
-      byFindingMap.set(t.findingKey, { findingKey: t.findingKey, label: labels[t.findingKey] || t.findingKey, pillar: t.pillar, total: 0, open: 0, closed: 0, oldestOpenDays: null });
+      byFindingMap.set(t.findingKey, {
+        findingKey: t.findingKey,
+        label: labels[t.findingKey] || t.findingKey,
+        pillar: t.pillar,
+        total: 0,
+        open: 0,
+        closed: 0,
+        oldestOpenDays: null,
+      });
     }
     const f = byFindingMap.get(t.findingKey);
     f.total += 1;
@@ -179,13 +194,18 @@ export function computeRemediationMetrics({ tickets = [], now = new Date(), peri
 
   // Came back: an item whose task was closed in an earlier quarter and is ticketed again now.
   const doneEarlier = new Set(
-    allTasks.filter((t) => isDone(t) && t.period !== period).map((t) => `${t.findingKey}|${t.itemId}`)
+    allTasks.filter((t) => isDone(t) && t.period !== period).map((t) => `${t.findingKey}|${t.itemId}`),
   );
   const cameBack = new Set(
-    allTasks.filter((t) => t.period === period && doneEarlier.has(`${t.findingKey}|${t.itemId}`)).map((t) => `${t.findingKey}|${t.itemId}`)
+    allTasks
+      .filter((t) => t.period === period && doneEarlier.has(`${t.findingKey}|${t.itemId}`))
+      .map((t) => `${t.findingKey}|${t.itemId}`),
   ).size;
 
-  const synced = tasks.map((t) => t.syncedAt).filter(Boolean).sort();
+  const synced = tasks
+    .map((t) => t.syncedAt)
+    .filter(Boolean)
+    .sort();
 
   return {
     scope,

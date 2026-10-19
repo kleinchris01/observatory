@@ -30,14 +30,26 @@ export async function getMacroFilters({ payload, context }) {
   incrMetric(METRIC_NAMES.resolver);
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
-  const query = String(payload?.query || "").trim().toLowerCase();
+  const query = String(payload?.query || "")
+    .trim()
+    .toLowerCase();
 
   const meta = await readFilterSnapshotMeta(installationKey).catch(
-    fallbackOn("macro_filters.meta_read_failed", null, { installationKey })
+    fallbackOn("macro_filters.meta_read_failed", null, { installationKey }),
   );
   const scope = await viewerProjects(installationKey, context);
   if (!meta?.version || !scope.available) {
-    return { available: false, reason: "no-inventory", filters: [], projectCount: scope.projects.length, page: 1, pageSize: MACRO_PILLAR_PAGE_SIZE, totalPages: 0, total: 0, matchedTotal: 0 };
+    return {
+      available: false,
+      reason: "no-inventory",
+      filters: [],
+      projectCount: scope.projects.length,
+      page: 1,
+      pageSize: MACRO_PILLAR_PAGE_SIZE,
+      totalPages: 0,
+      total: 0,
+      matchedTotal: 0,
+    };
   }
 
   const all = await loadFilters(installationKey, meta.version).catch(() => []);
@@ -47,7 +59,9 @@ export async function getMacroFilters({ payload, context }) {
     .map((f) => {
       // A filter is "in scope" if its JQL names a browsable project, or it is shared to one.
       const refProjects = (f.projectRefs || []).filter((k) => scope.projectKeys.has(String(k).toLowerCase()));
-      const sharedToProject = (f.shares || []).some((s) => s.type === "project" && browsableIds.has(String(s.targetId)));
+      const sharedToProject = (f.shares || []).some(
+        (s) => s.type === "project" && browsableIds.has(String(s.targetId)),
+      );
       if (!refProjects.length && !sharedToProject) return null;
       return {
         id: f.id,
@@ -71,7 +85,9 @@ export async function getMacroFilters({ payload, context }) {
     available: true,
     filters: slice,
     projectCount: scope.projects.length,
-    page, pageSize, totalPages,
+    page,
+    pageSize,
+    totalPages,
     total: mine.length,
     matchedTotal: matched.length,
     snapshotRefreshedAt: meta.refreshedAt || meta.completedAt || null,
@@ -82,14 +98,26 @@ export async function getMacroDashboards({ payload, context }) {
   incrMetric(METRIC_NAMES.resolver);
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
-  const query = String(payload?.query || "").trim().toLowerCase();
+  const query = String(payload?.query || "")
+    .trim()
+    .toLowerCase();
 
   const dashMeta = await readDashboardSnapshotMeta(installationKey).catch(
-    fallbackOn("macro_dashboards.meta_read_failed", null, { installationKey })
+    fallbackOn("macro_dashboards.meta_read_failed", null, { installationKey }),
   );
   const scope = await viewerProjects(installationKey, context);
   if (!dashMeta?.version || !scope.available) {
-    return { available: false, reason: "no-inventory", dashboards: [], projectCount: scope.projects.length, page: 1, pageSize: MACRO_PILLAR_PAGE_SIZE, totalPages: 0, total: 0, matchedTotal: 0 };
+    return {
+      available: false,
+      reason: "no-inventory",
+      dashboards: [],
+      projectCount: scope.projects.length,
+      page: 1,
+      pageSize: MACRO_PILLAR_PAGE_SIZE,
+      totalPages: 0,
+      total: 0,
+      matchedTotal: 0,
+    };
   }
 
   const filterMeta = await readFilterSnapshotMeta(installationKey).catch(() => null);
@@ -103,15 +131,24 @@ export async function getMacroDashboards({ payload, context }) {
   const inScopeFilterIds = new Set(
     allFilters
       .filter((f) => (f.projectRefs || []).some((k) => scope.projectKeys.has(String(k).toLowerCase())))
-      .map((f) => String(f.id))
+      .map((f) => String(f.id)),
   );
   const fieldsByFilterId = new Map(allFilters.map((f) => [String(f.id), f.fieldRefs || []]));
 
   const mine = all
     .map((d) => {
       const gadgets = d.gadgets || [];
-      const gadgetFilterIds = [...new Set(gadgets.map((g) => g.filterId).filter(Boolean).map(String))];
-      const sharedToProject = (d.shares || []).some((s) => s.type === "project" && scope.projectIds.has(String(s.targetId)));
+      const gadgetFilterIds = [
+        ...new Set(
+          gadgets
+            .map((g) => g.filterId)
+            .filter(Boolean)
+            .map(String),
+        ),
+      ];
+      const sharedToProject = (d.shares || []).some(
+        (s) => s.type === "project" && scope.projectIds.has(String(s.targetId)),
+      );
       const backedByScopedFilter = gadgetFilterIds.some((id) => inScopeFilterIds.has(id));
       if (!sharedToProject && !backedByScopedFilter) return null;
       const fields = [...new Set(gadgetFilterIds.flatMap((id) => fieldsByFilterId.get(id) || []))].sort();
@@ -138,7 +175,9 @@ export async function getMacroDashboards({ payload, context }) {
     dashboards: slice,
     projectCount: scope.projects.length,
     fieldsResolved: Boolean(filterMeta?.version),
-    page, pageSize, totalPages,
+    page,
+    pageSize,
+    totalPages,
     total: mine.length,
     matchedTotal: matched.length,
     snapshotRefreshedAt: dashMeta.refreshedAt || dashMeta.completedAt || null,
@@ -165,15 +204,16 @@ export async function getMacroScreens({ context }) {
   const installationKey = getInstallationKey(context);
 
   const meta = await readScreenSnapshotMeta(installationKey).catch(
-    fallbackOn("macro_screens.meta_read_failed", null, { installationKey })
+    fallbackOn("macro_screens.meta_read_failed", null, { installationKey }),
   );
   const scope = await viewerProjects(installationKey, context);
   if (!meta?.version || !scope.available) {
     return { available: false, reason: "no-inventory", projects: [], projectCount: scope.projects.length };
   }
 
-  const rows = await loadScreensForProjects(installationKey, meta.version, [...scope.projectIds])
-    .catch(fallbackOn("macro_screens.load_failed", [], { installationKey }));
+  const rows = await loadScreensForProjects(installationKey, meta.version, [...scope.projectIds]).catch(
+    fallbackOn("macro_screens.load_failed", [], { installationKey }),
+  );
 
   const byProject = new Map(scope.projects.map((p) => [p.projectId, { ...p, screens: [] }]));
   for (const row of rows) {
@@ -197,7 +237,8 @@ export async function getMacroScreens({ context }) {
       screens: p.screens.sort((a, b) => b.fieldCount - a.fieldCount || a.name.localeCompare(b.name)),
       // The number anyone actually came to argue about: how long the form is that every
       // person filing an issue here has to get through.
-      createFieldCount: p.screens.filter((s) => s.operations.includes("create"))
+      createFieldCount: p.screens
+        .filter((s) => s.operations.includes("create"))
         .reduce((n, s) => Math.max(n, s.fieldCount), 0),
     }))
     .sort((a, b) => b.createFieldCount - a.createFieldCount || a.projectKey.localeCompare(b.projectKey));
@@ -216,7 +257,7 @@ export async function getMacroIssueTypes({ context }) {
   const installationKey = getInstallationKey(context);
 
   const meta = await readIssueTypeSnapshotMeta(installationKey).catch(
-    fallbackOn("macro_issue_types.meta_read_failed", null, { installationKey })
+    fallbackOn("macro_issue_types.meta_read_failed", null, { installationKey }),
   );
   const scope = await viewerProjects(installationKey, context);
   if (!meta?.version || !scope.available) {
@@ -283,15 +324,16 @@ export async function getMacroBoards({ context }) {
   const installationKey = getInstallationKey(context);
 
   const meta = await readBoardSnapshotMeta(installationKey).catch(
-    fallbackOn("macro_boards.meta_read_failed", null, { installationKey })
+    fallbackOn("macro_boards.meta_read_failed", null, { installationKey }),
   );
   const scope = await viewerProjects(installationKey, context);
   if (!meta?.version || !scope.available) {
     return { available: false, reason: "no-inventory", boards: [], projectCount: scope.projects.length };
   }
 
-  const all = await loadBoards(installationKey, meta.version)
-    .catch(fallbackOn("macro_boards.load_failed", [], { installationKey }));
+  const all = await loadBoards(installationKey, meta.version).catch(
+    fallbackOn("macro_boards.load_failed", [], { installationKey }),
+  );
 
   const keyById = new Map(scope.projects.map((p) => [p.projectId, p.projectKey]));
   const boards = all
@@ -307,7 +349,9 @@ export async function getMacroBoards({ context }) {
       // page cannot describe, and saying so is the only honest option.
       configReadable: b.configReadable,
     }))
-    .sort((a, b) => String(a.projectKey || "").localeCompare(String(b.projectKey || "")) || a.name.localeCompare(b.name));
+    .sort(
+      (a, b) => String(a.projectKey || "").localeCompare(String(b.projectKey || "")) || a.name.localeCompare(b.name),
+    );
 
   return {
     available: true,
@@ -323,7 +367,7 @@ export async function getMacroWorkflows({ context }) {
   const installationKey = getInstallationKey(context);
 
   const meta = await readWorkflowSnapshotMeta(installationKey).catch(
-    fallbackOn("macro_workflows.meta_read_failed", null, { installationKey })
+    fallbackOn("macro_workflows.meta_read_failed", null, { installationKey }),
   );
   const scope = await viewerProjects(installationKey, context);
   if (!meta?.version || !scope.available) {
@@ -357,19 +401,21 @@ export async function getMacroWorkflows({ context }) {
   }
 
   const usedStatusIds = new Set();
-  const schemes = [...bySchemeId.values()].map((s) => {
-    const ids = [...(statusIdsByScheme.get(s.schemeId) || [])];
-    ids.forEach((id) => usedStatusIds.add(id));
-    return {
-      ...s,
-      projects: s.projects.sort(),
-      statuses: ids
-        .map((id) => statusName.get(id))
-        .filter(Boolean)
-        .map((st) => ({ id: String(st.id), name: st.name, category: st.statusCategory || "Uncategorised" }))
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    };
-  }).sort((a, b) => b.projects.length - a.projects.length || a.name.localeCompare(b.name));
+  const schemes = [...bySchemeId.values()]
+    .map((s) => {
+      const ids = [...(statusIdsByScheme.get(s.schemeId) || [])];
+      ids.forEach((id) => usedStatusIds.add(id));
+      return {
+        ...s,
+        projects: s.projects.sort(),
+        statuses: ids
+          .map((id) => statusName.get(id))
+          .filter(Boolean)
+          .map((st) => ({ id: String(st.id), name: st.name, category: st.statusCategory || "Uncategorised" }))
+          .sort((a, b) => a.name.localeCompare(b.name)),
+      };
+    })
+    .sort((a, b) => b.projects.length - a.projects.length || a.name.localeCompare(b.name));
 
   // The de-duplicated status list across every scheme the viewer's projects run.
   const statuses = [...usedStatusIds]

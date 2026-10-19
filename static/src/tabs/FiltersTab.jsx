@@ -3,8 +3,16 @@ import { invoke } from "@forge/bridge";
 import { formatNumber, formatRelativeTime, handleJiraLinkClick } from "../utils";
 import { Icon } from "../components/Icons";
 import {
-  StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar,
-  PanelGrid, GridSpan, PillarHealthPanel,
+  StatTile,
+  StatRow,
+  Panel,
+  EmptyState,
+  Chip,
+  PageHeader,
+  SortFilterBar,
+  PanelGrid,
+  GridSpan,
+  PillarHealthPanel,
 } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useNavIntent, useVisiblePolling, usePersistentState } from "../hooks";
@@ -43,8 +51,18 @@ const PAGE_SIZE = 25;
 const POLL_MS = 4000;
 
 function OwnerChip({ filter }) {
-  if (!filter.owner) return <Chip tone="danger" title="The owning account no longer exists">owner deleted</Chip>;
-  if (filter.ownerActive === false) return <Chip tone="warning" title="Owned by a deactivated account">{filter.ownerName} · inactive</Chip>;
+  if (!filter.owner)
+    return (
+      <Chip tone="danger" title="The owning account no longer exists">
+        owner deleted
+      </Chip>
+    );
+  if (filter.ownerActive === false)
+    return (
+      <Chip tone="warning" title="Owned by a deactivated account">
+        {filter.ownerName} · inactive
+      </Chip>
+    );
   return <span className="filter-row__owner">{filter.ownerName ?? "—"}</span>;
 }
 
@@ -76,9 +94,16 @@ function FilterRow({ filter, siteOrigin, lastUsedTracked = true }) {
         )}
         {/* From the findings, which read the shares themselves: the stored flag predates the
             public / logged-in split and would call a public filter "everyone". */}
-        {filter.findings?.some((f) => f.code === "shared-publicly")
-          ? <Chip tone="critical" title="Shared globally: anonymous visitors can run it on a site that allows public access">public</Chip>
-          : filter.findings?.some((f) => f.code === "shared-with-everyone") && <Chip tone="warning">everyone</Chip>}
+        {filter.findings?.some((f) => f.code === "shared-publicly") ? (
+          <Chip
+            tone="critical"
+            title="Shared globally: anonymous visitors can run it on a site that allows public access"
+          >
+            public
+          </Chip>
+        ) : (
+          filter.findings?.some((f) => f.code === "shared-with-everyone") && <Chip tone="warning">everyone</Chip>
+        )}
         <span className="filter-row__used">
           {filter.lastUsedAt
             ? `opened ${formatRelativeTime(filter.lastUsedAt)}`
@@ -95,8 +120,14 @@ function FilterRow({ filter, siteOrigin, lastUsedTracked = true }) {
       {(filter.fieldRefs.length > 0 || filter.statusRefs.length > 0) && (
         <div className="filter-row__refs">
           <span className="filter-row__refslabel">depends on</span>
-          {filter.fieldRefs.slice(0, 8).map((ref) => <Chip key={`f-${ref}`}>{ref}</Chip>)}
-          {filter.statusRefs.slice(0, 4).map((ref) => <Chip key={`s-${ref}`} tone="info">{ref}</Chip>)}
+          {filter.fieldRefs.slice(0, 8).map((ref) => (
+            <Chip key={`f-${ref}`}>{ref}</Chip>
+          ))}
+          {filter.statusRefs.slice(0, 4).map((ref) => (
+            <Chip key={`s-${ref}`} tone="info">
+              {ref}
+            </Chip>
+          ))}
           {filter.fieldRefs.length > 8 && <span className="filter-row__more">+{filter.fieldRefs.length - 8} more</span>}
         </div>
       )}
@@ -131,7 +162,10 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
   const [pillar, setPillar] = React.useState(null);
 
   React.useEffect(() => {
-    const t = setTimeout(() => { setDeferredSearch(search); setPage(1); }, 350);
+    const t = setTimeout(() => {
+      setDeferredSearch(search);
+      setPage(1);
+    }, 350);
     return () => clearTimeout(t);
   }, [search]);
 
@@ -142,7 +176,11 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
   const load = React.useCallback(async () => {
     try {
       const result = await invoke("getFilterInventory", {
-        search: deferredSearch, finding, sort, page, pageSize: PAGE_SIZE,
+        search: deferredSearch,
+        finding,
+        sort,
+        page,
+        pageSize: PAGE_SIZE,
       });
       setData(result);
       setError("");
@@ -154,7 +192,9 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
     }
   }, [deferredSearch, finding, sort, page]);
 
-  React.useEffect(() => { load(); }, [load]);
+  React.useEffect(() => {
+    load();
+  }, [load]);
 
   // Poll only while a build is in flight and only while somebody is looking.
   // "building" alone is not enough to believe. A Forge invocation timeout is a hard kill:
@@ -173,9 +213,15 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
   React.useEffect(() => {
     let cancelled = false;
     invoke("getPillarHealth", { pillar: "filters" })
-      .then((result) => { if (!cancelled) setPillar(result?.pillar || null); })
-      .catch(() => { if (!cancelled) setPillar(null); });
-    return () => { cancelled = true; };
+      .then((result) => {
+        if (!cancelled) setPillar(result?.pillar || null);
+      })
+      .catch(() => {
+        if (!cancelled) setPillar(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [data?.refreshedAt]);
 
   useNavIntent(intent, (nav) => {
@@ -186,7 +232,9 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
     setPage(1);
   });
 
-  React.useEffect(() => { setPage(1); }, [finding, sort]);
+  React.useEffect(() => {
+    setPage(1);
+  }, [finding, sort]);
 
   async function handleBuild() {
     setBuilding(true);
@@ -221,7 +269,13 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
         <EmptyState
           action={
             <button type="button" className="primary-button" onClick={handleBuild} disabled={building || isBuilding}>
-              {isBuilding ? "Building…" : building ? "Starting…" : data?.staleBuild ? "Rebuild" : "Build filter inventory"}
+              {isBuilding
+                ? "Building…"
+                : building
+                  ? "Starting…"
+                  : data?.staleBuild
+                    ? "Rebuild"
+                    : "Build filter inventory"}
             </button>
           }
         >
@@ -295,7 +349,11 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
               <StatTile
                 label="Email subscriptions"
                 value={formatNumber(data.subscriptionTotal)}
-                hint={data.subscribedButUnusedCount > 0 ? `${formatNumber(data.subscribedButUnusedCount)} on filters nobody opens` : undefined}
+                hint={
+                  data.subscribedButUnusedCount > 0
+                    ? `${formatNumber(data.subscribedButUnusedCount)} on filters nobody opens`
+                    : undefined
+                }
                 tone={data.subscribedButUnusedCount > 0 ? "warning" : "neutral"}
               />
             </StatRow>
@@ -320,7 +378,12 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
               sortOptions={sortOptions}
               resultCount={matchedTotal}
               totalCount={data.total}
-              onClear={() => { setSearch(""); setDeferredSearch(""); setFinding("all"); setSort("findings"); }}
+              onClear={() => {
+                setSearch("");
+                setDeferredSearch("");
+                setFinding("all");
+                setSort("findings");
+              }}
             />
 
             {/* Counts here describe the WHOLE inventory, computed by the server over the full
@@ -346,7 +409,14 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
               <EmptyState inline>No filter matches these filters.</EmptyState>
             ) : (
               <div className="filter-list">
-                {pageRows.map((row) => <FilterRow key={row.id} filter={row} siteOrigin={siteOrigin} lastUsedTracked={data.lastUsedTracked !== false} />)}
+                {pageRows.map((row) => (
+                  <FilterRow
+                    key={row.id}
+                    filter={row}
+                    siteOrigin={siteOrigin}
+                    lastUsedTracked={data.lastUsedTracked !== false}
+                  />
+                ))}
               </div>
             )}
 
@@ -356,8 +426,22 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
                   Page {formatNumber(page)} of {formatNumber(totalPages)} · {formatNumber(matchedTotal)} filters
                 </span>
                 <div className="pagination-bar__actions">
-                  <button type="button" className="ghost-button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1 || loading}>Previous</button>
-                  <button type="button" className="ghost-button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages || loading}>Next</button>
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1 || loading}
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages || loading}
+                  >
+                    Next
+                  </button>
                 </div>
               </section>
             )}
@@ -405,7 +489,8 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
               // "No broken references" and "nobody looked" are different claims, and only one
               // of them is good news.
               <EmptyState inline>
-                No field snapshot has been built, so the project list this checks against is unknown. Build one from the Scans tab.
+                No field snapshot has been built, so the project list this checks against is unknown. Build one from the
+                Scans tab.
               </EmptyState>
             ) : data.brokenProjects.length === 0 ? (
               <EmptyState inline>Every filter names a project that exists.</EmptyState>
@@ -419,7 +504,11 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
                     </div>
                     <div className="filter-row__refs">
                       <span className="filter-row__refslabel">missing</span>
-                      {row.missing.map((key) => <Chip key={key} tone="danger">{key}</Chip>)}
+                      {row.missing.map((key) => (
+                        <Chip key={key} tone="danger">
+                          {key}
+                        </Chip>
+                      ))}
                     </div>
                   </div>
                 ))}
@@ -432,9 +521,8 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
       <p className="ui-note">
         <Icon name="info" size={13} />
         <span>
-          Dependencies are read from each filter&apos;s JQL. That is a recognizer rather than a
-          full parser, so a reference found here is evidence a field is in use — finding none
-          is not evidence that it is not.
+          Dependencies are read from each filter&apos;s JQL. That is a recognizer rather than a full parser, so a
+          reference found here is evidence a field is in use — finding none is not evidence that it is not.
         </span>
       </p>
     </>

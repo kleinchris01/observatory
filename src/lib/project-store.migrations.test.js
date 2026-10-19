@@ -58,7 +58,10 @@ describe("ensureProjectStoreReady", () => {
   });
 
   test("retries the migration run after a transient failure and eventually succeeds", async () => {
-    vi.spyOn(globalThis, "setTimeout").mockImplementation((fn) => { fn(); return 0; });
+    vi.spyOn(globalThis, "setTimeout").mockImplementation((fn) => {
+      fn();
+      return 0;
+    });
     const sqlMod = await import("@forge/sql");
     sqlMod.migrationRunner.run
       .mockRejectedValueOnce(new Error("Failed to execute migration with name v010_alter_snapshot_meta_add_job_token"))
@@ -70,7 +73,10 @@ describe("ensureProjectStoreReady", () => {
   });
 
   test("throws after exhausting all retry attempts on a persistent failure", async () => {
-    vi.spyOn(globalThis, "setTimeout").mockImplementation((fn) => { fn(); return 0; });
+    vi.spyOn(globalThis, "setTimeout").mockImplementation((fn) => {
+      fn();
+      return 0;
+    });
     const sqlMod = await import("@forge/sql");
     sqlMod.migrationRunner.run.mockRejectedValue(new Error("still broken"));
 
@@ -88,4 +94,3 @@ describe("ensureProjectStoreReady", () => {
     expect(sqlMod.migrationRunner.run).toHaveBeenCalledTimes(1);
   });
 });
-

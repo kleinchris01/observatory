@@ -1,4 +1,3 @@
-import React from "react";
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -18,8 +17,24 @@ function metrics(over = {}) {
   return {
     scope: "quarter",
     period: "2026-Q3",
-    totals: { tasks: 10, open: 4, closed: 6, pctClosed: 60, closedLast7: 3, closedLast30: 6, unassignedOpen: 2, cameBack: 0 },
-    timing: { medianDaysToClose: 4.5, oldestOpenDays: 21, ratePerWeek: 2.5, projectedClearDate: "2026-09-30", quarterEnd: "2026-09-30", onTrack: true },
+    totals: {
+      tasks: 10,
+      open: 4,
+      closed: 6,
+      pctClosed: 60,
+      closedLast7: 3,
+      closedLast30: 6,
+      unassignedOpen: 2,
+      cameBack: 0,
+    },
+    timing: {
+      medianDaysToClose: 4.5,
+      oldestOpenDays: 21,
+      ratePerWeek: 2.5,
+      projectedClearDate: "2026-09-30",
+      quarterEnd: "2026-09-30",
+      onTrack: true,
+    },
     burndown: [
       { date: "2026-09-26", open: 6, pace: 6 },
       { date: "2026-09-27", open: 5, pace: 4 },
@@ -27,15 +42,31 @@ function metrics(over = {}) {
       { date: "2026-09-29", open: null, pace: 1 },
       { date: "2026-09-30", open: null, pace: 0 },
     ],
-    throughput: [{ weekStart: "2026-09-21", closed: 3, created: 5 }, { weekStart: "2026-09-28", closed: 3, created: 0 }],
+    throughput: [
+      { weekStart: "2026-09-21", closed: 3, created: 5 },
+      { weekStart: "2026-09-28", closed: 3, created: 0 },
+    ],
     ageing: [
       { key: "under-7", label: "Under 7 days", count: 1 },
       { key: "7-30", label: "7–30 days", count: 3 },
       { key: "30-90", label: "30–90 days", count: 0 },
       { key: "over-90", label: "Over 90 days", count: 0 },
     ],
-    byFinding: [{ findingKey: "filter-ownership", label: "Filter ownership", total: 10, open: 4, closed: 6, pctClosed: 60, oldestOpenDays: 21 }],
-    byAssignee: [{ name: "Sam", count: 2 }, { name: "Unassigned", count: 2 }],
+    byFinding: [
+      {
+        findingKey: "filter-ownership",
+        label: "Filter ownership",
+        total: 10,
+        open: 4,
+        closed: 6,
+        pctClosed: 60,
+        oldestOpenDays: 21,
+      },
+    ],
+    byAssignee: [
+      { name: "Sam", count: 2 },
+      { name: "Unassigned", count: 2 },
+    ],
     sync: { lastSyncedAt: new Date().toISOString(), neverSynced: 0 },
     ...over,
   };
@@ -78,7 +109,9 @@ describe("RemediationProgress", () => {
   });
 
   test("warns when the projection runs past quarter end", async () => {
-    invoke.mockResolvedValueOnce(metrics({ timing: { ...metrics().timing, projectedClearDate: "2026-11-15", onTrack: false } }));
+    invoke.mockResolvedValueOnce(
+      metrics({ timing: { ...metrics().timing, projectedClearDate: "2026-11-15", onTrack: false } }),
+    );
     render(<RemediationProgress />);
     expect(await screen.findByText(/After quarter end/)).toBeInTheDocument();
   });

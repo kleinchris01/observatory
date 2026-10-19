@@ -200,7 +200,7 @@ export const MAX_STAGE_ATTEMPTS = 3;
 // fixed 20s loop but backs off: ~20s, ~40s, ~80s. `attempt` is 1-based.
 export function scanRetryDelaySeconds(attempt = 1) {
   const n = Math.max(0, (Number(attempt) || 1) - 1);
-  return Math.min(300, 20 * (2 ** n)) + Math.floor(Math.random() * 10);
+  return Math.min(300, 20 * 2 ** n) + Math.floor(Math.random() * 10);
 }
 
 // After every stage has resolved, if any FAILED or was SKIPPED, the whole set of them is

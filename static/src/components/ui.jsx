@@ -1,6 +1,13 @@
 import React from "react";
 import { Icon, useLiveDuration } from "./Icons";
-import { buildAutomationRuleUrl, buildIssueUrl, buildWorkflowUrl, handleJiraLinkClick, ROVO_AGENTS, openRovo } from "../utils";
+import {
+  buildAutomationRuleUrl,
+  buildIssueUrl,
+  buildWorkflowUrl,
+  handleJiraLinkClick,
+  ROVO_AGENTS,
+  openRovo,
+} from "../utils";
 
 // Shared presentation primitives.
 //
@@ -104,7 +111,9 @@ export function Panel({ title, icon, description, action, children, collapsible 
   );
 
   return (
-    <section className={`ui-panel${isCollapsible ? " ui-panel--collapsible" : ""}${isCollapsible && !open ? " ui-panel--collapsed" : ""}`}>
+    <section
+      className={`ui-panel${isCollapsible ? " ui-panel--collapsible" : ""}${isCollapsible && !open ? " ui-panel--collapsed" : ""}`}
+    >
       <div className="ui-panel__head">
         {isCollapsible ? (
           <button
@@ -115,7 +124,9 @@ export function Panel({ title, icon, description, action, children, collapsible 
           >
             {titles}
           </button>
-        ) : titles}
+        ) : (
+          titles
+        )}
         {action}
       </div>
       {open && <div className="ui-panel__body">{children}</div>}
@@ -139,11 +150,17 @@ export function Chip({ children, tone = "neutral", title, onRemove, removeLabel 
         onClick={onRemove}
       >
         <span>{children}</span>
-        <span className="ui-chip__remove" aria-hidden="true">×</span>
+        <span className="ui-chip__remove" aria-hidden="true">
+          ×
+        </span>
       </button>
     );
   }
-  return <span className={`ui-chip ui-chip--${tone}`} title={title}>{children}</span>;
+  return (
+    <span className={`ui-chip ui-chip--${tone}`} title={title}>
+      {children}
+    </span>
+  );
 }
 
 // Empty states are content, not filler: say what is missing and what produces it.
@@ -160,7 +177,14 @@ export function EmptyState({ children, action, inline = false }) {
 // Horizontal bar list. Replaces three near-identical chart cards; kept as bars rather
 // than a charting library because these are always "top N of one measure", where a bar
 // per row reads faster and costs nothing to render.
-export function BarList({ items = [], labelKey, valueKey, formatValue = (v) => v, emptyMessage = "No data yet", tone = "accent" }) {
+export function BarList({
+  items = [],
+  labelKey,
+  valueKey,
+  formatValue = (v) => v,
+  emptyMessage = "No data yet",
+  tone = "accent",
+}) {
   if (!items.length) return <EmptyState inline>{emptyMessage}</EmptyState>;
   const max = Math.max(...items.map((item) => Number(item[valueKey]) || 0), 1);
 
@@ -170,9 +194,14 @@ export function BarList({ items = [], labelKey, valueKey, formatValue = (v) => v
         const value = Number(item[valueKey]) || 0;
         return (
           <div key={item[labelKey]} className="ui-barlist__row">
-            <span className="ui-barlist__label" title={item.projectName || item[labelKey]}>{item[labelKey]}</span>
+            <span className="ui-barlist__label" title={item.projectName || item[labelKey]}>
+              {item[labelKey]}
+            </span>
             <div className="ui-barlist__track">
-              <div className={`ui-barlist__bar ui-barlist__bar--${tone}`} style={{ width: `${(value / max) * 100}%` }} />
+              <div
+                className={`ui-barlist__bar ui-barlist__bar--${tone}`}
+                style={{ width: `${(value / max) * 100}%` }}
+              />
             </div>
             <span className="ui-barlist__value">{formatValue(value)}</span>
           </div>
@@ -217,32 +246,51 @@ export function RuleLink({ id, name, siteOrigin, className = "" }) {
       target="_blank"
       rel="noreferrer"
       title={`Open "${label}" in Jira automation`}
-      onClick={(event) => { event.stopPropagation(); handleJiraLinkClick(event, href); }}
+      onClick={(event) => {
+        event.stopPropagation();
+        handleJiraLinkClick(event, href);
+      }}
     >
       {label}
     </a>
   );
 }
 
-
 // "In Review, On Hold -> Approved": where a workflow transition goes from and to, in the
 // words Jira's own editor uses ("Any status" for a global transition, "Create" for the
 // initial one). The transition name alone is frequently just "Done" on a dozen transitions.
 export function TransitionPath({ transition }) {
   if (!transition) return null;
-  const from = (transition.from || []).map((s) => s?.name).filter(Boolean).join(", ") || "?";
+  const from =
+    (transition.from || [])
+      .map((s) => s?.name)
+      .filter(Boolean)
+      .join(", ") || "?";
   return (
     <span className="ui-transition">
       <span className="ui-transition__name">{transition.name || transition.id}</span>
       <span className="ui-transition__path">
-        {from} <span aria-hidden="true">→</span><span className="ui-srlabel"> to </span> {transition.to?.name || "?"}
+        {from} <span aria-hidden="true">→</span>
+        <span className="ui-srlabel"> to </span> {transition.to?.name || "?"}
       </span>
     </span>
   );
 }
 
-const RULE_KIND_TONE = { validator: "warning", condition: "active", "post-function": "neutral", trigger: "neutral", property: "neutral" };
-const RULE_KIND_LABEL = { validator: "Validator", condition: "Condition", "post-function": "Post-function", trigger: "Trigger", property: "Property" };
+const RULE_KIND_TONE = {
+  validator: "warning",
+  condition: "active",
+  "post-function": "neutral",
+  trigger: "neutral",
+  property: "neutral",
+};
+const RULE_KIND_LABEL = {
+  validator: "Validator",
+  condition: "Condition",
+  "post-function": "Post-function",
+  trigger: "Trigger",
+  property: "Property",
+};
 
 // Every workflow rule or property that points at one thing -- a field, a group -- as rows of
 // workflow, where (transition path or status) and what (rule or property meaning).
@@ -271,19 +319,24 @@ export function WorkflowUsageList({ result, siteOrigin, emptyMessage = "No workf
         return (
           <li key={`${usage.workflowName}-${i}`} className="ui-wfusage__row">
             <span className="ui-wfusage__workflow">
-              <JiraLink href={buildWorkflowUrl(siteOrigin, usage.workflowName)} title={`Open ${usage.workflowName} in Jira`}>
+              <JiraLink
+                href={buildWorkflowUrl(siteOrigin, usage.workflowName)}
+                title={`Open ${usage.workflowName} in Jira`}
+              >
                 {usage.workflowName}
               </JiraLink>
             </span>
             <span className="ui-wfusage__where">
-              {usage.transition
-                ? <TransitionPath transition={usage.transition} />
-                : <span className="ui-transition__name">Status: {usage.status?.name || "?"}</span>}
+              {usage.transition ? (
+                <TransitionPath transition={usage.transition} />
+              ) : (
+                <span className="ui-transition__name">Status: {usage.status?.name || "?"}</span>
+              )}
             </span>
             <span className="ui-wfusage__what">
               <Chip tone={RULE_KIND_TONE[kind] || "neutral"}>{RULE_KIND_LABEL[kind] || kind}</Chip>
               <span className="ui-wfusage__label" title={usage.rule?.key || usage.property?.key || ""}>
-                {usage.rule ? usage.rule.label : (usage.property?.meaning || usage.property?.key)}
+                {usage.rule ? usage.rule.label : usage.property?.meaning || usage.property?.key}
               </span>
               {usage.rule?.summary && <span className="ui-wfusage__summary">{usage.rule.summary}</span>}
               {(usage.refs || []).map((ref) => (
@@ -292,14 +345,19 @@ export function WorkflowUsageList({ result, siteOrigin, emptyMessage = "No workf
                   tone={ref.missing ? "critical" : "neutral"}
                   title={ref.missing ? `${ref.id} no longer exists on this site` : ref.id}
                 >
-                  {ref.label || ref.id}{ref.missing ? " (missing)" : ""}
+                  {ref.label || ref.id}
+                  {ref.missing ? " (missing)" : ""}
                 </Chip>
               ))}
             </span>
           </li>
         );
       })}
-      {result.truncated && <li className="ui-wfusage__more">Showing the first {result.usages.length}. Narrow the search in the Workflows tab.</li>}
+      {result.truncated && (
+        <li className="ui-wfusage__more">
+          Showing the first {result.usages.length}. Narrow the search in the Workflows tab.
+        </li>
+      )}
     </ul>
   );
 }
@@ -322,13 +380,15 @@ export function JiraLink({ href, children, title, className = "" }) {
       target="_blank"
       rel="noreferrer"
       title={title || "Open in Jira"}
-      onClick={(event) => { event.stopPropagation(); handleJiraLinkClick(event, href); }}
+      onClick={(event) => {
+        event.stopPropagation();
+        handleJiraLinkClick(event, href);
+      }}
     >
       {children}
     </a>
   );
 }
-
 
 // Where a finding's remediation stands, in one line. Shared by the Overview (beside each
 // finding) and the Remediation tab (on each card), so "epic, open of total, which quarter"
@@ -344,8 +404,13 @@ export function RemediationStatus({ group, period, siteOrigin, onOpen, compact =
   const epicKey = group?.epic?.issueKey || null;
   const open = group?.openCount ?? 0;
   const total = group?.taskCount ?? 0;
-  const epicLink = epicKey ? <JiraLink href={buildIssueUrl(siteOrigin, epicKey)} title={`Open ${epicKey} in Jira`}>{epicKey}</JiraLink> : null;
-  const progress = total === 0 ? "no tasks yet" : open === 0 ? `all ${total} tasks closed` : `${open} of ${total} tasks open`;
+  const epicLink = epicKey ? (
+    <JiraLink href={buildIssueUrl(siteOrigin, epicKey)} title={`Open ${epicKey} in Jira`}>
+      {epicKey}
+    </JiraLink>
+  ) : null;
+  const progress =
+    total === 0 ? "no tasks yet" : open === 0 ? `all ${total} tasks closed` : `${open} of ${total} tasks open`;
   // Tasks still open under earlier quarters' epics are open work on this finding too.
   const earlierOpen = (group?.previousPeriods || []).reduce((n, p) => n + (p.openCount || 0), 0);
   const earlier = earlierOpen > 0 ? ` · ${earlierOpen} more open from earlier quarters` : "";
@@ -354,10 +419,21 @@ export function RemediationStatus({ group, period, siteOrigin, onOpen, compact =
   let body;
   if (group && group.isCurrent) {
     tone = open + earlierOpen === 0 && total > 0 ? "success" : "active";
-    body = <>{epicLink} · {progress}{earlier}</>;
+    body = (
+      <>
+        {epicLink} · {progress}
+        {earlier}
+      </>
+    );
   } else if (group) {
     if (open + earlierOpen > 0) tone = "active";
-    body = <>{group.period} epic {epicLink} · {progress}{earlier}{period ? ` · ${period} not started` : ""}</>;
+    body = (
+      <>
+        {group.period} epic {epicLink} · {progress}
+        {earlier}
+        {period ? ` · ${period} not started` : ""}
+      </>
+    );
   } else {
     body = <>No remediation epic{period ? ` for ${period}` : ""}</>;
   }
@@ -367,7 +443,14 @@ export function RemediationStatus({ group, period, siteOrigin, onOpen, compact =
       <Icon name="wrench" size={12} aria-hidden="true" />
       <span className="ui-remediation__body">{body}</span>
       {onOpen && (
-        <button type="button" className="ui-remediation__open" onClick={(event) => { event.stopPropagation(); onOpen(); }}>
+        <button
+          type="button"
+          className="ui-remediation__open"
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpen();
+          }}
+        >
           {group?.isCurrent ? "Manage" : "Start remediation"} →
         </button>
       )}
@@ -388,7 +471,11 @@ export function RemediationStatus({ group, period, siteOrigin, onOpen, compact =
 // Urgency bands, in the order they are shown. `clear` is not shown as a band -- it is the
 // absence of one -- but it is a value the derivation can return.
 export const GOVERNANCE_BANDS = [
-  { key: "critical", label: "Act now", description: "Broken or exposed configuration. Someone is relying on these being right." },
+  {
+    key: "critical",
+    label: "Act now",
+    description: "Broken or exposed configuration. Someone is relying on these being right.",
+  },
   { key: "warning", label: "Worth reviewing", description: "Working today, but the cost or the risk is growing." },
   { key: "info", label: "Cleanup when convenient", description: "Safe to leave. Safe to remove, once confirmed." },
 ];
@@ -412,7 +499,11 @@ export function Sparkline({ points = [], width = 56, height = 16, title }) {
   // One point is not a trend. Rendering a flat line through a single dot would assert a
   // stability nobody measured.
   if (measured.length < 2) {
-    return <span className="ui-spark ui-spark--none" title={title || "Not enough history to show a trend"}>—</span>;
+    return (
+      <span className="ui-spark ui-spark--none" title={title || "Not enough history to show a trend"}>
+        —
+      </span>
+    );
   }
 
   const span = Math.max(1, points.length - 1);
@@ -453,7 +544,8 @@ export function TrendDelta({ delta }) {
   const direction = delta > 0 ? "up" : "down";
   return (
     <span className={`ui-trend ui-trend--${direction}`}>
-      {delta > 0 ? "+" : "−"}{Math.abs(delta)}
+      {delta > 0 ? "+" : "−"}
+      {Math.abs(delta)}
     </span>
   );
 }
@@ -573,7 +665,9 @@ export function SortFilterBar({
             <span>Sort</span>
             <select value={sort ?? ""} onChange={(event) => onSortChange?.(event.target.value)}>
               {sortOptions.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
               ))}
             </select>
           </label>
@@ -582,10 +676,14 @@ export function SortFilterBar({
         {filters.map((filter) => (
           <label className="ui-controls__field" key={filter.key}>
             <span>{filter.label}</span>
-            <select value={filter.value ?? (filter.allValue ?? "all")} onChange={(event) => filter.onChange?.(event.target.value)}>
+            <select
+              value={filter.value ?? filter.allValue ?? "all"}
+              onChange={(event) => filter.onChange?.(event.target.value)}
+            >
               {filter.options.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label}{option.count === undefined ? "" : ` (${option.count})`}
+                  {option.label}
+                  {option.count === undefined ? "" : ` (${option.count})`}
                 </option>
               ))}
             </select>
@@ -614,7 +712,8 @@ export function SortFilterBar({
               onRemove={() => filter.onChange?.(filter.allValue ?? "all")}
               removeLabel={`Clear ${filter.label} filter`}
             >
-              {filter.label}: {filter.options.find((o) => String(o.value) === String(filter.value))?.label ?? filter.value}
+              {filter.label}:{" "}
+              {filter.options.find((o) => String(o.value) === String(filter.value))?.label ?? filter.value}
             </Chip>
           ))}
 
@@ -625,7 +724,9 @@ export function SortFilterBar({
           )}
 
           {canClear && onClear && (
-            <button type="button" className="ui-controls__clear" onClick={onClear}>Clear all</button>
+            <button type="button" className="ui-controls__clear" onClick={onClear}>
+              Clear all
+            </button>
           )}
         </div>
       )}
@@ -699,7 +800,9 @@ export function PillarHealthPanel({ pillar, onOpenTrends, trendsByDimension = nu
       ) : (
         <>
           <div className="ui-pillar__hero">
-            <span className={`ui-health__score ui-health__score--${(pillar.grade || "e").toLowerCase()}`}>{pillar.score}</span>
+            <span className={`ui-health__score ui-health__score--${(pillar.grade || "e").toLowerCase()}`}>
+              {pillar.score}
+            </span>
             <span className="ui-health__of">/ 100</span>
           </div>
           <div className="ui-gov-list">
@@ -736,7 +839,9 @@ export function SegmentedToggle({ label, options = [], value, onChange }) {
             type="button"
             className={`ui-segmented__btn${active ? " ui-segmented__btn--active" : ""}`}
             aria-pressed={active}
-            onClick={() => { if (!active) onChange?.(option.value); }}
+            onClick={() => {
+              if (!active) onChange?.(option.value);
+            }}
           >
             {option.label}
           </button>
@@ -750,7 +855,9 @@ export function LinkButton({ children, onClick }) {
   return (
     <button type="button" className="ui-linkbutton" onClick={onClick}>
       {children}
-      <span aria-hidden="true" className="ui-linkbutton__arrow">→</span>
+      <span aria-hidden="true" className="ui-linkbutton__arrow">
+        →
+      </span>
     </button>
   );
 }
@@ -780,7 +887,7 @@ export function AskRovo({ agent, scope, context, buildPrompt, onAsk, disabled = 
   const label = scope ? `Ask Rovo about ${scope}` : "Ask Rovo";
   const tip =
     `Opens ${shortName} in Rovo` +
-    (context ? `, seeded with ${context}` : (meta ? `, seeded with ${meta.reads}` : "")) +
+    (context ? `, seeded with ${context}` : meta ? `, seeded with ${meta.reads}` : "") +
     ". Rovo answers from the latest snapshot and never changes Jira.";
 
   async function handleClick(event) {
@@ -845,11 +952,12 @@ function StageRailNode({ stage, index, total, isCurrent, isSelected, onSelect })
   const live = useLiveDuration(stage.state === "running" ? stage.startedAt : null);
   const tone = STAGE_RAIL_TONE[stage.state] || "pending";
 
-  const meta = stage.state === "running"
-    ? (live || "running")
-    : stage.state === "pending"
-      ? "queued"
-      : formatDurationMs(stage.durationMs) || (stage.state === "skipped" ? "skipped" : "done");
+  const meta =
+    stage.state === "running"
+      ? live || "running"
+      : stage.state === "pending"
+        ? "queued"
+        : formatDurationMs(stage.durationMs) || (stage.state === "skipped" ? "skipped" : "done");
 
   return (
     <button
@@ -866,7 +974,9 @@ function StageRailNode({ stage, index, total, isCurrent, isSelected, onSelect })
       <span className="stage-rail__meta">
         {meta}
         {Number(stage.attempts) > 1 && (
-          <span className="stage-rail__retry" title={`${stage.attempts} attempts`}>⟳{stage.attempts}</span>
+          <span className="stage-rail__retry" title={`${stage.attempts} attempts`}>
+            ⟳{stage.attempts}
+          </span>
         )}
       </span>
     </button>
@@ -944,25 +1054,40 @@ export function combineUsageItems(usage, entityIds = []) {
 export function UsageTriple({ usage, entityId, item: itemOverride = null, totalLabel = "issues", compact = false }) {
   if (!usage) return null;
   if (!usage.available) {
-    const why = usage.reason === "no-crawl"
-      ? "No complete issue crawl yet. Run a full scan to measure usage."
-      : usage.reason === "error" ? `Usage could not be read${usage.error ? `: ${usage.error}` : ""}.` : "Usage is not measured for this item.";
-    return <span className="ui-usage ui-usage--unmeasured" title={why}>usage not measured</span>;
+    const why =
+      usage.reason === "no-crawl"
+        ? "No complete issue crawl yet. Run a full scan to measure usage."
+        : usage.reason === "error"
+          ? `Usage could not be read${usage.error ? `: ${usage.error}` : ""}.`
+          : "Usage is not measured for this item.";
+    return (
+      <span className="ui-usage ui-usage--unmeasured" title={why}>
+        usage not measured
+      </span>
+    );
   }
-  const item = itemOverride || usage.items?.[String(entityId)] || { total: 0, recent: 0, lastAt: null, projectCount: 0 };
+  const item = itemOverride ||
+    usage.items?.[String(entityId)] || { total: 0, recent: 0, lastAt: null, projectCount: 0 };
   const words = USAGE_BASIS_WORDS[usage.basis] || USAGE_BASIS_WORDS.updated;
   const days = usage.windowDays || 90;
   const idle = item.recent === 0;
   const when = formatUsageWhen(item.lastAt);
-  const title = `${item.total.toLocaleString()} ${totalLabel}` +
+  const title =
+    `${item.total.toLocaleString()} ${totalLabel}` +
     (item.projectCount ? ` across ${item.projectCount} project${item.projectCount === 1 ? "" : "s"}` : "") +
     `; ${item.recent.toLocaleString()} ${words.recent} in the last ${days} days; ${words.last} ${when}.` +
     (usage.measuredAt ? ` Counted by the issue crawl, ${formatUsageWhen(usage.measuredAt)}.` : "");
   return (
     <span className={`ui-usage${compact ? " ui-usage--compact" : ""}${idle ? " ui-usage--idle" : ""}`} title={title}>
-      <span className="ui-usage__n"><b>{item.total.toLocaleString()}</b> {totalLabel}</span>
-      <span className="ui-usage__n"><b>{item.recent.toLocaleString()}</b> {words.recent} {days}d</span>
-      <span className="ui-usage__n">{words.last} <b>{when}</b></span>
+      <span className="ui-usage__n">
+        <b>{item.total.toLocaleString()}</b> {totalLabel}
+      </span>
+      <span className="ui-usage__n">
+        <b>{item.recent.toLocaleString()}</b> {words.recent} {days}d
+      </span>
+      <span className="ui-usage__n">
+        {words.last} <b>{when}</b>
+      </span>
     </span>
   );
 }

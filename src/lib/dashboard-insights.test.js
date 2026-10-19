@@ -49,10 +49,18 @@ describe("share classification", () => {
   });
 
   test("a public dashboard is a high finding, and counts toward published-unused", () => {
-    const findings = analyzeDashboard({ owner: { active: true }, shares: [{ type: "global" }], popularity: 0, gadgetCount: 3 });
+    const findings = analyzeDashboard({
+      owner: { active: true },
+      shares: [{ type: "global" }],
+      popularity: 0,
+      gadgetCount: 3,
+    });
     expect(findings[0]).toMatchObject({ code: "shared-publicly", severity: "high" });
     expect(findings.map((f) => f.code)).toContain("published-unused");
-    expect(summarizeDashboards([{ id: "1", owner: { active: true }, shares: [{ type: "global" }], gadgetCount: 1 }]).sharedPubliclyCount).toBe(1);
+    expect(
+      summarizeDashboards([{ id: "1", owner: { active: true }, shares: [{ type: "global" }], gadgetCount: 1 }])
+        .sharedPubliclyCount,
+    ).toBe(1);
   });
 
   test("a project or group share is not everyone", () => {
@@ -129,8 +137,12 @@ describe("summarizeDashboards", () => {
 
   test("counts each finding separately", () => {
     expect(summarizeDashboards(estate)).toMatchObject({
-      available: true, total: 5,
-      orphanedCount: 1, editableByEveryoneCount: 1, publishedUnusedCount: 1, emptyCount: 1,
+      available: true,
+      total: 5,
+      orphanedCount: 1,
+      editableByEveryoneCount: 1,
+      publishedUnusedCount: 1,
+      emptyCount: 1,
     });
   });
 
@@ -160,9 +172,15 @@ describe("summarizeDashboards", () => {
 });
 
 describe("summarizeDashboardHealth", () => {
-  const build = (over) => summarizeDashboardHealth(summarizeDashboards(
-    Array.from({ length: 100 }, (_, i) => dashboard({ id: String(i) })).map((d, i) => ({ ...d, ...(over(i) || {}) }))
-  ));
+  const build = (over) =>
+    summarizeDashboardHealth(
+      summarizeDashboards(
+        Array.from({ length: 100 }, (_, i) => dashboard({ id: String(i) })).map((d, i) => ({
+          ...d,
+          ...(over(i) || {}),
+        })),
+      ),
+    );
 
   // computeSiteHealth scores four dashboard dimensions from these raw counts directly. What
   // this owes it is the counts; the old combined `defectRate` had no consumer after the
@@ -177,7 +195,10 @@ describe("summarizeDashboardHealth", () => {
   // content dimension being unavailable rather than scoring a shortfall in the build as a
   // defect in the estate.
   test("carries a null empty count through unchanged on a partial walk", () => {
-    const partial = summarizeDashboards([dashboard({ gadgetCount: null }), dashboard({ id: "2", owner: null, gadgetCount: null })]);
+    const partial = summarizeDashboards([
+      dashboard({ gadgetCount: null }),
+      dashboard({ id: "2", owner: null, gadgetCount: null }),
+    ]);
     const health = summarizeDashboardHealth(partial);
     expect(health.emptyCount).toBeNull();
     expect(health.orphanedCount).toBe(1);
@@ -194,14 +215,20 @@ describe("broken gadgets", () => {
   const gadget = (filterState, over = {}) => ({ id: "g", title: "Open bugs", filterId: "500", filterState, ...over });
 
   test("a missing filter is high, on any dashboard", () => {
-    const f = analyzeDashboard({ ...base, shares: [], gadgets: [gadget("missing")] }).find((x) => x.code === "broken-gadget");
+    const f = analyzeDashboard({ ...base, shares: [], gadgets: [gadget("missing")] }).find(
+      (x) => x.code === "broken-gadget",
+    );
     expect(f).toMatchObject({ severity: "high", gadgets: [{ filterState: "missing" }] });
     expect(f.detail).toMatch(/1 gadget reads a filter that no longer exists/);
   });
 
   test("a private filter only counts when the dashboard is shared", () => {
-    expect(analyzeDashboard({ ...base, shares: [], gadgets: [gadget("private")] }).some((x) => x.code === "broken-gadget")).toBe(false);
-    const f = analyzeDashboard({ ...base, shares: [{ type: "group" }], gadgets: [gadget("private")] }).find((x) => x.code === "broken-gadget");
+    expect(
+      analyzeDashboard({ ...base, shares: [], gadgets: [gadget("private")] }).some((x) => x.code === "broken-gadget"),
+    ).toBe(false);
+    const f = analyzeDashboard({ ...base, shares: [{ type: "group" }], gadgets: [gadget("private")] }).find(
+      (x) => x.code === "broken-gadget",
+    );
     expect(f).toMatchObject({ severity: "medium" });
   });
 

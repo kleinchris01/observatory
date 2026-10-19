@@ -21,7 +21,7 @@ export const DEFAULT_GOVERNANCE_THRESHOLDS = {
   missingDescriptionMinProjects: 5,
   missingDescriptionMinIssues: 500,
   configuredActiveGapMinProjects: 5,
-  configuredActiveGapMaxRatio: 0.70,
+  configuredActiveGapMaxRatio: 0.7,
   globalContextMaxIssues: 50,
   contextSprawlMinContexts: 8,
   staleFieldMaxAgeDays: 365,
@@ -31,21 +31,31 @@ const SELECT_FIELD_TYPE_KEYWORDS = ["select", "multiselect", "radiobutton", "che
 
 // Fields that are always present on every issue — skip when counting field occupancy
 export const STRUCTURAL_SYSTEM_FIELDS = new Set([
-  "project", "summary", "created", "updated", "creator", "status", "issuetype",
-  "votes", "watches", "subtasks", "aggregateprogress", "progress", "workratio",
-  "lastViewed", "issuerestrictions",
-  "aggregatetimeoriginalestimate", "aggregatetimespent", "aggregatetimeestimate",
+  "project",
+  "summary",
+  "created",
+  "updated",
+  "creator",
+  "status",
+  "issuetype",
+  "votes",
+  "watches",
+  "subtasks",
+  "aggregateprogress",
+  "progress",
+  "workratio",
+  "lastViewed",
+  "issuerestrictions",
+  "aggregatetimeoriginalestimate",
+  "aggregatetimespent",
+  "aggregatetimeestimate",
 ]);
 
 // Fields whose RQT values belong to related issues rather than this issue itself
 export const RQT_SKIP_FIELDS = new Set(["issuelinks", "parent"]);
 
 export const RQT_DEDUP_PRIORITY_FIELD = "customfield_11426";
-export const RQT_DEDUP_SUBORDINATE_FIELDS = new Set([
-  "customfield_11806",
-  "customfield_18522",
-  "customfield_15178",
-]);
+export const RQT_DEDUP_SUBORDINATE_FIELDS = new Set(["customfield_11806", "customfield_18522", "customfield_15178"]);
 
 const RQT_PATTERN = /\bRQT-\d+-\d+\b/gi;
 
@@ -71,8 +81,13 @@ export function extractRqtValues(value) {
       if (matches) for (const m of matches) found.add(m.toUpperCase());
       return;
     }
-    if (Array.isArray(v)) { for (const item of v) scan(item); return; }
-    if (typeof v === "object") { for (const val of Object.values(v)) scan(val); }
+    if (Array.isArray(v)) {
+      for (const item of v) scan(item);
+      return;
+    }
+    if (typeof v === "object") {
+      for (const val of Object.values(v)) scan(val);
+    }
   }
 
   scan(value);
@@ -127,12 +142,7 @@ export function collectIssueRqtValues(issueFields, summaryValue) {
 // ── Job / capacity status ───────────────────────────────────────────────────
 
 export function estimateProjectUsageJobIssues(jobLike) {
-  return Number(
-    jobLike?.estimatedIssueTotal
-    ?? jobLike?.totalIssueCount
-    ?? jobLike?.field?.totalIssueCount
-    ?? 0
-  ) || 0;
+  return Number(jobLike?.estimatedIssueTotal ?? jobLike?.totalIssueCount ?? jobLike?.field?.totalIssueCount ?? 0) || 0;
 }
 
 export function isFieldSummaryQueuedForDispatch(summary) {
@@ -192,13 +202,16 @@ export function getRetryDelayMs(error, attempt) {
     const s = Number(header);
     if (Number.isFinite(s) && s > 0) return Math.min(MAX_RETRY_AFTER_MS, s * 1000);
   }
-  return Math.min(30000, 2000 * (2 ** attempt)) + Math.floor(Math.random() * 1000);
+  return Math.min(30000, 2000 * 2 ** attempt) + Math.floor(Math.random() * 1000);
 }
 
 // ── Field classification ────────────────────────────────────────────────────
 
 export function normalizeFieldName(value) {
-  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 export function buildDuplicateNameCountMap(fields = []) {
@@ -211,7 +224,9 @@ export function buildDuplicateNameCountMap(fields = []) {
 }
 
 export function hasMeaningfulDescription(description) {
-  const n = String(description || "").trim().toLowerCase();
+  const n = String(description || "")
+    .trim()
+    .toLowerCase();
   if (!n) return false;
   return !["no admin description is set for this field.", "no description", "n/a", "na"].includes(n);
 }
@@ -321,10 +336,16 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
   const reasons = [];
   let priorityScore = 0;
 
-  if (!notActionable && usageAvailable && breadthProjectCount >= t.highImpactMinProjects && totalIssueCount >= t.highImpactMinIssues) {
+  if (
+    !notActionable &&
+    usageAvailable &&
+    breadthProjectCount >= t.highImpactMinProjects &&
+    totalIssueCount >= t.highImpactMinIssues
+  ) {
     reasons.push({
       code: "high-impact",
-      category: "risky", severity: "high",
+      category: "risky",
+      severity: "high",
       title: "High-impact field with broad live usage",
       detail: usesConfiguredScope
         ? `Configured in ${configuredProjectCount} projects with ${totalIssueCount.toLocaleString()} populated issues. Build project usage to confirm the exact active-project spread.`
@@ -336,7 +357,8 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
   if (!notActionable && usageAvailable && appProvided && totalIssueCount >= t.appFieldHeavyUsageMin) {
     reasons.push({
       code: "app-heavy-usage",
-      category: "risky", severity: "medium",
+      category: "risky",
+      severity: "medium",
       title: "App-provided field with heavy usage",
       detail: "App or plugin field with significant data — manage changes carefully.",
     });
@@ -346,7 +368,8 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
   if (!notActionable && usageAvailable && hasGlobalContext && totalIssueCount < t.globalContextMaxIssues) {
     reasons.push({
       code: "global-context-low-usage",
-      category: "cleanup", severity: "medium",
+      category: "cleanup",
+      severity: "medium",
       title: "Global context with very low usage",
       detail: `This field applies to all projects via a global context but only ${totalIssueCount.toLocaleString()} issues have a value. Consider scoping it to specific projects or removing it.`,
     });
@@ -354,11 +377,13 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
   }
 
   if (!notActionable && usageAvailable && configuredProjectCount >= t.configuredActiveGapMinProjects) {
-    const inactiveRatio = configuredProjectCount > 0 ? (configuredProjectCount - activeProjectCount) / configuredProjectCount : 0;
+    const inactiveRatio =
+      configuredProjectCount > 0 ? (configuredProjectCount - activeProjectCount) / configuredProjectCount : 0;
     if (inactiveRatio >= t.configuredActiveGapMaxRatio) {
       reasons.push({
         code: "dead-configuration",
-        category: "cleanup", severity: "medium",
+        category: "cleanup",
+        severity: "medium",
         title: "High dead-configuration ratio",
         detail: `Configured in ${configuredProjectCount} projects but only ${activeProjectCount} have any issue data — ${Math.round(inactiveRatio * 100)}% of configured scope is inactive.`,
       });
@@ -366,20 +391,36 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
     }
   }
 
-  if (!notActionable && !appProvided && usageAvailable && !holdsArchivedData && configuredProjectCount === 0 && totalIssueCount === 0 && activeProjectCount === 0) {
+  if (
+    !notActionable &&
+    !appProvided &&
+    usageAvailable &&
+    !holdsArchivedData &&
+    configuredProjectCount === 0 &&
+    totalIssueCount === 0 &&
+    activeProjectCount === 0
+  ) {
     reasons.push({
       code: "orphaned",
-      category: "cleanup", severity: "medium",
+      category: "cleanup",
+      severity: "medium",
       title: "Orphaned field — not configured or used anywhere",
       detail: "No project contexts and no recorded issue usage. This field is a candidate for deletion.",
     });
     priorityScore += 25;
   }
 
-  if (!notActionable && !holdsArchivedData && configuredProjectCount >= t.broadScopeMinProjects && totalIssueCount === 0 && activeProjectCount === 0) {
+  if (
+    !notActionable &&
+    !holdsArchivedData &&
+    configuredProjectCount >= t.broadScopeMinProjects &&
+    totalIssueCount === 0 &&
+    activeProjectCount === 0
+  ) {
     reasons.push({
       code: "configured-no-issues",
-      category: "cleanup", severity: "medium",
+      category: "cleanup",
+      severity: "medium",
       title: "Configured field with no populated issues",
       detail: `Configured in ${configuredProjectCount} projects but no populated issues were found in the snapshot.`,
     });
@@ -389,17 +430,25 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
   if (isSystemField && usageAvailable && !holdsArchivedData && totalIssueCount === 0) {
     reasons.push({
       code: "system-no-usage",
-      category: "cleanup", severity: "low",
+      category: "cleanup",
+      severity: "low",
       title: "System field with no recorded usage",
       detail: "No issues with a value found in the snapshot. This field may not be actively used.",
     });
     priorityScore += 8;
   }
 
-  if (!notActionable && usageAvailable && breadthProjectCount >= t.lightUsageMinProjects && totalIssueCount > 0 && totalIssueCount <= t.lightUsageMaxIssues) {
+  if (
+    !notActionable &&
+    usageAvailable &&
+    breadthProjectCount >= t.lightUsageMinProjects &&
+    totalIssueCount > 0 &&
+    totalIssueCount <= t.lightUsageMaxIssues
+  ) {
     reasons.push({
       code: "light-usage",
-      category: "cleanup", severity: "medium",
+      category: "cleanup",
+      severity: "medium",
       title: "Broadly scoped field with very light usage",
       detail: usesConfiguredScope
         ? `Configured in ${configuredProjectCount} projects but only ${totalIssueCount.toLocaleString()} populated issues were found.`
@@ -412,11 +461,18 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
   // covered by the orphaned / "configured but no populated issues" rules above, and
   // firing both would double-count it into Admin Attention on priority score alone.
   // This rule is specifically "it WAS used, and then everyone stopped".
-  if (!notActionable && usageAvailable && totalIssueCount > 0 && staleDays !== null && staleDays >= t.staleFieldMaxAgeDays) {
+  if (
+    !notActionable &&
+    usageAvailable &&
+    totalIssueCount > 0 &&
+    staleDays !== null &&
+    staleDays >= t.staleFieldMaxAgeDays
+  ) {
     const years = staleDays / 365;
     reasons.push({
       code: "stale",
-      category: "cleanup", severity: "medium",
+      category: "cleanup",
+      severity: "medium",
       title: "No field activity in over a year",
       // The clause "or removing it from active screens" was dropped on 4 Aug 2026.
       // Observatory holds no screen data, so it cannot know whether this field is on a
@@ -432,7 +488,8 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
   if (!notActionable && contextCount >= t.contextSprawlMinContexts) {
     reasons.push({
       code: "context-sprawl",
-      category: "standardize", severity: "medium",
+      category: "standardize",
+      severity: "medium",
       title: "Context sprawl",
       detail: `${contextCount} separate contexts suggest the field was patched project-by-project over time. Consider consolidating into fewer, broader contexts.`,
     });
@@ -443,23 +500,30 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
     const dupeScore = Math.min(50, 20 + Math.max(0, duplicateNameCount - 2) * 5);
     reasons.push({
       code: "duplicate-naming",
-      category: "standardize", severity: "medium",
+      category: "standardize",
+      severity: "medium",
       title: "Similar field naming detected",
       detail: `${duplicateNameCount} fields share the same normalized name — possible duplicates that could confuse users or produce reporting errors.`,
     });
     priorityScore += dupeScore;
   }
 
-  if (!notActionable && !descriptionPresent && (breadthProjectCount >= t.missingDescriptionMinProjects || totalIssueCount >= t.missingDescriptionMinIssues)) {
+  if (
+    !notActionable &&
+    !descriptionPresent &&
+    (breadthProjectCount >= t.missingDescriptionMinProjects || totalIssueCount >= t.missingDescriptionMinIssues)
+  ) {
     reasons.push({
       code: "missing-description",
-      category: "standardize", severity: "medium",
+      category: "standardize",
+      severity: "medium",
       title: "Actively used field lacks a meaningful description",
-      detail: totalIssueCount >= t.missingDescriptionMinIssues && breadthProjectCount < t.missingDescriptionMinProjects
-        ? `${totalIssueCount.toLocaleString()} issues carry a value in this field — clear documentation is warranted regardless of project count.`
-        : usesConfiguredScope
-          ? "Configured broadly enough to warrant clearer documentation before usage expands further."
-          : "Used across enough projects to warrant clearer documentation.",
+      detail:
+        totalIssueCount >= t.missingDescriptionMinIssues && breadthProjectCount < t.missingDescriptionMinProjects
+          ? `${totalIssueCount.toLocaleString()} issues carry a value in this field — clear documentation is warranted regardless of project count.`
+          : usesConfiguredScope
+            ? "Configured broadly enough to warrant clearer documentation before usage expands further."
+            : "Used across enough projects to warrant clearer documentation.",
     });
     priorityScore += 16;
   }
@@ -518,8 +582,9 @@ export function mergeProjectUsageCounts(existingProjects = [], nextProjects = []
     merged.set(project.projectId, current);
   }
 
-  return Array.from(merged.values())
-    .sort((left, right) => right.issueCount - left.issueCount || left.projectKey.localeCompare(right.projectKey));
+  return Array.from(merged.values()).sort(
+    (left, right) => right.issueCount - left.issueCount || left.projectKey.localeCompare(right.projectKey),
+  );
 }
 
 export function compareFields(left, right, sortKey) {
@@ -567,14 +632,21 @@ export function compareFields(left, right, sortKey) {
   return left.name.localeCompare(right.name);
 }
 
-export function filterInventoryFields(fields, query, type, projectUsageFilter = "all", maxIssuesWithValue = "", fieldOrigin = "all", minIssuesWithValue = "", extra = {}) {
+export function filterInventoryFields(
+  fields,
+  query,
+  type,
+  projectUsageFilter = "all",
+  maxIssuesWithValue = "",
+  fieldOrigin = "all",
+  minIssuesWithValue = "",
+  extra = {},
+) {
   let out = fields;
   if (query) {
     const q = String(query).trim().toLowerCase();
     out = out.filter((f) =>
-      [f.name, f.id, f.type, f.customType, f.description]
-        .filter(Boolean)
-        .some((v) => v.toLowerCase().includes(q))
+      [f.name, f.id, f.type, f.customType, f.description].filter(Boolean).some((v) => v.toLowerCase().includes(q)),
     );
   }
   if (type && type !== "all") out = out.filter((f) => f.type === type);
@@ -652,7 +724,9 @@ export function filterInventoryFields(fields, query, type, projectUsageFilter = 
 }
 
 export function isSelectFieldType(fieldType) {
-  const normalized = String(fieldType || "").toLowerCase().replace(/[\s\-_]/g, "");
+  const normalized = String(fieldType || "")
+    .toLowerCase()
+    .replace(/[\s\-_]/g, "");
   return SELECT_FIELD_TYPE_KEYWORDS.some((kw) => normalized.includes(kw));
 }
 
@@ -666,7 +740,10 @@ export function applyFindingsFilter(fields, findingsFilter) {
     const tagKey = findingsFilter === "admin-attention" ? "adminAttention" : findingsFilter;
     return fields.filter((f) => Boolean(f.findings?.tags?.[tagKey]));
   }
-  const codes = findingsFilter.split(",").map((c) => c.trim()).filter(Boolean);
+  const codes = findingsFilter
+    .split(",")
+    .map((c) => c.trim())
+    .filter(Boolean);
   return fields.filter((f) => (f.findings?.reasons || []).some((r) => codes.includes(r.code)));
 }
 
@@ -675,14 +752,17 @@ export function sortInventoryFields(fields, sortKey) {
 }
 
 export function summarizeFindings(fields) {
-  return fields.reduce((s, f) => {
-    const tags = f.findings?.tags || {};
-    if (tags.adminAttention) s.adminAttention++;
-    if (tags.risky) s.risky++;
-    if (tags.cleanup) s.cleanup++;
-    if (tags.standardize) s.standardize++;
-    return s;
-  }, { adminAttention: 0, risky: 0, cleanup: 0, standardize: 0 });
+  return fields.reduce(
+    (s, f) => {
+      const tags = f.findings?.tags || {};
+      if (tags.adminAttention) s.adminAttention++;
+      if (tags.risky) s.risky++;
+      if (tags.cleanup) s.cleanup++;
+      if (tags.standardize) s.standardize++;
+      return s;
+    },
+    { adminAttention: 0, risky: 0, cleanup: 0, standardize: 0 },
+  );
 }
 
 // Per-code counts, not just the four coarse categories summarizeFindings tracks. The

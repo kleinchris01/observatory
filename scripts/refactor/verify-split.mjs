@@ -24,15 +24,17 @@ const baseText = showAtBase("src/resolvers.js");
 // Modules already split out at base. Their declarations are part of "before" too, so a later
 // split PR compares like with like instead of reporting every earlier module as new.
 const baseModules = git("ls-tree", "-r", "--name-only", base, "--", "src/resolvers/")
-  .split("\n").filter((f) => f.endsWith(".js") && !f.endsWith(".test.js"));
+  .split("\n")
+  .filter((f) => f.endsWith(".js") && !f.endsWith(".test.js"));
 const files = [path.join(ROOT, "src/resolvers.js")];
 const dir = path.join(ROOT, "src/resolvers");
 if (fs.existsSync(dir)) {
-  const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).forEach((e) => {
-    const p = path.join(d, e.name);
-    if (e.isDirectory()) walk(p);
-    else if (e.name.endsWith(".js") && !e.name.endsWith(".test.js")) files.push(p);
-  });
+  const walk = (d) =>
+    fs.readdirSync(d, { withFileTypes: true }).forEach((e) => {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (e.name.endsWith(".js") && !e.name.endsWith(".test.js")) files.push(p);
+    });
   walk(dir);
 }
 
@@ -42,12 +44,17 @@ const declText = (text, st) => {
 };
 // Named declarations are keyed by name. Nameless expression statements (Object.assign onto a
 // table, say) are keyed by their own text, so one that changed reads as missing plus new.
-const collect = (text, where) => analyse(text).stmts
-  .filter((s) => s.names.length || s.node.type === "ExpressionStatement")
-  .map((s) => {
-    const code = declText(text, s);
-    return { key: s.names.length ? s.names.join(",") : `statement: ${code.replace(/\s+/g, " ").slice(0, 80)}`, code, where };
-  });
+const collect = (text, where) =>
+  analyse(text)
+    .stmts.filter((s) => s.names.length || s.node.type === "ExpressionStatement")
+    .map((s) => {
+      const code = declText(text, s);
+      return {
+        key: s.names.length ? s.names.join(",") : `statement: ${code.replace(/\s+/g, " ").slice(0, 80)}`,
+        code,
+        where,
+      };
+    });
 
 const before = new Map(collect(baseText, "src/resolvers.js").map((d) => [d.key, d]));
 for (const file of baseModules) {
@@ -65,7 +72,10 @@ for (const f of files) {
 let moved = 0;
 for (const [key, d] of before) {
   const n = now.get(key);
-  if (!n) { problems.push(`${key} is missing`); continue; }
+  if (!n) {
+    problems.push(`${key} is missing`);
+    continue;
+  }
   if (n.code !== d.code) problems.push(`${key} changed (now in ${n.where})`);
   if (n.where !== d.where) moved++;
 }
@@ -78,7 +88,9 @@ for (const n of exNow) if (!exBefore.has(n)) problems.push(`src/resolvers.js now
 
 const lines = (t) => t.split("\n").length;
 console.log(`base ${base}: ${before.size} declarations, ${exBefore.size} exports, ${lines(baseText)} lines`);
-console.log(`now: ${moved} declarations moved since base; ${files.length - 1} module(s) under src/resolvers/; src/resolvers.js is ${lines(readSource(files[0]).text)} lines`);
+console.log(
+  `now: ${moved} declarations moved since base; ${files.length - 1} module(s) under src/resolvers/; src/resolvers.js is ${lines(readSource(files[0]).text)} lines`,
+);
 if (problems.length) {
   console.error(`\nFAILED (${problems.length}):\n  ${problems.join("\n  ")}`);
   process.exit(1);

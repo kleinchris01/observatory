@@ -7,7 +7,14 @@ import {
   summarizeIssueTypeHealth,
 } from "./issuetype-insights.js";
 
-const type = (id, name, over = {}) => ({ id: String(id), name, subtask: false, hierarchyLevel: 0, scopeProjectId: null, ...over });
+const type = (id, name, over = {}) => ({
+  id: String(id),
+  name,
+  subtask: false,
+  hierarchyLevel: 0,
+  scopeProjectId: null,
+  ...over,
+});
 
 describe("findDuplicateTypeNames", () => {
   test("identical names are one group, whatever their scope", () => {
@@ -42,7 +49,10 @@ describe("findDuplicateTypeNames", () => {
 describe("findOrphanTypes", () => {
   test("a type on no scheme item is an orphan; one that is allowed is not", () => {
     const types = [type(1, "Story"), type(2, "Spike"), type(3, "Old Bug")];
-    const schemeItems = [{ schemeId: "5", issueTypeId: "1" }, { schemeId: "5", issueTypeId: "2" }];
+    const schemeItems = [
+      { schemeId: "5", issueTypeId: "1" },
+      { schemeId: "5", issueTypeId: "2" },
+    ];
     const orphans = findOrphanTypes(types, schemeItems);
     expect(orphans.map((o) => o.id)).toEqual(["3"]);
   });
@@ -54,7 +64,10 @@ describe("analyzeSchemeHierarchy", () => {
   test("flags a scheme with only sub-task types", () => {
     const [scheme] = analyzeSchemeHierarchy(
       [{ schemeId: "5", name: "Subs only", defaultIssueTypeId: "9" }],
-      members([{ id: "9", subtask: true }, { id: "10", subtask: true }])
+      members([
+        { id: "9", subtask: true },
+        { id: "10", subtask: true },
+      ]),
     );
     expect(scheme.flags.map((f) => f.code)).toContain("subtasks-only");
   });
@@ -62,13 +75,16 @@ describe("analyzeSchemeHierarchy", () => {
   test("flags a default type that is a sub-task, or not in the scheme", () => {
     const [subDefault] = analyzeSchemeHierarchy(
       [{ schemeId: "5", name: "A", defaultIssueTypeId: "9" }],
-      members([{ id: "1", subtask: false }, { id: "9", subtask: true }])
+      members([
+        { id: "1", subtask: false },
+        { id: "9", subtask: true },
+      ]),
     );
     expect(subDefault.flags.map((f) => f.code)).toContain("default-is-subtask");
 
     const [notInScheme] = analyzeSchemeHierarchy(
       [{ schemeId: "5", name: "B", defaultIssueTypeId: "99" }],
-      members([{ id: "1", subtask: false }])
+      members([{ id: "1", subtask: false }]),
     );
     expect(notInScheme.flags.map((f) => f.code)).toContain("default-not-in-scheme");
   });
@@ -76,7 +92,10 @@ describe("analyzeSchemeHierarchy", () => {
   test("a normal scheme carries no flags", () => {
     const [ok] = analyzeSchemeHierarchy(
       [{ schemeId: "5", name: "Normal", defaultIssueTypeId: "1" }],
-      members([{ id: "1", subtask: false }, { id: "2", subtask: true }])
+      members([
+        { id: "1", subtask: false },
+        { id: "2", subtask: true },
+      ]),
     );
     expect(ok.flags).toEqual([]);
   });
@@ -103,9 +122,9 @@ describe("summarizeIssueTypeInsights", () => {
       available: true,
       totalTypes: 4,
       totalSchemes: 2,
-      orphanTypeCount: 1,       // "Orphan" (id 3)
-      unusedSchemeCount: 1,     // scheme 6
-      reducibleTypeCount: 1,    // the two "Story" collapse to one
+      orphanTypeCount: 1, // "Orphan" (id 3)
+      unusedSchemeCount: 1, // scheme 6
+      reducibleTypeCount: 1, // the two "Story" collapse to one
       duplicateTypeGroupCount: 1,
       subtasksOnlySchemeCount: 1, // scheme 6 allows only the sub-task
     });
@@ -116,8 +135,14 @@ describe("summarizeIssueTypeHealth", () => {
   test("passes only the scored counts, tri-state on unavailable", () => {
     expect(summarizeIssueTypeHealth({ available: false })).toEqual({ available: false });
     const h = summarizeIssueTypeHealth({
-      available: true, totalTypes: 10, totalSchemes: 4, orphanTypeCount: 1,
-      unusedSchemeCount: 0, reducibleTypeCount: 2, duplicateTypeGroupCount: 1, hierarchyFlaggedSchemeCount: 0,
+      available: true,
+      totalTypes: 10,
+      totalSchemes: 4,
+      orphanTypeCount: 1,
+      unusedSchemeCount: 0,
+      reducibleTypeCount: 2,
+      duplicateTypeGroupCount: 1,
+      hierarchyFlaggedSchemeCount: 0,
     });
     expect(h).toMatchObject({ available: true, totalTypes: 10, orphanTypeCount: 1, reducibleTypeCount: 2 });
     expect(h).not.toHaveProperty("orphanTypes");

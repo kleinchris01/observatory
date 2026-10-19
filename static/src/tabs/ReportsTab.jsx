@@ -1,12 +1,33 @@
 import React from "react";
 import { invoke, view } from "@forge/bridge";
 import {
-  buildJiraSearchUrl, downloadCsv, slugifyFilenamePart, groupReportFieldsByType, openFieldExpertRovo, buildReportRovoPrompt,
-  PILLAR_REPORT_NAV, formatReportCell, reportToCsvRows, buildScorecardReport, buildPillarReportRovoPrompt,
-  formatNumber, formatRelativeTime,
+  buildJiraSearchUrl,
+  downloadCsv,
+  slugifyFilenamePart,
+  groupReportFieldsByType,
+  openFieldExpertRovo,
+  buildReportRovoPrompt,
+  PILLAR_REPORT_NAV,
+  formatReportCell,
+  reportToCsvRows,
+  buildScorecardReport,
+  buildPillarReportRovoPrompt,
+  formatNumber,
+  formatRelativeTime,
 } from "../utils";
 import { Icon } from "../components/Icons";
-import { PageHeader, Chip, StatRow, StatTile, Panel, EmptyState, PanelGrid, GridSpan, PillarHealthPanel, AskRovo } from "../components/ui";
+import {
+  PageHeader,
+  Chip,
+  StatRow,
+  StatTile,
+  Panel,
+  EmptyState,
+  PanelGrid,
+  GridSpan,
+  PillarHealthPanel,
+  AskRovo,
+} from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
 import { ReportErrorBoundary, ProjectUsageReportView } from "../components/ReportView";
 import { usePersistentState } from "../hooks";
@@ -36,9 +57,25 @@ import { usePersistentState } from "../hooks";
 
 const RqtIndexView = React.lazy(() => import("./RqtTab").then((m) => ({ default: m.RqtIndexView })));
 
-export function ReportsTab({ siteOrigin, selectedFieldIds, onSetSelectedFieldIds, autoGenerate, onAutoGenerateConsumed, initialSection, projectScope = [], onSetProjectScope, health = null, healthScoredAt = null, onRescore }) {
+export function ReportsTab({
+  siteOrigin,
+  selectedFieldIds,
+  onSetSelectedFieldIds,
+  autoGenerate,
+  onAutoGenerateConsumed,
+  initialSection,
+  projectScope = [],
+  onSetProjectScope,
+  health = null,
+  healthScoredAt = null,
+  onRescore,
+}) {
   // A field-report hand-off (autoGenerate) always lands on the usage matrix it is building.
-  const [activeSection, setActiveSection] = usePersistentState("observatory.section.reports", "scorecard", initialSection || (autoGenerate ? "usage" : null));
+  const [activeSection, setActiveSection] = usePersistentState(
+    "observatory.section.reports",
+    "scorecard",
+    initialSection || (autoGenerate ? "usage" : null),
+  );
   const [reportData, setReportData] = React.useState(null);
   const [loadingReport, setLoadingReport] = React.useState(false);
   const [savedReports, setSavedReports] = React.useState([]);
@@ -50,8 +87,13 @@ export function ReportsTab({ siteOrigin, selectedFieldIds, onSetSelectedFieldIds
   const [rovoEnabled, setRovoEnabled] = React.useState(false);
 
   React.useEffect(() => {
-    invoke("getSavedReports").then((r) => setSavedReports(r.reports || [])).catch(() => {});
-    view.getContext().then(() => setRovoEnabled(true)).catch(() => {});
+    invoke("getSavedReports")
+      .then((r) => setSavedReports(r.reports || []))
+      .catch(() => {});
+    view
+      .getContext()
+      .then(() => setRovoEnabled(true))
+      .catch(() => {});
   }, []);
 
   React.useEffect(() => {
@@ -64,7 +106,10 @@ export function ReportsTab({ siteOrigin, selectedFieldIds, onSetSelectedFieldIds
 
   async function generateReport(fieldIdsOverride = null, nameOverride = "", scopeOverride = undefined) {
     const fieldIds = fieldIdsOverride?.length ? fieldIdsOverride : selectedFieldIds;
-    if (!fieldIds.length) { setError("Select at least one field in the Field Browser to generate a report."); return; }
+    if (!fieldIds.length) {
+      setError("Select at least one field in the Field Browser to generate a report.");
+      return;
+    }
     const projectIds = scopeOverride === undefined ? projectScope : scopeOverride;
     setLoadingReport(true);
     setReportData(null);
@@ -81,11 +126,18 @@ export function ReportsTab({ siteOrigin, selectedFieldIds, onSetSelectedFieldIds
   }
 
   async function saveCurrentReport() {
-    if (!reportNameInput.trim()) { setError("Enter a report name before saving."); return; }
+    if (!reportNameInput.trim()) {
+      setError("Enter a report name before saving.");
+      return;
+    }
     setSavingReport(true);
     try {
       const existing = savedReports.find((r) => r.name.toLowerCase() === reportNameInput.trim().toLowerCase());
-      const result = await invoke("saveReportDefinition", { reportId: existing?.reportId || "", name: reportNameInput.trim(), fieldIds: selectedFieldIds });
+      const result = await invoke("saveReportDefinition", {
+        reportId: existing?.reportId || "",
+        name: reportNameInput.trim(),
+        fieldIds: selectedFieldIds,
+      });
       setSavedReports(result.reports || []);
       setActiveReportName(reportNameInput.trim());
     } catch (err) {
@@ -117,7 +169,10 @@ export function ReportsTab({ siteOrigin, selectedFieldIds, onSetSelectedFieldIds
 
   function exportCsv(overrideData = null) {
     const exportData = overrideData || reportData;
-    if (!exportData?.fields?.length) { setError("No report data available to export."); return; }
+    if (!exportData?.fields?.length) {
+      setError("No report data available to export.");
+      return;
+    }
     const header = ["Field ID", "Field Name", ...exportData.projects.map((p) => p.projectKey)];
     const rows = [];
     // Second header row, only when workflow data exists. The export is a field x project
@@ -145,7 +200,9 @@ export function ReportsTab({ siteOrigin, selectedFieldIds, onSetSelectedFieldIds
 
   async function askRovo({ fields, projects, pendingFields, reportSummary }) {
     try {
-      await openFieldExpertRovo(buildReportRovoPrompt({ reportName: activeReportName, fields, projects, pendingFields, reportSummary }));
+      await openFieldExpertRovo(
+        buildReportRovoPrompt({ reportName: activeReportName, fields, projects, pendingFields, reportSummary }),
+      );
     } catch (err) {
       setError(err.message || "Failed to open Rovo.");
     }
@@ -153,7 +210,14 @@ export function ReportsTab({ siteOrigin, selectedFieldIds, onSetSelectedFieldIds
 
   return (
     <div className="admin-reports-tab">
-      {error && <div className="error-banner" style={{ margin: "0 0 12px 0" }}>{error}<button className="inline-text-button" type="button" onClick={() => setError("")} style={{ marginLeft: 10 }}>Dismiss</button></div>}
+      {error && (
+        <div className="error-banner" style={{ margin: "0 0 12px 0" }}>
+          {error}
+          <button className="inline-text-button" type="button" onClick={() => setError("")} style={{ marginLeft: 10 }}>
+            Dismiss
+          </button>
+        </div>
+      )}
       <SubNavLayout
         items={[
           { key: "scorecard", label: "Governance scorecard", icon: "barChart", group: "Site" },
@@ -164,69 +228,83 @@ export function ReportsTab({ siteOrigin, selectedFieldIds, onSetSelectedFieldIds
         activeKey={activeSection}
         onSelect={setActiveSection}
       >
-      {activeSection === "scorecard" ? (
-        <ScorecardSection health={health} scoredAt={healthScoredAt} onRescore={onRescore} />
-      ) : PILLAR_REPORT_NAV.some((p) => p.key === activeSection) ? (
-        <PillarReportSection key={activeSection} pillarKey={activeSection} health={health} />
-      ) : activeSection === "rqt" ? (
-        <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
-          <RqtIndexView siteOrigin={siteOrigin} />
-        </React.Suspense>
-      ) : (
-        <>
-      {/* Was a bespoke toolbar with the hint as a bare span. PageHeader gives Reports the
+        {activeSection === "scorecard" ? (
+          <ScorecardSection health={health} scoredAt={healthScoredAt} onRescore={onRescore} />
+        ) : PILLAR_REPORT_NAV.some((p) => p.key === activeSection) ? (
+          <PillarReportSection key={activeSection} pillarKey={activeSection} health={health} />
+        ) : activeSection === "rqt" ? (
+          <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
+            <RqtIndexView siteOrigin={siteOrigin} />
+          </React.Suspense>
+        ) : (
+          <>
+            {/* Was a bespoke toolbar with the hint as a bare span. PageHeader gives Reports the
           same title/description/action shape every other tab opens with, which is most of
           why this tab used to read as a different product. */}
-      <PageHeader
-        title="Field usage matrix"
-        description={projectScope.length
-          ? `Scoped to ${projectScope.length} ${projectScope.length === 1 ? "project" : "projects"} — the field data below is limited to where the chosen screens are applied.`
-          : "Select fields in the Field Browser tab to build a cross-project usage report."}
-        actions={
-          <button
-            className="primary-button"
-            type="button"
-            onClick={() => generateReport()}
-            disabled={loadingReport || !selectedFieldIds.length}
-          >
-            <Icon name="barChart" size={14} />
-            {loadingReport ? "Generating…" : `Generate report (${selectedFieldIds.length} fields)`}
-          </button>
-        }
-      />
-      {projectScope.length > 0 && (
-        <div className="admin-field-browser__active-filters" style={{ marginBottom: 12 }}>
-          <Chip
-            tone="active"
-            onRemove={() => { onSetProjectScope?.([]); generateReport(null, "", []); }}
-            removeLabel="Clear the project scope and report across every project"
-          >
-            Project scope: {projectScope.length} {projectScope.length === 1 ? "project" : "projects"}
-          </Chip>
-        </div>
-      )}
-      <ReportErrorBoundary resetKey={`${activeReportName}-${selectedFieldIds.join(",")}`}>
-        <ProjectUsageReportView
-          reportData={reportData}
-          reportName={activeReportName}
-          reportJob={loadingReport ? { status: "building", processedFields: 0, totalFields: selectedFieldIds.length, percentComplete: 0 } : null}
-          siteOrigin={siteOrigin}
-          onExportCsv={exportCsv}
-          onAskReport={askRovo}
-          savedReports={savedReports}
-          selectedFieldIds={selectedFieldIds}
-          reportNameInput={reportNameInput}
-          onReportNameChange={setReportNameInput}
-          onSaveReport={saveCurrentReport}
-          onLoadReport={loadSavedReport}
-          onDeleteReport={removeSavedReport}
-          savingReport={savingReport}
-          deletingReportId={deletingReportId}
-          rovoEnabled={rovoEnabled}
-        />
-      </ReportErrorBoundary>
-        </>
-      )}
+            <PageHeader
+              title="Field usage matrix"
+              description={
+                projectScope.length
+                  ? `Scoped to ${projectScope.length} ${projectScope.length === 1 ? "project" : "projects"} — the field data below is limited to where the chosen screens are applied.`
+                  : "Select fields in the Field Browser tab to build a cross-project usage report."
+              }
+              actions={
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={() => generateReport()}
+                  disabled={loadingReport || !selectedFieldIds.length}
+                >
+                  <Icon name="barChart" size={14} />
+                  {loadingReport ? "Generating…" : `Generate report (${selectedFieldIds.length} fields)`}
+                </button>
+              }
+            />
+            {projectScope.length > 0 && (
+              <div className="admin-field-browser__active-filters" style={{ marginBottom: 12 }}>
+                <Chip
+                  tone="active"
+                  onRemove={() => {
+                    onSetProjectScope?.([]);
+                    generateReport(null, "", []);
+                  }}
+                  removeLabel="Clear the project scope and report across every project"
+                >
+                  Project scope: {projectScope.length} {projectScope.length === 1 ? "project" : "projects"}
+                </Chip>
+              </div>
+            )}
+            <ReportErrorBoundary resetKey={`${activeReportName}-${selectedFieldIds.join(",")}`}>
+              <ProjectUsageReportView
+                reportData={reportData}
+                reportName={activeReportName}
+                reportJob={
+                  loadingReport
+                    ? {
+                        status: "building",
+                        processedFields: 0,
+                        totalFields: selectedFieldIds.length,
+                        percentComplete: 0,
+                      }
+                    : null
+                }
+                siteOrigin={siteOrigin}
+                onExportCsv={exportCsv}
+                onAskReport={askRovo}
+                savedReports={savedReports}
+                selectedFieldIds={selectedFieldIds}
+                reportNameInput={reportNameInput}
+                onReportNameChange={setReportNameInput}
+                onSaveReport={saveCurrentReport}
+                onLoadReport={loadSavedReport}
+                onDeleteReport={removeSavedReport}
+                savingReport={savingReport}
+                deletingReportId={deletingReportId}
+                rovoEnabled={rovoEnabled}
+              />
+            </ReportErrorBoundary>
+          </>
+        )}
       </SubNavLayout>
     </div>
   );
@@ -256,7 +334,9 @@ function PillarReportSection({ pillarKey, health }) {
     }
   }, [pillarKey]);
 
-  React.useEffect(() => { load(); }, [load]);
+  React.useEffect(() => {
+    load();
+  }, [load]);
 
   const healthPillars = (report?.healthPillars || [])
     .map((key) => (health?.pillars || []).find((p) => p.key === key))
@@ -270,13 +350,17 @@ function PillarReportSection({ pillarKey, health }) {
       error={error}
       onReload={load}
       agent={nav?.agent || null}
-      governance={healthPillars.length ? (
-        <PanelGrid>
-          {healthPillars.map((p) => (
-            <GridSpan key={p.key}><PillarHealthPanel pillar={p} /></GridSpan>
-          ))}
-        </PanelGrid>
-      ) : null}
+      governance={
+        healthPillars.length ? (
+          <PanelGrid>
+            {healthPillars.map((p) => (
+              <GridSpan key={p.key}>
+                <PillarHealthPanel pillar={p} />
+              </GridSpan>
+            ))}
+          </PanelGrid>
+        ) : null
+      }
     />
   );
 }
@@ -286,7 +370,11 @@ function ScorecardSection({ health, scoredAt, onRescore }) {
   const [rescoring, setRescoring] = React.useState(false);
   async function rescore() {
     setRescoring(true);
-    try { await onRescore(); } finally { setRescoring(false); }
+    try {
+      await onRescore();
+    } finally {
+      setRescoring(false);
+    }
   }
   return (
     <PillarReportBody
@@ -303,7 +391,17 @@ function ScorecardSection({ health, scoredAt, onRescore }) {
 
 // The one report layout. Header with the snapshot age and the export, the summary tiles,
 // the caveats, the governance score beside it, then the rows.
-export function PillarReportBody({ title, description, report, loading = false, error = "", onReload = null, reloadLabel = "Refresh", agent = null, governance = null }) {
+export function PillarReportBody({
+  title,
+  description,
+  report,
+  loading = false,
+  error = "",
+  onReload = null,
+  reloadLabel = "Refresh",
+  agent = null,
+  governance = null,
+}) {
   const [flaggedOnly, setFlaggedOnly] = React.useState(false);
   const ok = report?.status === "ok";
   const columns = report?.columns || [];
@@ -332,7 +430,12 @@ export function PillarReportBody({ title, description, report, loading = false, 
           {loading ? "Loading…" : reloadLabel}
         </button>
       )}
-      <button type="button" className="primary-button" onClick={exportCsv} disabled={!ok || loading || report.total === 0}>
+      <button
+        type="button"
+        className="primary-button"
+        onClick={exportCsv}
+        disabled={!ok || loading || report.total === 0}
+      >
         Export CSV
       </button>
     </>
@@ -342,14 +445,19 @@ export function PillarReportBody({ title, description, report, loading = false, 
     <div className="pillar-report">
       <PageHeader
         title={title}
-        description={description || (report?.entity
-          ? `Every one of the ${report.entity} in the latest snapshot${hasFindings ? ", with the findings raised against each. Flagged rows first." : "."}`
-          : undefined)}
+        description={
+          description ||
+          (report?.entity
+            ? `Every one of the ${report.entity} in the latest snapshot${hasFindings ? ", with the findings raised against each. Flagged rows first." : "."}`
+            : undefined)
+        }
         meta={ok && report.refreshedAt ? `Snapshot ${formatRelativeTime(report.refreshedAt)}` : null}
         actions={actions}
       />
       {error ? (
-        <div className="error-banner" role="alert">{error}</div>
+        <div className="error-banner" role="alert">
+          {error}
+        </div>
       ) : loading && !report ? (
         <EmptyState>Building the report…</EmptyState>
       ) : !ok ? (
@@ -369,7 +477,9 @@ export function PillarReportBody({ title, description, report, loading = false, 
           </StatRow>
           {report.notes.length > 0 && (
             <ul className="pillar-report__notes">
-              {report.notes.map((note) => <li key={note}>{note}</li>)}
+              {report.notes.map((note) => (
+                <li key={note}>{note}</li>
+              ))}
             </ul>
           )}
           {governance}
@@ -385,8 +495,8 @@ export function PillarReportBody({ title, description, report, loading = false, 
                   </span>
                   {hasFindings && report.flaggedCount > 0 && (
                     <label>
-                      <input type="checkbox" checked={flaggedOnly} onChange={(e) => setFlaggedOnly(e.target.checked)} />
-                      {" "}Only rows with findings
+                      <input type="checkbox" checked={flaggedOnly} onChange={(e) => setFlaggedOnly(e.target.checked)} />{" "}
+                      Only rows with findings
                     </label>
                   )}
                 </div>
@@ -395,7 +505,9 @@ export function PillarReportBody({ title, description, report, loading = false, 
                     <thead>
                       <tr>
                         {columns.map((c) => (
-                          <th key={c.key} className={c.kind === "number" ? "pillar-report__num" : undefined}>{c.label}</th>
+                          <th key={c.key} className={c.kind === "number" ? "pillar-report__num" : undefined}>
+                            {c.label}
+                          </th>
                         ))}
                       </tr>
                     </thead>
@@ -406,10 +518,16 @@ export function PillarReportBody({ title, description, report, loading = false, 
                             <td key={c.key} className={c.kind === "number" ? "pillar-report__num" : undefined}>
                               {c.key === "findings" ? (
                                 <span className="pillar-report__findings">
-                                  {(row.findings || []).map((code) => <Chip key={code} tone="warning">{code}</Chip>)}
+                                  {(row.findings || []).map((code) => (
+                                    <Chip key={code} tone="warning">
+                                      {code}
+                                    </Chip>
+                                  ))}
                                 </span>
                               ) : (
-                                <span title={formatReportCell(row[c.key], c.kind)}>{formatReportCell(row[c.key], c.kind) || "—"}</span>
+                                <span title={formatReportCell(row[c.key], c.kind)}>
+                                  {formatReportCell(row[c.key], c.kind) || "—"}
+                                </span>
                               )}
                             </td>
                           ))}

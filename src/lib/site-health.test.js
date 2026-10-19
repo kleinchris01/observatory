@@ -58,7 +58,17 @@ const automationStore = {
 };
 vi.mock("./store/automation.js", () => automationStore);
 
-const { buildProjectInsights, buildFieldUsageInsights, captureSiteHealth, buildUserOverview, buildAssetOverview, buildAccessOverview, buildEstateOverview, buildWorkflowOverview, buildFieldConfigOverview } = await import("./site-health.js");
+const {
+  buildProjectInsights,
+  buildFieldUsageInsights,
+  captureSiteHealth,
+  buildUserOverview,
+  buildAssetOverview,
+  buildAccessOverview,
+  buildEstateOverview,
+  buildWorkflowOverview,
+  buildFieldConfigOverview,
+} = await import("./site-health.js");
 const workflowStore = await import("./project-store.js");
 
 // The fields pillar scores duplicate naming once, through the dedicated field-naming
@@ -71,7 +81,9 @@ describe("buildFieldUsageInsights — duplicate naming is not double-counted", (
   test("a duplicate-naming reason is excluded from findingsBySeverity", () => {
     const insights = buildFieldUsageInsights([
       field("Story Points", [{ code: "duplicate-naming", severity: "medium", title: "Similar field naming detected" }]),
-      field("Story Points ", [{ code: "duplicate-naming", severity: "medium", title: "Similar field naming detected" }]),
+      field("Story Points ", [
+        { code: "duplicate-naming", severity: "medium", title: "Similar field naming detected" },
+      ]),
     ]);
     expect(insights.findingsBySeverity.medium).toBe(0);
     // The cluster is still counted where it IS scored, and still shown on the tab breakdown.
@@ -112,7 +124,11 @@ describe("buildUserOverview", () => {
   });
 
   test("derives deactivated count from the seat summary, not the roster length", async () => {
-    userStore.readUserSnapshotMeta.mockResolvedValueOnce({ version: "v1", state: "ready", refreshedAt: "2026-09-01T00:00:00Z" });
+    userStore.readUserSnapshotMeta.mockResolvedValueOnce({
+      version: "v1",
+      state: "ready",
+      refreshedAt: "2026-09-01T00:00:00Z",
+    });
     userStore.loadUsers.mockResolvedValueOnce([{ accountId: "a1" }, { accountId: "a2" }]);
     userStore.loadUserGovernanceSummary.mockResolvedValueOnce({ totalUsers: 500, activeUsers: 470 });
 
@@ -146,9 +162,10 @@ describe("buildUserOverview", () => {
     userStore.loadUsers.mockResolvedValueOnce([{ accountId: "a1" }]);
     userStore.loadUserGovernanceSummary.mockResolvedValueOnce({ totalUsers: 1, activeUsers: 1 });
     automationStore.readAutomationPart.mockImplementation((_k, part) =>
-      Promise.resolve(part === "users"
-        ? { entries: [{ label: "a1" }, { label: "gone-1" }, { label: "gone-2" }] }
-        : null));
+      Promise.resolve(
+        part === "users" ? { entries: [{ label: "a1" }, { label: "gone-1" }, { label: "gone-2" }] } : null,
+      ),
+    );
 
     const overview = await buildUserOverview("inst");
     expect(overview.automationRefUsers).toBe(3);
@@ -166,14 +183,23 @@ describe("buildAssetOverview", () => {
   });
 
   test("reports not-applicable, with a health input, when the meta says Assets is off", async () => {
-    assetStore.readAssetSnapshotMeta.mockResolvedValueOnce({ state: "unavailable", assetsEnabled: false, lastError: "no workspace" });
+    assetStore.readAssetSnapshotMeta.mockResolvedValueOnce({
+      state: "unavailable",
+      assetsEnabled: false,
+      lastError: "no workspace",
+    });
     const overview = await buildAssetOverview("inst");
     expect(overview).toMatchObject({ available: false, assetsEnabled: false, state: "unavailable" });
     expect(overview.health).toEqual({ available: false, assetsEnabled: false });
   });
 
   test("summarises the structure and hands computeSiteHealth its inputs", async () => {
-    assetStore.readAssetSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1", assetsEnabled: true, refreshedAt: "2026-09-02T00:00:00Z" });
+    assetStore.readAssetSnapshotMeta.mockResolvedValueOnce({
+      state: "ready",
+      version: "v1",
+      assetsEnabled: true,
+      refreshedAt: "2026-09-02T00:00:00Z",
+    });
     assetStore.loadAssetSchemas.mockResolvedValueOnce([
       { id: "1", name: "Infra", objectTypeCount: 2, objectCount: 40 },
       { id: "2", name: "Empty", objectTypeCount: 0, objectCount: 0 },
@@ -188,15 +214,33 @@ describe("buildAssetOverview", () => {
     ]);
 
     const overview = await buildAssetOverview("inst");
-    expect(overview).toMatchObject({ available: true, assetsEnabled: true, totalSchemas: 2, deadSchemaCount: 1, brokenReferenceCount: 1 });
-    expect(overview.health).toMatchObject({ available: true, totalSchemas: 2, deadSchemaCount: 1, brokenReferenceCount: 1 });
+    expect(overview).toMatchObject({
+      available: true,
+      assetsEnabled: true,
+      totalSchemas: 2,
+      deadSchemaCount: 1,
+      brokenReferenceCount: 1,
+    });
+    expect(overview.health).toMatchObject({
+      available: true,
+      totalSchemas: 2,
+      deadSchemaCount: 1,
+      brokenReferenceCount: 1,
+    });
     // The count crawl has never run: unmeasured, not zero.
     expect(overview.health).toMatchObject({ countsMeasured: false, measuredConcreteTypes: 0, emptyObjectTypeCount: 0 });
   });
 
   test("folds the AQL crawl's counts and its own meta into the overview", async () => {
-    assetStore.readAssetSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1", assetsEnabled: true, refreshedAt: "2026-09-02T00:00:00Z" });
-    assetStore.loadAssetSchemas.mockResolvedValueOnce([{ id: "1", name: "Infra", objectTypeCount: 2, objectCount: 40 }]);
+    assetStore.readAssetSnapshotMeta.mockResolvedValueOnce({
+      state: "ready",
+      version: "v1",
+      assetsEnabled: true,
+      refreshedAt: "2026-09-02T00:00:00Z",
+    });
+    assetStore.loadAssetSchemas.mockResolvedValueOnce([
+      { id: "1", name: "Infra", objectTypeCount: 2, objectCount: 40 },
+    ]);
     assetStore.loadAssetObjectTypes.mockResolvedValueOnce([
       { id: "9", schemaId: "1", name: "Server", parentId: null, abstract: false },
       { id: "10", schemaId: "1", name: "VM", parentId: "9", abstract: false },
@@ -206,13 +250,20 @@ describe("buildAssetOverview", () => {
       { objectTypeId: "10", schemaId: "1", objectCount: 5 },
     ]);
     assetStore.readAssetTypeCountMeta.mockResolvedValueOnce({
-      state: "ready", refreshedAt: "2026-09-16T00:00:00Z", measuredTypes: 2, unmeasuredTypes: 0,
+      state: "ready",
+      refreshedAt: "2026-09-16T00:00:00Z",
+      measuredTypes: 2,
+      unmeasuredTypes: 0,
     });
 
     const overview = await buildAssetOverview("inst");
     expect(overview.health).toMatchObject({ countsMeasured: true, measuredConcreteTypes: 2, emptyObjectTypeCount: 1 });
     expect(overview.typeCountCrawl).toEqual({
-      state: "ready", refreshedAt: "2026-09-16T00:00:00Z", measuredTypes: 2, unmeasuredTypes: 0, lastError: null,
+      state: "ready",
+      refreshedAt: "2026-09-16T00:00:00Z",
+      measuredTypes: 2,
+      unmeasuredTypes: 0,
+      lastError: null,
     });
   });
 });
@@ -225,19 +276,43 @@ describe("buildAccessOverview", () => {
   });
 
   test("summarises each scheme type and hands each its own health block", async () => {
-    accessStore.readAccessSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1", refreshedAt: "2026-09-02T00:00:00Z" });
-    accessStore.loadSchemes.mockImplementation(async (_k, _v, type) => type === "permission"
-      ? [{ id: "1", name: "Prod", isDefault: false }, { id: "2", name: "Default Permission Scheme", isDefault: true }]
-      : type === "security" ? [{ id: "s1", name: "Sec" }]
-      : type === "notification" ? [{ id: "n1", name: "Notif" }]
-      : [{ id: "10002", name: "Administrators" }]);
-    accessStore.loadSchemeHolders.mockImplementation(async (_k, _v, type) => type === "permission"
-      ? [{ schemeId: "1", context: "BROWSE_PROJECTS", holderType: "anyone", holderValue: "" }]
-      : type === "project-role"
-      ? [{ schemeId: "10002", context: "1", contextLabel: "OPS", holderType: "empty", holderValue: "", holderLabel: "Administrators" }]
-      : []);
+    accessStore.readAccessSnapshotMeta.mockResolvedValueOnce({
+      state: "ready",
+      version: "v1",
+      refreshedAt: "2026-09-02T00:00:00Z",
+    });
+    accessStore.loadSchemes.mockImplementation(async (_k, _v, type) =>
+      type === "permission"
+        ? [
+            { id: "1", name: "Prod", isDefault: false },
+            { id: "2", name: "Default Permission Scheme", isDefault: true },
+          ]
+        : type === "security"
+          ? [{ id: "s1", name: "Sec" }]
+          : type === "notification"
+            ? [{ id: "n1", name: "Notif" }]
+            : [{ id: "10002", name: "Administrators" }],
+    );
+    accessStore.loadSchemeHolders.mockImplementation(async (_k, _v, type) =>
+      type === "permission"
+        ? [{ schemeId: "1", context: "BROWSE_PROJECTS", holderType: "anyone", holderValue: "" }]
+        : type === "project-role"
+          ? [
+              {
+                schemeId: "10002",
+                context: "1",
+                contextLabel: "OPS",
+                holderType: "empty",
+                holderValue: "",
+                holderLabel: "Administrators",
+              },
+            ]
+          : [],
+    );
     accessStore.loadSchemeLevels.mockResolvedValue([{ schemeId: "s1", id: "L1", name: "Internal" }]);
-    accessStore.loadSchemeProjects.mockImplementation(async (_k, _v, type) => type === "permission" ? [{ schemeId: "1", projectId: "10" }] : []);
+    accessStore.loadSchemeProjects.mockImplementation(async (_k, _v, type) =>
+      type === "permission" ? [{ schemeId: "1", projectId: "10" }] : [],
+    );
 
     const overview = await buildAccessOverview("inst");
     expect(overview.available).toBe(true);
@@ -258,11 +333,19 @@ describe("buildEstateOverview", () => {
   });
 
   test("summarises the value lists and attaches a health block", async () => {
-    estateStore.readEstateSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1", refreshedAt: "2026-09-03T00:00:00Z" });
+    estateStore.readEstateSnapshotMeta.mockResolvedValueOnce({
+      state: "ready",
+      version: "v1",
+      refreshedAt: "2026-09-03T00:00:00Z",
+    });
     estateStore.loadEstateValues.mockImplementation(async (_k, _v, kind) =>
       kind === "resolution"
-        ? [{ id: "1", name: "Done", isDefault: true }, { id: "2", name: "done" }]
-        : [{ id: "10", name: "High", isDefault: true }]);
+        ? [
+            { id: "1", name: "Done", isDefault: true },
+            { id: "2", name: "done" },
+          ]
+        : [{ id: "10", name: "High", isDefault: true }],
+    );
 
     const overview = await buildEstateOverview("inst");
     expect(overview.available).toBe(true);
@@ -285,8 +368,7 @@ const project = (key, over = {}) => ({
 });
 
 // n projects at the median, so the derived floor is predictable.
-const baseline = (n, fieldCount = 20) =>
-  Array.from({ length: n }, (_, i) => project(`B${i}`, { fieldCount }));
+const baseline = (n, fieldCount = 20) => Array.from({ length: n }, (_, i) => project(`B${i}`, { fieldCount }));
 
 describe("buildProjectInsights — counts vs display lists", () => {
   // The defect this exists to prevent. The health score derived its rate from the LENGTH
@@ -388,10 +470,7 @@ describe("buildProjectInsights — unused means no work, not no field fills", ()
   });
 
   test("falls back to fills, and says so, when nothing has been measured", () => {
-    const insights = buildProjectInsights([
-      ...baseline(10),
-      project("EMPTY", { fieldCount: 12, totalIssueCount: 0 }),
-    ]);
+    const insights = buildProjectInsights([...baseline(10), project("EMPTY", { fieldCount: 12, totalIssueCount: 0 })]);
 
     expect(insights.hasUniqueCounts).toBe(false);
     expect(insights.totalUniqueIssues).toBeNull();
@@ -442,7 +521,11 @@ describe("buildProjectInsights — empty input", () => {
 // the rules: a snapshot that predates capture must score "rebuild", not "clean".
 describe("buildWorkflowOverview — rule integrity", () => {
   test("is unavailable when the snapshot never read transition rules", async () => {
-    workflowStore.readWorkflowSnapshotMeta.mockResolvedValueOnce({ version: "w1", state: "ready", workflowRules: null });
+    workflowStore.readWorkflowSnapshotMeta.mockResolvedValueOnce({
+      version: "w1",
+      state: "ready",
+      workflowRules: null,
+    });
     const overview = await buildWorkflowOverview("site");
     expect(overview.ruleIntegrity).toEqual({ available: false });
     expect(workflowStore.loadWorkflowsCatalog).not.toHaveBeenCalled();
@@ -455,12 +538,27 @@ describe("buildWorkflowOverview — rule integrity", () => {
       { name: "Zombie", scopeType: "GLOBAL", schemeCount: 0, ruleCount: 1 },
     ]);
     workflowStore.loadWorkflowRefsByType.mockResolvedValueOnce([
-      { refType: "field", refId: "customfield_9", refMissing: true, workflowName: "Live", source: "rule", ownerKind: "transition", ownerId: "21", ruleSeq: 0 },
+      {
+        refType: "field",
+        refId: "customfield_9",
+        refMissing: true,
+        workflowName: "Live",
+        source: "rule",
+        ownerKind: "transition",
+        ownerId: "21",
+        ruleSeq: 0,
+      },
     ]);
 
     const overview = await buildWorkflowOverview("site");
     expect(overview.ruleIntegrity).toEqual({
-      available: true, workflows: 2, teamManaged: 0, rules: 9, brokenRules: 1, brokenProperties: 0, inactive: 1,
+      available: true,
+      workflows: 2,
+      teamManaged: 0,
+      rules: 9,
+      brokenRules: 1,
+      brokenProperties: 0,
+      inactive: 1,
     });
   });
 
@@ -481,7 +579,10 @@ describe("buildFieldConfigOverview", () => {
 
   test("carries the model and the stored summary into the health input", async () => {
     workflowStore.readFieldConfigSnapshotMeta.mockResolvedValueOnce({
-      version: "v1", state: "ready", refreshedAt: "t", source: "field-schemes",
+      version: "v1",
+      state: "ready",
+      refreshedAt: "t",
+      source: "field-schemes",
       summary: { usageJudged: 5, unusedSchemes: 1 },
     });
     const overview = await buildFieldConfigOverview("site");

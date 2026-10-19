@@ -39,28 +39,40 @@ export const jiraLinks = {
   statusAdmin: (o) => (o ? `${o}/secure/admin/ViewStatuses.jspa` : null),
   // Legacy field configurations and their schemes, by numeric id. Field schemes have no
   // stable admin URL published yet, so they link nowhere rather than somewhere wrong.
-  fieldConfiguration: (o, id) => (o && present(id) ? `${o}/secure/admin/ConfigureFieldLayout!default.jspa?id=${enc(id)}` : null),
-  fieldConfigurationScheme: (o, id) => (o && present(id) ? `${o}/secure/admin/ConfigureFieldLayoutScheme!default.jspa?id=${enc(id)}` : null),
+  fieldConfiguration: (o, id) =>
+    o && present(id) ? `${o}/secure/admin/ConfigureFieldLayout!default.jspa?id=${enc(id)}` : null,
+  fieldConfigurationScheme: (o, id) =>
+    o && present(id) ? `${o}/secure/admin/ConfigureFieldLayoutScheme!default.jspa?id=${enc(id)}` : null,
   fieldConfigurationsAdmin: (o) => (o ? `${o}/secure/admin/ViewFieldLayouts.jspa` : null),
-  workflow: (o, name) => (o && present(name) ? `${o}/secure/admin/workflows/ViewWorkflowSteps.jspa?workflowMode=live&workflowName=${enc(name)}` : null),
+  workflow: (o, name) =>
+    o && present(name)
+      ? `${o}/secure/admin/workflows/ViewWorkflowSteps.jspa?workflowMode=live&workflowName=${enc(name)}`
+      : null,
   workflowsAdmin: (o) => (o ? `${o}/secure/admin/workflows/ListWorkflows.jspa` : null),
-  workflowScheme: (o, id) => (o && present(id) ? `${o}/secure/admin/EditWorkflowScheme.jspa?schemeId=${enc(id)}` : null),
+  workflowScheme: (o, id) =>
+    o && present(id) ? `${o}/secure/admin/EditWorkflowScheme.jspa?schemeId=${enc(id)}` : null,
   issueTypeAdmin: (o) => (o ? `${o}/secure/admin/ViewIssueTypes.jspa` : null),
-  issueTypeScheme: (o, id) => (o && present(id) ? `${o}/secure/admin/ConfigureOptionSchemes!default.jspa?schemeId=${enc(id)}` : null),
+  issueTypeScheme: (o, id) =>
+    o && present(id) ? `${o}/secure/admin/ConfigureOptionSchemes!default.jspa?schemeId=${enc(id)}` : null,
   screen: (o, id) => (o && present(id) ? `${o}/secure/admin/ConfigureFieldScreen.jspa?id=${enc(id)}` : null),
-  screenScheme: (o, id) => (o && present(id) ? `${o}/secure/admin/ConfigureFieldScreenScheme.jspa?id=${enc(id)}` : null),
-  permissionScheme: (o, id) => (o && present(id) ? `${o}/secure/admin/EditPermissions!default.jspa?schemeId=${enc(id)}` : null),
-  notificationScheme: (o, id) => (o && present(id) ? `${o}/secure/admin/EditNotifications!default.jspa?schemeId=${enc(id)}` : null),
-  securityScheme: (o, id) => (o && present(id) ? `${o}/secure/admin/EditIssueSecurities!default.jspa?schemeId=${enc(id)}` : null),
+  screenScheme: (o, id) =>
+    o && present(id) ? `${o}/secure/admin/ConfigureFieldScreenScheme.jspa?id=${enc(id)}` : null,
+  permissionScheme: (o, id) =>
+    o && present(id) ? `${o}/secure/admin/EditPermissions!default.jspa?schemeId=${enc(id)}` : null,
+  notificationScheme: (o, id) =>
+    o && present(id) ? `${o}/secure/admin/EditNotifications!default.jspa?schemeId=${enc(id)}` : null,
+  securityScheme: (o, id) =>
+    o && present(id) ? `${o}/secure/admin/EditIssueSecurities!default.jspa?schemeId=${enc(id)}` : null,
   priorityAdmin: (o) => (o ? `${o}/secure/admin/ViewPriorities.jspa` : null),
   resolutionAdmin: (o) => (o ? `${o}/secure/admin/ViewResolutions.jspa` : null),
   projectRolesAdmin: (o) => (o ? `${o}/secure/project/ViewProjectRoles.jspa` : null),
   person: (o, accountId) => (o && accountId ? `${o}/jira/people/${enc(accountId)}` : null),
   automationRule: (o, id) => (o && present(id) ? `${o}/jira/settings/automation#/rule/${enc(id)}` : null),
   assetSchema: (o, id) => (o && present(id) ? `${o}/secure/ObjectSchema.jspa?id=${enc(id)}` : null),
-  assetType: (o, schemaId, typeId) => (o && present(schemaId) && present(typeId)
-    ? `${o}/secure/ObjectSchema.jspa?id=${enc(schemaId)}&typeId=${enc(typeId)}`
-    : null),
+  assetType: (o, schemaId, typeId) =>
+    o && present(schemaId) && present(typeId)
+      ? `${o}/secure/ObjectSchema.jspa?id=${enc(schemaId)}&typeId=${enc(typeId)}`
+      : null,
 };
 
 // A markdown-style link for renderADF, or the bare label when there is no URL. Brackets in

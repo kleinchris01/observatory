@@ -1,9 +1,32 @@
-import React from "react";
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { router, rovo } from "@forge/bridge";
-import { StatTile, StatRow, Panel, CollapsiblePanels, Chip, EmptyState, BarList, FindingRow, LinkButton, PageHeader, RuleLink, JiraLink, SortFilterBar, StageRail, formatDurationMs, AskRovo, RemediationStatus, TransitionPath, WorkflowUsageList, UsageTriple, combineUsageItems, formatUsageWhen, SegmentedToggle } from "./ui";
+import {
+  StatTile,
+  StatRow,
+  Panel,
+  CollapsiblePanels,
+  Chip,
+  EmptyState,
+  BarList,
+  FindingRow,
+  LinkButton,
+  PageHeader,
+  RuleLink,
+  JiraLink,
+  SortFilterBar,
+  StageRail,
+  formatDurationMs,
+  AskRovo,
+  RemediationStatus,
+  TransitionPath,
+  WorkflowUsageList,
+  UsageTriple,
+  combineUsageItems,
+  formatUsageWhen,
+  SegmentedToggle,
+} from "./ui";
 
 // These are the shared vocabulary that replaced four separate stat-card idioms. They are
 // small, but they now render on every tab, so a regression here is a regression
@@ -54,7 +77,7 @@ describe("Panel", () => {
     render(
       <Panel title="Workflows" description="Scheme health" action={<LinkButton onClick={onClick}>Open</LinkButton>}>
         <p>body content</p>
-      </Panel>
+      </Panel>,
     );
 
     expect(screen.getByRole("heading", { name: /Workflows/ })).toBeInTheDocument();
@@ -66,13 +89,21 @@ describe("Panel", () => {
   });
 
   test("is not collapsible by default -- no toggle, body always shown", () => {
-    render(<Panel title="Plain"><p>always here</p></Panel>);
+    render(
+      <Panel title="Plain">
+        <p>always here</p>
+      </Panel>,
+    );
     expect(screen.getByText("always here")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Plain/ })).toBeNull();
   });
 
   test("collapsible: the head toggles the body", async () => {
-    render(<Panel title="Foldable" collapsible><p>fold me</p></Panel>);
+    render(
+      <Panel title="Foldable" collapsible>
+        <p>fold me</p>
+      </Panel>,
+    );
     const toggle = screen.getByRole("button", { name: /Foldable/ });
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("fold me")).toBeInTheDocument();
@@ -86,7 +117,11 @@ describe("Panel", () => {
   });
 
   test("defaultCollapsed starts folded", () => {
-    render(<Panel title="Closed" collapsible defaultCollapsed><p>hidden</p></Panel>);
+    render(
+      <Panel title="Closed" collapsible defaultCollapsed>
+        <p>hidden</p>
+      </Panel>,
+    );
     expect(screen.queryByText("hidden")).toBeNull();
     expect(screen.getByRole("button", { name: /Closed/ })).toHaveAttribute("aria-expanded", "false");
   });
@@ -94,9 +129,13 @@ describe("Panel", () => {
   test("CollapsiblePanels makes every nested Panel collapsible without a prop", async () => {
     render(
       <CollapsiblePanels>
-        <Panel title="One"><p>one body</p></Panel>
-        <Panel title="Two"><p>two body</p></Panel>
-      </CollapsiblePanels>
+        <Panel title="One">
+          <p>one body</p>
+        </Panel>
+        <Panel title="Two">
+          <p>two body</p>
+        </Panel>
+      </CollapsiblePanels>,
     );
     await userEvent.click(screen.getByRole("button", { name: /One/ }));
     expect(screen.queryByText("one body")).toBeNull();
@@ -107,7 +146,11 @@ describe("Panel", () => {
 
 describe("Chip", () => {
   test("renders its content and tone", () => {
-    const { container } = render(<Chip tone="critical" title="why">3 issues</Chip>);
+    const { container } = render(
+      <Chip tone="critical" title="why">
+        3 issues
+      </Chip>,
+    );
     expect(screen.getByText("3 issues")).toBeInTheDocument();
     expect(container.querySelector(".ui-chip--critical")).not.toBeNull();
   });
@@ -176,7 +219,7 @@ describe("BarList", () => {
   // A zero-valued list would divide by zero without the floor, collapsing the layout.
   test("survives a list whose values are all zero", () => {
     const { container } = render(
-      <BarList items={[{ projectKey: "ZERO", count: 0 }]} labelKey="projectKey" valueKey="count" />
+      <BarList items={[{ projectKey: "ZERO", count: 0 }]} labelKey="projectKey" valueKey="count" />,
     );
     expect(container.querySelector(".ui-barlist__bar")).not.toBeNull();
   });
@@ -192,7 +235,7 @@ describe("FindingRow", () => {
         title="Duplicate statuses"
         detail="Consolidating removes 20."
         action={<LinkButton onClick={onClick}>Workflows</LinkButton>}
-      />
+      />,
     );
 
     expect(screen.getByText("12")).toBeInTheDocument();
@@ -214,7 +257,11 @@ describe("FindingRow", () => {
 
 describe("StatRow", () => {
   test("groups its children", () => {
-    const { container } = render(<StatRow><StatTile label="A" value="1" /></StatRow>);
+    const { container } = render(
+      <StatRow>
+        <StatTile label="A" value="1" />
+      </StatRow>,
+    );
     expect(container.querySelector(".ui-stat-row")).not.toBeNull();
   });
 });
@@ -224,7 +271,12 @@ describe("StatRow", () => {
 describe("PageHeader", () => {
   test("renders freshness beside the action rather than as a stat", () => {
     const { container } = render(
-      <PageHeader title="Screens" description="What each form contains." meta="Built 18m ago" actions={<button>Rebuild</button>} />
+      <PageHeader
+        title="Screens"
+        description="What each form contains."
+        meta="Built 18m ago"
+        actions={<button>Rebuild</button>}
+      />,
     );
 
     expect(screen.getByText("Built 18m ago")).toBeInTheDocument();
@@ -246,14 +298,19 @@ describe("PageHeader", () => {
 // filter is visible as something you can remove, and "all" is not an active filter.
 
 describe("SortFilterBar", () => {
-  const filters = (over = {}) => ([{
-    key: "type",
-    label: "Type",
-    value: "all",
-    onChange: vi.fn(),
-    options: [{ value: "all", label: "All types" }, { value: "date", label: "Date", count: 12 }],
-    ...over,
-  }]);
+  const filters = (over = {}) => [
+    {
+      key: "type",
+      label: "Type",
+      value: "all",
+      onChange: vi.fn(),
+      options: [
+        { value: "all", label: "All types" },
+        { value: "date", label: "Date", count: 12 },
+      ],
+      ...over,
+    },
+  ];
 
   test("reports a filtered count against the total, so rows never look lost", () => {
     render(<SortFilterBar search="bug" onSearchChange={vi.fn()} resultCount={40} totalCount={760} />);
@@ -290,7 +347,14 @@ describe("SortFilterBar", () => {
   });
 
   test("gives the search box an accessible name, not just a placeholder", () => {
-    render(<SortFilterBar search="" onSearchChange={vi.fn()} searchLabel="Search screens" searchPlaceholder="Search screens by name or id" />);
+    render(
+      <SortFilterBar
+        search=""
+        onSearchChange={vi.fn()}
+        searchLabel="Search screens"
+        searchPlaceholder="Search screens by name or id"
+      />,
+    );
     expect(screen.getByRole("searchbox", { name: /Search screens/i })).toBeInTheDocument();
   });
 
@@ -298,10 +362,15 @@ describe("SortFilterBar", () => {
     const onSortChange = vi.fn();
     render(
       <SortFilterBar
-        search="" onSearchChange={vi.fn()}
-        sort="name-asc" onSortChange={onSortChange}
-        sortOptions={[{ value: "name-asc", label: "Name A-Z" }, { value: "fields-desc", label: "Most fields" }]}
-      />
+        search=""
+        onSearchChange={vi.fn()}
+        sort="name-asc"
+        onSortChange={onSortChange}
+        sortOptions={[
+          { value: "name-asc", label: "Name A-Z" },
+          { value: "fields-desc", label: "Most fields" },
+        ]}
+      />,
     );
 
     await userEvent.selectOptions(screen.getByRole("combobox", { name: /Sort/i }), "fields-desc");
@@ -345,7 +414,11 @@ describe("JiraLink", () => {
   it("does not let the click reach an enclosing clickable row", async () => {
     const user = userEvent.setup();
     const onRowClick = vi.fn();
-    render(<div onClick={onRowClick}><JiraLink href={href}>DEMO</JiraLink></div>);
+    render(
+      <div onClick={onRowClick}>
+        <JiraLink href={href}>DEMO</JiraLink>
+      </div>,
+    );
     await user.click(screen.getByRole("link", { name: "DEMO" }));
     expect(onRowClick).not.toHaveBeenCalled();
   });
@@ -356,8 +429,10 @@ describe("RuleLink", () => {
 
   it("deep links to the rule in Jira automation", () => {
     render(<RuleLink id={28499275} name="Update cost review" siteOrigin={siteOrigin} />);
-    expect(screen.getByRole("link", { name: "Update cost review" }))
-      .toHaveAttribute("href", "https://example.atlassian.net/jira/settings/automation#/rule/28499275");
+    expect(screen.getByRole("link", { name: "Update cost review" })).toHaveAttribute(
+      "href",
+      "https://example.atlassian.net/jira/settings/automation#/rule/28499275",
+    );
   });
 
   it("falls back to plain text when the site origin is unknown", () => {
@@ -405,7 +480,11 @@ describe("StageRail", () => {
   test("renders one node per stage, in order", () => {
     const { container } = render(<StageRail stages={stages} />);
     const nodes = [...container.querySelectorAll(".stage-rail__node")];
-    expect(nodes.map((n) => n.querySelector(".stage-rail__label").textContent)).toEqual(["Workflows", "Filters", "Issues"]);
+    expect(nodes.map((n) => n.querySelector(".stage-rail__label").textContent)).toEqual([
+      "Workflows",
+      "Filters",
+      "Issues",
+    ]);
   });
 
   test("marks the current node and the selected node independently", () => {
@@ -449,7 +528,7 @@ describe("AskRovo", () => {
         scope="this scheme"
         context="its status list and findings"
         buildPrompt={() => "prompt"}
-      />
+      />,
     );
     const button = screen.getByRole("button", { name: /ask rovo/i });
     expect(button).toHaveTextContent("Ask Rovo about this scheme");
@@ -511,32 +590,65 @@ describe("RemediationStatus", () => {
   const origin = "https://acme.atlassian.net";
 
   test("this quarter's epic: the key, linked, and open of total", () => {
-    render(<RemediationStatus group={{ isCurrent: true, period: "2026-Q3", epic: { issueKey: "ADMIN-7" }, taskCount: 4, openCount: 3 }} period="2026-Q3" siteOrigin={origin} />);
+    render(
+      <RemediationStatus
+        group={{ isCurrent: true, period: "2026-Q3", epic: { issueKey: "ADMIN-7" }, taskCount: 4, openCount: 3 }}
+        period="2026-Q3"
+        siteOrigin={origin}
+      />,
+    );
     expect(screen.getByRole("link", { name: "ADMIN-7" })).toHaveAttribute("href", `${origin}/browse/ADMIN-7`);
     expect(screen.getByText(/3 of 4 tasks open/)).toBeInTheDocument();
   });
 
   test("says when every task is closed", () => {
-    render(<RemediationStatus group={{ isCurrent: true, epic: { issueKey: "ADMIN-7" }, taskCount: 4, openCount: 0 }} period="2026-Q3" siteOrigin={origin} />);
+    render(
+      <RemediationStatus
+        group={{ isCurrent: true, epic: { issueKey: "ADMIN-7" }, taskCount: 4, openCount: 0 }}
+        period="2026-Q3"
+        siteOrigin={origin}
+      />,
+    );
     expect(screen.getByText(/all 4 tasks closed/)).toBeInTheDocument();
   });
 
   test("an earlier quarter's epic names its quarter and that this one has not started", () => {
-    render(<RemediationStatus group={{ isCurrent: false, period: "2026-Q2", epic: { issueKey: "ADMIN-1" } }} period="2026-Q3" siteOrigin={origin} />);
+    render(
+      <RemediationStatus
+        group={{ isCurrent: false, period: "2026-Q2", epic: { issueKey: "ADMIN-1" } }}
+        period="2026-Q3"
+        siteOrigin={origin}
+      />,
+    );
     expect(screen.getByText(/2026-Q2 epic/)).toBeInTheDocument();
     expect(screen.getByText(/2026-Q3 not started/)).toBeInTheDocument();
   });
 
   test("an earlier quarter's epic also says how much of it is still open", () => {
-    render(<RemediationStatus group={{ isCurrent: false, period: "2026-Q3", epic: { issueKey: "ADMIN-1" }, taskCount: 195, openCount: 195 }} period="2026-Q4" siteOrigin={origin} />);
+    render(
+      <RemediationStatus
+        group={{ isCurrent: false, period: "2026-Q3", epic: { issueKey: "ADMIN-1" }, taskCount: 195, openCount: 195 }}
+        period="2026-Q4"
+        siteOrigin={origin}
+      />,
+    );
     expect(screen.getByText(/195 of 195 tasks open/)).toBeInTheDocument();
   });
 
   test("tasks still open under earlier quarters are counted alongside this quarter's", () => {
-    render(<RemediationStatus
-      group={{ isCurrent: true, epic: { issueKey: "ADMIN-7" }, taskCount: 40, openCount: 0, previousPeriods: [{ period: "2026-Q3", openCount: 195 }] }}
-      period="2026-Q4" siteOrigin={origin}
-    />);
+    render(
+      <RemediationStatus
+        group={{
+          isCurrent: true,
+          epic: { issueKey: "ADMIN-7" },
+          taskCount: 40,
+          openCount: 0,
+          previousPeriods: [{ period: "2026-Q3", openCount: 195 }],
+        }}
+        period="2026-Q4"
+        siteOrigin={origin}
+      />,
+    );
     expect(screen.getByText(/all 40 tasks closed · 195 more open from earlier quarters/)).toBeInTheDocument();
   });
 
@@ -551,7 +663,11 @@ describe("RemediationStatus", () => {
 
 describe("TransitionPath", () => {
   test("names the transition and the statuses it runs between", () => {
-    render(<TransitionPath transition={{ name: "Approve", from: [{ name: "In Review" }, { name: "On Hold" }], to: { name: "Approved" } }} />);
+    render(
+      <TransitionPath
+        transition={{ name: "Approve", from: [{ name: "In Review" }, { name: "On Hold" }], to: { name: "Approved" } }}
+      />,
+    );
     expect(screen.getByText("Approve")).toBeInTheDocument();
     expect(screen.getByText(/In Review, On Hold/)).toHaveTextContent(/In Review, On Hold\s*→\s*to\s*Approved/);
   });
@@ -578,19 +694,23 @@ describe("WorkflowUsageList", () => {
   });
 
   test("marks a missing reference and links the workflow", () => {
-    render(<WorkflowUsageList
-      siteOrigin="https://acme.atlassian.net"
-      result={{
-        available: true,
-        truncated: true,
-        usages: [{
-          workflowName: "Build WF",
-          transition: { name: "Approve", from: [{ name: "In Review" }], to: { name: "Approved" } },
-          rule: { kind: "condition", label: "Restrict who can transition", summary: null },
-          refs: [{ type: "group", id: "g-gone", label: null, missing: true }],
-        }],
-      }}
-    />);
+    render(
+      <WorkflowUsageList
+        siteOrigin="https://acme.atlassian.net"
+        result={{
+          available: true,
+          truncated: true,
+          usages: [
+            {
+              workflowName: "Build WF",
+              transition: { name: "Approve", from: [{ name: "In Review" }], to: { name: "Approved" } },
+              rule: { kind: "condition", label: "Restrict who can transition", summary: null },
+              refs: [{ type: "group", id: "g-gone", label: null, missing: true }],
+            },
+          ],
+        }}
+      />,
+    );
     expect(screen.getByText("Condition")).toBeInTheDocument();
     expect(screen.getByText("g-gone (missing)")).toHaveClass("ui-chip--critical");
     expect(screen.getByRole("link", { name: "Build WF" })).toBeInTheDocument();
@@ -600,8 +720,13 @@ describe("WorkflowUsageList", () => {
 
 describe("UsageTriple", () => {
   const measured = {
-    available: true, basis: "created", windowDays: 90, measuredAt: new Date().toISOString(),
-    items: { 7: { total: 1200, recent: 35, lastAt: new Date(Date.now() - 3 * 86400000).toISOString(), projectCount: 4 } },
+    available: true,
+    basis: "created",
+    windowDays: 90,
+    measuredAt: new Date().toISOString(),
+    items: {
+      7: { total: 1200, recent: 35, lastAt: new Date(Date.now() - 3 * 86400000).toISOString(), projectCount: 4 },
+    },
   };
 
   test("renders nothing while loading", () => {
@@ -622,7 +747,10 @@ describe("UsageTriple", () => {
     expect(screen.getByText(/created 90d/)).toBeInTheDocument();
     expect(screen.getByText(/last created/)).toBeInTheDocument();
     expect(screen.getByText("3d ago")).toBeInTheDocument();
-    expect(screen.getByText("1,200").closest(".ui-usage")).toHaveAttribute("title", expect.stringMatching(/across 4 projects/));
+    expect(screen.getByText("1,200").closest(".ui-usage")).toHaveAttribute(
+      "title",
+      expect.stringMatching(/across 4 projects/),
+    );
   });
 
   test("an item missing from a measured crawl is a real zero", () => {
@@ -638,11 +766,18 @@ describe("UsageTriple", () => {
   });
 
   test("combineUsageItems adds totals and keeps the latest date", () => {
-    const usage = { items: {
-      a: { total: 2, recent: 1, lastAt: "2026-01-01T00:00:00.000Z" },
-      b: { total: 3, recent: 0, lastAt: "2026-05-01T00:00:00.000Z" },
-    } };
-    expect(combineUsageItems(usage, ["a", "b", "missing"])).toEqual({ total: 5, recent: 1, lastAt: "2026-05-01T00:00:00.000Z", projectCount: 0 });
+    const usage = {
+      items: {
+        a: { total: 2, recent: 1, lastAt: "2026-01-01T00:00:00.000Z" },
+        b: { total: 3, recent: 0, lastAt: "2026-05-01T00:00:00.000Z" },
+      },
+    };
+    expect(combineUsageItems(usage, ["a", "b", "missing"])).toEqual({
+      total: 5,
+      recent: 1,
+      lastAt: "2026-05-01T00:00:00.000Z",
+      projectCount: 0,
+    });
   });
 
   test("formatUsageWhen: recent as days, older as a month", () => {
@@ -655,7 +790,10 @@ describe("UsageTriple", () => {
 });
 
 describe("SegmentedToggle", () => {
-  const options = [{ value: "priority", label: "By priority" }, { value: "pillar", label: "By pillar" }];
+  const options = [
+    { value: "priority", label: "By priority" },
+    { value: "pillar", label: "By pillar" },
+  ];
 
   test("marks the chosen view pressed and names the group", () => {
     render(<SegmentedToggle label="Order the findings" options={options} value="pillar" onChange={vi.fn()} />);

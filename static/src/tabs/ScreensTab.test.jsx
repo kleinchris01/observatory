@@ -1,4 +1,3 @@
-import React from "react";
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -19,7 +18,10 @@ const inventory = (over = {}) => ({
   refreshedAt: new Date().toISOString(),
   totalScreens: 760,
   unresolvedScreens: 0,
-  screens: { total: 1, rows: [{ screenId: "100", name: "Default Screen", tabCount: 1, fieldCount: 28, tabsResolved: "resolved" }] },
+  screens: {
+    total: 1,
+    rows: [{ screenId: "100", name: "Default Screen", tabCount: 1, fieldCount: 28, tabsResolved: "resolved" }],
+  },
   screenSchemes: [{ schemeId: "5", name: "Default Screen Scheme" }],
   schemeOperations: [
     { schemeId: "5", operation: "default", screenId: "100", inherited: false, dangling: false },
@@ -35,29 +37,45 @@ beforeEach(() => vi.clearAllMocks());
 
 describe("ScreenRow", () => {
   test("shows the field count for a screen that was read", () => {
-    render(<ScreenRow screen={{ screenId: "100", name: "Default", fieldCount: 28, tabCount: 1, tabsResolved: "resolved" }} />);
+    render(
+      <ScreenRow
+        screen={{ screenId: "100", name: "Default", fieldCount: 28, tabCount: 1, tabsResolved: "resolved" }}
+      />,
+    );
     expect(screen.getByText(/28 fields/)).toBeInTheDocument();
   });
 
   // The rule the whole pillar rests on, rendered. Zero fields and unknown fields are
   // opposite claims, and only one of them makes a field look safe to delete.
   test("an unreadable screen says contents unknown, never zero fields", () => {
-    render(<ScreenRow screen={{
-      screenId: "100", name: "Broken", fieldCount: 0, tabCount: 0,
-      tabsResolved: "unresolved", unresolvedReason: "401 nope",
-    }} />);
+    render(
+      <ScreenRow
+        screen={{
+          screenId: "100",
+          name: "Broken",
+          fieldCount: 0,
+          tabCount: 0,
+          tabsResolved: "unresolved",
+          unresolvedReason: "401 nope",
+        }}
+      />,
+    );
 
     expect(screen.getByText(/contents unknown/i)).toBeInTheDocument();
     expect(screen.queryByText(/0 fields/)).not.toBeInTheDocument();
   });
 
   test("flags a multi-tab screen, where fields are easy to miss", () => {
-    render(<ScreenRow screen={{ screenId: "1", name: "Big", fieldCount: 40, tabCount: 3, tabsResolved: "resolved" }} />);
+    render(
+      <ScreenRow screen={{ screenId: "1", name: "Big", fieldCount: 40, tabCount: 3, tabsResolved: "resolved" }} />,
+    );
     expect(screen.getByText(/3 tabs/)).toBeInTheDocument();
   });
 
   test("does not label a single-tab screen with a tab count", () => {
-    render(<ScreenRow screen={{ screenId: "1", name: "Small", fieldCount: 4, tabCount: 1, tabsResolved: "resolved" }} />);
+    render(
+      <ScreenRow screen={{ screenId: "1", name: "Small", fieldCount: 4, tabCount: 1, tabsResolved: "resolved" }} />,
+    );
     expect(screen.queryByText(/1 tabs?/)).not.toBeInTheDocument();
   });
 });
@@ -172,9 +190,11 @@ describe("ScreensTab", () => {
   });
 
   test("flags an issue type screen scheme no project uses", async () => {
-    invoke.mockResolvedValue(inventory({
-      issueTypeScreenSchemes: [{ itssId: "9", name: "Orphan ITSS", projectCount: 0 }],
-    }));
+    invoke.mockResolvedValue(
+      inventory({
+        issueTypeScreenSchemes: [{ itssId: "9", name: "Orphan ITSS", projectCount: 0 }],
+      }),
+    );
     render(<ScreensTab />);
     await screen.findByText("Default Screen");
 
@@ -196,7 +216,7 @@ describe("ScreensTab", () => {
     invoke.mockImplementation((name) =>
       name === "buildScreenInventory"
         ? Promise.resolve({ queued: false, error: "Read-only mode is enabled." })
-        : Promise.resolve(inventory())
+        : Promise.resolve(inventory()),
     );
     render(<ScreensTab />);
     await screen.findByText("Default Screen");
@@ -225,10 +245,13 @@ describe("ScreensTab", () => {
 
 describe("ScreensTab — build a field report from screens", () => {
   const twoScreens = inventory({
-    screens: { total: 2, rows: [
-      { screenId: "100", name: "Create Screen", tabCount: 1, fieldCount: 12, tabsResolved: "resolved" },
-      { screenId: "200", name: "Edit Screen", tabCount: 1, fieldCount: 8, tabsResolved: "resolved" },
-    ] },
+    screens: {
+      total: 2,
+      rows: [
+        { screenId: "100", name: "Create Screen", tabCount: 1, fieldCount: 12, tabsResolved: "resolved" },
+        { screenId: "200", name: "Edit Screen", tabCount: 1, fieldCount: 8, tabsResolved: "resolved" },
+      ],
+    },
   });
 
   test("no checkboxes and no action bar without the onBuildFieldReport hook", async () => {
@@ -242,9 +265,13 @@ describe("ScreensTab — build a field report from screens", () => {
     const onBuildFieldReport = vi.fn();
     invoke.mockImplementation((name) => {
       if (name === "getScreenInventory") return Promise.resolve(twoScreens);
-      if (name === "getScreenFieldReportInputs") return Promise.resolve({
-        available: true, fieldIds: ["cf_1", "cf_2", "cf_3"], projectIds: ["10", "11"], unresolvedScreens: [],
-      });
+      if (name === "getScreenFieldReportInputs")
+        return Promise.resolve({
+          available: true,
+          fieldIds: ["cf_1", "cf_2", "cf_3"],
+          projectIds: ["10", "11"],
+          unresolvedScreens: [],
+        });
       return Promise.resolve({});
     });
     render(<ScreensTab onBuildFieldReport={onBuildFieldReport} />);
@@ -264,9 +291,13 @@ describe("ScreensTab — build a field report from screens", () => {
   test("surfaces an 'incomplete field list' notice when some screens could not be read", async () => {
     invoke.mockImplementation((name) => {
       if (name === "getScreenInventory") return Promise.resolve(twoScreens);
-      if (name === "getScreenFieldReportInputs") return Promise.resolve({
-        available: true, fieldIds: ["cf_1"], projectIds: ["10"], unresolvedScreens: ["Edit Screen"],
-      });
+      if (name === "getScreenFieldReportInputs")
+        return Promise.resolve({
+          available: true,
+          fieldIds: ["cf_1"],
+          projectIds: ["10"],
+          unresolvedScreens: ["Edit Screen"],
+        });
       return Promise.resolve({});
     });
     render(<ScreensTab onBuildFieldReport={vi.fn()} />);
@@ -301,7 +332,10 @@ describe("ScreensTab — first build feedback", () => {
 
   test("treats a queued build as in flight too", async () => {
     invoke.mockResolvedValue({
-      neverBuilt: true, state: "queued", staleBuild: false, screens: { total: 0, rows: [] },
+      neverBuilt: true,
+      state: "queued",
+      staleBuild: false,
+      screens: { total: 0, rows: [] },
     });
 
     render(<ScreensTab />);
@@ -312,7 +346,7 @@ describe("ScreensTab — first build feedback", () => {
     invoke.mockImplementation((name) =>
       name === "buildScreenInventory"
         ? Promise.resolve({ queued: true })
-        : Promise.resolve({ neverBuilt: true, state: "idle", screens: { total: 0, rows: [] } })
+        : Promise.resolve({ neverBuilt: true, state: "idle", screens: { total: 0, rows: [] } }),
     );
 
     render(<ScreensTab />);
@@ -328,7 +362,7 @@ describe("ScreensTab — first build feedback", () => {
     invoke.mockImplementation((name) =>
       name === "buildScreenInventory"
         ? Promise.resolve({ queued: false, reason: "already-building" })
-        : Promise.resolve({ neverBuilt: true, state: "idle", screens: { total: 0, rows: [] } })
+        : Promise.resolve({ neverBuilt: true, state: "idle", screens: { total: 0, rows: [] } }),
     );
 
     render(<ScreensTab />);
@@ -340,8 +374,11 @@ describe("ScreensTab — first build feedback", () => {
 
   test("still surfaces a failed first build", async () => {
     invoke.mockResolvedValue({
-      neverBuilt: true, state: "failed", staleBuild: false,
-      lastError: "401 nope", screens: { total: 0, rows: [] },
+      neverBuilt: true,
+      state: "failed",
+      staleBuild: false,
+      lastError: "401 nope",
+      screens: { total: 0, rows: [] },
     });
 
     render(<ScreensTab />);
@@ -375,7 +412,9 @@ describe("ScreensTab — sorting and search", () => {
     await screen.findByText("Default Screen");
 
     await userEvent.click(screen.getByRole("button", { name: /Next/i }));
-    await waitFor(() => expect(invoke).toHaveBeenCalledWith("getScreenInventory", expect.objectContaining({ page: 2 })));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("getScreenInventory", expect.objectContaining({ page: 2 })),
+    );
 
     invoke.mockClear();
     await userEvent.selectOptions(screen.getByRole("combobox", { name: /Sort/i }), "name-asc");
@@ -412,10 +451,22 @@ describe("ScreensTab — sorting and search", () => {
 // scheme filter IS client-side, because every scheme is already on the page.
 describe("ScreensTab — arriving from a finding", () => {
   const inventory = (over = {}) => ({
-    state: "ready", version: "v1", totalScreens: 746, page: 1, pageSize: 25, sort: "fields-desc",
-    screens: { total: 1, rows: [{ screenId: "1", name: "A screen", tabCount: 1, fieldCount: 0, tabsResolved: "resolved" }] },
-    screenSchemes: [], schemeOperations: [], issueTypeScreenSchemes: [],
-    distributions: {}, governance: {}, transitionScreens: [],
+    state: "ready",
+    version: "v1",
+    totalScreens: 746,
+    page: 1,
+    pageSize: 25,
+    sort: "fields-desc",
+    screens: {
+      total: 1,
+      rows: [{ screenId: "1", name: "A screen", tabCount: 1, fieldCount: 0, tabsResolved: "resolved" }],
+    },
+    screenSchemes: [],
+    schemeOperations: [],
+    issueTypeScreenSchemes: [],
+    distributions: {},
+    governance: {},
+    transitionScreens: [],
     ...over,
   });
 
@@ -427,7 +478,17 @@ describe("ScreensTab — arriving from a finding", () => {
   }
 
   test("sends the finding's filter to the resolver", async () => {
-    route(inventory({ screens: { total: 252, rows: [], filter: "unreached", filterLabel: "Nothing reaches them", filterRequested: "unreached" } }));
+    route(
+      inventory({
+        screens: {
+          total: 252,
+          rows: [],
+          filter: "unreached",
+          filterLabel: "Nothing reaches them",
+          filterRequested: "unreached",
+        },
+      }),
+    );
     render(<ScreensTab intent={{ view: "screens", filter: "unreached" }} />);
 
     await waitFor(() => {
@@ -437,7 +498,17 @@ describe("ScreensTab — arriving from a finding", () => {
   });
 
   test("says which subset it is showing", async () => {
-    route(inventory({ screens: { total: 252, rows: [{ screenId: "1", name: "A screen", tabCount: 1, fieldCount: 0, tabsResolved: "resolved" }], filter: "unreached", filterLabel: "Nothing reaches them", filterRequested: "unreached" } }));
+    route(
+      inventory({
+        screens: {
+          total: 252,
+          rows: [{ screenId: "1", name: "A screen", tabCount: 1, fieldCount: 0, tabsResolved: "resolved" }],
+          filter: "unreached",
+          filterLabel: "Nothing reaches them",
+          filterRequested: "unreached",
+        },
+      }),
+    );
     render(<ScreensTab intent={{ view: "screens", filter: "unreached" }} />);
 
     // 252 rows with nothing saying why would be indistinguishable from a catalogue that
@@ -448,20 +519,32 @@ describe("ScreensTab — arriving from a finding", () => {
   // Reachability needs the workflow snapshot. Showing the whole catalogue under a heading
   // that promised a subset would be worse than saying the filter could not run.
   test("says so when the filter could not be applied", async () => {
-    route(inventory({ screens: { total: 746, rows: [{ screenId: "1", name: "A screen", tabCount: 1, fieldCount: 0, tabsResolved: "resolved" }], filter: null, filterLabel: null, filterRequested: "unreached" } }));
+    route(
+      inventory({
+        screens: {
+          total: 746,
+          rows: [{ screenId: "1", name: "A screen", tabCount: 1, fieldCount: 0, tabsResolved: "resolved" }],
+          filter: null,
+          filterLabel: null,
+          filterRequested: "unreached",
+        },
+      }),
+    );
     render(<ScreensTab intent={{ view: "screens", filter: "unreached" }} />);
 
     expect(await screen.findByText(/no workflow inventory has been built/i)).toBeInTheDocument();
   });
 
   test("opens the schemes view narrowed to the ones nothing maps to", async () => {
-    route(inventory({
-      screenSchemes: [
-        { schemeId: "1", name: "Used scheme", issueTypeSchemeCount: 3 },
-        { schemeId: "2", name: "Orphan scheme", issueTypeSchemeCount: 0 },
-      ],
-      schemeOperations: [],
-    }));
+    route(
+      inventory({
+        screenSchemes: [
+          { schemeId: "1", name: "Used scheme", issueTypeSchemeCount: 3 },
+          { schemeId: "2", name: "Orphan scheme", issueTypeSchemeCount: 0 },
+        ],
+        schemeOperations: [],
+      }),
+    );
     const { container } = render(<ScreensTab intent={{ view: "schemes", schemes: "unused" }} />);
 
     await waitFor(() => expect(container.textContent).toContain("Orphan scheme"));
@@ -469,16 +552,18 @@ describe("ScreensTab — arriving from a finding", () => {
   });
 
   test("opens the schemes view narrowed to the ones pointing at a missing screen", async () => {
-    route(inventory({
-      screenSchemes: [
-        { schemeId: "1", name: "Intact scheme", issueTypeSchemeCount: 1 },
-        { schemeId: "2", name: "Broken scheme", issueTypeSchemeCount: 1 },
-      ],
-      schemeOperations: [
-        { schemeId: "1", operation: "create", screenId: "9", dangling: false },
-        { schemeId: "2", operation: "edit", screenId: "404", dangling: true },
-      ],
-    }));
+    route(
+      inventory({
+        screenSchemes: [
+          { schemeId: "1", name: "Intact scheme", issueTypeSchemeCount: 1 },
+          { schemeId: "2", name: "Broken scheme", issueTypeSchemeCount: 1 },
+        ],
+        schemeOperations: [
+          { schemeId: "1", operation: "create", screenId: "9", dangling: false },
+          { schemeId: "2", operation: "edit", screenId: "404", dangling: true },
+        ],
+      }),
+    );
     const { container } = render(<ScreensTab intent={{ view: "schemes", schemes: "dangling" }} />);
 
     await waitFor(() => expect(container.textContent).toContain("Broken scheme"));
@@ -502,15 +587,21 @@ describe("ScreensTab — arriving from a finding", () => {
 describe("ScreensTab — field cross-signal", () => {
   const cross = (over = {}) => ({
     available: true,
-    projectsTotal: 40, projectsResolved: 40, coverageRate: 1,
+    projectsTotal: 40,
+    projectsResolved: 40,
+    coverageRate: 1,
     usageTruncated: false,
     screenRefreshedAt: new Date(Date.now() - 3600_000).toISOString(),
     fieldRefreshedAt: new Date(Date.now() - 7200_000).toISOString(),
     counts: { invisibleFields: 1, invisibleIssues: 480, clutterFields: 1, clutterPlacements: 6, unreachableFields: 2 },
-    invisibleData: [{
-      fieldId: "cf_9", fieldName: "Vendor Ref", totalIssues: 480,
-      projects: [{ projectId: "10", projectKey: "OPS", issueCount: 480 }],
-    }],
+    invisibleData: [
+      {
+        fieldId: "cf_9",
+        fieldName: "Vendor Ref",
+        totalIssues: 480,
+        projects: [{ projectId: "10", projectKey: "OPS", issueCount: 480 }],
+      },
+    ],
     formClutter: [{ fieldId: "cf_4", fieldName: "Legacy Code", projectCount: 6, projects: [] }],
     unreachableFields: [],
     ...over,
@@ -583,10 +674,19 @@ describe("ScreensTab — field cross-signal", () => {
   });
 
   test("a clean cross says so in both panels rather than rendering nothing", async () => {
-    await openCross(cross({
-      counts: { invisibleFields: 0, invisibleIssues: 0, clutterFields: 0, clutterPlacements: 0, unreachableFields: 0 },
-      invisibleData: [], formClutter: [],
-    }));
+    await openCross(
+      cross({
+        counts: {
+          invisibleFields: 0,
+          invisibleIssues: 0,
+          clutterFields: 0,
+          clutterPlacements: 0,
+          unreachableFields: 0,
+        },
+        invisibleData: [],
+        formClutter: [],
+      }),
+    );
 
     expect(await screen.findByText(/no field holds values in a project that cannot display it/i)).toBeInTheDocument();
     expect(screen.getByText(/every field on a create screen is filled in by somebody/i)).toBeInTheDocument();
@@ -598,23 +698,37 @@ describe("ScreensTab — field cross-signal", () => {
 // opens a screen" -- a confident zero from a read that never happened.
 describe("Screens — transitions view", () => {
   const base = (over = {}) => ({
-    state: "ready", version: "v1", totalScreens: 780, page: 1, pageSize: 25, sort: "fields-desc",
+    state: "ready",
+    version: "v1",
+    totalScreens: 780,
+    page: 1,
+    pageSize: 25,
+    sort: "fields-desc",
     screens: { total: 0, rows: [] },
-    screenSchemes: [], schemeOperations: [], issueTypeScreenSchemes: [],
-    distributions: {}, governance: {}, transitionScreens: [],
+    screenSchemes: [],
+    schemeOperations: [],
+    issueTypeScreenSchemes: [],
+    distributions: {},
+    governance: {},
+    transitionScreens: [],
     ...over,
   });
 
   const open = async (result) => {
-    invoke.mockImplementation((name) => (name === "getScreenInventory" ? Promise.resolve(result) : Promise.resolve({ pillar: null })));
+    invoke.mockImplementation((name) =>
+      name === "getScreenInventory" ? Promise.resolve(result) : Promise.resolve({ pillar: null }),
+    );
     render(<ScreensTab intent={{ view: "transitions" }} />);
   };
 
   test("shows unknown, not zero, when transitions were never read", async () => {
-    await open(base({
-      transitionsAvailable: false,
-      transitionsReason: "The last workflow build could not read this site's workflows, so which screens transitions open is unknown.",
-    }));
+    await open(
+      base({
+        transitionsAvailable: false,
+        transitionsReason:
+          "The last workflow build could not read this site's workflows, so which screens transitions open is unknown.",
+      }),
+    );
 
     expect(await screen.findByText(/could not read this site's workflows/i)).toBeInTheDocument();
     expect(screen.queryByText(/No workflow transition on this site opens a screen/i)).not.toBeInTheDocument();

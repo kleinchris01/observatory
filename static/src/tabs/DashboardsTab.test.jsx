@@ -1,4 +1,3 @@
-import React from "react";
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -16,24 +15,42 @@ vi.mock("@forge/bridge", () => ({
 }));
 
 const dashboard = (over = {}) => ({
-  id: "1", name: "Delivery overview",
+  id: "1",
+  name: "Delivery overview",
   owner: { accountId: "a1", displayName: "Bob", active: true },
-  ownerName: "Bob", ownerActive: true,
-  shares: [], editShares: [], sharedWithEveryone: false, editableByEveryone: false,
-  popularity: 4, gadgetCount: 3, shareCount: 0,
+  ownerName: "Bob",
+  ownerActive: true,
+  shares: [],
+  editShares: [],
+  sharedWithEveryone: false,
+  editableByEveryone: false,
+  popularity: 4,
+  gadgetCount: 3,
+  shareCount: 0,
   gadgets: [{ id: "g1", title: "Filter Results", moduleKey: "k" }],
   findings: [],
   ...over,
 });
 
 const inventory = (over = {}) => ({
-  available: true, state: "ready", version: "v1",
+  available: true,
+  state: "ready",
+  version: "v1",
   refreshedAt: "2026-08-21T00:00:00.000Z",
-  total: 3, gadgetsWalked: 3,
-  orphanedCount: 1, editableByEveryoneCount: 1, publishedUnusedCount: 0,
-  emptyCount: 0, totalGadgets: 9, favouritedCount: 2, gadgetsKnown: true,
+  total: 3,
+  gadgetsWalked: 3,
+  orphanedCount: 1,
+  editableByEveryoneCount: 1,
+  publishedUnusedCount: 0,
+  emptyCount: 0,
+  totalGadgets: 9,
+  favouritedCount: 2,
+  gadgetsKnown: true,
   dashboards: [
-    { ...dashboard({ id: "2", name: "Orphan" }), findings: [{ code: "orphaned-owner", severity: "high", detail: "The owning account no longer exists." }] },
+    {
+      ...dashboard({ id: "2", name: "Orphan" }),
+      findings: [{ code: "orphaned-owner", severity: "high", detail: "The owning account no longer exists." }],
+    },
   ],
   allDashboards: [
     dashboard({ id: "1", name: "Delivery overview" }),
@@ -59,7 +76,12 @@ describe("gadgetTooltip", () => {
   });
 
   test("names the filter and the fields it depends on", () => {
-    const tooltip = gadgetTooltip({ id: "g1", filterId: "500", filterName: "Open Bugs", fieldRefs: ["Story Points", "Status"] });
+    const tooltip = gadgetTooltip({
+      id: "g1",
+      filterId: "500",
+      filterName: "Open Bugs",
+      fieldRefs: ["Story Points", "Status"],
+    });
     expect(tooltip).toBe("Filter: Open Bugs — depends on Story Points, Status");
   });
 
@@ -80,7 +102,10 @@ describe("filterDashboards", () => {
   const rows = [
     { ...dashboard({ id: "1", name: "Clean" }), findings: [] },
     { ...dashboard({ id: "2", name: "Orphan", ownerName: "Ann" }), findings: [{ code: "orphaned-owner" }] },
-    { ...dashboard({ id: "3", name: "Open", gadgets: [{ id: "g", title: "Sprint Burndown" }] }), findings: [{ code: "editable-by-everyone" }] },
+    {
+      ...dashboard({ id: "3", name: "Open", gadgets: [{ id: "g", title: "Sprint Burndown" }] }),
+      findings: [{ code: "editable-by-everyone" }],
+    },
   ];
 
   test("narrows to one finding", () => {
@@ -105,7 +130,10 @@ describe("sortDashboards", () => {
   const rows = [
     { ...dashboard({ id: "1", name: "Bravo", popularity: 1, gadgetCount: 9 }), findings: [] },
     { ...dashboard({ id: "2", name: "Alpha", popularity: 20, gadgetCount: null }), findings: [{ code: "x" }] },
-    { ...dashboard({ id: "3", name: "Charlie", popularity: 5, gadgetCount: 2 }), findings: [{ code: "x" }, { code: "y" }] },
+    {
+      ...dashboard({ id: "3", name: "Charlie", popularity: 5, gadgetCount: 2 }),
+      findings: [{ code: "x" }, { code: "y" }],
+    },
   ];
 
   test("leads with the most findings by default", () => {
@@ -156,7 +184,9 @@ describe("DashboardsTab", () => {
     route({ getDashboardInventory: inventory() });
     render(<DashboardsTab />);
 
-    expect(await screen.findByText(/Each gadget's filter is read from the gadget's own properties/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Each gadget's filter is read from the gadget's own properties/i),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/not part of this inventory yet/i)).not.toBeInTheDocument();
   });
 
@@ -185,7 +215,12 @@ describe("DashboardsTab", () => {
   test("narrows to a finding when opened from the Overview", async () => {
     route({
       getDashboardInventory: inventory({
-        dashboards: [{ ...dashboard({ id: "2", name: "Orphan" }), findings: [{ code: "orphaned-owner", severity: "high", detail: "gone" }] }],
+        dashboards: [
+          {
+            ...dashboard({ id: "2", name: "Orphan" }),
+            findings: [{ code: "orphaned-owner", severity: "high", detail: "gone" }],
+          },
+        ],
       }),
     });
     const { container } = render(<DashboardsTab intent={{ finding: "orphaned-owner" }} />);
@@ -207,7 +242,10 @@ describe("DashboardsTab", () => {
 
   test("surfaces a read-only refusal instead of silently doing nothing", async () => {
     const user = userEvent.setup();
-    route({ getDashboardInventory: inventory(), buildDashboardInventory: { queued: false, error: "Read-only mode is enabled." } });
+    route({
+      getDashboardInventory: inventory(),
+      buildDashboardInventory: { queued: false, error: "Read-only mode is enabled." },
+    });
     render(<DashboardsTab />);
 
     await screen.findByRole("heading", { name: "Dashboards", level: 2 });
@@ -223,7 +261,10 @@ describe("DashboardsTab", () => {
 describe("a build that is no longer running", () => {
   test("offers the rebuild button instead of a permanent spinner", async () => {
     invoke.mockResolvedValue({
-      available: false, neverBuilt: true, state: "building", staleBuild: true,
+      available: false,
+      neverBuilt: true,
+      state: "building",
+      staleBuild: true,
     });
 
     render(<DashboardsTab />);
@@ -234,7 +275,10 @@ describe("a build that is no longer running", () => {
 
   test("still shows a spinner for a build that genuinely is running", async () => {
     invoke.mockResolvedValue({
-      available: false, neverBuilt: true, state: "building", staleBuild: false,
+      available: false,
+      neverBuilt: true,
+      state: "building",
+      staleBuild: false,
     });
 
     render(<DashboardsTab />);
@@ -246,8 +290,12 @@ describe("a build that is no longer running", () => {
 
 describe("gadgetTooltip -- unreadable filters", () => {
   test("says a missing or private filter first, whatever else is known", () => {
-    expect(gadgetTooltip({ filterId: "500", filterState: "missing", filterName: null, fieldRefs: [] })).toMatch(/no longer exists, or this app cannot see it/);
+    expect(gadgetTooltip({ filterId: "500", filterState: "missing", filterName: null, fieldRefs: [] })).toMatch(
+      /no longer exists, or this app cannot see it/,
+    );
     expect(gadgetTooltip({ filterId: "500", filterState: "private" })).toMatch(/private to its owner/);
-    expect(gadgetTooltip({ filterId: "500", filterState: "readable", filterName: "Open bugs", fieldRefs: [] })).toMatch(/^Filter: Open bugs/);
+    expect(gadgetTooltip({ filterId: "500", filterState: "readable", filterName: "Open bugs", fieldRefs: [] })).toMatch(
+      /^Filter: Open bugs/,
+    );
   });
 });

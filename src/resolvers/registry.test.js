@@ -22,7 +22,7 @@ describe("resolver registries (real module)", () => {
 
   test("the guarded admin registry wraps exactly the raw registry", () => {
     expect(Object.keys(resolvers.ADMIN_ONLY_FUNCTIONS).sort()).toEqual(
-      Object.keys(resolvers.__RAW_ADMIN_ONLY_FUNCTIONS).sort()
+      Object.keys(resolvers.__RAW_ADMIN_ONLY_FUNCTIONS).sort(),
     );
   });
 
@@ -32,7 +32,9 @@ describe("resolver registries (real module)", () => {
   });
 
   test("every named export resolves to a value", () => {
-    const missing = Object.entries(resolvers).filter(([, v]) => v === undefined).map(([k]) => k);
+    const missing = Object.entries(resolvers)
+      .filter(([, v]) => v === undefined)
+      .map(([k]) => k);
     expect(missing).toEqual([]);
   });
 });

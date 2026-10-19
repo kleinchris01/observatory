@@ -3,13 +3,7 @@
 // Moved verbatim from src/resolvers.js; see docs/resolvers-refactor.md.
 
 import { incrMetric, METRIC_NAMES, getInstallationKey } from "../../lib/jira-api.js";
-import {
-  pillarUnavailable,
-  agentOk,
-  agentNotFound,
-  rankMatches,
-  clampResults,
-} from "../../lib/rovo-agents.js";
+import { pillarUnavailable, agentOk, agentNotFound, rankMatches, clampResults } from "../../lib/rovo-agents.js";
 import { getAccessInventory, loadActiveRoster } from "../access.js";
 
 // ── Rovo: access expert ─────────────────────────────────────────────────────
@@ -28,7 +22,9 @@ export async function rovoAccessSearch(payload, context) {
   incrMetric(METRIC_NAMES.resolver);
   try {
     const query = String(payload?.query || "").trim();
-    const family = String(payload?.family || "").trim().toLowerCase();
+    const family = String(payload?.family || "")
+      .trim()
+      .toLowerCase();
     const limit = clampResults(payload?.maxResults, 8, 20);
     if (!query) return { status: "error", message: "A search query is required." };
 
@@ -38,8 +34,12 @@ export async function rovoAccessSearch(payload, context) {
     const sets = accessSchemeList(inv, family);
     const matches = {};
     for (const [f, schemes] of Object.entries(sets)) {
-      matches[f] = rankMatches(schemes, query, (s) => [s.name, s.id, s.description], limit)
-        .map((s) => ({ id: s.id, name: s.name, description: s.description || null, projectCount: s.projectCount ?? null }));
+      matches[f] = rankMatches(schemes, query, (s) => [s.name, s.id, s.description], limit).map((s) => ({
+        id: s.id,
+        name: s.name,
+        description: s.description || null,
+        projectCount: s.projectCount ?? null,
+      }));
     }
     return agentOk(inv.refreshedAt || null, { query, schemes: matches });
   } catch (error) {
@@ -60,9 +60,7 @@ export function describeAccessHolder(h, rosterIds) {
     value: h.holderLabel || h.holderValue || null,
     id: h.holderValue || null,
     grants: h.contextLabel || h.context || null,
-    offRoster: h.holderType === "user" && h.holderValue
-      ? (rosterIds ? !rosterIds.has(h.holderValue) : null)
-      : false,
+    offRoster: h.holderType === "user" && h.holderValue ? (rosterIds ? !rosterIds.has(h.holderValue) : null) : false,
   };
 }
 
@@ -83,7 +81,12 @@ export async function rovoAccessInspect(payload, context) {
       const rosterIds = await loadActiveRoster(getInstallationKey(context));
       return agentOk(inv.refreshedAt || null, {
         family,
-        scheme: { id: scheme.id, name: scheme.name, description: scheme.description || null, projectCount: scheme.projectCount ?? null },
+        scheme: {
+          id: scheme.id,
+          name: scheme.name,
+          description: scheme.description || null,
+          projectCount: scheme.projectCount ?? null,
+        },
         holders: holders.slice(0, 100).map((h) => {
           const d = describeAccessHolder(h, rosterIds);
           return { type: d.type, value: d.value, id: d.id, permission: d.grants, offRoster: d.offRoster };
@@ -92,7 +95,10 @@ export async function rovoAccessInspect(payload, context) {
         findings: inv[family]?.governance?.findings || inv[family]?.governance || null,
       });
     }
-    return agentNotFound(inv.refreshedAt || null, `No permission, issue-security, notification scheme or project role matched "${identifier}".`);
+    return agentNotFound(
+      inv.refreshedAt || null,
+      `No permission, issue-security, notification scheme or project role matched "${identifier}".`,
+    );
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
     console.error("rovoAccessInspect failed:", error);
