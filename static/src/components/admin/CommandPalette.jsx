@@ -154,6 +154,20 @@ export function CommandPalette({ open, onClose, tabs = [], onNavigate, load = in
     };
   }, [open]);
 
+  // Escape closes from anywhere, not only from the input. Focus reaches the input a frame after
+  // opening, so an Escape pressed straight after Ctrl+K landed on the page and did nothing.
+  React.useEffect(() => {
+    if (!open) return undefined;
+    function onEscape(event) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+      }
+    }
+    window.addEventListener("keydown", onEscape);
+    return () => window.removeEventListener("keydown", onEscape);
+  }, [open, onClose]);
+
   // Debounced search; a slower, older response never overwrites a newer one.
   React.useEffect(() => {
     if (!open) return undefined;
@@ -216,11 +230,6 @@ export function CommandPalette({ open, onClose, tabs = [], onNavigate, load = in
   }
 
   function onKeyDown(event) {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      onClose();
-      return;
-    }
     if (!items.length) return;
     if (event.key === "ArrowDown") {
       event.preventDefault();
