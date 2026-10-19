@@ -17,6 +17,58 @@ afterEach(() => vi.restoreAllMocks());
 
 const lastEntry = (spy) => JSON.parse(spy.mock.calls.at(-1)[0]);
 
+describe("redaction", () => {
+  test("replaces personal data and secrets, at any depth and in any key spelling", () => {
+    logger.warn("redact.event", {
+      installationKey: "scope-1",
+      accountId: "acct-1",
+      displayName: "Jane Doe",
+      user: { email_address: "jane@example.com", Display_Name: "Jane" },
+      apiToken: "abc",
+      nextPageToken: "p2",
+      headers: { Authorization: "Bearer x", cookie: "s=1" },
+      clientSecret: "shh",
+      webhookUrl: "https://hooks.example/1",
+    });
+
+    const entry = lastEntry(errSpy);
+    // Ids survive: they are the identifiers the checklist allows.
+    expect(entry).toMatchObject({ installationKey: "scope-1", accountId: "acct-1" });
+    expect(entry.displayName).toBe("[redacted]");
+    expect(entry.user).toEqual({ email_address: "[redacted]", Display_Name: "[redacted]" });
+    expect(entry.apiToken).toBe("[redacted]");
+    expect(entry.nextPageToken).toBe("[redacted]");
+    expect(entry.headers).toEqual({ Authorization: "[redacted]", cookie: "[redacted]" });
+    expect(entry.clientSecret).toBe("[redacted]");
+    expect(entry.webhookUrl).toBe("[redacted]");
+    expect(JSON.stringify(entry)).not.toMatch(/Jane|jane@|Bearer|shh|hooks\.example/);
+  });
+
+  // Free text can hold names or anything else; its length is what a debugger usually needs.
+  test("keeps the length of query and body text, not its content", () => {
+    logger.info("redact.query", { jql: 'assignee = "Jane"', query: "", body: { type: "doc" } });
+
+    const entry = lastEntry(logSpy);
+    expect(entry.jql).toBe("[redacted: 17 chars]");
+    expect(entry.query).toBe("[redacted: 0 chars]");
+    expect(entry.body).toBe("[redacted]");
+  });
+
+  test("walks arrays and leaves ordinary fields alone", () => {
+    logger.info("redact.list", { items: [{ displayName: "A", count: 2 }], status: 429, error: "boom" });
+
+    const entry = lastEntry(logSpy);
+    expect(entry.items).toEqual([{ displayName: "[redacted]", count: 2 }]);
+    expect(entry).toMatchObject({ status: 429, error: "boom" });
+  });
+
+  test("bounds deep nesting rather than walking it forever", () => {
+    const deep = { a: { b: { c: { d: { e: { f: "too deep" } } } } } };
+    logger.info("redact.deep", deep);
+    expect(JSON.stringify(lastEntry(logSpy))).toContain("[truncated]");
+  });
+});
+
 describe("logger", () => {
   test("emits single-line JSON with level, event and timestamp", () => {
     logger.warn("some.event", { installationKey: "scope-1" });
