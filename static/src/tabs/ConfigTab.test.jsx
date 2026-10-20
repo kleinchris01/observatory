@@ -9,6 +9,7 @@ import {
   ConfigTab,
   ScreenCostProbePanel,
   ServiceManagementProbePanel,
+  MarketplaceAppsProbePanel,
 } from "./ConfigTab";
 import { DEFAULT_THRESHOLDS, DEFAULT_MACRO_ACCESS, DEFAULT_AUTOMATION_STALE_AFTER_DAYS } from "../admin-defaults";
 
@@ -661,5 +662,79 @@ describe("ConfigTab — governance rule defaults", () => {
     for (const band of Object.values(saved.healthTargets)) {
       expect(Object.keys(band).sort()).toEqual(["direction", "floor", "target"]);
     }
+  });
+});
+
+describe("MarketplaceAppsProbePanel", () => {
+  const appsResult = (over = {}) => ({
+    signals: [
+      { key: "fieldCatalog", label: "App custom fields", verdict: "ok", summary: "40 custom fields: 3 Connect" },
+      { key: "capabilities", label: "App workflow rule types installed", verdict: "skipped", summary: null },
+      { key: "auditRecords", label: "App install events in the audit log", verdict: "missing-scope", summary: "401" },
+      { key: "upm", label: "Installed-app list (plugin manager, as the app)", verdict: "weird", summary: null },
+    ],
+    apps: [
+      {
+        id: "key:com.onresolve.jira.groovy.groovyrunner",
+        kind: "connect",
+        app: "com.onresolve.jira.groovy.groovyrunner",
+        label: "ScriptRunner",
+        sources: { fields: 2, workflowRules: 5, upmAsUser: 1 },
+        disabledRules: 2,
+      },
+      { id: "forge:x", kind: "forge", app: "x", label: "x", sources: { mystery: 1 }, disabledRules: 0 },
+    ],
+    results: [
+      {
+        step: "fieldCatalog",
+        note: "Custom field type keys",
+        path: "/rest/api/3/field",
+        status: 200,
+        verdict: "ok",
+        summary: "ok summary",
+      },
+      {
+        step: "capabilities",
+        note: null,
+        path: null,
+        status: null,
+        verdict: "skipped",
+        sample: "Skipped: no workflow id.",
+      },
+      { step: "upmLog", note: "feed", path: "/rest/plugins/1.0/log/feed", status: 200, verdict: "ok" },
+    ],
+    ...over,
+  });
+
+  test("shows each signal, the apps it revealed, and every step", async () => {
+    invoke.mockResolvedValueOnce(appsResult());
+    render(<MarketplaceAppsProbePanel />);
+    await userEvent.click(screen.getByRole("button", { name: /Probe Marketplace app signals/i }));
+
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("probeMarketplaceApps", {}));
+    expect(await screen.findByText("2 apps evidenced, strongest evidence first.")).toBeInTheDocument();
+    expect(screen.getByText("ScriptRunner")).toBeInTheDocument();
+    expect(screen.getByText("2 fields, 5 workflow rules, 1 plugin manager")).toBeInTheDocument();
+    expect(screen.getByText("2 disabled")).toBeInTheDocument();
+    expect(screen.getByText("1 mystery")).toBeInTheDocument();
+    expect(screen.getAllByText("Answers").length).toBeGreaterThan(0);
+    expect(screen.getByText("Scope missing")).toBeInTheDocument();
+    expect(screen.getByText("Error")).toBeInTheDocument();
+    expect(screen.getByText("Skipped: no workflow id.")).toBeInTheDocument();
+    expect(screen.getByText("(empty)")).toBeInTheDocument();
+  });
+
+  test("says when no app evidence was found", async () => {
+    invoke.mockResolvedValueOnce(appsResult({ apps: [] }));
+    render(<MarketplaceAppsProbePanel />);
+    await userEvent.click(screen.getByRole("button", { name: /Probe Marketplace app signals/i }));
+    expect(await screen.findByText("No app evidence found.")).toBeInTheDocument();
+  });
+
+  test("surfaces a resolver failure without breaking the panel", async () => {
+    invoke.mockRejectedValueOnce(new Error("boom"));
+    render(<MarketplaceAppsProbePanel />);
+    await userEvent.click(screen.getByRole("button", { name: /Probe Marketplace app signals/i }));
+    expect(await screen.findByText("boom")).toBeInTheDocument();
   });
 });

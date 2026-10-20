@@ -378,6 +378,155 @@ export function ServiceManagementProbePanel() {
   );
 }
 
+const APP_VERDICT = {
+  ok: { tone: "success", label: "Answers" },
+  skipped: { tone: "neutral", label: "Skipped" },
+  "missing-scope": { tone: "warning", label: "Scope missing" },
+  forbidden: { tone: "warning", label: "Refused" },
+  "not-found": { tone: "neutral", label: "Not here" },
+  error: { tone: "critical", label: "Error" },
+};
+
+const APP_SOURCE_LABEL = {
+  fields: "fields",
+  workflowRules: "workflow rules",
+  capabilities: "rule types",
+  gadgets: "gadgets",
+  upm: "plugin manager",
+  upmAsUser: "plugin manager",
+};
+
+export function MarketplaceAppsProbePanel() {
+  const [result, setResult] = React.useState(null);
+  const [running, setRunning] = React.useState(false);
+  const [error, setError] = React.useState(null);
+
+  async function run() {
+    setRunning(true);
+    setError(null);
+    try {
+      setResult(await invoke("probeMarketplaceApps", {}));
+    } catch (err) {
+      setError(err?.message || "Probe failed.");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <ConfigSection title="Marketplace apps" icon="layers">
+      <p className="admin-config-row__hint" style={{ marginBottom: 10 }}>
+        Checks which signals reveal the apps installed here: app custom fields, app workflow rules (and whether any are
+        disabled), installed rule types, app dashboard gadgets, the audit log, and the plugin manager asked as the app
+        and as you. Read-only. Rule configurations are inspected for the app's identity and never shown.
+      </p>
+
+      <button type="button" className="secondary-button" onClick={run} disabled={running}>
+        <Icon name="layers" size={13} />
+        {running ? "Probing…" : "Probe Marketplace app signals"}
+      </button>
+
+      {error && (
+        <div className="danger-zone__error" role="alert">
+          {error}
+        </div>
+      )}
+
+      {result && (
+        <div className="probe-results">
+          <table className="probe-results__table">
+            <thead>
+              <tr>
+                <th>Signal</th>
+                <th>Result</th>
+                <th>Detail</th>
+              </tr>
+            </thead>
+            <tbody>
+              {result.signals.map((s) => {
+                const state = APP_VERDICT[s.verdict] || APP_VERDICT.error;
+                return (
+                  <tr key={s.key}>
+                    <td>{s.label}</td>
+                    <td>
+                      <Chip tone={state.tone}>{state.label}</Chip>
+                    </td>
+                    <td>{s.summary || "—"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          <p className="probe-results__summary">
+            {result.apps.length === 0
+              ? "No app evidence found."
+              : `${result.apps.length} apps evidenced, strongest evidence first.`}
+          </p>
+          {result.apps.length > 0 && (
+            <table className="probe-results__table">
+              <thead>
+                <tr>
+                  <th>App</th>
+                  <th>Kind</th>
+                  <th>Seen in</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.apps.slice(0, 40).map((app) => (
+                  <tr key={app.id}>
+                    <td title={app.app}>{app.label}</td>
+                    <td>{app.kind}</td>
+                    <td>
+                      {Object.entries(app.sources)
+                        .map(([source, n]) => `${n} ${APP_SOURCE_LABEL[source] || source}`)
+                        .join(", ")}
+                      {app.disabledRules > 0 && (
+                        <>
+                          {" "}
+                          <Chip tone="critical" title="Workflow rules from this app are marked disabled">
+                            {app.disabledRules} disabled
+                          </Chip>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          <table className="probe-results__table">
+            <thead>
+              <tr>
+                <th>Step</th>
+                <th>Checks</th>
+                <th>Endpoint</th>
+                <th>Status</th>
+                <th>Response</th>
+              </tr>
+            </thead>
+            <tbody>
+              {result.results.map((row) => (
+                <tr key={row.step} className={row.verdict === "ok" ? "probe-results__row--ok" : ""}>
+                  <td>{row.step}</td>
+                  <td>{row.note || "—"}</td>
+                  <td className="probe-results__path">{row.path || "—"}</td>
+                  <td>
+                    {row.status === null ? "—" : row.status}
+                    {row.verdict !== "ok" ? ` · ${row.verdict}` : ""}
+                  </td>
+                  <td className="probe-results__sample">{row.summary || row.sample || "(empty)"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </ConfigSection>
+  );
+}
+
 // The defaults the scorer uses, imported rather than copied. A hand-kept copy here had
 // drifted: 18 tolerances were missing (every filter and dashboard rule among them), so a site
 // with no saved values showed "NaN" in those inputs. Stored as rates; shown as percentages.
@@ -624,6 +773,7 @@ function ConfigAreas({
       <AutomationProbePanel />
       <AssetsProbePanel />
       <ServiceManagementProbePanel />
+      <MarketplaceAppsProbePanel />
       <GlobalPermissionsProbePanel />
       <AuditLogPanel key={auditOutcome} initialOutcome={auditOutcome} />
     </>

@@ -2311,12 +2311,12 @@ export async function probeJqlCount(jql) {
 //
 // Same never-throws contract as probeEndpoint: a diagnostic that can fail the page it runs
 // on is worse than no diagnostic.
-export async function probeEndpointAsUser(path, { method = "GET" } = {}) {
+export async function probeEndpointAsUser(path, { method = "GET", headers = {}, keepBody = false } = {}) {
   const started = Date.now();
   try {
     const response = await api.asUser().requestJira(route([path]), {
       method,
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", ...headers },
     });
     const text = await response.text();
     return {
@@ -2325,6 +2325,7 @@ export async function probeEndpointAsUser(path, { method = "GET" } = {}) {
       ok: response.ok,
       ms: Date.now() - started,
       sample: text.slice(0, 300),
+      ...(keepBody ? { body: text } : {}),
     };
   } catch (error) {
     return {

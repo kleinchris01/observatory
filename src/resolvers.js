@@ -15,6 +15,7 @@ import { getFieldConfigInventory, getFieldConfigItems, getFieldBehaviour } from 
 import { getAdminConfigResolver, saveAdminConfigResolver } from "./resolvers/admin-config.js";
 import { withAdminGuard, withAuditTrail } from "./resolvers/admin-guard.js";
 import { probeServiceManagementApi } from "./resolvers/jsm.js";
+import { probeMarketplaceApps } from "./resolvers/apps.js";
 import { checkMacroAccess } from "./resolvers/macro-access.js";
 import { getIssueTypeInventory, buildIssueTypeInventory } from "./resolvers/issue-types.js";
 import { getUserInventory, getUserDetails, getHandoverReport, buildUserInventory } from "./resolvers/people.js";
@@ -369,6 +370,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   probeAutomationApi, // Admin read: reports which Jira endpoints answer, for diagnosis
   probeAssetsApi, // Admin read: confirms the JSM Assets API and workspace on this site
   probeServiceManagementApi, // Admin read: what the JSM API answers, per JSM pillar and build stage
+  probeMarketplaceApps, // Admin read: which Marketplace-app signals this site answers, and the apps they reveal
   probeScreenFetchCost, // Admin read: samples the cost of a full screen inventory pass
   migrateNamespaceKeys, // Mutating: rewrites scope keys across every table
 };

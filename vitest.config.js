@@ -118,6 +118,8 @@ export default defineConfig({
         "src/resolvers/estate.js": { lines: 95, functions: 100, branches: 90 },
         "src/resolvers/issue-types.js": { lines: 95.5, functions: 91.5, branches: 88 },
         "src/resolvers/jsm.js": { lines: 100, functions: 100, branches: 100 },
+        "src/resolvers/apps.js": { lines: 100, functions: 100, branches: 100 },
+        "src/lib/apps-probe.js": { lines: 99, functions: 91.5, branches: 85 },
         "src/resolvers/people.js": { lines: 83.5, functions: 57.5, branches: 81 },
         "src/resolvers/rqt.js": { lines: 95.5, functions: 100, branches: 78.5 },
         // The macro's pillar reads: the one surface non-admins reach, scoped per viewer.
