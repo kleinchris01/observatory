@@ -3,7 +3,7 @@
 // Moved verbatim from src/resolvers.js; see docs/resolvers-refactor.md.
 
 import { incrMetric, METRIC_NAMES } from "../../lib/jira-api.js";
-import { pillarUnavailable, agentOk, rankMatches, clampResults } from "../../lib/rovo-agents.js";
+import { pillarUnavailable, agentOk, rankMatches, clampResults, USER_TEXT_NOTICE } from "../../lib/rovo-agents.js";
 import { getEstateInventory } from "../estate.js";
 import { logger, errorContext } from "../../lib/logger.js";
 
@@ -68,6 +68,7 @@ export async function rovoEstateInspect(payload, context) {
     });
     const out = {
       status: "ok",
+      userTextNotice: USER_TEXT_NOTICE,
       refreshedAt: inv.refreshedAt || null,
       findings: inv.governance?.findings || inv.governance || null,
     };

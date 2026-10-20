@@ -5,6 +5,7 @@
 import { incrMetric, METRIC_NAMES, getInstallationKey } from "../../lib/jira-api.js";
 import { assessAutomationEvidence } from "../../lib/automation-analysis.js";
 import { loadAutomationForAgent, ruleDirectoryMap } from "../automation.js";
+import { USER_TEXT_NOTICE } from "../../lib/rovo-agents.js";
 
 export const RISK_SENTENCES = {
   "embedded-credential": "stores a credential in plaintext that anyone who can view the rule can read",
@@ -66,6 +67,7 @@ export async function rovoSearchAutomationRules(payload, context) {
 
   return {
     status: "ok",
+    userTextNotice: USER_TEXT_NOTICE,
     // Age travels with a search result too. A rule created after the last import simply is
     // not here, and "no rule matched" would otherwise read as "no such rule exists".
     analysisRefreshedAt: analysis.refreshedAt ?? null,
@@ -125,6 +127,7 @@ export async function rovoInspectAutomationRule(payload, context) {
 
   return {
     status: "ok",
+    userTextNotice: USER_TEXT_NOTICE,
     analysisRefreshedAt: evidence.refreshedAt,
     evidence,
     rule: {
@@ -212,6 +215,7 @@ export async function rovoAutomationUsage(payload, context) {
 
   return {
     status: "ok",
+    userTextNotice: USER_TEXT_NOTICE,
     analysisRefreshedAt: evidence.refreshedAt,
     evidence,
     kind,

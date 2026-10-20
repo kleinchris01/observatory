@@ -16,12 +16,13 @@
 
 ---
 
-## Repository Variables
-(Settings → Secrets and variables → Actions → Repository variables)
+## Deploy notifications
 
-| Variable | Value | Description |
-|----------|-------|-------------|
-| `SLACK_WEBHOOK_URL` | `https://hooks.slack.com/...` | Incoming webhook for deploy notifications |
+None today. The Slack failure notification was removed on 19 Oct 2026: it was never configured,
+and its design read the webhook from a repository **variable**, which GitHub does not mask in logs.
+
+If it comes back, store the webhook as a repository **secret** (`SLACK_WEBHOOK_URL`), read it as
+`${{ secrets.SLACK_WEBHOOK_URL }}`, and add it to the CI secrets table in `SECURITY_CHECKLIST.md`.
 
 ---
 

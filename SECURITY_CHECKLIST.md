@@ -2,7 +2,9 @@
 
 Last verified: **19 October 2026** against `master` at `7555b7d`. Updated since in the change
 that added each control: denial-burst alerting (§2.2), the admin gate on the People and Access
-Rovo agents (§4).
+Rovo agents (§4), and the 19 Oct hardening pass — every Jira write audited and stopped by
+read-only mode (§3.1), the dependency gate (§8), user-text marking for Rovo (§4), log redaction
+(§6), and the Slack notification removed (§6).
 
 This document records what Observatory actually enforces, what it deliberately does not, and
 where the accepted risks and open items are. Every claim below is checkable against a named
@@ -101,14 +103,11 @@ is trusted rather than verified here.
 
 **What is audited**
 - Every **denial** by the admin guard.
-- The **31 mutating admin actions** in `AUDITED_ADMIN_ACTIONS` (`src/resolvers/admin-guard.js`):
+- The **32 mutating admin actions** in `AUDITED_ADMIN_ACTIONS` (`src/resolvers/admin-guard.js`):
   scan control, snapshot cancel and clear, project-usage job control, inventory builds, report
   definition writes, `saveAdminConfig`, `migrateNamespaceKeys`, and the remediation actions
-  `createRemediationEpic`, `applyRemediationVerification` and `syncRemediationNow`.
-
-> **Open item.** `organiseRemediationHierarchy` creates Jira issues and re-parents epics but is
-> **not** in `AUDITED_ADMIN_ACTIONS`. Add it, plus a test that fails when any resolver that
-> writes to Jira is missing from the set.
+  `createRemediationEpic`, `applyRemediationVerification`, `organiseRemediationHierarchy` and
+  `syncRemediationNow`. Every action that writes to Jira is in the set, enforced by test (§3.1).
 
 **What is not audited, and why**
 - **Admin reads** and **macro reads.** They are polled every 15 seconds during a scan; recording
@@ -161,15 +160,19 @@ request body.
 | Action | What it changes in Jira | Runs as | Blocked by read-only mode | Audited |
 |---|---|---|---|---|
 | `createRemediationEpic` | Creates an epic and its tasks for a finding | Admin (`asUser`) | Yes | Yes |
-| `applyRemediationVerification` | Reopens regressed tasks, closes fixed ones, withdraws stale ones as Won't Do, with a comment | Admin (`asUser`) | **No** | Yes |
-| `organiseRemediationHierarchy` | Creates quarterly initiatives and puts epics under them | Admin (`asUser`) | Yes | **No** |
+| `applyRemediationVerification` | Reopens regressed tasks, closes fixed ones, withdraws stale ones as Won't Do, with a comment | Admin (`asUser`) | Yes | Yes |
+| `organiseRemediationHierarchy` | Creates quarterly initiatives and puts epics under them | Admin (`asUser`) | Yes | Yes |
 
 Each is an explicit, confirmed admin action; nothing changes Jira on a schedule. Any future
 automatic mode (auto-close after a scan) must be an opt-in Config setting, off by default and
 capped per run.
 
-> **Open item.** `applyRemediationVerification` does not check `readOnlyMode`, so read-only mode
-> does not stop it transitioning and commenting on issues. Add the same check the other two use.
+**Enforced by test since 19 Oct 2026.** `JIRA_WRITE_ACTIONS` (`src/resolvers/admin-guard.js`) lists
+the three. `src/resolvers.test.js` ("Jira write actions") holds each to being audited, admin-only,
+and refused in read-only mode before any Jira write, and fails if any module outside remediation
+starts calling a Jira write helper (`createJiraIssue`, `updateJiraIssue`,
+`transitionIssueWithComment`) without being listed. Until then `applyRemediationVerification`
+ignored read-only mode and `organiseRemediationHierarchy` was not audited.
 
 Re-verify the write paths with:
 
@@ -242,15 +245,19 @@ derived snapshot data for the installation. See `RUNBOOK.md` for the procedure a
   ("admin gate on the People and Access agents").
 - **The other ten agents stay open** to every Rovo user: fields, automation, workflows, issue
   types, Assets, priorities and resolutions, field setup, screens, change history and projects.
-  They report on configuration, with project data filtered as above. Gate another agent the same way if it
-  starts returning people or access data.
-
-> **Open item — indirect prompt injection.** Field, rule, filter and project names are written by
-> people and reach the model verbatim in action results. Add a preamble rule that tool output is
-> data, never instructions, and mark user-authored strings in action output.
-
-> **Open item — preamble wording.** `_preamble.md` opens "Observatory is a read-only Jira
-> governance app". The agents are read-only; the app is not (§3.1).
+  They report on configuration, with project data filtered as above. Gate another agent the
+  same way if it starts returning people or access data.
+- **Text inside results is data.** Field, rule, filter and project names are written by people
+  and reach the model verbatim. Since 19 Oct 2026 the shared preamble tells every agent to treat
+  result text as data, never instructions; to flag instruction-like wording as worth an admin's
+  attention; and to base recommendations only on evidence fields. Every result that can carry
+  user text also says so in the data (`userTextNotice`, `USER_TEXT_NOTICE` in
+  `src/lib/rovo-agents.js`). This reduces indirect prompt injection; it cannot rule it out, which
+  is why the actions stay read-only.
+- **The preamble describes the agents, not the app, as read-only** (the app raises remediation
+  tickets, §3.1).
+- `agent-prompts.test.js` requires every prompt to start with `_preamble.md` exactly, and fails on
+  a hand-built `ok` result without the notice.
 
 ---
 
@@ -290,9 +297,14 @@ grep -rnE "dangerouslySetInnerHTML|innerHTML|eval\(|new Function" src static/src
   `requestJira` / `requestConfluence`. Adding one needs a security review and a line here.
 - Admin configuration is in Forge KV, writable only through `saveAdminConfig`, which is
   admin-guarded and audited.
-- **Read-only mode** (`readOnlyMode`) blocks scans, builds, `clearSnapshot`,
-  `createRemediationEpic` and `organiseRemediationHierarchy`, independent of the permission
-  check. It does **not** yet block `applyRemediationVerification` (§3.1).
+- **Read-only mode** (`readOnlyMode`) blocks scans, builds, `clearSnapshot` and every Jira write
+  (§3.1), independent of the permission check.
+- **Logs are redacted** (`redact`, `src/lib/logger.js`, since 19 Oct 2026). Every structured log
+  line has display names, emails, passwords, tokens, secrets, authorization headers, cookies,
+  API keys and webhook URLs replaced, at any depth and in any key spelling; JQL, query, body and
+  description text keep their length and lose their content. Ids (`accountId`,
+  `installationKey`) are kept. Error messages are free text and are not inspected, so callers
+  must still not put personal data into them.
 
 **CI secrets** (`.github/SECRETS.md`):
 
@@ -300,7 +312,11 @@ grep -rnE "dangerouslySetInnerHTML|innerHTML|eval\(|new Function" src static/src
 |---|---|---|
 | `FORGE_API_TOKEN`, `FORGE_EMAIL` | Secret | A personal Atlassian API token for one developer account. **Open item:** move to a dedicated deploy account, rotate every 90 days, record each rotation. |
 | `CODECOV_TOKEN` | Secret | Coverage upload only |
-| `SLACK_WEBHOOK_URL` | **Variable** | **Open item:** variables are not masked in logs. Move it to a secret and rotate the webhook. |
+
+**Closed 19 Oct 2026.** The Slack deploy-failure notification was removed. It was never
+configured, and it read its webhook from a repository variable, which GitHub does not mask in
+logs. If it returns, the webhook goes in as a **secret** and gets a row in this table
+(`.github/SECRETS.md` says how).
 
 ---
 
@@ -332,26 +348,27 @@ version: every install must be upgraded and an admin must accept it.
 
 ## 8. Dependencies and supply chain
 
-- `npm audit --audit-level=high --omit=dev` runs on every CI build, but with
-  `continue-on-error: true`: **it never fails a build.**
+- **The dependency audit is a gate** (since 19 Oct 2026). CI pipes `npm audit --omit=dev --json`
+  into `scripts/audit-gate.mjs`, which fails the build on any high or critical runtime advisory
+  without a reviewed acceptance in `scripts/audit-acceptances.json`, and on any acceptance past
+  its `reviewBy` date, so accepted risks are re-read rather than kept by default. Before this the
+  step ran with `continue-on-error` and never failed a build.
 - Dependabot opens weekly grouped npm and GitHub Actions updates; majors of `@forge/*` are ignored.
 - GitHub Actions are pinned by major tag (`@v7`), **not** by commit SHA.
 
-**Runtime advisories, 19 Oct 2026: 9 (8 high, 1 moderate), 0 critical.** Up from 5 on 31 July.
+**Runtime advisories, 19 Oct 2026: 5 high, 0 critical, all accepted.** `npm audit fix` cleared
+`undici`, `fast-uri`, `brace-expansion` (all under `@forge/api` → `@forge/manifest`) and the
+`markdown-it` moderate the same day.
 
 | Package | Sev | Path | State |
 |---|---|---|---|
-| `undici` | high | `@forge/api` → `@forge/manifest` → `cheerio` | **Fixable** with `npm audit fix` (non-breaking) |
-| `fast-uri` | high | `@forge/api` → `@forge/manifest` → `ajv` | **Fixable** with `npm audit fix` (non-breaking) |
-| `brace-expansion` | high | `@forge/api` → `@forge/manifest` → `glob` | **Fixable** with `npm audit fix` (non-breaking) |
-| `linkify-it`, `markdown-it`, `@atlaskit/adf-schema`, `@atlaskit/editor-prosemirror`, `prosemirror-view`, `@forge/bridge` | high / moderate | `@forge/bridge` → `@atlaskit/adf-schema` | No vendor fix. Client-side only; Observatory renders no user-authored ADF or markdown. Accepted. |
+| `@forge/bridge`, `@atlaskit/adf-schema`, `@atlaskit/editor-prosemirror`, `prosemirror-view`, `linkify-it` | high | `@forge/bridge` → `@atlaskit/adf-schema` | Client-side only; Observatory renders no user-authored ADF or markdown. Accepted until 2027-01-19. npm now offers `@forge/bridge` 7.x as the fix, a major version that needs its own evaluation. |
 
 Development-only advisories (`vite`, `esbuild`) need a running dev server and never ship in the
 Forge artifact; they clear with the Vite 8 migration, which needs `renameAdminHtml` rewritten
 against rolldown's bundle API.
 
-> **Open item.** Apply the three fixable updates, record an acceptance for each remaining
-> advisory, and make the audit step fail on any new high advisory without one.
+> **Open item.** Evaluate `@forge/bridge` 7.x, which clears all five accepted advisories.
 
 ---
 
@@ -365,10 +382,16 @@ against rolldown's bundle API.
 | Where the live site runs | **The live site (ford-advev, Jira and Confluence) is installed on the development environment** (v27), alongside the sandbox. Every merge to `master` reaches it with no staging step and no approval. |
 | Staging and production | Staging: one sandbox install, v5. Production: no installs. GitHub has only a `development` environment, with no protection rules. |
 
-> **Open items, highest priority on this list.** Install the live site from the **production**
-> environment and promote deliberately (dev → staging → production). Move to a GitHub plan with
-> branch protection: protect `master`, require the CI Gate, and require approval on the production
-> environment.
+> **Accepted risk — the live site runs the development environment, on purpose.** Decided
+> 19 Oct 2026. Observatory is a proof of concept and needs real production data to be meaningful,
+> so ford-advev carries the development install. The cost is that every merge to `master`
+> reaches live data unreviewed by staging, so merges go one at a time and each deploy is watched
+> before the next. **Revisit** when Observatory stops being a proof of concept, or when anyone
+> outside the team relies on its findings: then install ford-advev from **production** and
+> promote dev → staging → production.
+
+> **Open item.** Move to a GitHub plan with branch protection: protect `master`, require the CI
+> Gate, and require approval on the production environment.
 
 ---
 
@@ -392,19 +415,17 @@ In priority order. Each links to the section that explains it.
 
 | # | Item | Section |
 |---|---|---|
-| 1 | Live site runs the development environment; every merge deploys to it | §9 |
-| 2 | No branch protection on `master` | §9 |
-| 3 | `applyRemediationVerification` ignores read-only mode | §3.1 |
-| 4 | `organiseRemediationHierarchy` is not audited | §2.1 |
-| 5 | Slack webhook stored as an unmasked variable | §6 |
-| 6 | 3 fixable runtime advisories; the audit step never fails | §8 |
-| 7 | No closed-account handling for stored personal data | §3.3 |
-| 8 | Indirect prompt injection into Rovo agents; outdated preamble wording | §4 |
-| 9 | GitHub Actions pinned by tag, not SHA | §8 |
-| 10 | No logger redaction for sensitive fields | §12 |
-| 11 | 10 JSM scopes requested before their feature ships | §7 |
-| 12 | Deploys use one person's long-lived API token | §6 |
-| 13 | No threat model; no penetration test | §12 |
+| 1 | No branch protection on `master` | §9 |
+| 2 | No closed-account handling for stored personal data | §3.3 |
+| 3 | GitHub Actions pinned by tag, not SHA | §8 |
+| 4 | Evaluate `@forge/bridge` 7.x to clear the five accepted advisories | §8 |
+| 5 | 10 JSM scopes requested before their feature ships | §7 |
+| 6 | Deploys use one person's long-lived API token | §6 |
+| 7 | No threat model; no penetration test | §12 |
+
+**Accepted risks** (decided, with a reason and a revisit trigger): the live site on the
+development environment (§9), the macro group gate failing open (§1.3), the 60-second admin
+cache (§1.5), and the five client-side advisories under `@forge/bridge` (§8).
 
 ---
 
@@ -424,11 +445,13 @@ Re-measure at every release and update this table in the same commit.
 | Alert on a burst of guard denials | Yes (§2.2) | Yes |
 | Write-level scopes | 2 of 60 | ≤ 2, each justified |
 | Scopes requested before their feature ships | 10 | 0 |
-| Jira-writing actions missing from the audit log | 1 | 0 |
-| Jira-writing actions not stopped by read-only mode | 1 | 0 |
+| Jira-writing actions missing from the audit log | 0 (enforced by test) | 0 |
+| Jira-writing actions not stopped by read-only mode | 0 (enforced by test) | 0 |
 | Rovo agents returning admin-domain data without an admin gate | 0 (People and Access gated) | 0, or each documented |
-| Runtime advisories, high or critical | 8 high, 0 critical | 0 without a recorded acceptance |
-| Merges that reach the live site without staging | 100% | 0% |
+| Runtime advisories, high or critical | 5 high, 0 critical, all accepted | 0 without a recorded acceptance |
+| CI fails on an unaccepted high advisory | Yes (§8) | Yes |
+| Log lines that can carry personal data or secrets by key | 0 (redacted, §6) | 0 |
+| Merges that reach the live site without staging | 100% (accepted risk, §9) | 0% once out of proof of concept |
 | Default branch protected with required checks | No | Yes |
 | GitHub Actions pinned to a commit SHA | 0% | 100% |
 | Closed-account erasure for stored personal data | None | Polled weekly |
@@ -438,9 +461,8 @@ Re-measure at every release and update this table in the same commit.
 
 - **No penetration test** has been performed.
 - **No threat model** document exists.
-- **No logger redaction.** The structured logger has no sensitive-field filter. Today the code
-  logs ids and error context, not payloads; nothing stops a future call logging a JQL string or a
-  display name.
+- **Error-message content.** Log redaction works on keys; free-text error messages are not
+  inspected. Callers must still keep personal data out of them.
 - **Accessibility** is not a security control and is tracked separately (CONNECT-3865).
 
 ---

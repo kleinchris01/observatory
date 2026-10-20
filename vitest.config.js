@@ -13,7 +13,7 @@ export default defineConfig({
       {
         test: {
           name: "backend",
-          include: ["src/**/*.test.js"],
+          include: ["src/**/*.test.js", "scripts/**/*.test.js"],
           environment: "node",
           globals: true,
         },

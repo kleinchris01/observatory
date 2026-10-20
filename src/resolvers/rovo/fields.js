@@ -12,6 +12,7 @@ import {
 } from "../../lib/jira-api.js";
 import { ensureProjectStoreReady, readSnapshotMeta, loadSnapshotFields } from "../../lib/project-store.js";
 import { filterInventoryFields, sortInventoryFields } from "../../lib/analysis.js";
+import { USER_TEXT_NOTICE } from "../../lib/rovo-agents.js";
 
 // ----- Rovo agent actions -----
 
@@ -75,6 +76,7 @@ export async function rovoSearchFields(payload, context) {
   const matches = sortInventoryFields(filterInventoryFields(fields, query, fieldType), sortBy).slice(0, maxResults);
   return {
     status: "ok",
+    userTextNotice: USER_TEXT_NOTICE,
     snapshotRefreshedAt: meta.refreshedAt,
     query,
     totalMatches: matches.length,
@@ -121,6 +123,7 @@ export async function rovoInspectField(payload, context) {
 
   return {
     status: "ok",
+    userTextNotice: USER_TEXT_NOTICE,
     snapshotRefreshedAt: meta.refreshedAt,
     field: formatFieldCandidate(matchedField),
     governance: {
