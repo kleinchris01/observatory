@@ -58,6 +58,7 @@ import {
   buildEstateOverview,
   buildFieldConfigOverview,
   buildBoardOverview,
+  buildJsmOverview,
   buildDriftHealthOverview,
   attachUniqueIssueCounts,
 } from "../lib/site-health.js";
@@ -75,6 +76,7 @@ import { getAssetInventory } from "./assets.js";
 import { getBoardInventory } from "./boards.js";
 import { CHANGE_WINDOW_DAYS } from "./changes.js";
 import { getEstateInventory } from "./estate.js";
+import { loadJsmView } from "./jsm.js";
 import { loadFiltersWithFindings } from "./filters-dashboards.js";
 import { loadAllScreenPages } from "./screens.js";
 
@@ -138,6 +140,10 @@ export const PILLAR_INPUTS = {
   projects: ["projects", "adoption"],
   drift: ["drift"],
   fieldConfigs: ["fieldConfigs"],
+  requestTypes: ["jsm"],
+  queues: ["jsm"],
+  slas: ["jsm"],
+  customers: ["jsm"],
 };
 
 export async function getPillarHealth({ payload, context }) {
@@ -167,6 +173,7 @@ export async function getPillarHealth({ payload, context }) {
     driftHealth,
     automationAnalysis,
     fieldConfigOverview,
+    jsmOverview,
   ] = await Promise.all([
     needs.has("workflow") ? buildWorkflowOverview(installationKey) : Promise.resolve(null),
     needs.has("screens") ? buildScreenOverview(installationKey) : Promise.resolve(null),
@@ -185,6 +192,7 @@ export async function getPillarHealth({ payload, context }) {
         )
       : Promise.resolve(null),
     needs.has("fieldConfigs") ? buildFieldConfigOverview(installationKey) : Promise.resolve(null),
+    needs.has("jsm") ? buildJsmOverview(installationKey) : Promise.resolve(null),
   ]);
 
   let fieldUsage = null;
@@ -251,6 +259,10 @@ export async function getPillarHealth({ payload, context }) {
     estate: estateOverview?.health ?? null,
     fieldConfigs: fieldConfigOverview?.health ?? null,
     boards: boardOverview?.health ?? null,
+    requestTypes: jsmOverview?.health?.requestTypes ?? null,
+    queues: jsmOverview?.health?.queues ?? null,
+    slas: jsmOverview?.health?.slas ?? null,
+    customers: jsmOverview?.health?.customers ?? null,
     drift: driftHealth,
     tolerances: config?.healthTolerances,
     targets: config?.healthTargets,
@@ -536,6 +548,11 @@ export async function loadPillarReportInput(key, { installationKey, context }) {
       const inventory = await getBoardInventory({ context });
       if (inventory.neverBuilt) return { unavailable: notBuilt("board") };
       return inventory;
+    }
+    case "jsm": {
+      const view = await loadJsmView(installationKey);
+      if (view.neverBuilt) return { unavailable: notBuilt("Service Management") };
+      return view;
     }
     case "automation": {
       const [analysis, directory] = await Promise.all([

@@ -80,6 +80,7 @@ import { getUserInventory, collectRuleUserReferences } from "./people.js";
 import { getAccessInventory } from "./access.js";
 import { getAssetInventory } from "./assets.js";
 import { getEstateInventory } from "./estate.js";
+import { loadJsmView } from "./jsm.js";
 import { loadFiltersWithFindings } from "./filters-dashboards.js";
 import { getScreenFieldCrossSignal, loadAllScreenPages } from "./screens.js";
 import { computeBoardStatusIds, computeWorkflowInsightsFull } from "./workflows.js";
@@ -1082,6 +1083,12 @@ export const CANDIDATE_SOURCES = {
     const meta = await readDashboardSnapshotMeta(installationKey).catch(() => null);
     if (!meta?.version) return unavailable(noSnapshot);
     return ready(await loadDashboards(installationKey, meta.version));
+  },
+  jsm: async ({ installationKey }) => {
+    const view = await loadJsmView(installationKey);
+    if (view.neverBuilt) return unavailable(noSnapshot);
+    if (!view.jsmEnabled) return unavailable({ available: false, reason: "no-jsm", items: [] });
+    return ready(view);
   },
   automationAnalysis: async ({ installationKey }) => {
     const analysis = await readAutomationAnalysis(installationKey).catch(() => null);

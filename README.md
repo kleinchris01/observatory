@@ -15,7 +15,7 @@
 
 Observatory reads an entire Jira site's configuration — fields, screens, workflows, issue
 types, boards, filters, dashboards, permission schemes, project roles, priorities,
-resolutions, the user roster, the Assets CMDB and your automation rules — stores it, scores
+resolutions, the user roster, the Assets CMDB, Jira Service Management and your automation rules — stores it, scores
 it, and tells you what is safe to change.
 
 It ships as two Forge surfaces against one backend:
@@ -116,6 +116,10 @@ unmeasured rather than scoring zero.
 | Project roles | Roles and their actors, per project | 1 |
 | Assets (CMDB) | Schemas, object types and attributes — JSM Premium only | 1 |
 | Priorities & resolutions | The two global value lists every issue draws on | 0.5 |
+| Request types | JSM request types per desk, the portal fields each shows, 90-day request volume | 1 |
+| Queues | JSM queues, their JQL (checked for deleted custom fields) and current backlog | 1 |
+| SLAs | SLA outcomes over 90 days: requests measured and breached. Goals have no API | 1 |
+| Customers & organizations | Organizations, member counts, desk attachment. Customers counted, never listed | 0.5 |
 | Notification schemes | Notification events and recipients | 0.5 |
 | Configuration drift | Pass-over-pass change history across every tracked entity | 1 |
 
@@ -154,10 +158,10 @@ manufacture "invisible data" findings out of a permissions gap.
 
 ## The two surfaces
 
-### Jira admin page — 20 sections
+### Jira admin page — 21 sections
 
 `Overview` · `Field Browser` · `Project Usage` · `Workflows` · `Issue Types` ·
-`Priorities` · `People` · `Assets` · `Access` · `Screens` · `Saved Filters` ·
+`Priorities` · `People` · `Assets` · `Service Management` · `Access` · `Screens` · `Saved Filters` ·
 `Dashboards` · `Boards` · `Automation` · `Search` · `Remediation` · `Reports` · `Changes` · `Scans` ·
 `Configuration`
 
@@ -527,6 +531,7 @@ against each group explaining which endpoint needs it and why.
 | Filters & dashboards | `read:filter:jira`, `read:dashboard:jira`, `read:dashboard.property:jira` |
 | Estate | `read:priority:jira`, `read:resolution:jira` |
 | Assets | `read:cmdb-*`, `read:servicedesk-request`, `read:servicemanagement-insight-objects` |
+| Service Management | `read:servicedesk`, `read:requesttype`, `read:queue`, `read:organization`, `read:organization.user`, `read:servicedesk.organization`, `read:servicedesk.customer` (all `:jira-service-management`); `read:request`, `read:request.sla`, `read:customer` are used by the probe only |
 | Platform | `manage:jira-configuration`, `read:confluence-content.summary`, `read:chat:rovo`, `storage:app` |
 | **Write** | **`write:jira-work`** |
 

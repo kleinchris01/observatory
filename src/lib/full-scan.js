@@ -97,6 +97,11 @@ export const FULL_SCAN_STAGES = [
   // sit unconditionally in the list instead of being gated on an edition check nothing else
   // in the pipeline performs.
   { key: "assets", label: "Assets (CMDB) structure", needs: [], mode: "inline" },
+  // Jira Service Management: desks, request types and the fields each shows, queues, SLA
+  // outcomes and organizations. Like Assets, a site without JSM is a terminal success --
+  // buildJsmSnapshot records "unavailable" and the four JSM pillars report not-applicable --
+  // so it sits unconditionally in the list. Inline: the walk runs under its own time budget.
+  { key: "jsm", label: "Service Management inventory", needs: [], mode: "inline" },
   {
     key: "issues",
     label: "Issue crawl",
@@ -167,6 +172,8 @@ export const QUICK_SCAN_STAGES = [
   // quick scan refetches both in full, like every other structural stage here.
   { key: "people", label: "Licensed user roster (full)", needs: [], mode: "inline" },
   { key: "assets", label: "Assets (CMDB) structure (full)", needs: [], mode: "inline" },
+  // No changed-since signal for request types, queues or organizations either.
+  { key: "jsm", label: "Service Management inventory (full)", needs: [], mode: "inline" },
   { key: "drift", label: "Configuration drift", needs: [], mode: "inline" },
   { key: "health", label: "Record site health", needs: [], mode: "inline" },
 ];

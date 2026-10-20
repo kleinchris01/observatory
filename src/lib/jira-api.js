@@ -137,6 +137,9 @@ export const METRIC_NAMES = {
   boardSnapshotStarted: "board-snapshot-started",
   boardSnapshotCompleted: "board-snapshot-completed",
   boardSnapshotFailed: "board-snapshot-failed",
+  jsmSnapshotStarted: "jsm-snapshot-started",
+  jsmSnapshotCompleted: "jsm-snapshot-completed",
+  jsmSnapshotFailed: "jsm-snapshot-failed",
 };
 
 // ----- Module-level rate limiter state -----
@@ -1619,6 +1622,101 @@ export async function getBoardPage(startAt = 0, maxResults = 50) {
 // a partial body here -- the caller treats a failure as one unreadable board, not a dead build.
 export async function getBoardConfiguration(boardId) {
   return jiraRequest(route`/rest/agile/1.0/board/${boardId}/configuration`);
+}
+
+// ── Jira Service Management ──────────────────────────────────────────────────
+//
+// /rest/servicedeskapi pages differently from /rest/api/3: `start` and `limit`, and an
+// `isLastPage` flag rather than a total. The customer and organization endpoints are flagged
+// experimental and answer 400 without the opt-in header. Every read here is a granular
+// read:*:jira-service-management scope already declared in the manifest.
+
+export const JSM_EXPERIMENTAL = { "X-ExperimentalApi": "opt-in" };
+const JSM_PAGE = 50;
+
+// Walk a servicedeskapi list. `maxItems` bounds the walk for lists that are only ever counted
+// (customers, organization members): a desk with 40,000 customers is a lower bound past the
+// cap, reported as such, not 800 calls. Returns the values and whether the walk reached the end.
+export async function paginateServiceDesk(pathFor, { headers, maxItems = Infinity } = {}) {
+  const values = [];
+  let start = 0;
+  while (values.length < maxItems) {
+    const data = await jiraRequest(pathFor(start, JSM_PAGE), headers ? { headers } : {});
+    const page = Array.isArray(data) ? data : Array.isArray(data?.values) ? data.values : [];
+    values.push(...page);
+    if (!page.length || Array.isArray(data) || data?.isLastPage !== false) return { values, complete: true };
+    start += page.length;
+  }
+  return { values: values.slice(0, maxItems), complete: false };
+}
+
+export async function getServiceDesks() {
+  const { values } = await paginateServiceDesk(
+    (start, limit) => route`/rest/servicedeskapi/servicedesk?start=${start}&limit=${limit}`,
+  );
+  return values;
+}
+
+export async function getServiceDeskRequestTypes(deskId) {
+  const { values } = await paginateServiceDesk(
+    (start, limit) => route`/rest/servicedeskapi/servicedesk/${deskId}/requesttype?start=${start}&limit=${limit}`,
+  );
+  return values;
+}
+
+export async function getServiceDeskRequestTypeGroups(deskId) {
+  const { values } = await paginateServiceDesk(
+    (start, limit) => route`/rest/servicedeskapi/servicedesk/${deskId}/requesttypegroup?start=${start}&limit=${limit}`,
+  );
+  return values;
+}
+
+// The fields a request type shows on the portal, with their required flags. Unpaged.
+export async function getRequestTypeFields(deskId, requestTypeId) {
+  const data = await jiraRequest(route`/rest/servicedeskapi/servicedesk/${deskId}/requesttype/${requestTypeId}/field`);
+  return Array.isArray(data?.requestTypeFields) ? data.requestTypeFields : [];
+}
+
+// A desk's queues with their JQL and current issue count.
+export async function getServiceDeskQueues(deskId) {
+  const { values } = await paginateServiceDesk(
+    (start, limit) =>
+      route`/rest/servicedeskapi/servicedesk/${deskId}/queue?includeCount=true&start=${start}&limit=${limit}`,
+  );
+  return values;
+}
+
+// Counted, never kept: customer payloads carry names and email addresses.
+export async function countServiceDeskCustomers(deskId, maxItems) {
+  const { values, complete } = await paginateServiceDesk(
+    (start, limit) => route`/rest/servicedeskapi/servicedesk/${deskId}/customer?start=${start}&limit=${limit}`,
+    { headers: JSM_EXPERIMENTAL, maxItems },
+  );
+  return { count: values.length, complete };
+}
+
+export async function getServiceDeskOrganizations(deskId) {
+  const { values } = await paginateServiceDesk(
+    (start, limit) => route`/rest/servicedeskapi/servicedesk/${deskId}/organization?start=${start}&limit=${limit}`,
+    { headers: JSM_EXPERIMENTAL },
+  );
+  return values;
+}
+
+export async function getOrganizations() {
+  const { values } = await paginateServiceDesk(
+    (start, limit) => route`/rest/servicedeskapi/organization?start=${start}&limit=${limit}`,
+    { headers: JSM_EXPERIMENTAL },
+  );
+  return values;
+}
+
+export async function countOrganizationMembers(organizationId, maxItems) {
+  const { values, complete } = await paginateServiceDesk(
+    (start, limit) => route`/rest/servicedeskapi/organization/${organizationId}/user?start=${start}&limit=${limit}`,
+    { headers: JSM_EXPERIMENTAL, maxItems },
+  );
+  return { count: values.length, complete };
 }
 
 // ── Remediation: the one write path ─────────────────────────────────────────

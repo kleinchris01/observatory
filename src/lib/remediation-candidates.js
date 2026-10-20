@@ -543,4 +543,50 @@ export const CANDIDATE_SELECTORS = {
       return partialOf([...seen.values()], analysis.estate?.health?.selfTriggeringCount);
     },
   },
+
+  // ── Jira Service Management: the same analysis the tab runs, every row ──
+  "rt-visibility": jsm((v) => jsmFlagged(v.requestTypes, "hidden")),
+  "rt-usage": jsm((v) => jsmFlagged(v.requestTypes, "unused")),
+  "rt-descriptions": jsm((v) => jsmFlagged(v.requestTypes, "undescribed")),
+  "rt-naming": jsm((v) => jsmFlagged(v.requestTypes, "duplicate-name")),
+  "queue-integrity": jsm((v) => jsmFlagged(v.queues, "broken-ref")),
+  "queue-usage": jsm((v) => jsmFlagged(v.queues, "empty")),
+  "queue-duplicates": jsm((v) => jsmFlagged(v.queues, "duplicate-jql")),
+  "sla-breach-rate": jsm((v) => jsmSlas(v, "high-breach")),
+  "sla-usage": jsm((v) => jsmSlas(v, "unused")),
+  "org-membership": jsm((v) => jsmFlagged(v.organizations, "empty")),
+  "org-attachment": jsm((v) => jsmFlagged(v.organizations, "unattached")),
 };
+
+// JSM rows already carry their findings (loadJsmView). Request types and queues are keyed per
+// desk, since two desks may share a request type id space, so their ticket id is desk:id.
+function jsm(select) {
+  return { source: "jsm", select };
+}
+
+export function jsmFlagged(rows = [], code) {
+  return {
+    available: true,
+    items: (rows || [])
+      .filter((r) => (r.findings || []).some((f) => f.code === code))
+      .map((r) => ({ ...r, id: r.deskId ? `${r.deskId}:${r.id}` : String(r.id), itemId: r.id })),
+  };
+}
+
+// SLAs are global fields: one ticket per SLA, linking every desk it runs on.
+export function jsmSlas(view, code) {
+  const keyOf = new Map((view.desks || []).map((d) => [d.deskId, d.projectKey]));
+  return {
+    available: true,
+    items: (view.slas || [])
+      .filter((s) => (s.findings || []).some((f) => f.code === code))
+      .map((s) => ({
+        id: s.fieldId,
+        fieldId: s.fieldId,
+        name: s.name,
+        activeCount: s.activeCount,
+        breachedCount: s.breachedCount,
+        projectKeys: [...new Set((s.desks || []).map((d) => keyOf.get(d.deskId)).filter(Boolean))],
+      })),
+  };
+}

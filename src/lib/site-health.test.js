@@ -30,6 +30,7 @@ const estateStore = {
   readEstateSnapshotMeta: vi.fn(async () => null),
   loadEstateValues: vi.fn(async () => []),
 };
+const jsmStore = { readJsmSnapshotMeta: vi.fn(async () => null) };
 vi.mock("./project-store.js", () => ({
   loadIssueScanProjectTotals: vi.fn(async () => []),
   loadScreenGovernanceSummary: vi.fn(async () => ({})),
@@ -51,6 +52,7 @@ vi.mock("./project-store.js", () => ({
   ...assetStore,
   ...accessStore,
   ...estateStore,
+  ...jsmStore,
 }));
 const automationStore = {
   loadStatusAutomationReferences: vi.fn(async () => ({})),
@@ -68,6 +70,7 @@ const {
   buildEstateOverview,
   buildWorkflowOverview,
   buildFieldConfigOverview,
+  buildJsmOverview,
 } = await import("./site-health.js");
 const workflowStore = await import("./project-store.js");
 
@@ -593,5 +596,35 @@ describe("buildFieldConfigOverview", () => {
   test("a failed read degrades to unavailable", async () => {
     workflowStore.readFieldConfigSnapshotMeta.mockRejectedValueOnce(new Error("tidb"));
     expect(await buildFieldConfigOverview("site")).toEqual({ available: false, state: "error" });
+  });
+});
+
+describe("buildJsmOverview", () => {
+  test("no snapshot is unmeasured", async () => {
+    expect(await buildJsmOverview("inst")).toEqual({ available: false, state: "idle", lastError: null });
+  });
+
+  test("a site with no service desk is not-applicable on all four pillars", async () => {
+    jsmStore.readJsmSnapshotMeta.mockResolvedValueOnce({ state: "unavailable", lastError: "No desks." });
+    const overview = await buildJsmOverview("inst");
+    expect(overview).toMatchObject({ available: false, jsmEnabled: false, lastError: "No desks." });
+    expect(overview.health.slas).toEqual({ available: false, jsmEnabled: false });
+  });
+
+  test("reads the summary stored at build time", async () => {
+    jsmStore.readJsmSnapshotMeta.mockResolvedValueOnce({
+      state: "ready",
+      version: "v1",
+      unreadCount: 2,
+      summary: { available: true, jsmEnabled: true, queues: { total: 3, broken: 1 } },
+    });
+    const overview = await buildJsmOverview("inst");
+    expect(overview).toMatchObject({ available: true, unreadCount: 2 });
+    expect(overview.health.queues).toMatchObject({ available: true, broken: 1 });
+  });
+
+  test("a failed read degrades to an error state", async () => {
+    jsmStore.readJsmSnapshotMeta.mockRejectedValueOnce(new Error("down"));
+    expect(await buildJsmOverview("inst")).toEqual({ available: false, state: "error" });
   });
 });

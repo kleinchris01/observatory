@@ -1841,6 +1841,122 @@ export const CREATE_FIELD_ARCHIVED_USAGE_TABLE = `
   )
 `;
 
+// Jira Service Management: four pillars on one snapshot (jsm-engine.js). Full replace per
+// scope, like the estate tables. Customer and organization payloads carry people's names and
+// email addresses, so nothing here holds a person: desks keep a customer COUNT, organizations
+// keep their own (company) name and a member COUNT.
+export const CREATE_JSM_SNAPSHOT_META_TABLE = `
+  CREATE TABLE IF NOT EXISTS jsm_snapshot_meta (
+    scope_key VARCHAR(191) NOT NULL,
+    state VARCHAR(32) NOT NULL DEFAULT 'idle',
+    version VARCHAR(64) NULL,
+    started_at VARCHAR(64) NULL,
+    completed_at VARCHAR(64) NULL,
+    refreshed_at VARCHAR(64) NULL,
+    jsm_enabled INTEGER NOT NULL DEFAULT 1,
+    total_desks INTEGER NOT NULL DEFAULT 0,
+    total_request_types INTEGER NOT NULL DEFAULT 0,
+    total_queues INTEGER NOT NULL DEFAULT 0,
+    total_organizations INTEGER NOT NULL DEFAULT 0,
+    unread_count INTEGER NOT NULL DEFAULT 0,
+    summary_json TEXT NULL,
+    last_error TEXT NULL,
+    PRIMARY KEY (scope_key)
+  )
+`;
+
+export const CREATE_SNAPSHOT_JSM_DESKS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_jsm_desks (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    desk_id VARCHAR(64) NOT NULL,
+    project_id VARCHAR(64) NULL,
+    project_key VARCHAR(191) NULL,
+    project_name VARCHAR(255) NULL,
+    portal_group_count INTEGER NULL,
+    customer_count INTEGER NULL,
+    customers_complete INTEGER NULL,
+    org_count INTEGER NULL,
+    PRIMARY KEY (scope_key, version, desk_id)
+  )
+`;
+
+export const CREATE_SNAPSHOT_JSM_REQUEST_TYPES_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_jsm_request_types (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    desk_id VARCHAR(64) NOT NULL,
+    request_type_id VARCHAR(64) NOT NULL,
+    name VARCHAR(255) NULL,
+    has_description INTEGER NOT NULL DEFAULT 0,
+    issue_type_id VARCHAR(64) NULL,
+    group_ids VARCHAR(500) NULL,
+    field_count INTEGER NULL,
+    required_field_count INTEGER NULL,
+    issue_count INTEGER NULL,
+    recent_count INTEGER NULL,
+    PRIMARY KEY (scope_key, version, desk_id, request_type_id)
+  )
+`;
+
+export const CREATE_SNAPSHOT_JSM_REQUEST_TYPE_FIELDS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_jsm_request_type_fields (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    desk_id VARCHAR(64) NOT NULL,
+    request_type_id VARCHAR(64) NOT NULL,
+    field_id VARCHAR(191) NOT NULL,
+    label VARCHAR(255) NULL,
+    required INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, version, desk_id, request_type_id, field_id)
+  )
+`;
+
+export const CREATE_SNAPSHOT_JSM_REQUEST_TYPE_FIELDS_BY_FIELD_INDEX = `
+  CREATE INDEX IF NOT EXISTS idx_snapshot_jsm_rt_fields_field
+    ON snapshot_jsm_request_type_fields (scope_key, version, field_id)
+`;
+
+export const CREATE_SNAPSHOT_JSM_QUEUES_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_jsm_queues (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    desk_id VARCHAR(64) NOT NULL,
+    queue_id VARCHAR(64) NOT NULL,
+    name VARCHAR(255) NULL,
+    jql TEXT NULL,
+    issue_count INTEGER NULL,
+    broken_refs VARCHAR(500) NULL,
+    PRIMARY KEY (scope_key, version, desk_id, queue_id)
+  )
+`;
+
+export const CREATE_SNAPSHOT_JSM_SLAS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_jsm_slas (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    desk_id VARCHAR(64) NOT NULL,
+    field_id VARCHAR(191) NOT NULL,
+    field_name VARCHAR(255) NULL,
+    active_count INTEGER NULL,
+    breached_count INTEGER NULL,
+    PRIMARY KEY (scope_key, version, desk_id, field_id)
+  )
+`;
+
+export const CREATE_SNAPSHOT_JSM_ORGANIZATIONS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_jsm_organizations (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    org_id VARCHAR(64) NOT NULL,
+    name VARCHAR(255) NULL,
+    member_count INTEGER NULL,
+    members_complete INTEGER NULL,
+    desk_count INTEGER NULL,
+    PRIMARY KEY (scope_key, version, org_id)
+  )
+`;
+
 export const CREATE_REMEDIATION_TICKETS_V2_TABLE = `
   CREATE TABLE IF NOT EXISTS remediation_tickets_v2 (
     scope_key VARCHAR(191) NOT NULL,
@@ -2579,7 +2695,20 @@ const projectStoreMigrations = migrationRunner
   // Archived projects: the list, whether it could be read, and last-known field counts.
   .enqueue("v181_create_archived_projects_table", CREATE_ARCHIVED_PROJECTS_TABLE)
   .enqueue("v182_create_archived_projects_meta_table", CREATE_ARCHIVED_PROJECTS_META_TABLE)
-  .enqueue("v183_create_field_archived_usage_table", CREATE_FIELD_ARCHIVED_USAGE_TABLE);
+  .enqueue("v183_create_field_archived_usage_table", CREATE_FIELD_ARCHIVED_USAGE_TABLE)
+  // Jira Service Management: desks, request types (+ the fields each shows), queues, SLA
+  // outcomes per desk, organizations. One meta row carries the computed summary.
+  .enqueue("v184_create_jsm_snapshot_meta_table", CREATE_JSM_SNAPSHOT_META_TABLE)
+  .enqueue("v185_create_snapshot_jsm_desks_table", CREATE_SNAPSHOT_JSM_DESKS_TABLE)
+  .enqueue("v186_create_snapshot_jsm_request_types_table", CREATE_SNAPSHOT_JSM_REQUEST_TYPES_TABLE)
+  .enqueue("v187_create_snapshot_jsm_request_type_fields_table", CREATE_SNAPSHOT_JSM_REQUEST_TYPE_FIELDS_TABLE)
+  .enqueue(
+    "v188_create_snapshot_jsm_request_type_fields_by_field_index",
+    CREATE_SNAPSHOT_JSM_REQUEST_TYPE_FIELDS_BY_FIELD_INDEX,
+  )
+  .enqueue("v189_create_snapshot_jsm_queues_table", CREATE_SNAPSHOT_JSM_QUEUES_TABLE)
+  .enqueue("v190_create_snapshot_jsm_slas_table", CREATE_SNAPSHOT_JSM_SLAS_TABLE)
+  .enqueue("v191_create_snapshot_jsm_organizations_table", CREATE_SNAPSHOT_JSM_ORGANIZATIONS_TABLE);
 // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
 // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
 // v039 adds scan_history LONGTEXT for multi-run audit history

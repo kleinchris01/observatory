@@ -76,6 +76,22 @@ describe("getPillarHealth", () => {
     expect(result.pillar.available).toBe(true);
   });
 
+  test("scores a JSM pillar from the Service Management overview alone", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    mocks.readJsmSnapshotMeta.mockResolvedValueOnce({
+      state: "ready",
+      version: "j1",
+      summary: {
+        available: true,
+        jsmEnabled: true,
+        queues: { total: 4, brokenChecked: 4, broken: 1, countsMeasured: 4, empty: 0, duplicates: 0 },
+      },
+    });
+    const result = await getPillarHealth({ payload: { pillar: "queues" }, ...ctx });
+    expect(result.pillar.key).toBe("queues");
+    expect(result.pillar.dimensions.find((d) => d.key === "queue-integrity")).toMatchObject({ available: true });
+  });
+
   test("rejects a missing pillar name", async () => {
     await expect(getPillarHealth({ payload: {}, ...ctx })).rejects.toThrow(/pillar/);
   });
@@ -228,6 +244,7 @@ describe("runOqlQuery", () => {
       "filters",
       "dashboards",
       "boards",
+      "jsm",
       "automation",
     ]);
     expect(result.pillars.filter((p) => p.status === "unavailable" && !p.reason)).toEqual([]);
@@ -347,6 +364,27 @@ describe("getPillarReport", () => {
     const report = await getPillarReport(ctx("boards"));
     expect(report).toMatchObject({ pillar: "boards", status: "unavailable", rows: [] });
     expect(report.reason).toMatch(/board inventory/);
+  });
+
+  test("service management: unbuilt is unavailable; built carries prefixed findings", async () => {
+    mocks.readJsmSnapshotMeta.mockResolvedValueOnce(null);
+    expect(await getPillarReport(ctx("jsm"))).toMatchObject({
+      status: "unavailable",
+      reason: expect.stringMatching(/Service Management/),
+    });
+
+    mocks.readJsmSnapshotMeta.mockResolvedValueOnce({
+      state: "ready",
+      version: "j1",
+      refreshedAt: "2026-10-19T00:00:00Z",
+    });
+    mocks.loadJsmDesks.mockResolvedValueOnce([{ deskId: "1", projectKey: "SD", portalGroupCount: 1 }]);
+    mocks.loadJsmQueues.mockResolvedValueOnce([
+      { deskId: "1", id: "7", name: "Broken", jql: "cf[9] = 1", issueCount: 1, brokenRefs: ["customfield_9"] },
+    ]);
+    const report = await getPillarReport(ctx("jsm"));
+    expect(report).toMatchObject({ status: "ok", flaggedCount: 1 });
+    expect(report.rows[0]).toMatchObject({ type: "Queue", desk: "SD", findings: ["queue-broken-ref"] });
   });
 
   test("boards: reuses the inventory read and carries its per-board findings", async () => {

@@ -73,6 +73,18 @@ export const jiraLinks = {
     o && present(schemaId) && present(typeId)
       ? `${o}/secure/ObjectSchema.jspa?id=${enc(schemaId)}&typeId=${enc(typeId)}`
       : null,
+  // Jira Service Management project settings, by the desk's project key.
+  requestTypes: (o, key) => (o && key ? `${o}/jira/servicedesk/projects/${enc(key)}/settings/request-types` : null),
+  requestType: (o, key, id) =>
+    o && key && present(id)
+      ? `${o}/jira/servicedesk/projects/${enc(key)}/settings/request-types/request-type/${enc(id)}/request-form`
+      : null,
+  portalSettings: (o, key) => (o && key ? `${o}/jira/servicedesk/projects/${enc(key)}/settings/portal-settings` : null),
+  queue: (o, key, id) =>
+    o && key && present(id) ? `${o}/jira/servicedesk/projects/${enc(key)}/queues/custom/${enc(id)}` : null,
+  slaSettings: (o, key) => (o && key ? `${o}/jira/servicedesk/projects/${enc(key)}/settings/sla` : null),
+  organization: (o, id) => (o && present(id) ? `${o}/jira/servicedesk/organization/${enc(id)}` : null),
+  deskOrganizations: (o, key) => (o && key ? `${o}/jira/servicedesk/projects/${enc(key)}/organizations` : null),
 };
 
 // A markdown-style link for renderADF, or the bare label when there is no URL. Brackets in

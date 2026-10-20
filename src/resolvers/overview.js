@@ -40,6 +40,7 @@ import {
   buildAccessOverview,
   buildEstateOverview,
   buildFieldConfigOverview,
+  buildJsmOverview,
   buildBoardOverview,
   buildDriftHealthOverview,
   attachUniqueIssueCounts,
@@ -283,6 +284,7 @@ export async function getAdminOverview({ context }) {
     dashboardOverview,
     automationAnalysis,
     fieldConfigOverview,
+    jsmOverview,
   ] = await Promise.all([
     readSnapshotMeta(installationKey),
     // Counted in SQL rather than loaded. This used to pull up to 5,000 summary rows --
@@ -315,6 +317,7 @@ export async function getAdminOverview({ context }) {
       fallbackOn("overview.automation_load_failed", () => null, { installationKey }),
     ),
     buildFieldConfigOverview(installationKey),
+    buildJsmOverview(installationKey),
   ]);
 
   const automation = overviewAutomation(automationAnalysis);
@@ -379,6 +382,7 @@ export async function getAdminOverview({ context }) {
       estateOverview,
       fieldConfigOverview,
       boardOverview,
+      jsmOverview,
       driftHealth,
       config,
       priorValues: priorHealthValues,
@@ -409,6 +413,7 @@ export async function getAdminOverview({ context }) {
     estate: estateOverview,
     fieldConfigs: fieldConfigOverview,
     boards: boardOverview,
+    jsm: jsmOverview,
     // The counts the Overview's findings list needs, not just the score's rate. Same lesson
     // the automation pillar learned: trimming this to the headline fields made every problem
     // the analysis had already found invisible on the page that exists to surface problems.

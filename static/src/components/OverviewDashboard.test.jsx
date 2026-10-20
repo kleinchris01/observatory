@@ -612,6 +612,52 @@ describe("OverviewDashboard — workflow, automation and project findings stand 
     expect(screen.getByText("Field schemes no project uses")).toBeInTheDocument();
   });
 
+  test("promotes Service Management findings, a broken queue as critical, and links into the tab", async () => {
+    const onNavigate = vi.fn();
+    const jsm = (over) => ({
+      available: true,
+      jsmEnabled: true,
+      summary: {
+        available: true,
+        requestTypes: { hidden: 3, unused: 0 },
+        queues: { broken: 2, empty: 0 },
+        slas: { highBreach: 1 },
+        customers: { emptyOrganizations: 0 },
+      },
+      ...over,
+    });
+    const { unmount } = render(
+      <OverviewDashboard
+        initialOrder="pillar"
+        dashboard={dashboard()}
+        findingsSummary={findingsSummary}
+        workflow={workflow()}
+        jsm={jsm()}
+        onNavigate={onNavigate}
+      />,
+    );
+    const broken = screen.getByText("Queues naming a deleted custom field").closest(".ui-gov");
+    expect(within(broken).getByText("2")).toBeInTheDocument();
+    expect(broken.className).toMatch(/ui-gov--critical/);
+    expect(screen.getByText("Request types not on the portal")).toBeInTheDocument();
+    expect(screen.getByText("SLAs breached more often than met")).toBeInTheDocument();
+    expect(screen.queryByText("Request types with no request in 90 days")).not.toBeInTheDocument();
+    unmount();
+
+    // A site with no service desk: nothing to flag, and nothing claimed clean either.
+    render(
+      <OverviewDashboard
+        initialOrder="pillar"
+        dashboard={dashboard()}
+        findingsSummary={findingsSummary}
+        workflow={workflow()}
+        jsm={jsm({ jsmEnabled: false })}
+        onNavigate={onNavigate}
+      />,
+    );
+    expect(screen.queryByText("Queues naming a deleted custom field")).not.toBeInTheDocument();
+  });
+
   test("promotes dormant licences only when the crawl measured activity", () => {
     const users = (over) => ({
       available: true,

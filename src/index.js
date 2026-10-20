@@ -24,6 +24,7 @@ import { buildAssetSnapshot, buildAssetTypeCounts } from "./lib/asset-engine.js"
 import { buildAccessSnapshot } from "./lib/access-engine.js";
 import { buildEstateSnapshot } from "./lib/estate-engine.js";
 import { buildFieldConfigSnapshot } from "./lib/fieldconfig-engine.js";
+import { buildJsmSnapshot } from "./lib/jsm-engine.js";
 import { syncRemediationTickets, queueRemediationSync } from "./lib/remediation-sync.js";
 import { buildBoardSnapshot } from "./lib/board-engine.js";
 import { buildDriftSnapshot } from "./lib/drift-engine.js";
@@ -71,6 +72,9 @@ import {
   rovoAssetImpact,
   rovoEstateSearch,
   rovoEstateInspect,
+  rovoJsmSearch,
+  rovoJsmInspect,
+  rovoJsmImpact,
   rovoScreenSearch,
   rovoScreenInspect,
   rovoScreenImpact,
@@ -516,6 +520,17 @@ export async function consumeSnapshot(event) {
       return;
     }
 
+    if (jobType === "build-jsm-snapshot") {
+      const result = await buildJsmSnapshot(installationKey);
+      logger.info("build-jsm-snapshot.done", {
+        unavailable: Boolean(result?.unavailable),
+        desks: result?.desks ?? 0,
+        requestTypes: result?.requestTypes ?? 0,
+        queues: result?.queues ?? 0,
+      });
+      return;
+    }
+
     if (jobType === "build-fieldconfig-snapshot") {
       const result = await buildFieldConfigSnapshot(installationKey);
       logger.info("build-fieldconfig-snapshot.done", {
@@ -679,6 +694,12 @@ export const rovoScreenAction = routeAgentAction({
   inspect: rovoScreenInspect,
   impact: rovoScreenImpact,
 });
+export const rovoJsmAction = routeAgentAction({
+  search: rovoJsmSearch,
+  inspect: rovoJsmInspect,
+  impact: rovoJsmImpact,
+  impactInput: "field",
+});
 export const rovoFieldConfigAction = routeAgentAction({
   search: rovoFieldConfigSearch,
   inspect: rovoFieldConfigInspect,
@@ -692,6 +713,7 @@ export { rovoWorkflowSearch, rovoWorkflowInspect, rovoWorkflowImpact };
 export { rovoIssueTypeSearch, rovoIssueTypeInspect, rovoIssueTypeImpact };
 export { rovoAssetSearch, rovoAssetInspect, rovoAssetImpact };
 export { rovoEstateSearch, rovoEstateInspect };
+export { rovoJsmSearch, rovoJsmInspect, rovoJsmImpact };
 import { rovoFieldConfigSearch, rovoFieldConfigInspect, rovoFieldConfigImpact } from "./lib/fieldconfig-reads.js";
 export { rovoFieldConfigSearch, rovoFieldConfigInspect, rovoFieldConfigImpact };
 export { rovoScreenSearch, rovoScreenInspect, rovoScreenImpact };

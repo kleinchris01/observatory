@@ -2,6 +2,7 @@ import React from "react";
 import {
   Stack,
   Pulse,
+  Headset,
   Lightning,
   Folder,
   ChartBar,
@@ -115,6 +116,7 @@ export const ICON_COMPONENTS = {
   clipboardText: ClipboardText,
   wrench: Wrench,
   listChecks: ListChecks,
+  headset: Headset,
 };
 
 // Validated categorical palette (dataviz skill's reference instance, references/palette.md) --

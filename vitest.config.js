@@ -120,6 +120,11 @@ export default defineConfig({
         "src/resolvers/jsm.js": { lines: 100, functions: 100, branches: 100 },
         "src/resolvers/apps.js": { lines: 100, functions: 100, branches: 100 },
         "src/lib/apps-probe.js": { lines: 99, functions: 91.5, branches: 85 },
+        // The Service Management pillar's lib layer: the build, the findings and the store.
+        "src/lib/jsm-engine.js": { lines: 95, functions: 87.5, branches: 83.5 },
+        "src/lib/jsm-insights.js": { lines: 99.5, functions: 100, branches: 97.5 },
+        "src/lib/store/jsm.js": { lines: 99.5, functions: 100, branches: 73.5 },
+        "src/resolvers/rovo/jsm.js": { lines: 99.5, functions: 100, branches: 85.5 },
         "src/resolvers/people.js": { lines: 83.5, functions: 57.5, branches: 81 },
         "src/resolvers/rqt.js": { lines: 95.5, functions: 100, branches: 78.5 },
         // The macro's pillar reads: the one surface non-admins reach, scoped per viewer.

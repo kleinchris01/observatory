@@ -190,7 +190,9 @@ grep -rn "asUser: true" src/resolvers/ src/lib/ | grep -v '\.test\.'
 | Licensed users: `account_id`, display name, avatar URL, active flag, account type | Forge SQL `snapshot_users` | **Yes** | Until the next people snapshot |
 | Licences per user and the access group that grants them | Forge SQL | **Yes** | Until the next people snapshot |
 | Filter and dashboard owners; automation actors; user-picker field values | Forge SQL | **Yes** (account ids, some names) | Until the next snapshot |
-| JSM customers and organisations | Counts and ids only, by design (the API returns PII) | Minimal | Pillar not built yet |
+| JSM desks, request types (and the fields each shows), queue JQL, SLA outcome counts | Forge SQL `snapshot_jsm_*` | No | Until the next JSM snapshot |
+| JSM customers and organisation members | **Counts only**: never a name, email or account id (`countServiceDeskCustomers`, `countOrganizationMembers` discard the payload) | No | Until the next JSM snapshot |
+| JSM organisations | Forge SQL `snapshot_jsm_organizations`: id, company name, member count | No | Until the next JSM snapshot |
 | Audit log | Forge SQL `audit_log` | Account id only | 180 days |
 | Report jobs | Forge SQL | No | 7 days |
 | Admin configuration | Forge KV, written only through the guarded, audited `saveAdminConfig` | No | Until changed |
@@ -331,10 +333,12 @@ The app requests **60 scopes** (`manifest.yml` is the authoritative list). Two a
 
 The rest are reads, plus `storage:app`, `read:chat:rovo` and `read:confluence-content.summary`.
 
-> **Open item — scopes ahead of their feature.** The 10 JSM scopes added 13 Oct 2026 (queues, SLAs,
-> requests, request types, customers, organisations) serve the JSM probe and the planned JSM
-> pillar. Until stage 1 ships, users grant permissions for a feature they cannot see. Ship it, or
-> remove them.
+> **Open item — three JSM scopes still ahead of their feature.** The Service Management pillar
+> (stage 1, Oct 2026) uses 7 of the 10 JSM scopes added 13 Oct: service desks, request types,
+> queues, organisations, organisation members, desk organisations and desk customers (counted,
+> never stored). `read:request`, `read:request.sla` and `read:customer` are used only by the
+> probe: SLA outcomes come from JQL under `read:jira-work`. Use them in stage 2, or drop them at
+> the next scope change so the removal shares a consent screen.
 
 **Closed.** The screen scopes flagged on 4 Aug are used by the Screens tab, which has shipped.
 
@@ -419,7 +423,7 @@ In priority order. Each links to the section that explains it.
 | 2 | No closed-account handling for stored personal data | §3.3 |
 | 3 | GitHub Actions pinned by tag, not SHA | §8 |
 | 4 | Evaluate `@forge/bridge` 7.x to clear the five accepted advisories | §8 |
-| 5 | 10 JSM scopes requested before their feature ships | §7 |
+| 5 | 3 JSM scopes used only by the probe (`read:request`, `read:request.sla`, `read:customer`) | §7 |
 | 6 | Deploys use one person's long-lived API token | §6 |
 | 7 | No threat model; no penetration test | §12 |
 

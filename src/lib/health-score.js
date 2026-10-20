@@ -201,6 +201,31 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   // being wrong. It exists to flag the outlier pass where a fifth of the tracked estate
   // moved and nobody meant it to.
   configChurn: 0.2,
+  // Jira Service Management. Request types in no portal group: customers cannot see them.
+  // Forgiving -- agent-only request types are hidden on purpose.
+  hiddenRequestTypes: 0.3,
+  // Request types nothing was raised through in the last 90 days.
+  unusedRequestTypes: 0.35,
+  // Request types with no description for the customer choosing between them. Loose: a
+  // self-explanatory name is common and fine.
+  undescribedRequestTypes: 0.6,
+  // Request types sharing a name with another on the same desk.
+  duplicateRequestTypeNames: 0.15,
+  // Queues whose JQL names a custom field that no longer exists. Tight: the queue is broken.
+  brokenQueueRefs: 0.02,
+  // Queues holding nothing right now. Loose: a queue for an escalation that rarely happens is
+  // supposed to be empty most of the time.
+  emptyQueues: 0.5,
+  // Queues on one desk running the same query.
+  duplicateQueues: 0.2,
+  // Requests that ever breached an SLA, of those an SLA ran against, last 90 days.
+  slaBreachRate: 0.25,
+  // SLAs no request ran against in 90 days.
+  unusedSlas: 0.4,
+  // Customer organizations nobody belongs to.
+  emptyOrganizations: 0.3,
+  // Organizations no service desk uses.
+  unattachedOrganizations: 0.4,
 };
 
 // Scoring model v2: dimensions with a definable good state.
@@ -458,6 +483,13 @@ export const PILLAR_WEIGHTS = {
   // What Jira enforces on each field per project: required, hidden, which fields a project
   // has at all. As structural as screens, and the half of a field's story screens do not tell.
   fieldConfigs: 1,
+  // Jira Service Management, four pillars on one snapshot. Each reports not-applicable on a
+  // site without JSM, like Assets off Premium. Customers carries less: an empty organization
+  // is clutter, a broken queue or a missed SLA is a service failing.
+  requestTypes: 1,
+  queues: 1,
+  slas: 1,
+  customers: 0.5,
 };
 
 export const HEALTH_PILLARS = [
@@ -476,6 +508,10 @@ export const HEALTH_PILLARS = [
   { key: "roles", label: "Project roles" },
   { key: "estate", label: "Priorities and resolutions" },
   { key: "boards", label: "Boards" },
+  { key: "requestTypes", label: "Request types" },
+  { key: "queues", label: "Queues" },
+  { key: "slas", label: "SLAs" },
+  { key: "customers", label: "Customers and organizations" },
   { key: "automation", label: "Automation" },
   { key: "projects", label: "Projects" },
   { key: "drift", label: "Configuration drift" },
@@ -524,6 +560,10 @@ export function computeSiteHealth({
   boards,
   drift,
   fieldConfigs,
+  requestTypes,
+  queues,
+  slas,
+  customers,
   tolerances,
   targets,
   priorValues,
@@ -2596,6 +2636,141 @@ export function computeSiteHealth({
     dimensions.push(unavailable("board-backing", "Board backing filters", "boards", noBoards));
     dimensions.push(unavailable("board-columns", "Board columns", "boards", noBoards));
   }
+
+  // ── Jira Service Management ──────────────────────────────────────────────
+  // Four pillars on one snapshot. A site with no service desk is the correct answer for most
+  // sites, so every dimension reports not-applicable there and the roll-up drops the pillars,
+  // the same rule Assets follows off Premium. Every rate is over what was actually measured:
+  // a request type whose volume could not be counted is left out, never counted as unused.
+  const jsmNoSnapshot = "No Service Management inventory yet. Run a full scan to populate it.";
+  const jsmNotApplicable = "Jira Service Management has no service desks on this site.";
+  const jsmDimension = (input, pillar, key, label, spec) => {
+    if (input && input.jsmEnabled === false) return unavailable(key, label, pillar, jsmNotApplicable);
+    if (!input?.available) return unavailable(key, label, pillar, jsmNoSnapshot);
+    const den = Number(input[spec.den]) || 0;
+    if (den === 0) return unavailable(key, label, pillar, spec.empty);
+    const num = Number(input[spec.num]) || 0;
+    return {
+      key,
+      label,
+      pillar,
+      available: true,
+      weight: spec.weight ?? 1,
+      score: scoreFromRate(num / den, spec.tolerance),
+      detail: num === 0 ? spec.clean(den) : spec.dirty(num, den),
+      action: num > 0 ? spec.action : null,
+    };
+  };
+
+  dimensions.push(
+    jsmDimension(requestTypes, "requestTypes", "rt-visibility", "On the portal", {
+      num: "hidden",
+      den: "total",
+      tolerance: TOLERANCE.hiddenRequestTypes,
+      empty: "No request types on any desk.",
+      clean: (d) => `All ${d} request types are in a portal group.`,
+      dirty: (n, d) => `${n} of ${d} request types are in no portal group, so customers cannot see them.`,
+      action: "Add each customer-facing request type to a portal group; leave agent-only ones as they are.",
+    }),
+    jsmDimension(requestTypes, "requestTypes", "rt-usage", "Request type usage", {
+      num: "unused",
+      den: "usageMeasured",
+      tolerance: TOLERANCE.unusedRequestTypes,
+      empty: "Request volume could not be counted. It is read by JQL during the scan.",
+      clean: (d) => `Every one of the ${d} measured request types had a request in the last 90 days.`,
+      dirty: (n, d) => `${n} of ${d} measured request types had no request in the last 90 days.`,
+      action: "Retire or merge the unused request types; each is one more choice a customer has to read past.",
+    }),
+    jsmDimension(requestTypes, "requestTypes", "rt-descriptions", "Request type descriptions", {
+      num: "undescribed",
+      den: "total",
+      weight: 0.5,
+      tolerance: TOLERANCE.undescribedRequestTypes,
+      empty: "No request types on any desk.",
+      clean: (d) => `All ${d} request types have a description.`,
+      dirty: (n, d) => `${n} of ${d} request types have no description for the customer choosing.`,
+      action: "Add a line of help text to the request types customers misfile.",
+    }),
+    jsmDimension(requestTypes, "requestTypes", "rt-naming", "Request type naming", {
+      num: "duplicateNames",
+      den: "total",
+      tolerance: TOLERANCE.duplicateRequestTypeNames,
+      empty: "No request types on any desk.",
+      clean: (d) => `No two of the ${d} request types share a name on one desk.`,
+      dirty: (n, d) => `${n} of ${d} request types share a name with another on the same desk.`,
+      action: "Merge or rename the duplicates; the portal shows customers both.",
+    }),
+    jsmDimension(queues, "queues", "queue-integrity", "Queue integrity", {
+      num: "broken",
+      den: "brokenChecked",
+      weight: 1.5,
+      tolerance: TOLERANCE.brokenQueueRefs,
+      empty: "Queue JQL could not be checked: the field catalog was not read.",
+      clean: (d) => `None of the ${d} queues names a deleted custom field.`,
+      dirty: (n, d) => `${n} of ${d} queues name a custom field the site no longer has.`,
+      action: "Fix each broken queue's JQL; agents working from it are missing issues.",
+    }),
+    jsmDimension(queues, "queues", "queue-usage", "Queue usage", {
+      num: "empty",
+      den: "countsMeasured",
+      weight: 0.5,
+      tolerance: TOLERANCE.emptyQueues,
+      empty: "Queue counts were not returned.",
+      clean: (d) => `All ${d} queues hold issues.`,
+      dirty: (n, d) => `${n} of ${d} queues are empty right now.`,
+      action: "Remove queues nobody works from; keep the ones that are empty on purpose.",
+    }),
+    jsmDimension(queues, "queues", "queue-duplicates", "Duplicate queues", {
+      num: "duplicates",
+      den: "total",
+      weight: 0.5,
+      tolerance: TOLERANCE.duplicateQueues,
+      empty: "No queues on any desk.",
+      clean: (d) => `No two of the ${d} queues on one desk run the same query.`,
+      dirty: (n, d) => `${n} of ${d} queues run the same query as another on their desk.`,
+      action: "Keep one queue per query on each desk.",
+    }),
+    jsmDimension(slas, "slas", "sla-breach-rate", "SLA breach rate", {
+      num: "breachedRequests",
+      den: "activeRequests",
+      weight: 1.5,
+      tolerance: TOLERANCE.slaBreachRate,
+      empty: "No request ran against an SLA in the last 90 days, or SLA outcomes could not be counted.",
+      clean: (d) => `None of the ${d} requests measured against an SLA in the last 90 days breached it.`,
+      dirty: (n, d) => `${n} of ${d} requests measured against an SLA in the last 90 days breached it.`,
+      action:
+        "Check the SLAs that breach most on the Service Management tab: the goal, the calendar or the staffing is wrong.",
+    }),
+    jsmDimension(slas, "slas", "sla-usage", "SLA usage", {
+      num: "unused",
+      den: "measured",
+      weight: 0.5,
+      tolerance: TOLERANCE.unusedSlas,
+      empty: "No SLA fields on this site, or none could be measured.",
+      clean: (d) => `All ${d} measured SLAs ran against a request in the last 90 days.`,
+      dirty: (n, d) => `${n} of ${d} measured SLAs ran against no request in the last 90 days.`,
+      action: "Delete SLAs no desk uses; each one is evaluated on every request.",
+    }),
+    jsmDimension(customers, "customers", "org-membership", "Organization membership", {
+      num: "emptyOrganizations",
+      den: "membersMeasured",
+      tolerance: TOLERANCE.emptyOrganizations,
+      empty: "No organizations on this site, or their members could not be counted.",
+      clean: (d) => `All ${d} organizations have members.`,
+      dirty: (n, d) => `${n} of ${d} organizations have no members.`,
+      action: "Delete or repopulate the empty organizations.",
+    }),
+    jsmDimension(customers, "customers", "org-attachment", "Organizations in use", {
+      num: "unattachedOrganizations",
+      den: "totalOrganizations",
+      weight: 0.5,
+      tolerance: TOLERANCE.unattachedOrganizations,
+      empty: "No organizations on this site.",
+      clean: (d) => `All ${d} organizations are attached to a service desk.`,
+      dirty: (n, d) => `${n} of ${d} organizations are attached to no service desk.`,
+      action: "Attach each organization to the desk it belongs to, or delete it.",
+    }),
+  );
 
   // ── Configuration drift ────────────────────────────────────────────────────
   // The exception among these dimensions: it does not score a defect. Structural change is

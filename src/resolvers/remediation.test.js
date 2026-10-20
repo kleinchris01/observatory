@@ -2080,6 +2080,32 @@ describe("getRemediationCandidates -- every new loader is explicitly unavailable
 
 // The quarter's hierarchy above the epics (lib/remediation-hierarchy.js has the naming and
 // adopt-or-create rules; these cover the resolvers that use it).
+describe("getRemediationCandidates -- Service Management", () => {
+  const run = (findingKey) =>
+    getRemediationCandidates({
+      payload: { findingKey },
+      context: { installContext: "ari:cloud:jira::site/x", accountId: "admin-1" },
+    });
+
+  test("no snapshot, and a site with no service desk, are each said", async () => {
+    mocks.readJsmSnapshotMeta.mockResolvedValueOnce(null);
+    expect(await run("queue-integrity")).toMatchObject({ available: false, reason: "no-snapshot", items: [] });
+    mocks.readJsmSnapshotMeta.mockResolvedValueOnce({ state: "unavailable" });
+    expect(await run("queue-integrity")).toMatchObject({ available: false, reason: "no-jsm", items: [] });
+  });
+
+  test("a built snapshot tickets each flagged row per desk", async () => {
+    mocks.readJsmSnapshotMeta.mockResolvedValue({ state: "ready", version: "j1", summary: { available: true } });
+    mocks.loadJsmDesks.mockResolvedValue([{ deskId: "1", projectKey: "SD", portalGroupCount: 1 }]);
+    mocks.loadJsmQueues.mockResolvedValue([
+      { deskId: "1", id: "7", name: "Broken", jql: "cf[9] = 1", issueCount: 2, brokenRefs: ["customfield_9"] },
+    ]);
+    expect((await run("queue-integrity")).items).toEqual([
+      expect.objectContaining({ id: "1:7", itemId: "7", projectKey: "SD" }),
+    ]);
+  });
+});
+
 describe("remediation hierarchy", () => {
   const ITEMS = [{ id: "4001", name: "Open Bugs" }];
   const config = (over = {}) => ({

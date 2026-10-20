@@ -266,6 +266,17 @@ export const mocks = {
   isDriftBuildStale: vi.fn(() => false),
 
   // estate store + estate-engine.js
+  queueJsmSnapshotBuild: vi.fn(),
+  isJsmBuildStale: vi.fn(() => false),
+  readJsmSnapshotMeta: vi.fn(async () => null),
+  loadJsmDesks: vi.fn(async () => []),
+  loadJsmRequestTypes: vi.fn(async () => []),
+  loadJsmRequestTypeFields: vi.fn(async () => []),
+  loadJsmQueues: vi.fn(async () => []),
+  loadJsmSlas: vi.fn(async () => []),
+  loadJsmOrganizations: vi.fn(async () => []),
+  writeJsmSnapshotMeta: vi.fn(async () => null),
+  replaceJsmSnapshot: vi.fn(async () => null),
   readEstateSnapshotMeta: vi.fn(),
   loadEstateValues: vi.fn(async () => []),
   queueEstateSnapshotBuild: vi.fn(),
@@ -519,6 +530,15 @@ vi.mock("../lib/project-store.js", () => ({
   loadConfigChanges: mocks.loadConfigChanges,
   changeCursorOf: (row) => (row?.changeId ? `${row.detectedAt}|${row.changeId}` : (row?.detectedAt ?? null)),
   loadConfigChangeSummary: mocks.loadConfigChangeSummary,
+  readJsmSnapshotMeta: mocks.readJsmSnapshotMeta,
+  loadJsmDesks: mocks.loadJsmDesks,
+  loadJsmRequestTypes: mocks.loadJsmRequestTypes,
+  loadJsmRequestTypeFields: mocks.loadJsmRequestTypeFields,
+  loadJsmQueues: mocks.loadJsmQueues,
+  loadJsmSlas: mocks.loadJsmSlas,
+  loadJsmOrganizations: mocks.loadJsmOrganizations,
+  writeJsmSnapshotMeta: mocks.writeJsmSnapshotMeta,
+  replaceJsmSnapshot: mocks.replaceJsmSnapshot,
   readEstateSnapshotMeta: mocks.readEstateSnapshotMeta,
   loadEstateValues: mocks.loadEstateValues,
   readBoardSnapshotMeta: mocks.readBoardSnapshotMeta,
@@ -604,6 +624,11 @@ vi.mock("../lib/drift-engine.js", () => ({
 vi.mock("../lib/estate-engine.js", () => ({
   queueEstateSnapshotBuild: mocks.queueEstateSnapshotBuild,
   isEstateBuildStale: mocks.isEstateBuildStale,
+}));
+
+vi.mock("../lib/jsm-engine.js", () => ({
+  queueJsmSnapshotBuild: mocks.queueJsmSnapshotBuild,
+  isJsmBuildStale: mocks.isJsmBuildStale,
 }));
 
 vi.mock("../lib/board-engine.js", () => ({
@@ -769,6 +794,8 @@ export function installResolverTestDefaults() {
     mocks.readDriftSnapshotMeta.mockResolvedValue(null);
     // Default: no estate snapshot. The estate pillar reports unmeasured.
     mocks.readEstateSnapshotMeta.mockResolvedValue(null);
+    mocks.readJsmSnapshotMeta.mockResolvedValue(null);
+    mocks.isJsmBuildStale.mockReturnValue(false);
     // Defaults the single file never declared: each was left behind by an earlier describe
     // (clearAllMocks keeps implementations), so later tests passed on leaked state. Split
     // into separate files they ran without it. Same "nothing built yet" posture as above.

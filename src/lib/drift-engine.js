@@ -31,6 +31,11 @@ import {
   readDashboardSnapshotMeta,
   readEstateSnapshotMeta,
   loadEstateValues,
+  readJsmSnapshotMeta,
+  loadJsmRequestTypes,
+  loadJsmQueues,
+  loadJsmOrganizations,
+  loadJsmSlas,
   loadSnapshotFields,
   loadStatusesCatalog,
   loadWorkflowSchemes,
@@ -262,6 +267,42 @@ async function collectEstate(installationKey, version) {
     ...priorities.map((p) => ({
       entityType: "priority", entityId: p.id, label: p.name,
       fields: { name: p.name, description: p.description, isDefault: p.isDefault },
+    })),
+  ];
+}
+
+// Jira Service Management: what a customer can ask for, what agents work from, and which
+// organizations exist. Structure only -- request volume, queue backlogs and member counts move
+// every hour and are not configuration. An SLA's goals and calendars have no endpoint, so all
+// that is tracked of an SLA is that it exists: one appearing or disappearing is a real change.
+async function collectJsm(installationKey, version) {
+  const [requestTypes, queues, organizations, slas] = await Promise.all([
+    loadJsmRequestTypes(installationKey, version),
+    loadJsmQueues(installationKey, version),
+    loadJsmOrganizations(installationKey, version),
+    loadJsmSlas(installationKey, version),
+  ]);
+  const slaNames = new Map(slas.map((s) => [s.fieldId, s.fieldName]));
+  return [
+    ...[...slaNames].map(([fieldId, name]) => ({
+      entityType: "sla", entityId: fieldId, label: name,
+      fields: { name },
+    })),
+    ...requestTypes.map((r) => ({
+      entityType: "request-type", entityId: `${r.deskId}:${r.id}`, label: r.name,
+      fields: {
+        name: r.name, hasDescription: r.hasDescription, issueTypeId: r.issueTypeId,
+        groupIds: [...r.groupIds].sort().join(","),
+        ...(r.fieldCount === null ? {} : { fieldCount: r.fieldCount, requiredFieldCount: r.requiredFieldCount }),
+      },
+    })),
+    ...queues.map((q) => ({
+      entityType: "queue", entityId: `${q.deskId}:${q.id}`, label: q.name,
+      fields: { name: q.name, jql: q.jql },
+    })),
+    ...organizations.map((o) => ({
+      entityType: "organization", entityId: o.id, label: o.name,
+      fields: { name: o.name },
     })),
   ];
 }
@@ -561,6 +602,7 @@ export const DRIFT_PILLARS = [
   { pillar: "boards", health: ["boards"], label: "Boards", readMeta: readBoardSnapshotMeta, collect: collectBoards },
   { pillar: "people", health: ["users"], label: "People", readMeta: readUserSnapshotMeta, collect: collectPeople },
   { pillar: "assets", health: ["assets"], label: "Assets", readMeta: readAssetSnapshotMeta, collect: collectAssets },
+  { pillar: "jsm", health: ["requestTypes", "queues", "slas", "customers"], label: "Service management", readMeta: readJsmSnapshotMeta, collect: collectJsm },
   { pillar: "automation", health: ["automation"], label: "Automation", readMeta: readAutomationMeta, collect: collectAutomation },
 ];
 

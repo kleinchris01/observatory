@@ -22,6 +22,11 @@ vi.mock("./project-store.js", () => ({
   readDashboardSnapshotMeta: vi.fn(async () => null),
   readEstateSnapshotMeta: vi.fn(async () => null),
   loadEstateValues: vi.fn(async () => []),
+  readJsmSnapshotMeta: vi.fn(async () => null),
+  loadJsmRequestTypes: vi.fn(async () => []),
+  loadJsmQueues: vi.fn(async () => []),
+  loadJsmOrganizations: vi.fn(async () => []),
+  loadJsmSlas: vi.fn(async () => []),
   loadSnapshotFields: vi.fn(async () => []),
   loadStatusesCatalog: vi.fn(async () => []),
   loadWorkflowSchemes: vi.fn(async () => []),
@@ -403,6 +408,7 @@ describe("every pillar has a change source", () => {
         "boards",
         "people",
         "assets",
+        "jsm",
         "automation",
       ]),
     );
@@ -499,6 +505,41 @@ describe("every pillar has a change source", () => {
       "asset-object-type:3",
       "asset-attribute:3:88",
     ]);
+  });
+
+  test("Service management: structure only, per-desk ids, SLAs as existence", async () => {
+    store.loadJsmRequestTypes.mockResolvedValueOnce([
+      {
+        deskId: "1",
+        id: "10",
+        name: "Get help",
+        hasDescription: true,
+        issueTypeId: "5",
+        groupIds: ["3", "2"],
+        fieldCount: null,
+        requiredFieldCount: null,
+        recentCount: 400,
+      },
+    ]);
+    store.loadJsmQueues.mockResolvedValueOnce([
+      { deskId: "1", id: "7", name: "Open", jql: "project = SD", issueCount: 9 },
+    ]);
+    store.loadJsmOrganizations.mockResolvedValueOnce([{ id: "4", name: "Acme", memberCount: 12 }]);
+    store.loadJsmSlas.mockResolvedValueOnce([
+      { deskId: "1", fieldId: "customfield_1", fieldName: "Time to first response", activeCount: 3 },
+      { deskId: "2", fieldId: "customfield_1", fieldName: "Time to first response", activeCount: 8 },
+    ]);
+    const out = await spec("jsm").collect("inst", "j1");
+    expect(out.map((e) => `${e.entityType}:${e.entityId}`)).toEqual([
+      "sla:customfield_1",
+      "request-type:1:10",
+      "queue:1:7",
+      "organization:4",
+    ]);
+    // Volumes move hourly and are not configuration; an unread field list is not "changed".
+    const rt = out.find((e) => e.entityType === "request-type");
+    expect(rt.fields).toEqual({ name: "Get help", hasDescription: true, issueTypeId: "5", groupIds: "2,3" });
+    expect(out.find((e) => e.entityType === "organization").fields).toEqual({ name: "Acme" });
   });
 
   test("automation reads the imported rule directory, versioned by the import", async () => {

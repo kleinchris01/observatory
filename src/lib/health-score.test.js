@@ -183,6 +183,51 @@ const fieldConfigs = (over = {}) => ({
   ...over,
 });
 
+// A clean JSM site: every one of the four pillars scores, nothing flagged.
+const jsm = {
+  requestTypes: (over = {}) => ({
+    available: true,
+    jsmEnabled: true,
+    total: 40,
+    hidden: 0,
+    undescribed: 0,
+    duplicateNames: 0,
+    usageMeasured: 40,
+    unused: 0,
+    ...over,
+  }),
+  queues: (over = {}) => ({
+    available: true,
+    jsmEnabled: true,
+    total: 20,
+    brokenChecked: 20,
+    broken: 0,
+    countsMeasured: 20,
+    empty: 0,
+    duplicates: 0,
+    ...over,
+  }),
+  slas: (over = {}) => ({
+    available: true,
+    jsmEnabled: true,
+    total: 4,
+    measured: 4,
+    unused: 0,
+    activeRequests: 500,
+    breachedRequests: 0,
+    ...over,
+  }),
+  customers: (over = {}) => ({
+    available: true,
+    jsmEnabled: true,
+    totalOrganizations: 10,
+    membersMeasured: 10,
+    emptyOrganizations: 0,
+    unattachedOrganizations: 0,
+    ...over,
+  }),
+};
+
 // The counts, not the display lists. The score used to read `overConfigured.length` off
 // the Overview's top-8 lists, which capped its own numerator at sixteen.
 const projects = (over = {}) => ({
@@ -396,6 +441,10 @@ describe("computeSiteHealth — scoring", () => {
       drift: drift(),
       screenCross: screenCross(),
       fieldConfigs: fieldConfigs(),
+      requestTypes: jsm.requestTypes(),
+      queues: jsm.queues(),
+      slas: jsm.slas(),
+      customers: jsm.customers(),
     });
 
     expect(health.score).toBeGreaterThanOrEqual(90);
@@ -2098,5 +2147,65 @@ describe("thin-pillar checks", () => {
     ]) {
       expect(dim(health, key)?.available).toBe(false);
     }
+  });
+});
+
+describe("Jira Service Management dimensions", () => {
+  const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+  const JSM_KEYS = [
+    "rt-visibility",
+    "rt-usage",
+    "rt-descriptions",
+    "rt-naming",
+    "queue-integrity",
+    "queue-usage",
+    "queue-duplicates",
+    "sla-breach-rate",
+    "sla-usage",
+    "org-membership",
+    "org-attachment",
+  ];
+
+  test("a site with no service desk is not-applicable everywhere, and the pillars drop out", () => {
+    const na = { available: false, jsmEnabled: false };
+    const health = computeSiteHealth({ requestTypes: na, queues: na, slas: na, customers: na });
+    for (const key of JSM_KEYS) {
+      expect(dim(health, key)).toMatchObject({ available: false, reason: expect.stringMatching(/no service desks/) });
+    }
+    for (const p of ["requestTypes", "queues", "slas", "customers"]) {
+      expect(health.pillars.find((x) => x.key === p).available).toBe(false);
+    }
+  });
+
+  test("no snapshot is unmeasured, not clean", () => {
+    const health = computeSiteHealth({});
+    for (const key of JSM_KEYS) expect(dim(health, key)?.available).toBe(false);
+    expect(dim(health, "rt-usage").reason).toMatch(/No Service Management inventory/);
+  });
+
+  // A request type whose volume could not be counted is left out, never counted as unused.
+  test("rates are over what was measured", () => {
+    const health = computeSiteHealth({ requestTypes: jsm.requestTypes({ usageMeasured: 10, unused: 5 }) });
+    expect(dim(health, "rt-usage").detail).toBe("5 of 10 measured request types had no request in the last 90 days.");
+    const none = computeSiteHealth({ requestTypes: jsm.requestTypes({ usageMeasured: 0 }) });
+    expect(dim(none, "rt-usage").available).toBe(false);
+  });
+
+  test("a broken queue costs more than an empty one, and both carry an action", () => {
+    const broken = dim(computeSiteHealth({ queues: jsm.queues({ broken: 1 }) }), "queue-integrity");
+    const empty = dim(computeSiteHealth({ queues: jsm.queues({ empty: 1 }) }), "queue-usage");
+    expect(broken.score).toBeLessThan(empty.score);
+    expect(broken.action).toMatch(/JQL/);
+    expect(dim(computeSiteHealth({ queues: jsm.queues() }), "queue-integrity").action).toBeNull();
+  });
+
+  test("the breach rate scores against its tolerance, and the tolerance is tunable", () => {
+    const at = (tol) =>
+      dim(
+        computeSiteHealth({ slas: jsm.slas({ breachedRequests: 125 }), tolerances: { slaBreachRate: tol } }),
+        "sla-breach-rate",
+      ).score;
+    expect(at(0.25)).toBe(0);
+    expect(at(0.5)).toBeGreaterThan(0);
   });
 });

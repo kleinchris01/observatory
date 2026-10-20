@@ -30,3 +30,4 @@ export * from "./store/workflow.js";
 export * from "./store/fieldconfig.js";
 export * from "./store/usage.js";
 export * from "./store/archived.js";
+export * from "./store/jsm.js";
