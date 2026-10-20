@@ -62,21 +62,25 @@ export default defineConfig({
       // queued workflow build added new branches to these files faster than the new tests
       // covered them, and each remaining gap is an error path with no distinct
       // observable. Pinned to actuals so they cannot slip further.
+      // RATCHETED 19 Oct 2026 (docs/resolvers-refactor.md, follow-up 4), from 78 / 67 / 64.5 --
+      // eight to thirteen points of regression the old floors would have let through. Globals sit
+      // half a point under actuals (87.0 / 80.1 / 74.2) so platform noise between Windows and CI
+      // cannot fail a build; per-module pins sit at actuals rounded down to the half point.
       thresholds: {
-        lines: 78,
-        functions: 67,
-        branches: 64.5,
+        lines: 86.5,
+        functions: 79.5,
+        branches: 73.5,
         "src/lib/jira-api.js": { lines: 96, functions: 95, branches: 78.5 },
         "src/index.js": { lines: 96, functions: 49, branches: 86.5 },
         "src/lib/report-engine.js": { lines: 100, functions: 100, branches: 94.5 },
         // The authorization boundary -- withAdminGuard and the audit trail, and the macro's
         // reader-group guard. A regression here is a security regression, not a coverage
         // statistic. Split out of resolvers.js (docs/resolvers-refactor.md); pinned at actuals.
-        "src/resolvers/admin-guard.js": { lines: 100, functions: 100, branches: 86 },
+        "src/resolvers/admin-guard.js": { lines: 100, functions: 100, branches: 88.5 },
         "src/resolvers/macro-access.js": { lines: 95, functions: 100, branches: 87.5 },
         // Rewrites thresholds and the macro access group list; decides which projects a
         // viewer is scoped to.
-        "src/resolvers/admin-config.js": { lines: 84, functions: 100, branches: 73 },
+        "src/resolvers/admin-config.js": { lines: 84.5, functions: 100, branches: 73 },
         "src/resolvers/viewer.js": { lines: 96, functions: 83, branches: 77.5 },
         // Re-pinned 14 Oct 2026 by split PR 3, from 90 / 74 / 75.5. No code lost its tests:
         // statement totals are identical to master. The best-covered domains moved into the
@@ -87,18 +91,30 @@ export default defineConfig({
         "src/resolvers.js": { lines: 100, functions: 100, branches: 100 },
         // The Rovo actions, one module per agent, pinned together at their weakest member.
         "src/resolvers/rovo/**": { lines: 75, functions: 64, branches: 56 },
-        "src/resolvers/remediation.js": { lines: 94, functions: 77.5, branches: 69.5 },
-        "src/resolvers/overview.js": { lines: 93, functions: 70, branches: 88 },
-        "src/resolvers/reports.js": { lines: 91, functions: 59, branches: 84 },
-        "src/resolvers/project-overview.js": { lines: 78, functions: 52.5, branches: 75 },
+        "src/resolvers/remediation.js": { lines: 94.5, functions: 80.5, branches: 70.5 },
+        "src/resolvers/overview.js": { lines: 93.5, functions: 72.5, branches: 89 },
+        "src/resolvers/reports.js": { lines: 92, functions: 65.5, branches: 84 },
+        "src/resolvers/project-overview.js": { lines: 78.5, functions: 52.5, branches: 75 },
         "src/resolvers/workflows.js": { lines: 91, functions: 68.5, branches: 80 },
         "src/resolvers/deletion-safety.js": { lines: 87, functions: 70, branches: 88 },
         "src/resolvers/project-usage.js": { lines: 92, functions: 82.5, branches: 71.5 },
-        "src/resolvers/scans.js": { lines: 82.5, functions: 72.5, branches: 75.5 },
-        "src/resolvers/fields.js": { lines: 92, functions: 60, branches: 80 },
-        "src/resolvers/automation.js": { lines: 95, functions: 88.5, branches: 82 },
-        "src/resolvers/filters-dashboards.js": { lines: 94, functions: 77, branches: 82 },
-        "src/resolvers/screens.js": { lines: 85.5, functions: 77.5, branches: 80 },
+        "src/resolvers/scans.js": { lines: 82.5, functions: 72.5, branches: 77.5 },
+        "src/resolvers/fields.js": { lines: 92.5, functions: 60.5, branches: 80 },
+        "src/resolvers/automation.js": { lines: 95.5, functions: 89, branches: 82.5 },
+        "src/resolvers/filters-dashboards.js": { lines: 94.5, functions: 77, branches: 82.5 },
+        "src/resolvers/screens.js": { lines: 86, functions: 78, branches: 80 },
+        // Pinned 19 Oct 2026 (docs/resolvers-refactor.md, follow-up 4): every resolver module now has
+        // its own floor, so a module losing tests fails CI even while the global average holds.
+        "src/resolvers/access.js": { lines: 96, functions: 85.5, branches: 84.5 },
+        "src/resolvers/admin-tools.js": { lines: 100, functions: 100, branches: 50 },
+        "src/resolvers/assets.js": { lines: 94.5, functions: 100, branches: 94 },
+        "src/resolvers/boards.js": { lines: 88, functions: 63.5, branches: 87.5 },
+        "src/resolvers/changes.js": { lines: 96.5, functions: 100, branches: 85.5 },
+        "src/resolvers/estate.js": { lines: 95, functions: 100, branches: 90 },
+        "src/resolvers/issue-types.js": { lines: 95.5, functions: 91.5, branches: 88 },
+        "src/resolvers/jsm.js": { lines: 100, functions: 100, branches: 100 },
+        "src/resolvers/people.js": { lines: 83.5, functions: 57.5, branches: 81 },
+        "src/resolvers/rqt.js": { lines: 95.5, functions: 100, branches: 78.5 },
         // The macro's pillar reads: the one surface non-admins reach, scoped per viewer.
         "src/resolvers/macro.js": { lines: 88.5, functions: 72, branches: 70.5 },
       },
