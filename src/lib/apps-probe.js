@@ -53,7 +53,21 @@ const ATLASSIAN_PREFIXES = [
   "com.pyxis.greenhopper",
   "com.atlassian.bonfire",
   "com.atlassian.plugins.jira-",
+  "com.atlassian.jira.gadgets",
+  "com.atlassian.gadgets",
+  "com.atlassian.streams",
+  "com.atlassian.confluence",
+  "com.atlassian.bitbucket",
+  "com.atlassian.opsgenie",
+  // Jira Product Discovery: an Atlassian product whose fields use its own namespace.
+  "jira.polaris",
 ];
+
+// Gadgets can name their module by URI rather than key: rest/gadgets/1.0/g/<pluginKey>:<gadget>.
+const GADGET_URI_PREFIX = /^\/?rest\/gadgets\/1\.0\/g\//;
+// Forge-built gadgets surface as com.atlassian.forge:<...>; whose app sits after the colon.
+const FORGE_GADGET_PREFIX = "com.atlassian.forge:";
+const UUID_AT_START = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
 
 // Display names for app keys an admin will recognise. Unknown keys are shown as the key itself.
 export const KNOWN_VENDORS = {
@@ -78,18 +92,36 @@ export function appLabel(identity) {
   return KNOWN_VENDORS[identity] || identity;
 }
 
-// Who provides a field type key: { kind, app } or null for Atlassian's own types.
+// A Connect app key, without the module suffix some payloads attach: JMWE's rules name their
+// app as "com.innovalog.jmwe.jira-misc-workflow-extensions__ClearFieldsFunction".
+export function connectAppKey(value) {
+  const key = String(value || "");
+  return key.split("__")[0] || key || null;
+}
+
+// Who provides a field or gadget type key: { kind, app } or null for Atlassian's own types.
 export function classifyTypeKey(typeKey) {
-  const key = String(typeKey || "");
+  let key = String(typeKey || "").trim();
   if (!key) return null;
-  if (key.startsWith(CONNECT_PREFIX)) {
-    const rest = key.slice(CONNECT_PREFIX.length);
-    return { kind: "connect", app: rest.split("__")[0] || rest };
-  }
+  key = key.replace(GADGET_URI_PREFIX, "");
+  if (key.startsWith(CONNECT_PREFIX)) return { kind: "connect", app: connectAppKey(key.slice(CONNECT_PREFIX.length)) };
   if (key.startsWith(FORGE_PREFIX)) return { kind: "forge", app: forgeAppId(key) };
+  if (key.startsWith(FORGE_GADGET_PREFIX)) {
+    const rest = key.slice(FORGE_GADGET_PREFIX.length);
+    if (rest.includes(FORGE_PREFIX)) return { kind: "forge", app: forgeAppId(rest) };
+    const uuid = UUID_AT_START.exec(rest);
+    // Unresolved: kept visible rather than guessed, with the raw keys in the probe's samples.
+    return uuid
+      ? { kind: "forge", app: uuid[1].toLowerCase() }
+      : { kind: "forge-unresolved", app: "com.atlassian.forge" };
+  }
   if (ATLASSIAN_PREFIXES.some((p) => key.startsWith(p))) return null;
+  // A vendor key is namespaced (com.vendor.product:module). A bare "read-only-string-issue-field"
+  // carries no vendor and is one of Jira's own internal types.
   const colon = key.indexOf(":");
-  return { kind: "plugin", app: colon > 0 ? key.slice(0, colon) : key };
+  const namespace = colon > 0 ? key.slice(0, colon) : key;
+  if (!namespace.includes(".")) return null;
+  return { kind: "plugin", app: namespace };
 }
 
 // ari:cloud:ecosystem::extension/{appId}/{environmentId}/static/{moduleKey} -> appId
@@ -118,7 +150,7 @@ export function collectAppRules(node, out = [], depth = 0) {
     out.push({
       kind,
       ruleKey,
-      app: kind === "connect" ? String(p.appKey || "unknown") : forgeAppId(p.key) || "unknown",
+      app: kind === "connect" ? connectAppKey(p.appKey) || "unknown" : forgeAppId(p.key) || "unknown",
       disabled: String(p.disabled) === "true",
     });
   }
@@ -167,6 +199,7 @@ function verdictOf(probe) {
 
 const APP_WORDS = /\b(app|apps|add-on|addon|plugin|marketplace)\b/i;
 const MAX_DASHBOARDS = 10;
+const MAX_SAMPLES = 15;
 
 export async function probeMarketplaceApps() {
   const started = Date.now();
@@ -195,17 +228,21 @@ export async function probeMarketplaceApps() {
     const parsed = fields.ok ? parseJson(fields.body) : null;
     const custom = Array.isArray(parsed) ? parsed.filter((f) => f?.custom) : [];
     const byKind = { connect: 0, forge: 0, plugin: 0, atlassian: 0 };
+    const samples = new Set();
     for (const f of custom) {
       const who = classifyTypeKey(f?.schema?.custom);
       if (!who) {
         byKind.atlassian += 1;
         continue;
       }
-      byKind[who.kind] += 1;
+      byKind[who.kind === "forge-unresolved" ? "forge" : who.kind] += 1;
       evidence.push({ source: "fields", kind: who.kind, app: who.app });
+      if (samples.size < MAX_SAMPLES) samples.add(String(f.schema.custom));
     }
     add({ step: "fieldCatalog", signal: "fieldCatalog", note: "Custom field type keys, by provider" }, fields, {
       count: custom.length,
+      // Type keys only (no field names): what each app-provided field type looks like here.
+      samples: [...samples],
       summary: fields.ok
         ? `${custom.length} custom fields: ${byKind.connect} Connect, ${byKind.forge} Forge, ${byKind.plugin} other app keys, ${byKind.atlassian} Atlassian.`
         : null,
@@ -217,10 +254,16 @@ export async function probeMarketplaceApps() {
     keepBody: true,
   });
   let workflowId = null;
+  let workflowScope = null;
   {
     const parsed = workflows.ok ? parseJson(workflows.body) : null;
     const values = Array.isArray(parsed?.values) ? parsed.values : [];
-    workflowId = values.find((w) => w?.id)?.id ?? null;
+    // Capabilities are scoped to the workflow asked about. A team-managed (project-scoped)
+    // workflow offers no app rule types, so ask about a company-managed one when there is one.
+    const global = values.find((w) => w?.id && String(w?.scope?.type || "").toUpperCase() === "GLOBAL");
+    const chosen = global || values.find((w) => w?.id) || null;
+    workflowId = chosen?.id ?? null;
+    workflowScope = chosen ? String(chosen?.scope?.type || "unknown").toUpperCase() : null;
     const rules = collectAppRules(values);
     const perApp = new Map();
     for (const r of rules) {
@@ -268,7 +311,10 @@ export async function probeMarketplaceApps() {
     for (const r of forgeRules) evidence.push({ source: "capabilities", kind: "forge", app: forgeAppId(r?.id) });
     add({ step: "capabilities", signal: "capabilities", note: "Connect and Forge rule types available" }, caps, {
       count: connectRules.length + forgeRules.length,
-      summary: caps.ok ? `${connectRules.length} Connect and ${forgeRules.length} Forge rule types installed.` : null,
+      editorScope: parsed?.editorScope ?? null,
+      summary: caps.ok
+        ? `${connectRules.length} Connect and ${forgeRules.length} Forge rule types offered to a ${workflowScope === "GLOBAL" ? "company-managed" : (workflowScope || "unknown").toLowerCase()} workflow.`
+        : null,
     });
   } else {
     results.push({
@@ -292,6 +338,7 @@ export async function probeMarketplaceApps() {
     const ids = (Array.isArray(parsed?.values) ? parsed.values : []).map((d) => d?.id).filter(Boolean);
     let gadgets = 0;
     let appGadgets = 0;
+    const gadgetKeys = new Map();
     let lastFailure = null;
     for (const id of ids) {
       const g = await probeEndpoint(`/rest/api/3/dashboard/${encodeURIComponent(id)}/gadget`, { keepBody: true });
@@ -301,7 +348,9 @@ export async function probeMarketplaceApps() {
       }
       for (const gadget of parseJson(g.body)?.gadgets || []) {
         gadgets += 1;
-        const who = classifyTypeKey(gadget?.moduleKey || gadget?.uri);
+        const raw = String(gadget?.moduleKey || gadget?.uri || "");
+        gadgetKeys.set(raw, (gadgetKeys.get(raw) || 0) + 1);
+        const who = classifyTypeKey(raw);
         if (who) {
           appGadgets += 1;
           evidence.push({ source: "gadgets", kind: who.kind, app: who.app });
@@ -313,6 +362,12 @@ export async function probeMarketplaceApps() {
       lastFailure && gadgets === 0 ? lastFailure : dashboards,
       {
         count: gadgets,
+        // Distinct module keys with their counts, most common first, so a key this probe
+        // classified wrongly can be seen and corrected.
+        samples: [...gadgetKeys]
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, MAX_SAMPLES)
+          .map(([key, n]) => `${key} (${n})`),
         summary: dashboards.ok
           ? `${appGadgets} of ${gadgets} gadgets on ${ids.length} dashboards come from apps.`
           : null,
@@ -321,22 +376,32 @@ export async function probeMarketplaceApps() {
   }
 
   // ---- Audit log ------------------------------------------------------------------------
+  // Two reads: the most recent records (what the log holds at all), and a text search for "app"
+  // across up to 1,000 records, since 200 recent records is too narrow a window to prove that
+  // app installs are not logged here.
   const audit = await probeEndpoint("/rest/api/3/auditing/record?limit=200", { keepBody: true });
+  const auditSearch = await probeEndpoint("/rest/api/3/auditing/record?filter=app&limit=1000", { keepBody: true });
   {
     const parsed = audit.ok ? parseJson(audit.body) : null;
     const records = Array.isArray(parsed?.records) ? parsed.records : [];
     const categories = {};
     for (const r of records) categories[r?.category || "(none)"] = (categories[r?.category || "(none)"] || 0) + 1;
-    const appRecords = records.filter((r) => APP_WORDS.test(`${r?.category || ""} ${r?.summary || ""}`));
-    add({ step: "auditRecords", signal: "auditRecords", note: "App events in the last 200 audit records" }, audit, {
+    const searched = auditSearch.ok ? parseJson(auditSearch.body)?.records || [] : [];
+    const appRecords = [...records, ...searched].filter((r, i, all) => {
+      if (!APP_WORDS.test(`${r?.category || ""} ${r?.summary || ""}`)) return false;
+      return all.findIndex((x) => x?.id === r?.id && x?.created === r?.created) === i;
+    });
+    const oldest = searched.length ? searched[searched.length - 1]?.created : null;
+    add({ step: "auditRecords", signal: "auditRecords", note: "App events in the audit log" }, audit, {
       count: records.length,
+      searched: auditSearch.ok ? searched.length : null,
       categories,
       // Event summaries only ("App installed"), never the object or the person behind them.
       appEvents: appRecords
         .slice(0, 5)
         .map((r) => ({ summary: String(r?.summary || "").slice(0, 120), created: r?.created ?? null })),
       summary: audit.ok
-        ? `${records.length} records; ${appRecords.length} mention an app, add-on or plugin. Categories: ${Object.keys(categories).join(", ") || "none"}.`
+        ? `${records.length} recent records${auditSearch.ok ? `, and ${searched.length} matching a search for "app"${oldest ? ` back to ${String(oldest).slice(0, 10)}` : ""}` : ""}; ${appRecords.length} mention an app, add-on or plugin. Categories: ${Object.keys(categories).join(", ") || "none"}.`
         : null,
     });
   }

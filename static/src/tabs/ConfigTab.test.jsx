@@ -692,6 +692,7 @@ describe("MarketplaceAppsProbePanel", () => {
         status: 200,
         verdict: "ok",
         summary: "ok summary",
+        samples: ["com.vendor.app:field"],
       },
       {
         step: "capabilities",
@@ -721,6 +722,7 @@ describe("MarketplaceAppsProbePanel", () => {
     expect(screen.getByText("Scope missing")).toBeInTheDocument();
     expect(screen.getByText("Error")).toBeInTheDocument();
     expect(screen.getByText("Skipped: no workflow id.")).toBeInTheDocument();
+    expect(screen.getByText("com.vendor.app:field")).toBeInTheDocument();
     expect(screen.getByText("(empty)")).toBeInTheDocument();
   });
 
