@@ -37,7 +37,7 @@ export default defineConfig({
     coverage: {
       reporter: ["text-summary", "lcov"],
       include: ["src/*.js", "src/lib/**/*.js", "src/resolvers/**/*.js", "static/src/**/*.{js,jsx}"],
-      exclude: ["**/*.test.*", "static/src/test-setup.js"],
+      exclude: ["**/*.test.*", "static/src/test-setup.js", "src/resolvers/test-harness.js"],
       // A ratchet, not a goal. These are set just below current actuals so coverage
       // can only go up: adding untested code fails CI, and raising the numbers is a
       // deliberate edit here. Per-file overrides pin the modules whose failure modes

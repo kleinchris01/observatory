@@ -113,9 +113,14 @@ Each of these is its own PR and may change behaviour, so each comes with tests.
    `getAdminOverview` aggregation (203 lines) are domain logic, not request handling. They move
    beside `remediation-playbooks.js` and `dashboard-engine.js`, where they can be tested
    without resolver mocks.
-3. **Split `resolvers.test.js`** to one test file per module. The shared `vi.mock` block moves
-   to a helper so each file does not repeat 300 lines of setup. Per-module coverage floors
-   replace the one on `resolvers.js`.
+3. **Split `resolvers.test.js`** to one test file per module. Done 19 Oct 2026: 143 describes
+   moved verbatim into 38 files (`src/resolvers/<module>.test.js`, Rovo agents under
+   `src/resolvers/rovo/`), 893 tests before and after. The shared mocks, `vi.mock` blocks and
+   per-test defaults live in `src/resolvers/test-harness.js`, which every file imports first.
+   The split surfaced tests that had passed on mock state leaked from earlier describes
+   (`clearAllMocks` keeps implementations): three defaults were added to the harness, and five
+   tests now cover on purpose the paths that leaked state used to reach, so no module lost
+   coverage.
 4. **Ratchet the global coverage floors.** Done 19 Oct 2026: globals 78 / 67 / 64.5 →
    86.5 / 79.5 / 73.5 (lines / functions / branches, half a point under actuals), every resolver
    module pinned at its actuals, and eleven existing pins raised.
