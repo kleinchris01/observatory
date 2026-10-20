@@ -8634,6 +8634,10 @@ a.dash-row__name:hover {
   max-width: 32rem;
   word-break: break-all;
 }
+.probe-results__samples {
+  margin: 4px 0 0;
+  padding-left: 16px;
+}
 /* Why a row could not be measured, for the rows the table renders as "—". A dash with no
    explanation reads as a bug in the probe rather than a fact about the site. */
 .probe-results__notes {

@@ -5,6 +5,7 @@ vi.mock("./logger.js", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: v
 
 import {
   classifyTypeKey,
+  connectAppKey,
   forgeAppId,
   collectAppRules,
   mergeAppEvidence,
@@ -38,8 +39,36 @@ describe("identifying apps", () => {
     });
     expect(classifyTypeKey("com.atlassian.jira.plugin.system.customfieldtypes:select")).toBeNull();
     expect(classifyTypeKey("com.pyxis.greenhopper.jira:gh-sprint")).toBeNull();
-    expect(classifyTypeKey("noColonKey")).toEqual({ kind: "plugin", app: "noColonKey" });
+    // No vendor namespace: Jira's own internal types.
+    expect(classifyTypeKey("noColonKey")).toBeNull();
+    expect(classifyTypeKey("read-only-string-issue-field")).toBeNull();
+    // Jira Product Discovery is Atlassian's.
+    expect(classifyTypeKey("jira.polaris:votes")).toBeNull();
+    // Built-in gadgets named by URI.
+    expect(classifyTypeKey("rest/gadgets/1.0/g/com.atlassian.jira.gadgets:filter-results-gadget")).toBeNull();
+    expect(classifyTypeKey("/rest/gadgets/1.0/g/com.vendor.app:chart")).toEqual({
+      kind: "plugin",
+      app: "com.vendor.app",
+    });
+    // Forge-built gadgets: app id when the key carries one, otherwise left visibly unresolved.
+    expect(classifyTypeKey(`com.atlassian.forge:${FORGE}`)).toEqual({ kind: "forge", app: "aaaa-1111" });
+    expect(classifyTypeKey("com.atlassian.forge:671CB257-7C61-452D-83C6-AC96D40EE11C/x")).toEqual({
+      kind: "forge",
+      app: "671cb257-7c61-452d-83c6-ac96d40ee11c",
+    });
+    expect(classifyTypeKey("com.atlassian.forge:something-else")).toEqual({
+      kind: "forge-unresolved",
+      app: "com.atlassian.forge",
+    });
     expect(classifyTypeKey(null)).toBeNull();
+  });
+
+  test("a Connect app key drops the module suffix some payloads attach", () => {
+    expect(connectAppKey("com.innovalog.jmwe.jira-misc-workflow-extensions__ClearFieldsFunction")).toBe(
+      "com.innovalog.jmwe.jira-misc-workflow-extensions",
+    );
+    expect(connectAppKey("com.a")).toBe("com.a");
+    expect(connectAppKey(null)).toBeNull();
   });
 
   test("reads the app id out of a Forge extension ARI", () => {
@@ -60,7 +89,7 @@ describe("identifying apps", () => {
           actions: [
             {
               ruleKey: "connect:remote-workflow-function",
-              parameters: { appKey: "com.a", config: "SECRET", disabled: "true" },
+              parameters: { appKey: "com.a__SetFieldValueFunction", config: "SECRET", disabled: "true" },
             },
             { ruleKey: "system:update-issue-status", parameters: {} },
           ],
@@ -137,8 +166,10 @@ describe("probeMarketplaceApps", () => {
         return ok(path, {
           isLast: true,
           values: [
+            { id: "wf-team", scope: { type: "PROJECT" }, transitions: [] },
             {
               id: "wf-1",
+              scope: { type: "GLOBAL" },
               transitions: [
                 {
                   actions: [
@@ -155,11 +186,18 @@ describe("probeMarketplaceApps", () => {
       if (path === "/rest/api/3/dashboard/10/gadget")
         return ok(path, { gadgets: [{ moduleKey: "com.atlassian.jira.gadgets:filter-results" }, { uri: FORGE }] });
       if (path === "/rest/api/3/dashboard/11/gadget") return fail(path, 403);
+      if (path.includes("filter=app"))
+        return ok(path, {
+          records: [
+            { id: 9, category: "system", summary: "App installed", created: "2026-10-01" },
+            { id: 8, category: "system", summary: "App uninstalled", created: "2026-03-01" },
+          ],
+        });
       if (path.startsWith("/rest/api/3/auditing/record"))
         return ok(path, {
           records: [
             { category: "user management", summary: "User created" },
-            { category: "system", summary: "App installed", created: "2026-10-01" },
+            { id: 9, category: "system", summary: "App installed", created: "2026-10-01" },
           ],
         });
       if (path === "/rest/plugins/1.0/")
@@ -186,10 +224,19 @@ describe("probeMarketplaceApps", () => {
     expect(result.signals.every((s) => s.verdict === "ok")).toBe(true);
     const step = (k) => result.results.find((r) => r.step === k);
     expect(step("fieldCatalog").summary).toMatch(/2 custom fields: 1 Connect, 0 Forge, 0 other app keys, 1 Atlassian/);
-    expect(step("workflowRules").summary).toMatch(/1 app rules across 1 workflows, from 1 apps; 1 marked disabled/);
+    expect(step("workflowRules").summary).toMatch(/1 app rules across 2 workflows, from 1 apps; 1 marked disabled/);
+    // The team-managed workflow comes first; capabilities are asked of the company-managed one.
     expect(step("capabilities").path).toContain("workflowId=wf-1");
+    expect(step("capabilities").summary).toMatch(/offered to a company-managed workflow/);
+    expect(step("fieldCatalog").samples).toEqual(["com.atlassian.plugins.atlassian-connect-plugin:com.a__f"]);
+    expect(step("dashboardGadgets").samples[0]).toMatch(/\(1\)$/);
     expect(step("dashboardGadgets").summary).toBe("1 of 2 gadgets on 2 dashboards come from apps.");
-    expect(step("auditRecords").appEvents).toEqual([{ summary: "App installed", created: "2026-10-01" }]);
+    // Recent and searched records are merged without duplicating the same event.
+    expect(step("auditRecords").appEvents).toEqual([
+      { summary: "App installed", created: "2026-10-01" },
+      { summary: "App uninstalled", created: "2026-03-01" },
+    ]);
+    expect(step("auditRecords").summary).toMatch(/2 matching a search for "app" back to 2026-03-01; 2 mention/);
     expect(step("upm")).toMatchObject({ count: 1, userInstalled: 0 });
     expect(step("upmAsUser")).toMatchObject({ count: 2, userInstalled: 1 });
     expect(step("upmLog")).toMatchObject({ count: 2, summary: "2 install-log entries." });
@@ -238,6 +285,23 @@ describe("probeMarketplaceApps", () => {
       "Answered, but not with a JSON plugin list.",
     );
     expect(result.results.find((r) => r.step === "upmLog").count).toBe(0);
+  });
+
+  test("with only team-managed workflows, says which scope it asked; a failed audit search narrows the claim", async () => {
+    healthySite();
+    const base = probeEndpoint.getMockImplementation();
+    probeEndpoint.mockImplementation(async (path) => {
+      if (path.startsWith("/rest/api/3/workflows/search"))
+        return ok(path, { values: [{ id: "wf-team", scope: { type: "PROJECT" }, transitions: [] }] });
+      if (path.includes("filter=app")) return fail(path, 500);
+      return base(path);
+    });
+    const result = await probeMarketplaceApps();
+    const step = (k) => result.results.find((r) => r.step === k);
+    expect(step("capabilities").path).toContain("workflowId=wf-team");
+    expect(step("capabilities").summary).toMatch(/offered to a project workflow/);
+    expect(step("auditRecords")).toMatchObject({ searched: null });
+    expect(step("auditRecords").summary).not.toMatch(/search for/);
   });
 
   test("a 404 reads as not here", async () => {

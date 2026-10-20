@@ -516,7 +516,18 @@ export function MarketplaceAppsProbePanel() {
                     {row.status === null ? "—" : row.status}
                     {row.verdict !== "ok" ? ` · ${row.verdict}` : ""}
                   </td>
-                  <td className="probe-results__sample">{row.summary || row.sample || "(empty)"}</td>
+                  <td className="probe-results__sample">
+                    {row.summary || row.sample || "(empty)"}
+                    {row.samples?.length > 0 && (
+                      <ul className="probe-results__samples">
+                        {row.samples.map((key) => (
+                          <li key={key}>
+                            <code>{key}</code>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
