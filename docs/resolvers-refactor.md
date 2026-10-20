@@ -109,10 +109,13 @@ Each of these is its own PR and may change behaviour, so each comes with tests.
    A `defineResolver(name, fn)` in `src/resolvers/define.js` should remove on the order of
    1,000 lines and makes failure metrics uniform. Convert one module per PR; catch blocks that
    do something other than log-and-rethrow (fail-open checks, fallbacks) stay hand-written.
-2. **Pure logic into `src/lib`.** `REMEDIATION_CANDIDATE_LOADERS` (149 lines) and the
-   `getAdminOverview` aggregation (203 lines) are domain logic, not request handling. They move
-   beside `remediation-playbooks.js` and `dashboard-engine.js`, where they can be tested
-   without resolver mocks.
+2. **Pure logic into `src/lib`.** Done 19 Oct 2026. `src/lib/remediation-candidates.js` holds a
+   pure selector per finding (61 of the 68 candidate loaders); `remediation.js` keeps the reads as
+   `CANDIDATE_SOURCES` and builds `REMEDIATION_CANDIDATE_LOADERS` from the two, same 68 keys. The
+   six screen loaders (their filter runs inside the query) and the off-roster automation join
+   (needs a resolver-only helper) stay whole. `src/lib/admin-overview.js` holds the Overview's
+   aggregation; `getAdminOverview` keeps the reads and logging. `hydrateFieldsForGovernance`
+   (snapshot-engine) replaces the hydration both had copied.
 3. **Split `resolvers.test.js`** to one test file per module. Done 19 Oct 2026: 143 describes
    moved verbatim into 38 files (`src/resolvers/<module>.test.js`, Rovo agents under
    `src/resolvers/rovo/`), 893 tests before and after. The shared mocks, `vi.mock` blocks and

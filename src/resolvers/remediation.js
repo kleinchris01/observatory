@@ -14,7 +14,7 @@ import {
   getSiteBaseUrl,
   normalizeSiteOrigin,
 } from "../lib/jira-api.js";
-import { hydrateFieldForGovernance } from "../lib/snapshot-engine.js";
+import { hydrateFieldsForGovernance } from "../lib/snapshot-engine.js";
 import {
   ensureProjectStoreReady,
   readSnapshotMeta,
@@ -52,21 +52,16 @@ import {
   currentPeriod,
   loadArchivedFieldUsage,
 } from "../lib/project-store.js";
-import {
-  getPlaybook,
-  groupBounded,
-  listPlaybookCatalog,
-  REMEDIATION_FINDING_INDEX,
-} from "../lib/remediation-playbooks.js";
+import { getPlaybook, listPlaybookCatalog, REMEDIATION_FINDING_INDEX } from "../lib/remediation-playbooks.js";
 import { ensureInitiativeFor, ROOT_NODE } from "../lib/remediation-hierarchy.js";
 import { computeRemediationMetrics } from "../lib/remediation-metrics.js";
 import { queueRemediationSync } from "../lib/remediation-sync.js";
 import { renderADF } from "../lib/adf.js";
 import { verifyTickets, verificationComment, targetCategory } from "../lib/remediation-verify.js";
 import { getWorkflowRuleInsights } from "../lib/workflow-rule-reads.js";
+import { CANDIDATE_SELECTORS } from "../lib/remediation-candidates.js";
 import { getFieldConfigInventory } from "../lib/fieldconfig-reads.js";
 import { summarizeBoardInsights } from "../lib/board-insights.js";
-import { summarizeEstateInsights } from "../lib/estate-insights.js";
 import { summarizeIssueTypeInsights } from "../lib/issuetype-insights.js";
 import { summarizeAssetInsights } from "../lib/asset-insights.js";
 import { buildProjectInsights, attachUniqueIssueCounts } from "../lib/site-health.js";
@@ -75,9 +70,7 @@ import { summarizeFilters } from "../lib/filter-insights.js";
 import { summarizeDashboards } from "../lib/dashboard-insights.js";
 import { findOrphanedStatuses } from "../lib/workflow-insights.js";
 import { activeRosterIds, buildOwnershipIndex } from "../lib/user-ownership.js";
-import { hydrateRuleDirectory } from "../lib/automation-analysis.js";
 import { readAutomationAnalysis, readAutomationPart, loadStatusAutomationReferences } from "../lib/store/automation.js";
-import { normalizeFieldName, buildDuplicateNameCountMap } from "../lib/analysis.js";
 import { logger, fallbackOn } from "../lib/logger.js";
 import { requireArray } from "../lib/validate.js";
 import { readAdminConfig } from "./admin-config.js";
@@ -966,10 +959,20 @@ export async function loadRemediationCandidates({ payload, context }) {
   return { available: false, reason: "not-connected", items: [] };
 }
 
-// Candidate loaders for the playbooks built on definePlaybook. A map rather than more
-// branches above: each entry reads the same inventory its pillar's tab reads, so a finding's
-// count and its epic's task count come from one computation. Items carry the fields the
-// playbook's task template and links use.
+// Candidate loaders for the playbooks built on definePlaybook. A map rather than more branches
+// above: each entry reads the same inventory its pillar's tab reads, so a finding's count and its
+// epic's task count come from one computation. Items carry the fields the playbook's task
+// template and links use.
+//
+// Most loaders are a source (below: the reads, and each pillar's "not built yet" reasons) plus a
+// pure selector from src/lib/remediation-candidates.js (which items that finding tickets). The
+// few that pass their filter into the query itself, or need a resolver-only join, stay whole
+// further down.
+
+const noSnapshot = { available: false, reason: "no-snapshot", items: [] };
+const ready = (data) => ({ data });
+const unavailable = (result) => ({ unavailable: result });
+
 export async function accessGovernance(context) {
   const inv = await getAccessInventory({ context }, { listLimit: Infinity });
   return inv.neverBuilt ? null : inv;
@@ -977,711 +980,13 @@ export async function accessGovernance(context) {
 
 export const ACCESS_UNAVAILABLE = { available: false, reason: "no-snapshot", items: [] };
 
-export const REMEDIATION_CANDIDATE_LOADERS = {
-  "permission-risky": async ({ context }) => {
-    const inv = await accessGovernance(context);
-    if (!inv) return ACCESS_UNAVAILABLE;
-    return {
-      available: true,
-      items: inv.permissions.governance.riskySchemes.map((sc) => ({ ...sc, id: String(sc.id) })),
-    };
-  },
-
-  "access-unused-schemes": async ({ context }) => {
-    const inv = await accessGovernance(context);
-    if (!inv) return ACCESS_UNAVAILABLE;
-    const tag = (type, list) =>
-      list.map((sc) => ({ id: `${type}:${sc.id}`, type, schemeId: String(sc.id), name: sc.name }));
-    return {
-      available: true,
-      items: [
-        ...tag("permission", inv.permissions.governance.unusedSchemes),
-        ...tag("security", inv.security.governance.unusedSchemes),
-        ...tag("notification", inv.notifications.governance.unusedSchemes),
-      ],
-    };
-  },
-
-  "security-broken-levels": async ({ context }) => {
-    const inv = await accessGovernance(context);
-    if (!inv) return ACCESS_UNAVAILABLE;
-    const g = inv.security.governance;
-    return {
-      available: true,
-      items: [
-        ...(g.noLevelSchemes || []).map((sc) => ({
-          id: `scheme:${sc.id}`,
-          kind: "no-levels",
-          schemeId: String(sc.id),
-          schemeName: sc.name,
-        })),
-        ...(g.emptyLevels || []).map((l) => ({
-          id: `level:${l.schemeId}:${l.levelId}`,
-          kind: "empty-level",
-          schemeId: String(l.schemeId),
-          schemeName: l.schemeName,
-          levelId: String(l.levelId),
-          levelName: l.levelName,
-        })),
-      ],
-    };
-  },
-
-  "notification-fragile": async ({ context }) => {
-    const inv = await accessGovernance(context);
-    if (!inv) return ACCESS_UNAVAILABLE;
-    return {
-      available: true,
-      items: inv.notifications.governance.fragileSchemes.map((sc) => ({ ...sc, id: String(sc.id) })),
-    };
-  },
-
-  "role-empty-admin": async ({ context }) => {
-    const inv = await accessGovernance(context);
-    if (!inv) return ACCESS_UNAVAILABLE;
-    return {
-      available: true,
-      items: inv.roles.governance.projectsMissingAdminActor.map((p) => ({
-        id: String(p.projectId ?? p.projectKey),
-        projectKey: p.projectKey,
-        role: p.role,
-      })),
-    };
-  },
-
-  // Bounded: grouped by project (bundled past 50), per the playbook's granularity.
-  "role-offroster-actors": async ({ context }) => {
-    const inv = await accessGovernance(context);
-    if (!inv) return ACCESS_UNAVAILABLE;
-    const groups = groupBounded(inv.roles.governance.offRosterMemberships, { keyOf: (m) => m.projectKey, max: 50 });
-    return { available: true, items: groups };
-  },
-
-  // ── The thin-pillar checks (14 Oct 2026): one task per scheme, role or value ──
-  // Departed-account loaders need the People roster; without it every account would read as
-  // gone, so they report "no-roster" rather than a task list of everyone.
-  "permission-public-access": async ({ context }) => {
-    const inv = await accessGovernance(context);
-    if (!inv) return ACCESS_UNAVAILABLE;
-    return {
-      available: true,
-      items: inv.permissions.governance.publicSchemes.map((sc) => ({ ...sc, id: String(sc.id) })),
-    };
-  },
-
-  "permission-everyone-sensitive": async ({ context }) => {
-    const inv = await accessGovernance(context);
-    if (!inv) return ACCESS_UNAVAILABLE;
-    return {
-      available: true,
-      items: inv.permissions.governance.everyoneSensitiveSchemes.map((sc) => ({ ...sc, id: String(sc.id) })),
-    };
-  },
-
-  "permission-direct-grants": async ({ context }) => {
-    const inv = await accessGovernance(context);
-    if (!inv) return ACCESS_UNAVAILABLE;
-    return {
-      available: true,
-      items: inv.permissions.governance.directGrantSchemes.map((sc) => ({ ...sc, id: String(sc.id) })),
-    };
-  },
-
-  "permission-departed-grants": async ({ context }) => {
-    const inv = await accessGovernance(context);
-    if (!inv) return ACCESS_UNAVAILABLE;
-    const g = inv.permissions.governance;
-    if (!g.rosterMeasured) return { available: false, reason: "no-roster", items: [] };
-    return {
-      available: true,
-      items: g.directGrantSchemes
-        .map((sc) => ({ ...sc, id: String(sc.id), grants: sc.grants.filter((x) => x.departed) }))
-        .filter((sc) => sc.grants.length),
-    };
-  },
-
-  "security-direct-members": async ({ context }) => {
-    const inv = await accessGovernance(context);
-    if (!inv) return ACCESS_UNAVAILABLE;
-    return {
-      available: true,
-      items: inv.security.governance.userMemberSchemes.map((sc) => ({ ...sc, id: String(sc.id) })),
-    };
-  },
-
-  "security-departed-members": async ({ context }) => {
-    const inv = await accessGovernance(context);
-    if (!inv) return ACCESS_UNAVAILABLE;
-    const g = inv.security.governance;
-    if (!g.rosterMeasured) return { available: false, reason: "no-roster", items: [] };
-    return {
-      available: true,
-      items: g.userMemberSchemes
-        .map((sc) => ({ ...sc, id: String(sc.id), members: sc.members.filter((m) => m.departed) }))
-        .filter((sc) => sc.members.length),
-    };
-  },
-
-  "notification-external-email": async ({ context }) => {
-    const inv = await accessGovernance(context);
-    if (!inv) return ACCESS_UNAVAILABLE;
-    return {
-      available: true,
-      items: inv.notifications.governance.emailRecipientSchemes.map((sc) => ({ ...sc, id: String(sc.id) })),
-    };
-  },
-
-  "notification-departed-recipients": async ({ context }) => {
-    const inv = await accessGovernance(context);
-    if (!inv) return ACCESS_UNAVAILABLE;
-    const g = inv.notifications.governance;
-    if (!g.rosterMeasured) return { available: false, reason: "no-roster", items: [] };
-    return {
-      available: true,
-      items: g.namedRecipientSchemes
-        .map((sc) => ({ ...sc, id: String(sc.id), recipients: sc.recipients.filter((r) => r.departed) }))
-        .filter((sc) => sc.recipients.length),
-    };
-  },
-
-  // Bounded, like off-roster actors: one task per project, bundled past 50.
-  "role-group-actors": async ({ context }) => {
-    const inv = await accessGovernance(context);
-    if (!inv) return ACCESS_UNAVAILABLE;
-    return {
-      available: true,
-      items: groupBounded(inv.roles.governance.userActorMemberships, { keyOf: (m) => m.projectKey, max: 50 }),
-    };
-  },
-
-  "role-unused": async ({ context }) => {
-    const inv = await accessGovernance(context);
-    if (!inv) return ACCESS_UNAVAILABLE;
-    return { available: true, items: inv.roles.governance.emptyRoles };
-  },
-
-  "priority-usage": ({ context }) => estateUnusedValues(context, "priorities", "priority"),
-  "resolution-usage": ({ context }) => estateUnusedValues(context, "resolutions", "resolution"),
-
-  "estate-defaults": async ({ context }) => {
-    const inv = await getEstateInventory({ context });
-    if (inv.neverBuilt) return { available: false, reason: "no-snapshot", items: [] };
-    const missing = (rows) => rows.length > 0 && !rows.some((v) => v.isDefault);
-    return {
-      available: true,
-      items: [
-        missing(inv.priorities || []) && {
-          id: "priority",
-          kind: "priority",
-          valueCount: (inv.priorities || []).length,
-        },
-        missing(inv.resolutions || []) && {
-          id: "resolution",
-          kind: "resolution",
-          valueCount: (inv.resolutions || []).length,
-        },
-      ].filter(Boolean),
-    };
-  },
-  // ── Filters and dashboards: the same analysis their tabs run, every row ──
-  "filters-zombie-subscriptions": ({ installationKey }) => filterItemsWith(installationKey, "subscribed-but-unused"),
-  "filters-shared-everyone": ({ installationKey }) => filterItemsWith(installationKey, "shared-with-everyone"),
-  "filters-public": ({ installationKey }) => filterItemsWith(installationKey, "shared-publicly"),
-  "people-dormant-licences": async ({ context }) => {
-    const inv = await getUserInventory({ context });
-    if (inv.neverBuilt) return { available: false, reason: "no-roster", items: [] };
-    if (!inv.governance?.activityMeasured) return { available: false, reason: "no-activity", items: [] };
-    return {
-      available: true,
-      items: inv.users
-        .filter((u) => u.dormant === true)
-        .map((u) => ({
-          id: u.accountId,
-          accountId: u.accountId,
-          displayName: u.displayName,
-          lastActivityAt: u.lastActivityAt,
-          products: (u.applications || []).map((a) => a.name),
-          groups: (u.groups || []).map((g) => g.name),
-          ownedCount: (u.ownedFilters || 0) + (u.ownedDashboards || 0) + (u.authoredRules || 0),
-        })),
-    };
-  },
-  "dashboards-public": ({ installationKey }) => dashboardItemsWith(installationKey, "shared-publicly"),
-  "dashboards-broken-gadgets": ({ installationKey }) => dashboardItemsWith(installationKey, "broken-gadget"),
-  "dashboards-open-edit": ({ installationKey }) => dashboardItemsWith(installationKey, "editable-by-everyone"),
-  "dashboards-empty": ({ installationKey }) => dashboardItemsWith(installationKey, "empty"),
-  "dashboards-published-unused": ({ installationKey }) => dashboardItemsWith(installationKey, "published-unused"),
-
-  // One item per off-roster account an automation rule names, with the rules that name it --
-  // the same join getUserInventory counts and getUserDetails lists.
-  "people-offroster-automation-refs": async ({ installationKey }) => {
-    const meta = await readUserSnapshotMeta(installationKey).catch(() => null);
-    if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
-    const [users, userIndex, directory] = await Promise.all([
-      loadUsers(installationKey, meta.version),
-      readAutomationPart(installationKey, "users").catch(() => null),
-      readAutomationPart(installationKey, "directory").catch(() => null),
-    ]);
-    if (!userIndex) return { available: false, reason: "no-automation-index", items: [] };
-    const roster = activeRosterIds(users);
-    const items = (userIndex.entries || [])
-      .map((e) => String(e.label))
-      .filter((accountId) => !roster.has(accountId))
-      .map((accountId) => {
-        const rules = collectRuleUserReferences(accountId, userIndex, directory);
-        return { id: accountId, accountId, ruleCount: rules.length, rules };
-      })
-      .filter((it) => it.ruleCount > 0);
-    return { available: true, items };
-  },
-
-  "issue-type-hierarchy": async ({ installationKey, context }) => {
-    const insights = await issueTypeInsightsFull(installationKey, context);
-    if (!insights) return { available: false, reason: "no-snapshot", items: [] };
-    return {
-      available: true,
-      items: insights.flaggedSchemes.map((sc) => ({
-        id: sc.schemeId,
-        schemeId: sc.schemeId,
-        name: sc.name,
-        projectCount: sc.projectCount,
-        flags: sc.flags.map((f) => f.message),
-      })),
-    };
-  },
-
-  "issue-type-unused-schemes": async ({ installationKey, context }) => {
-    const insights = await issueTypeInsightsFull(installationKey, context);
-    if (!insights) return { available: false, reason: "no-snapshot", items: [] };
-    return {
-      available: true,
-      items: insights.unusedSchemes.map((sc) => ({ id: sc.schemeId, schemeId: sc.schemeId, name: sc.name })),
-    };
-  },
-
-  "estate-duplicate-priorities": ({ context }) => estateGroups(context, "priorityDuplicateGroups"),
-  "estate-duplicate-resolutions": ({ context }) => estateGroups(context, "resolutionDuplicateGroups"),
-
-  "asset-broken-references": async ({ context }) => {
-    const a = await assetInsightsFull(context);
-    if (!a.available) return a.result;
-    const attrById = new Map(a.inv.attributes.map((x) => [String(x.id), x]));
-    const typeById = new Map(a.inv.objectTypes.map((t) => [String(t.id), t]));
-    return {
-      available: true,
-      items: a.insights.brokenReferences.map((r) => ({
-        ...r,
-        schemaId: attrById.get(String(r.id))?.schemaId ?? typeById.get(String(r.objectTypeId))?.schemaId ?? null,
-        objectTypeName: typeById.get(String(r.objectTypeId))?.name ?? null,
-      })),
-    };
-  },
-  "asset-broken-hierarchy": async ({ context }) => {
-    const a = await assetInsightsFull(context);
-    return a.available ? { available: true, items: a.insights.brokenHierarchy } : a.result;
-  },
-  "asset-bare-types": async ({ context }) => {
-    const a = await assetInsightsFull(context);
-    return a.available ? { available: true, items: a.insights.bareTypes } : a.result;
-  },
-};
-
-// ── Fields, workflows, projects, screens, automation ───────────────────────
-
-Object.assign(REMEDIATION_CANDIDATE_LOADERS, {
-  "field-admin-attention": ({ installationKey }) =>
-    fieldItems(installationKey, (f) => (f.findings?.tags?.adminAttention ? f.findings.reasons : null)),
-  "field-risky": ({ installationKey }) =>
-    fieldItems(installationKey, (f) =>
-      f.findings?.tags?.risky ? f.findings.reasons.filter((r) => r.category === "risky") : null,
-    ),
-  "field-global-context-low-usage": ({ installationKey }) =>
-    fieldItems(installationKey, reasonsWithCode("global-context-low-usage")),
-  "field-dead-configuration": ({ installationKey }) =>
-    fieldItems(installationKey, reasonsWithCode("dead-configuration")),
-  "field-stale": ({ installationKey }) => fieldItems(installationKey, reasonsWithCode("stale")),
-  "field-context-sprawl": ({ installationKey }) => fieldItems(installationKey, reasonsWithCode("context-sprawl")),
-  "field-missing-description": ({ installationKey }) =>
-    fieldItems(installationKey, reasonsWithCode("missing-description")),
-
-  "workflow-duplicate-statuses": ({ installationKey }) =>
-    workflowItems(installationKey, (w) =>
-      w.duplicateGroups.map((g) => ({
-        id: g.key,
-        key: g.key,
-        kind: g.kind,
-        count: g.count,
-        statuses: g.statuses.map((st) => {
-          const statusId = String(st.statusId ?? st.id);
-          return {
-            statusId,
-            name: st.name,
-            issueCount: w.hasIssueCounts ? Number(w.issueCounts.get(statusId) ?? 0) : null,
-          };
-        }),
-      })),
-    ),
-  "rule-only-statuses": ({ installationKey }) =>
-    workflowItems(installationKey, (w) =>
-      w.orphans
-        .filter((o) => o.ruleOnly)
-        .map((o) => ({
-          id: String(o.statusId),
-          name: o.name,
-          automationRuleCount: o.automationRuleCount ?? null,
-          issueCount: o.issueCount ?? null,
-        })),
-    ),
-  "unreachable-with-issues": ({ installationKey }) =>
-    workflowItems(installationKey, (w) =>
-      w.orphans
-        .filter((o) => !o.ruleOnly && (o.issueCount ?? 0) > 0)
-        .map((o) => ({ id: String(o.statusId), name: o.name, issueCount: o.issueCount })),
-    ),
-  // ── Field schemes / configurations: all three from the stored findings ──
-  "fieldconfig-required-hidden": async ({ context }) => {
-    const inv = await getFieldConfigInventory({ context });
-    if (inv.neverBuilt) return { available: false, reason: "no-snapshot", items: [] };
-    return {
-      available: true,
-      items: inv.configs
-        .filter((c) => c.requiredHidden.length)
-        .map((c) => ({
-          id: c.id,
-          sourceId: c.sourceId,
-          name: c.name,
-          fieldNames: c.requiredHidden.map((f) => f.fieldName),
-          usedBy: (c.routes || []).map((r) => `${r.schemeName} (${r.workTypeName})`),
-        })),
-    };
-  },
-  "fieldconfig-unused": async ({ context }) => {
-    const inv = await getFieldConfigInventory({ context });
-    if (inv.neverBuilt) return { available: false, reason: "no-snapshot", items: [] };
-    const pick = (rows, kind) =>
-      rows
-        .filter((r) => r.codes.includes("unused"))
-        .map((r) => ({ id: r.id, sourceId: r.sourceId, name: r.name, kind }));
-    return { available: true, items: [...pick(inv.schemes, "scheme"), ...pick(inv.configs, "config")] };
-  },
-  "fieldconfig-duplicates": async ({ context }) => {
-    const inv = await getFieldConfigInventory({ context });
-    if (inv.neverBuilt) return { available: false, reason: "no-snapshot", items: [] };
-    const groups = [];
-    for (const [rows, kind] of [
-      [inv.schemes, "scheme"],
-      [inv.configs, "config"],
-    ]) {
-      const byId = new Map(rows.map((r) => [r.id, r]));
-      const byKeep = new Map();
-      for (const row of rows) {
-        if (!row.duplicateOf) continue;
-        if (!byKeep.has(row.duplicateOf)) byKeep.set(row.duplicateOf, [row.duplicateOf]);
-        byKeep.get(row.duplicateOf).push(row.id);
-      }
-      for (const [keep, members] of byKeep) {
-        groups.push({
-          id: `${kind}:${keep}`,
-          kind,
-          keep,
-          keepName: byId.get(keep)?.name || keep,
-          members,
-          memberNames: members.map((m) => byId.get(m)?.name || m),
-          memberSourceIds: members.map((m) => byId.get(m)?.sourceId || null),
-          name: byId.get(keep)?.name || keep,
-          count: members.length,
-        });
-      }
-    }
-    return { available: true, items: groups };
-  },
-  "workflow-broken-references": async ({ context }) => {
-    const insights = await getWorkflowRuleInsights({ context });
-    if (!insights.available) return { available: false, reason: insights.reason, items: [] };
-    const byWorkflow = new Map();
-    for (const ref of insights.brokenRefs) {
-      if (!byWorkflow.has(ref.workflowName)) byWorkflow.set(ref.workflowName, []);
-      byWorkflow.get(ref.workflowName).push({
-        type: ref.type,
-        id: ref.id,
-        where: ref.status ? `status ${ref.status.name}` : `transition ${ref.transitionId}`,
-      });
-    }
-    return {
-      available: true,
-      items: [...byWorkflow.entries()].map(([name, refs]) => ({ id: name, name, count: refs.length, refs })),
-    };
-  },
-  "workflows-inactive": async ({ context }) => {
-    const insights = await getWorkflowRuleInsights({ context });
-    if (!insights.available) return { available: false, reason: insights.reason, items: [] };
-    return {
-      available: true,
-      items: insights.inactive.map((w) => ({
-        id: w.name,
-        name: w.name,
-        statusCount: w.statusCount,
-        ruleCount: w.ruleCount,
-      })),
-    };
-  },
-  "workflow-scheme-structure": ({ installationKey }) =>
-    workflowItems(installationKey, (w) =>
-      w.balance
-        .filter((b) => b.flags.length > 0)
-        .map((b) => ({
-          id: b.schemeId,
-          name: b.name,
-          projectCount: b.projectCount,
-          flags: b.flags.map((f) => f.message),
-        })),
-    ),
-
-  "project-over-configured": ({ installationKey }) =>
-    projectItems(installationKey, ({ insights }) => {
-      const idle = new Set(insights.idleOverConfigured.map((p) => p.projectKey));
-      return insights.overConfigured.map((p) => ({ id: p.projectKey, ...p, idle: idle.has(p.projectKey) }));
-    }),
-  "unused-projects": ({ installationKey }) =>
-    projectItems(installationKey, ({ insights }) => insights.unusedProjects.map((p) => ({ id: p.projectKey, ...p }))),
-  "stale-projects": ({ installationKey }) =>
-    projectItems(installationKey, ({ insights }) => insights.staleProjects.map((p) => ({ id: p.projectKey, ...p }))),
-  "projects-fell-off": ({ installationKey }) =>
-    projectItems(installationKey, ({ adoption }) => adoptionFlagged(adoption, "fellOff")),
-  "projects-never-adopted": ({ installationKey }) =>
-    projectItems(installationKey, ({ adoption }) => adoptionFlagged(adoption, "neverAdopted")),
-
-  "screen-empty": ({ installationKey }) => screenItems(installationKey, "empty"),
-  "screen-unresolved": ({ installationKey }) => screenItems(installationKey, "unresolved"),
-  "screen-unreached": ({ installationKey }) => screenItems(installationKey, "unreached", { needsWorkflow: true }),
-  "screen-transition-only": ({ installationKey }) =>
-    screenItems(installationKey, "transition-only", { needsWorkflow: true }),
-  // One task per screen scheme, listing each operation that points at a missing screen.
-  "screen-dangling": async ({ installationKey }) => {
-    const meta = await readScreenSnapshotMeta(installationKey).catch(() => null);
-    if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
-    const [ops, schemes] = await Promise.all([
-      loadScreenSchemeOperations(installationKey, meta.version),
-      loadScreenSchemes(installationKey, meta.version),
-    ]);
-    const names = new Map(schemes.map((sc) => [String(sc.schemeId), sc.name]));
-    const bySchemeId = new Map();
-    for (const op of ops.filter((o) => o.dangling)) {
-      const id = String(op.schemeId);
-      if (!bySchemeId.has(id)) bySchemeId.set(id, { id, name: names.get(id) || null, operations: [] });
-      bySchemeId.get(id).operations.push({ operation: op.operation, screenId: op.screenId || null });
-    }
-    return { available: true, items: [...bySchemeId.values()] };
-  },
-  "screen-unused-schemes": async ({ installationKey }) => {
-    const meta = await readScreenSnapshotMeta(installationKey).catch(() => null);
-    if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
-    const schemes = await loadScreenSchemes(installationKey, meta.version);
-    return {
-      available: true,
-      items: schemes
-        .filter((sc) => (sc.issueTypeSchemeCount ?? 0) === 0)
-        .map((sc) => ({ id: String(sc.schemeId), name: sc.name })),
-    };
-  },
-
-  "automation-disabled": async ({ installationKey }) => {
-    const directory = await readAutomationPart(installationKey, "directory").catch(() => null);
-    if (!directory) return { available: false, reason: "no-automation-index", items: [] };
-    return { available: true, items: [...hydrateRuleDirectory(directory).values()].filter((r) => !r.enabled) };
-  },
-  "automation-credentials": ({ installationKey }) =>
-    automationRiskItems(installationKey, "embedded-credential", "credentialRuleCount"),
-  "automation-external": ({ installationKey }) =>
-    automationRiskItems(installationKey, "external-http", "externalHttpCount"),
-  "automation-inert": ({ installationKey }) => automationRiskItems(installationKey, "no-actions", "noActionCount"),
-  "automation-self-triggering": async ({ installationKey }) => {
-    const [analysis, directory] = await Promise.all([
-      readAutomationAnalysis(installationKey).catch(() => null),
-      readAutomationPart(installationKey, "directory").catch(() => null),
-    ]);
-    if (!analysis) return { available: false, reason: "no-analysis", items: [] };
-    const rules = directory ? hydrateRuleDirectory(directory) : new Map();
-    const seen = new Map();
-    for (const c of analysis.cascades || []) {
-      if (!c.selfTriggering || seen.has(String(c.sourceId))) continue;
-      const rule = rules.get(c.sourceId) || rules.get(Number(c.sourceId)) || {};
-      seen.set(String(c.sourceId), { ...rule, id: c.sourceId, name: rule.name || c.sourceName || null });
-    }
-    return partialOf([...seen.values()], analysis.estate?.health?.selfTriggeringCount);
-  },
-});
-
 // Every field, hydrated for governance against the CURRENT thresholds -- the computation
 // getAdminOverview's field counts come from, so each field epic matches its Overview number.
 export async function hydratedFields(installationKey) {
   const meta = await readSnapshotMeta(installationKey).catch(() => null);
   if (!meta?.version) return null;
   const [fields, config] = await Promise.all([loadSnapshotFields(installationKey, meta.version), readAdminConfig()]);
-  const dup = buildDuplicateNameCountMap(fields);
-  return fields.map((f) =>
-    hydrateFieldForGovernance(f, null, dup.get(normalizeFieldName(f.name)) ?? 1, config.governanceThresholds),
-  );
-}
-
-export const reasonsWithCode = (code) => (f) => {
-  const hits = (f.findings?.reasons || []).filter((r) => r.code === code);
-  return hits.length ? hits : null;
-};
-
-// `reasonsOf(field)` returns the reasons that put the field in this finding, or null.
-export async function fieldItems(installationKey, reasonsOf) {
-  const fields = await hydratedFields(installationKey);
-  if (!fields) return { available: false, reason: "no-snapshot", items: [] };
-  const items = [];
-  for (const f of fields) {
-    const reasons = reasonsOf(f);
-    if (!reasons) continue;
-    items.push({
-      id: f.id,
-      name: f.name || null,
-      type: f.type || null,
-      configuredProjectCount: f.configuredProjectCount ?? null,
-      totalIssueCount: f.totalIssueCount ?? null,
-      reasons: reasons.map((r) => r.title || r.detail || r.code),
-    });
-  }
-  return { available: true, items };
-}
-
-export async function workflowItems(installationKey, pick) {
-  const meta = await readWorkflowSnapshotMeta(installationKey).catch(() => null);
-  if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
-  const w = await computeWorkflowInsightsFull(installationKey, meta.version);
-  if (!w.schemeStatusesAvailable) return { available: false, reason: "no-scheme-mapping", items: [] };
-  return { available: true, items: pick(w) };
-}
-
-export async function projectItems(installationKey, pick) {
-  const meta = await readSnapshotMeta(installationKey).catch(() => null);
-  if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
-  const projects = await attachUniqueIssueCounts(
-    installationKey,
-    await listSnapshotProjects(installationKey, meta.version),
-  );
-  const activity = await loadProjectActivity(installationKey).catch(
-    fallbackOn("remediation.project_activity_load_failed", () => new Map(), { installationKey }),
-  );
-  return {
-    available: true,
-    items: pick({
-      insights: buildProjectInsights(projects, { listLimit: Infinity }),
-      adoption: summarizeAdoption(projects, activity),
-    }),
-  };
-}
-
-// The adoption flags, on exactly the terms the Overview counts them: judged projects only
-// (measured, old enough), and nothing at all while the activity data is stale.
-export function adoptionFlagged(adoption, flag) {
-  if (!adoption?.available || adoption.dataStale) return [];
-  return adoption.projects
-    .filter((p) => p.measured && p.oldEnough && p[flag])
-    .map((p) => ({
-      id: p.projectKey,
-      projectKey: p.projectKey,
-      projectName: p.projectName,
-      issuesPerDay: p.issuesPerDay != null ? Math.round(p.issuesPerDay * 100) / 100 : null,
-      recentIssuesPerDay: p.recentIssuesPerDay != null ? Math.round(p.recentIssuesPerDay * 100) / 100 : null,
-      peakMonth: p.peakMonth || null,
-      ageDays: p.ageDays ?? null,
-    }));
-}
-
-export async function screenItems(installationKey, filter, { needsWorkflow = false } = {}) {
-  const meta = await readScreenSnapshotMeta(installationKey).catch(() => null);
-  if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
-  const workflowMeta = await readWorkflowSnapshotMeta(installationKey).catch(() => null);
-  // A screen a transition opens is in use, so "unreached" needs a snapshot that read them.
-  const workflowVersion = transitionAwareWorkflowVersion(workflowMeta);
-  if (needsWorkflow && !workflowVersion) {
-    return {
-      available: false,
-      reason: workflowMeta?.version ? "transitions-unknown" : "no-workflow-snapshot",
-      items: [],
-    };
-  }
-  const rows = await loadAllScreenPages(installationKey, meta.version, { workflowVersion, filter });
-  return {
-    available: true,
-    items: rows.map((r) => ({ id: String(r.screenId), name: r.name, tabCount: r.tabCount, fieldCount: r.fieldCount })),
-  };
-}
-
-// The stored analysis keeps a preview of the highest-severity rules, not every flagged
-// rule. `partial` and `expected` say so, so the tab can state how many are not listed
-// rather than present the preview as the whole finding.
-export async function automationRiskItems(installationKey, riskCode, countKey) {
-  const analysis = await readAutomationAnalysis(installationKey).catch(() => null);
-  if (!analysis) return { available: false, reason: "no-analysis", items: [] };
-  const items = (analysis.findingsPreview || [])
-    .filter((f) => (f.r || []).some((r) => r.c === riskCode))
-    .map((f) => ({
-      id: f.id,
-      name: f.n || null,
-      enabled: f.e === 1,
-      triggerType: f.t || null,
-      projectCount: f.p ?? null,
-      hosts: (f.r || []).find((r) => r.c === riskCode)?.h || [],
-    }));
-  return partialOf(items, analysis.estate?.health?.[countKey]);
-}
-
-export function partialOf(items, expected) {
-  const total = Number(expected);
-  return Number.isFinite(total) && total > items.length
-    ? { available: true, partial: true, expected: total, items }
-    : { available: true, items };
-}
-
-export async function filterItemsWith(installationKey, code) {
-  const meta = await readFilterSnapshotMeta(installationKey).catch(() => null);
-  if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
-  const { withFindings } = await loadFiltersWithFindings(installationKey, meta.version);
-  const items = withFindings
-    .filter((f) => (f.findings || []).some((x) => x.code === code))
-    .map((f) => ({
-      id: String(f.id),
-      name: f.name || null,
-      ownerName: f.owner?.displayName || f.ownerName || null,
-      subscriptionCount: Number(f.subscriptionCount) || 0,
-      favouritedCount: Number(f.favouritedCount) || 0,
-      lastUsedAt: f.lastUsedAt || null,
-    }));
-  return { available: true, items };
-}
-
-export async function dashboardItemsWith(installationKey, code) {
-  const meta = await readDashboardSnapshotMeta(installationKey).catch(() => null);
-  if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
-  const dashboards = await loadDashboards(installationKey, meta.version);
-  // Broken gadgets are only known for gadgets whose filter was probed. A snapshot built before
-  // the probe existed has filter gadgets with no state at all, and an empty list from it is
-  // "not checked", not "clean". (A site with no filter gadgets is genuinely clean.)
-  if (code === "broken-gadget") {
-    const filterGadgets = dashboards.flatMap((d) => d.gadgets || []).filter((g) => g.filterId);
-    if (filterGadgets.length && !filterGadgets.some((g) => g.filterState)) {
-      return { available: false, reason: "not-probed", items: [] };
-    }
-  }
-  const summary = summarizeDashboards(dashboards);
-  const items = summary.dashboards
-    .filter((d) => (d.findings || []).some((x) => x.code === code))
-    .map((d) => ({
-      id: String(d.id),
-      name: d.name || null,
-      ownerName: d.owner?.displayName || d.ownerName || null,
-      popularity: Number(d.popularity) || 0,
-      gadgetCount: d.gadgetCount ?? null,
-      // The broken gadgets themselves, for the broken-gadget playbook; empty for the rest.
-      brokenGadgets: (d.findings || []).find((x) => x.code === "broken-gadget")?.gadgets || [],
-    }));
-  return { available: true, items };
+  return hydrateFieldsForGovernance(fields, config.governanceThresholds);
 }
 
 // The issue type findings, uncapped. getIssueTypeInventory does not return the flat scheme
@@ -1691,31 +996,6 @@ export async function issueTypeInsightsFull(installationKey, context) {
   if (inv.neverBuilt || !inv.version) return null;
   const schemeItems = await loadIssueTypeSchemeItems(installationKey, inv.version);
   return summarizeIssueTypeInsights({ types: inv.issueTypes, schemes: inv.schemes, schemeItems, listLimit: Infinity });
-}
-
-// Priorities or resolutions no issue carries. Unavailable until the issue crawl has measured
-// usage -- before that every value would read as unused.
-export async function estateUnusedValues(context, listKey, kind) {
-  const inv = await getEstateInventory({ context });
-  if (inv.neverBuilt) return { available: false, reason: "no-snapshot", items: [] };
-  if (!inv.usageMeasured) return { available: false, reason: "no-usage", items: [] };
-  return {
-    available: true,
-    items: (inv[listKey] || [])
-      .filter((v) => v.issueCount === 0)
-      .map((v) => ({ id: String(v.id), kind, name: v.name, isDefault: Boolean(v.isDefault) })),
-  };
-}
-
-export async function estateGroups(context, listKey) {
-  const inv = await getEstateInventory({ context });
-  if (inv.neverBuilt) return { available: false, reason: "no-snapshot", items: [] };
-  const insights = summarizeEstateInsights({
-    resolutions: inv.resolutions,
-    priorities: inv.priorities,
-    listLimit: Infinity,
-  });
-  return { available: true, items: insights[listKey].map((g) => ({ id: g.key, ...g })) };
 }
 
 export async function assetInsightsFull(context) {
@@ -1734,3 +1014,184 @@ export async function assetInsightsFull(context) {
   });
   return { available: true, inv, insights };
 }
+
+// Each source answers { data } for its selector, or { unavailable } with the result to return
+// as-is. The reasons are the ones each loader always gave.
+export const CANDIDATE_SOURCES = {
+  access: async ({ context }) => {
+    const inv = await accessGovernance(context);
+    return inv ? ready(inv) : unavailable(ACCESS_UNAVAILABLE);
+  },
+  estate: async ({ context }) => {
+    const inv = await getEstateInventory({ context });
+    return inv.neverBuilt ? unavailable(noSnapshot) : ready(inv);
+  },
+  users: async ({ context }) => {
+    const inv = await getUserInventory({ context });
+    return inv.neverBuilt ? unavailable({ available: false, reason: "no-roster", items: [] }) : ready(inv);
+  },
+  issueTypes: async ({ installationKey, context }) => {
+    const insights = await issueTypeInsightsFull(installationKey, context);
+    return insights ? ready(insights) : unavailable(noSnapshot);
+  },
+  assets: async ({ context }) => {
+    const a = await assetInsightsFull(context);
+    return a.available ? ready({ inv: a.inv, insights: a.insights }) : unavailable(a.result);
+  },
+  fields: async ({ installationKey }) => {
+    const fields = await hydratedFields(installationKey);
+    return fields ? ready(fields) : unavailable(noSnapshot);
+  },
+  fieldConfigs: async ({ context }) => {
+    const inv = await getFieldConfigInventory({ context });
+    return inv.neverBuilt ? unavailable(noSnapshot) : ready(inv);
+  },
+  workflow: async ({ installationKey }) => {
+    const meta = await readWorkflowSnapshotMeta(installationKey).catch(() => null);
+    if (!meta?.version) return unavailable(noSnapshot);
+    const w = await computeWorkflowInsightsFull(installationKey, meta.version);
+    if (!w.schemeStatusesAvailable) return unavailable({ available: false, reason: "no-scheme-mapping", items: [] });
+    return ready(w);
+  },
+  workflowRules: async ({ context }) => {
+    const insights = await getWorkflowRuleInsights({ context });
+    return insights.available ? ready(insights) : unavailable({ available: false, reason: insights.reason, items: [] });
+  },
+  projects: async ({ installationKey }) => {
+    const meta = await readSnapshotMeta(installationKey).catch(() => null);
+    if (!meta?.version) return unavailable(noSnapshot);
+    const projects = await attachUniqueIssueCounts(
+      installationKey,
+      await listSnapshotProjects(installationKey, meta.version),
+    );
+    const activity = await loadProjectActivity(installationKey).catch(
+      fallbackOn("remediation.project_activity_load_failed", () => new Map(), { installationKey }),
+    );
+    return ready({
+      insights: buildProjectInsights(projects, { listLimit: Infinity }),
+      adoption: summarizeAdoption(projects, activity),
+    });
+  },
+  filters: async ({ installationKey }) => {
+    const meta = await readFilterSnapshotMeta(installationKey).catch(() => null);
+    if (!meta?.version) return unavailable(noSnapshot);
+    const { withFindings } = await loadFiltersWithFindings(installationKey, meta.version);
+    return ready(withFindings);
+  },
+  dashboards: async ({ installationKey }) => {
+    const meta = await readDashboardSnapshotMeta(installationKey).catch(() => null);
+    if (!meta?.version) return unavailable(noSnapshot);
+    return ready(await loadDashboards(installationKey, meta.version));
+  },
+  automationAnalysis: async ({ installationKey }) => {
+    const analysis = await readAutomationAnalysis(installationKey).catch(() => null);
+    return analysis ? ready(analysis) : unavailable({ available: false, reason: "no-analysis", items: [] });
+  },
+  automationDirectory: async ({ installationKey }) => {
+    const directory = await readAutomationPart(installationKey, "directory").catch(() => null);
+    return directory ? ready(directory) : unavailable({ available: false, reason: "no-automation-index", items: [] });
+  },
+  automationCascades: async ({ installationKey }) => {
+    const [analysis, directory] = await Promise.all([
+      readAutomationAnalysis(installationKey).catch(() => null),
+      readAutomationPart(installationKey, "directory").catch(() => null),
+    ]);
+    return analysis
+      ? ready({ analysis, directory })
+      : unavailable({ available: false, reason: "no-analysis", items: [] });
+  },
+};
+
+// A selector's loader: read its source, then select -- or pass the source's refusal through.
+export function loaderFor({ source, select }) {
+  const read = CANDIDATE_SOURCES[source];
+  if (!read) throw new Error(`Unknown remediation candidate source "${source}"`);
+  return async (args) => {
+    const loaded = await read(args);
+    return loaded.unavailable ?? select(loaded.data);
+  };
+}
+
+export async function screenItems(installationKey, filter, { needsWorkflow = false } = {}) {
+  const meta = await readScreenSnapshotMeta(installationKey).catch(() => null);
+  if (!meta?.version) return noSnapshot;
+  const workflowMeta = await readWorkflowSnapshotMeta(installationKey).catch(() => null);
+  // A screen a transition opens is in use, so "unreached" needs a snapshot that read them.
+  const workflowVersion = transitionAwareWorkflowVersion(workflowMeta);
+  if (needsWorkflow && !workflowVersion) {
+    return {
+      available: false,
+      reason: workflowMeta?.version ? "transitions-unknown" : "no-workflow-snapshot",
+      items: [],
+    };
+  }
+  const rows = await loadAllScreenPages(installationKey, meta.version, { workflowVersion, filter });
+  return {
+    available: true,
+    items: rows.map((r) => ({ id: String(r.screenId), name: r.name, tabCount: r.tabCount, fieldCount: r.fieldCount })),
+  };
+}
+
+export const REMEDIATION_CANDIDATE_LOADERS = {
+  ...Object.fromEntries(Object.entries(CANDIDATE_SELECTORS).map(([key, selector]) => [key, loaderFor(selector)])),
+
+  // ── Loaders that stay whole ──
+  // The screen filters run inside the paged query itself, so there is no separate inventory to
+  // select from.
+  "screen-empty": ({ installationKey }) => screenItems(installationKey, "empty"),
+  "screen-unresolved": ({ installationKey }) => screenItems(installationKey, "unresolved"),
+  "screen-unreached": ({ installationKey }) => screenItems(installationKey, "unreached", { needsWorkflow: true }),
+  "screen-transition-only": ({ installationKey }) =>
+    screenItems(installationKey, "transition-only", { needsWorkflow: true }),
+  // One task per screen scheme, listing each operation that points at a missing screen.
+  "screen-dangling": async ({ installationKey }) => {
+    const meta = await readScreenSnapshotMeta(installationKey).catch(() => null);
+    if (!meta?.version) return noSnapshot;
+    const [ops, schemes] = await Promise.all([
+      loadScreenSchemeOperations(installationKey, meta.version),
+      loadScreenSchemes(installationKey, meta.version),
+    ]);
+    const names = new Map(schemes.map((sc) => [String(sc.schemeId), sc.name]));
+    const bySchemeId = new Map();
+    for (const op of ops.filter((o) => o.dangling)) {
+      const id = String(op.schemeId);
+      if (!bySchemeId.has(id)) bySchemeId.set(id, { id, name: names.get(id) || null, operations: [] });
+      bySchemeId.get(id).operations.push({ operation: op.operation, screenId: op.screenId || null });
+    }
+    return { available: true, items: [...bySchemeId.values()] };
+  },
+  "screen-unused-schemes": async ({ installationKey }) => {
+    const meta = await readScreenSnapshotMeta(installationKey).catch(() => null);
+    if (!meta?.version) return noSnapshot;
+    const schemes = await loadScreenSchemes(installationKey, meta.version);
+    return {
+      available: true,
+      items: schemes
+        .filter((sc) => (sc.issueTypeSchemeCount ?? 0) === 0)
+        .map((sc) => ({ id: String(sc.schemeId), name: sc.name })),
+    };
+  },
+  // One item per off-roster account an automation rule names, with the rules that name it --
+  // the same join getUserInventory counts and getUserDetails lists. Stays here because that
+  // join (collectRuleUserReferences) lives in the people resolver module.
+  "people-offroster-automation-refs": async ({ installationKey }) => {
+    const meta = await readUserSnapshotMeta(installationKey).catch(() => null);
+    if (!meta?.version) return noSnapshot;
+    const [users, userIndex, directory] = await Promise.all([
+      loadUsers(installationKey, meta.version),
+      readAutomationPart(installationKey, "users").catch(() => null),
+      readAutomationPart(installationKey, "directory").catch(() => null),
+    ]);
+    if (!userIndex) return { available: false, reason: "no-automation-index", items: [] };
+    const roster = activeRosterIds(users);
+    const items = (userIndex.entries || [])
+      .map((e) => String(e.label))
+      .filter((accountId) => !roster.has(accountId))
+      .map((accountId) => {
+        const rules = collectRuleUserReferences(accountId, userIndex, directory);
+        return { id: accountId, accountId, ruleCount: rules.length, rules };
+      })
+      .filter((it) => it.ruleCount > 0);
+    return { available: true, items };
+  },
+};

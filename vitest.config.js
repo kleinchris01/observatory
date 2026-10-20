@@ -91,8 +91,13 @@ export default defineConfig({
         "src/resolvers.js": { lines: 100, functions: 100, branches: 100 },
         // The Rovo actions, one module per agent, pinned together at their weakest member.
         "src/resolvers/rovo/**": { lines: 75, functions: 64, branches: 56 },
-        "src/resolvers/remediation.js": { lines: 94.5, functions: 80.5, branches: 70.5 },
-        "src/resolvers/overview.js": { lines: 93.5, functions: 72.5, branches: 89 },
+        // Functions re-pinned 80.5 -> 71.5 on 19 Oct 2026 by follow-up 2: ~50 covered selector
+        // functions moved to src/lib/remediation-candidates.js (pinned below). What remains
+        // uncovered here is the same .catch fallbacks as before; lines and branches went up.
+        "src/resolvers/remediation.js": { lines: 94.5, functions: 71.5, branches: 76 },
+        "src/lib/remediation-candidates.js": { lines: 96.5, functions: 95, branches: 73.5 },
+        "src/lib/admin-overview.js": { lines: 100, functions: 100, branches: 94 },
+        "src/resolvers/overview.js": { lines: 95, functions: 77.5, branches: 90 },
         "src/resolvers/reports.js": { lines: 92, functions: 65.5, branches: 84 },
         "src/resolvers/project-overview.js": { lines: 78.5, functions: 52.5, branches: 75 },
         "src/resolvers/workflows.js": { lines: 91, functions: 68.5, branches: 80 },

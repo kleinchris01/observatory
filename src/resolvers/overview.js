@@ -4,7 +4,15 @@
 
 import { kvs } from "@forge/kvs";
 import { incrMetric, METRIC_NAMES, getInstallationKey } from "../lib/jira-api.js";
-import { hydrateFieldForGovernance } from "../lib/snapshot-engine.js";
+import { hydrateFieldsForGovernance } from "../lib/snapshot-engine.js";
+import {
+  EMPTY_DASHBOARD,
+  EMPTY_FINDINGS_SUMMARY,
+  buildOverviewDashboard,
+  jobCountsOf,
+  overviewAutomation,
+  siteHealthInputs,
+} from "../lib/admin-overview.js";
 import {
   ensureProjectStoreReady,
   readSnapshotMeta,
@@ -22,8 +30,6 @@ import {
 } from "../lib/project-store.js";
 import { computeSiteHealth } from "../lib/health-score.js";
 import {
-  buildFieldUsageInsights,
-  buildProjectInsights,
   buildWorkflowOverview,
   buildScreenOverview,
   buildFilterOverview,
@@ -38,29 +44,12 @@ import {
   buildDriftHealthOverview,
   attachUniqueIssueCounts,
 } from "../lib/site-health.js";
-import { summarizeAdoption } from "../lib/project-adoption.js";
 import { fullScanStageCatalog, readStageProducedCounts } from "../lib/full-scan-runner.js";
 import { readAutomationAnalysis } from "../lib/store/automation.js";
-import {
-  normalizeFieldName,
-  buildDuplicateNameCountMap,
-  summarizeFindings,
-  summarizeFindingsByCode,
-} from "../lib/analysis.js";
 import { logger, fallbackOn } from "../lib/logger.js";
 import { ADMIN_CONFIG_KEY, DEFAULT_FIRST_RUN, readAdminConfig } from "./admin-config.js";
 
-export const EMPTY_DASHBOARD = {
-  fieldUsage: {
-    totalFields: 0,
-    findingsBySeverity: { high: 0, medium: 0, low: 0 },
-    findingsByType: [],
-    fieldTypeBreakdown: [],
-    origin: { builtin: 0, appProvided: 0, custom: 0 },
-    duplicateClusters: 0,
-  },
-  projects: { totalProjects: 0, topByIssueVolume: [], topByFieldCount: [] },
-};
+export { EMPTY_DASHBOARD };
 
 // -- First run --------------------------------------------------------------
 //
@@ -328,12 +317,10 @@ export async function getAdminOverview({ context }) {
     buildFieldConfigOverview(installationKey),
   ]);
 
-  // The rates are computed at analysis time and stored, so the score never needs the rules.
-  const automation = automationAnalysis?.estate?.health ?? { available: false };
+  const automation = overviewAutomation(automationAnalysis);
+  const jobCounts = jobCountsOf(summaryCounts);
 
-  const jobCounts = summaryCounts.counts ?? { queued: 0, building: 0, ready: 0, failed: 0, cancelled: 0, unbuilt: 0 };
-
-  let findingsSummary = { adminAttention: 0, risky: 0, cleanup: 0, standardize: 0 };
+  let findingsSummary = EMPTY_FINDINGS_SUMMARY;
   let findingsByCode = {};
   let dashboard = EMPTY_DASHBOARD;
   if (meta?.version) {
@@ -343,57 +330,14 @@ export async function getAdminOverview({ context }) {
         listSnapshotProjects(installationKey, meta.version),
       ]);
       const projects = await attachUniqueIssueCounts(installationKey, rawProjects);
-      const dup = buildDuplicateNameCountMap(fields);
-      const hydrated = fields.map((f) =>
-        hydrateFieldForGovernance(f, null, dup.get(normalizeFieldName(f.name)) ?? 1, config.governanceThresholds),
-      );
-      findingsSummary = summarizeFindings(hydrated);
-      // The counts several new Overview cards each need -- "23 fields with a dead-
-      // configuration ratio" is a specific reason code, not one of the four coarse
-      // categories findingsSummary already tracks, and only this join knows the number.
-      findingsByCode = summarizeFindingsByCode(hydrated);
-      // Adoption travels beside the shape insights rather than inside them: one asks how a
-      // project is configured and the other asks whether anyone is using it, and folding
-      // them together is what let a three-week-old project read as abandoned.
-      //
-      // Only the counts and a short worst-first list reach the Overview. The full per-project
-      // series is what the Projects tab loads, and shipping 200 projects' worth of monthly
-      // history with the landing page would dwarf everything else on it.
       const activity = await loadProjectActivity(installationKey).catch(
         fallbackOn("overview.project_activity_load_failed", () => new Map(), { installationKey }),
       );
-      const adoption = summarizeAdoption(projects, activity);
-
-      dashboard = {
-        fieldUsage: buildFieldUsageInsights(hydrated),
-        projects: buildProjectInsights(projects),
-        adoption: {
-          available: adoption.available,
-          measuredProjects: adoption.measuredProjects,
-          judgeableProjects: adoption.judgeableProjects,
-          fellOffCount: adoption.fellOffCount,
-          neverAdoptedCount: adoption.neverAdoptedCount,
-          medianIssuesPerDay: adoption.medianIssuesPerDay,
-          dataThroughMonth: adoption.dataThroughMonth,
-          dataStale: adoption.dataStale,
-          // Most recent decline first: the ones somebody might still remember the reason for.
-          fellOff: adoption.projects
-            .filter((row) => row.fellOff)
-            .sort((a, b) => String(b.declineFrom || "").localeCompare(String(a.declineFrom || "")))
-            .slice(0, 8)
-            .map((row) => ({
-              projectKey: row.projectKey,
-              projectName: row.projectName,
-              declineFrom: row.declineFrom,
-              peakMonth: row.peakMonth,
-              peakIssues: row.peakIssues,
-              issuesPerDay: row.issuesPerDay,
-              recentIssuesPerDay: row.recentIssuesPerDay,
-              momentum: row.momentum,
-              score: row.score,
-            })),
-        },
-      };
+      ({ findingsSummary, findingsByCode, dashboard } = buildOverviewDashboard({
+        hydrated: hydrateFieldsForGovernance(fields, config.governanceThresholds),
+        projects,
+        activity,
+      }));
     } catch (error) {
       // Overview must still render its job counts and config if the dashboard build
       // fails -- but an empty dashboard and a site with no data look identical on
@@ -419,32 +363,27 @@ export async function getAdminOverview({ context }) {
     fieldVersion: dashboard?.fieldUsage?.version ?? null,
   }).catch(fallbackOn("overview.screen_cross_read_failed", () => null, { installationKey }));
 
-  const health = computeSiteHealth({
-    fieldUsage: dashboard?.fieldUsage,
-    workflow,
-    projects: dashboard?.projects,
-    automation,
-    screens,
-    screenCross,
-    filters: filterOverview?.health ?? null,
-    dashboards: dashboardOverview?.health ?? null,
-    issueTypes: issueTypeOverview?.health ?? null,
-    users: userOverview?.health ?? null,
-    assets: assetOverview?.health ?? null,
-    permissions: accessOverview?.permissions?.health ?? null,
-    security: accessOverview?.security?.health ?? null,
-    notifications: accessOverview?.notifications?.health ?? null,
-    roles: accessOverview?.roles?.health ?? null,
-    estate: estateOverview?.health ?? null,
-    fieldConfigs: fieldConfigOverview?.health ?? null,
-    boards: boardOverview?.health ?? null,
-    drift: driftHealth,
-    // Workflow, project and automation dimensions were scored against hardcoded constants
-    // while every field rule was tunable. Same config surface now feeds both.
-    tolerances: config?.healthTolerances,
-    targets: config?.healthTargets,
-    priorValues: priorHealthValues,
-  });
+  const health = computeSiteHealth(
+    siteHealthInputs({
+      dashboard,
+      workflow,
+      automationHealth: automation.health,
+      screens,
+      screenCross,
+      filterOverview,
+      dashboardOverview,
+      issueTypeOverview,
+      userOverview,
+      assetOverview,
+      accessOverview,
+      estateOverview,
+      fieldConfigOverview,
+      boardOverview,
+      driftHealth,
+      config,
+      priorValues: priorHealthValues,
+    }),
+  );
 
   // Recorded here because this is the only place the score is computed, and the series
   // cannot be back-filled -- a day with no row is a hole in the record forever. Upserted per
@@ -476,16 +415,8 @@ export async function getAdminOverview({ context }) {
     filters: filterOverview,
     dashboards: dashboardOverview,
     health,
-    // The whole health summary, not just the three headline fields it used to carry. The
-    // overview's findings list needs the same counts the score does -- while this was
-    // trimmed to {available, refreshedAt, ruleCount}, every automation problem the analysis
-    // had already found was invisible on the landing page that exists to surface problems.
-    automation: {
-      ...automation,
-      available: Boolean(automation?.available),
-      refreshedAt: automationAnalysis?.refreshedAt ?? null,
-      ruleCount: automation?.ruleCount ?? 0,
-    },
+    // The whole automation health summary, not just its headline fields (overviewAutomation).
+    automation: automation.summary,
     dashboard,
     totalSummaries: summaryCounts.total,
     legacySummaryCount,
