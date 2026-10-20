@@ -2649,6 +2649,306 @@ for (const [key, meta] of Object.entries(LEGACY_META)) {
   Object.assign(REMEDIATION_PLAYBOOKS[key], { granularity: "item", ...meta });
 }
 
+// ── Jira Service Management ─────────────────────────────────────────────────
+//
+// One playbook per JSM dimension. Items carry the desk's project key so every link lands in
+// that desk's settings; a ticket about a request type opens the request type.
+
+const deskFacts = (it) => [["Service desk project", it.projectKey]];
+
+Object.assign(REMEDIATION_PLAYBOOKS, {
+  "rt-visibility": definePlaybook({
+    pillar: "requestTypes",
+    label: "Request types not on the portal",
+    findings: ["rt-visibility"],
+    epic: {
+      summary: (n) => `Decide on ${n} ${plural(n, "request type")} customers cannot see`,
+      why: (n) =>
+        `${n} ${plural(n, "request type is", "request types are")} in no portal group, so customers cannot raise ${plural(n, "it", "them")}. Agent-only request types are hidden on purpose; the rest are a service nobody can ask for.`,
+      strategy: `For each, decide: customer-facing (add it to a portal group) or agent-only (leave it, and note why).`,
+      done: `Every child task is closed, and the next scan flags only the agent-only request types.`,
+    },
+    task: {
+      heading: "The request type",
+      summary: (it) => `Put "${it.name || it.id || "(unknown)"}" on the portal, or confirm it is agent-only`,
+      facts: (it) => [["Request type", it.name], ["Request type id", it.itemId ?? it.id], ...deskFacts(it)],
+      steps: () => [
+        "Open the request type (link below).",
+        "Customer-facing: add it to the portal group customers would look in.",
+        "Agent-only: leave it hidden and add a line to its description saying so.",
+      ],
+      done: "The request type is in a portal group, or recorded as agent-only.",
+    },
+    links: (it, o) => [
+      [`Request type: ${it.name || it.id}`, L.requestType(o, it.projectKey, it.itemId ?? it.id)],
+      ["Portal settings", L.portalSettings(o, it.projectKey)],
+    ],
+  }),
+
+  "rt-usage": definePlaybook({
+    pillar: "requestTypes",
+    label: "Request types nobody uses",
+    findings: ["rt-usage"],
+    epic: {
+      summary: (n) => `Retire or merge ${n} unused ${plural(n, "request type")}`,
+      why: (n) =>
+        `${n} ${plural(n, "request type has", "request types have")} had no request in the last 90 days. Each is one more choice a customer reads past on the portal, and a reason requests get misfiled.`,
+      strategy: `Retire the ones that are no longer a service. Merge the ones a newer request type replaced.`,
+      done: `Every child task is closed and the next scan reports no unused request types you meant to keep.`,
+    },
+    task: {
+      heading: "The request type",
+      summary: (it) => `Retire or merge unused request type "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [
+        ["Request type", it.name],
+        ["Request type id", it.itemId ?? it.id],
+        ...deskFacts(it),
+        ["Requests ever", it.issueCount],
+      ],
+      steps: () => [
+        "Ask the desk owner whether this is still a service you offer.",
+        "No: remove it from the portal groups, then delete it once its open requests are closed.",
+        "Replaced: point customers to the newer request type in its description, then retire it.",
+      ],
+      done: "The request type is retired or merged, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => [[`Request type: ${it.name || it.id}`, L.requestType(o, it.projectKey, it.itemId ?? it.id)]],
+  }),
+
+  "rt-descriptions": definePlaybook({
+    pillar: "requestTypes",
+    label: "Request types with no description",
+    findings: ["rt-descriptions"],
+    epic: {
+      summary: (n) => `Describe ${n} ${plural(n, "request type")} for customers`,
+      why: (n) =>
+        `${n} ${plural(n, "request type has", "request types have")} no description, so customers choose from the name alone. A line of help text is the cheapest fix for misfiled requests.`,
+      strategy: `Write one sentence per request type saying what it is for and what it is not for.`,
+      done: `Every child task is closed and the next scan reports every request type described.`,
+    },
+    task: {
+      heading: "The request type",
+      summary: (it) => `Describe request type "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [["Request type", it.name], ["Request type id", it.itemId ?? it.id], ...deskFacts(it)],
+      steps: () => [
+        "Open the request type (link below).",
+        "Add a description: what it is for, and where to go instead for the near misses.",
+      ],
+      done: "The request type has a description.",
+    },
+    links: (it, o) => [[`Request type: ${it.name || it.id}`, L.requestType(o, it.projectKey, it.itemId ?? it.id)]],
+  }),
+
+  "rt-naming": definePlaybook({
+    pillar: "requestTypes",
+    label: "Request types sharing a name",
+    findings: ["rt-naming"],
+    epic: {
+      summary: (n) => `Merge or rename ${n} duplicate ${plural(n, "request type")}`,
+      why: (n) =>
+        `${n} ${plural(n, "request type shares", "request types share")} a name with another on the same desk. The portal shows customers both and they pick at random.`,
+      strategy: `Keep the one with the right fields and workflow; retire or rename the other.`,
+      done: `Every child task is closed and the next scan reports no duplicate request type names.`,
+    },
+    task: {
+      heading: "The request type",
+      summary: (it) => `Resolve the duplicate name on request type "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [["Request type", it.name], ["Request type id", it.itemId ?? it.id], ...deskFacts(it)],
+      steps: () => [
+        "Compare it with the other request type of the same name on this desk.",
+        "Keep one. Rename the other if it is a different service, or retire it if it is the same.",
+      ],
+      done: "No other request type on the desk shares its name.",
+    },
+    links: (it, o) => [
+      [`Request type: ${it.name || it.id}`, L.requestType(o, it.projectKey, it.itemId ?? it.id)],
+      ["All request types", L.requestTypes(o, it.projectKey)],
+    ],
+  }),
+
+  "queue-integrity": definePlaybook({
+    pillar: "queues",
+    label: "Queues naming a deleted custom field",
+    findings: ["queue-integrity"],
+    epic: {
+      summary: (n) => `Fix ${n} broken ${plural(n, "queue")}`,
+      why: (n) =>
+        `${n} ${plural(n, "queue's", "queues'")} JQL names a custom field the site no longer has. The queue errors or silently drops the clause, and agents working from it miss issues.`,
+      strategy: `Rewrite each queue's JQL against the field that replaced the deleted one, or drop the clause.`,
+      done: `Every child task is closed and the next scan reports no broken queues.`,
+    },
+    task: {
+      heading: "The queue",
+      summary: (it) => `Fix the JQL of queue "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [
+        ["Queue", it.name],
+        ["Queue id", it.itemId ?? it.id],
+        ...deskFacts(it),
+        ["Missing fields", (it.brokenRefs || []).join(", ")],
+        ["JQL", it.jql],
+      ],
+      steps: () => [
+        "Open the queue (link below) and edit its JQL.",
+        "Replace each missing field with the one that took its place, or remove the clause.",
+      ],
+      done: "The queue's JQL names only fields the site has.",
+    },
+    links: (it, o) => [[`Queue: ${it.name || it.id}`, L.queue(o, it.projectKey, it.itemId ?? it.id)]],
+  }),
+
+  "queue-usage": definePlaybook({
+    pillar: "queues",
+    label: "Empty queues",
+    findings: ["queue-usage"],
+    epic: {
+      summary: (n) => `Review ${n} empty ${plural(n, "queue")}`,
+      why: (n) =>
+        `${n} ${plural(n, "queue holds", "queues hold")} no issues. Some are empty on purpose -- an escalation that rarely happens -- and the rest clutter every agent's sidebar.`,
+      strategy: `Keep the queues that are empty by design. Remove the rest.`,
+      done: `Every child task is closed and the remaining empty queues are deliberate.`,
+    },
+    task: {
+      heading: "The queue",
+      summary: (it) => `Keep or remove empty queue "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [["Queue", it.name], ["Queue id", it.itemId ?? it.id], ...deskFacts(it), ["JQL", it.jql]],
+      steps: () => ["Ask the desk's agents whether anyone works from it.", "Remove it if nobody does."],
+      done: "The queue is removed, or kept knowingly.",
+    },
+    links: (it, o) => [[`Queue: ${it.name || it.id}`, L.queue(o, it.projectKey, it.itemId ?? it.id)]],
+  }),
+
+  "queue-duplicates": definePlaybook({
+    pillar: "queues",
+    label: "Queues running the same query",
+    findings: ["queue-duplicates"],
+    epic: {
+      summary: (n) => `Consolidate ${n} duplicate ${plural(n, "queue")}`,
+      why: (n) =>
+        `${n} ${plural(n, "queue runs", "queues run")} the same query as another on the same desk. Agents split their attention across two views of one list.`,
+      strategy: `Keep one queue per query on each desk.`,
+      done: `Every child task is closed and the next scan reports no duplicate queues.`,
+    },
+    task: {
+      heading: "The queue",
+      summary: (it) => `Consolidate duplicate queue "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [["Queue", it.name], ["Queue id", it.itemId ?? it.id], ...deskFacts(it), ["JQL", it.jql]],
+      steps: () => [
+        "Find the other queue on this desk with the same JQL.",
+        "Keep the better-named one and delete this one.",
+      ],
+      done: "No other queue on the desk runs the same query.",
+    },
+    links: (it, o) => [[`Queue: ${it.name || it.id}`, L.queue(o, it.projectKey, it.itemId ?? it.id)]],
+  }),
+
+  "sla-breach-rate": definePlaybook({
+    pillar: "slas",
+    label: "SLAs breached more often than met",
+    findings: ["sla-breach-rate"],
+    epic: {
+      summary: (n) => `Review ${n} ${plural(n, "SLA")} that breach most of the time`,
+      why: (n) =>
+        `${n} ${plural(n, "SLA breaches", "SLAs breach")} on more than half the requests measured against ${plural(n, "it", "them")} in the last 90 days. A goal missed that often is either wrong or under-resourced, and it trains everyone to ignore the clock.`,
+      strategy: `For each, check the goal, the calendar and the conditions against what the desk can actually deliver.`,
+      done: `Every child task is closed and the next scan shows each SLA breaching less than half the time.`,
+    },
+    task: {
+      heading: "The SLA",
+      summary: (it) => `Review SLA "${it.name || it.fieldId || "(unknown)"}"`,
+      facts: (it) => [
+        ["SLA", it.name],
+        ["SLA field", it.fieldId],
+        ["Requests measured (90 days)", it.activeCount],
+        ["Breached", it.breachedCount],
+      ],
+      steps: () => [
+        "Open the SLA settings of each desk it runs on.",
+        "Check the goal and the calendar: is the target realistic for this kind of request?",
+        "If it is, the desk needs staffing or triage changes rather than a new goal.",
+      ],
+      done: "The goal is realistic, or the desk has a plan to meet it.",
+    },
+    links: (it, o) => (it.projectKeys || []).slice(0, 5).map((key) => [`SLAs: ${key}`, L.slaSettings(o, key)]),
+  }),
+
+  "sla-usage": definePlaybook({
+    pillar: "slas",
+    label: "SLAs nothing runs against",
+    findings: ["sla-usage"],
+    epic: {
+      summary: (n) => `Retire ${n} unused ${plural(n, "SLA")}`,
+      why: (n) =>
+        `${n} ${plural(n, "SLA has", "SLAs have")} run against no request on any desk in the last 90 days. Each is still evaluated on every request.`,
+      strategy: `Confirm each is no longer needed, then delete it from the desks that define it.`,
+      done: `Every child task is closed and the next scan reports no unused SLAs.`,
+    },
+    task: {
+      heading: "The SLA",
+      summary: (it) => `Retire unused SLA "${it.name || it.fieldId || "(unknown)"}"`,
+      facts: (it) => [
+        ["SLA", it.name],
+        ["SLA field", it.fieldId],
+      ],
+      steps: () => [
+        "Check whether any desk still expects to report on it.",
+        "Delete it from each desk's SLA settings if not.",
+      ],
+      done: "The SLA no longer exists, and the next Observatory scan no longer flags it.",
+    },
+    links: (it, o) => (it.projectKeys || []).slice(0, 5).map((key) => [`SLAs: ${key}`, L.slaSettings(o, key)]),
+  }),
+
+  "org-membership": definePlaybook({
+    pillar: "customers",
+    label: "Organizations with no members",
+    findings: ["org-membership"],
+    epic: {
+      summary: (n) => `Repopulate or delete ${n} empty ${plural(n, "organization")}`,
+      why: (n) =>
+        `${n} ${plural(n, "organization has", "organizations have")} no members. A request shared with one reaches nobody.`,
+      strategy: `Add the customers who belong to it, or delete it.`,
+      done: `Every child task is closed and the next scan reports no empty organizations.`,
+    },
+    task: {
+      heading: "The organization",
+      summary: (it) => `Repopulate or delete empty organization "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [
+        ["Organization", it.name],
+        ["Organization id", it.id],
+        ["Service desks using it", it.deskCount],
+      ],
+      steps: () => ["Ask the desk owner who should belong to it.", "Add them, or delete the organization."],
+      done: "The organization has members, or no longer exists.",
+    },
+    links: (it, o) => [[`Organization: ${it.name || it.id}`, L.organization(o, it.id)]],
+  }),
+
+  "org-attachment": definePlaybook({
+    pillar: "customers",
+    label: "Organizations no desk uses",
+    findings: ["org-attachment"],
+    epic: {
+      summary: (n) => `Attach or delete ${n} unused ${plural(n, "organization")}`,
+      why: (n) =>
+        `${n} ${plural(n, "organization is", "organizations are")} attached to no service desk, so ${plural(n, "its", "their")} members cannot raise requests as ${plural(n, "it", "them")}.`,
+      strategy: `Attach each to the desk it belongs to, or delete it.`,
+      done: `Every child task is closed and the next scan reports no unattached organizations.`,
+    },
+    task: {
+      heading: "The organization",
+      summary: (it) => `Attach or delete organization "${it.name || it.id || "(unknown)"}"`,
+      facts: (it) => [
+        ["Organization", it.name],
+        ["Organization id", it.id],
+        ["Members", it.memberCount],
+      ],
+      steps: () => ["Find the desk this organization's members raise requests on.", "Attach it there, or delete it."],
+      done: "The organization is attached to a desk, or no longer exists.",
+    },
+    links: (it, o) => [[`Organization: ${it.name || it.id}`, L.organization(o, it.id)]],
+  }),
+});
+
 // Every description gets an "Open in Jira" section built from the playbook's links, so a
 // ticket takes its reader straight to what it is about. `ctx.origin` is the site's base URL;
 // without one the section is left out rather than rendered as dead text.

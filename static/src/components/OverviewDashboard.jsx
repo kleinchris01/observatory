@@ -46,6 +46,7 @@ function buildFindings({
   access,
   estate,
   fieldConfigs,
+  jsm,
   automation,
   filters,
   dashboards,
@@ -1296,6 +1297,119 @@ function buildFindings({
     );
   }
 
+  // ── Service Management ──────────────────────────────────────────────────
+  // Each attaches to its own scored check, so a finding and its playbook share one key. A site
+  // with no service desk has none of these: not-applicable, not clean.
+  const jsmSummary = jsm?.jsmEnabled !== false && jsm?.summary?.available ? jsm.summary : null;
+  if (jsmSummary) {
+    const jsmFinding = (key, view, finding, count, tone, title, detail) => {
+      if (count > 0)
+        findings.push({
+          key,
+          dimension: key,
+          pillar: { rt: "requestTypes", queue: "queues", sla: "slas", org: "customers" }[key.split("-")[0]],
+          tone,
+          count,
+          title,
+          detail,
+          onOpen: () => onNavigate("jsm", { view, finding }),
+          openLabel: "Service Management",
+        });
+    };
+    const { requestTypes: rt = {}, queues: q = {}, slas: sla = {}, customers: c = {} } = jsmSummary;
+    jsmFinding(
+      "queue-integrity",
+      "queues",
+      "broken-ref",
+      q.broken,
+      "critical",
+      "Queues naming a deleted custom field",
+      "Agents working from them are missing issues.",
+    );
+    jsmFinding(
+      "sla-breach-rate",
+      "slas",
+      "high-breach",
+      sla.highBreach,
+      "warning",
+      "SLAs breached more often than met",
+      "Over the last 90 days: the goal or the staffing is wrong.",
+    );
+    jsmFinding(
+      "rt-visibility",
+      "requestTypes",
+      "hidden",
+      rt.hidden,
+      "warning",
+      "Request types not on the portal",
+      "Customers cannot raise them. Fine for agent-only types.",
+    );
+    jsmFinding(
+      "rt-naming",
+      "requestTypes",
+      "duplicate-name",
+      rt.duplicateNames,
+      "warning",
+      "Request types sharing a name on one desk",
+      "The portal shows customers both.",
+    );
+    jsmFinding(
+      "org-membership",
+      "organizations",
+      "empty",
+      c.emptyOrganizations,
+      "warning",
+      "Customer organizations with no members",
+      "A request shared with one reaches nobody.",
+    );
+    jsmFinding(
+      "rt-usage",
+      "requestTypes",
+      "unused",
+      rt.unused,
+      "info",
+      "Request types with no request in 90 days",
+      "Candidates to retire or merge.",
+    );
+    jsmFinding(
+      "sla-usage",
+      "slas",
+      "unused",
+      sla.unused,
+      "info",
+      "SLAs nothing ran against",
+      "Still evaluated on every request.",
+    );
+    jsmFinding("queue-usage", "queues", "empty", q.empty, "info", "Empty queues", "Clutter, unless empty on purpose.");
+    jsmFinding(
+      "queue-duplicates",
+      "queues",
+      "duplicate-jql",
+      q.duplicates,
+      "info",
+      "Queues running the same query",
+      "Two views of one list.",
+    );
+    jsmFinding(
+      "org-attachment",
+      "organizations",
+      "unattached",
+      c.unattachedOrganizations,
+      "info",
+      "Organizations no desk uses",
+      "Attach or delete.",
+    );
+    jsmFinding(
+      "rt-descriptions",
+      "requestTypes",
+      "undescribed",
+      rt.undescribed,
+      "info",
+      "Request types with no description",
+      "Customers choose from the name alone.",
+    );
+  }
+
   // ── Projects ────────────────────────────────────────────────────────────
 
   // The month histogram behind every adoption figure has stopped near a fixed month -- a
@@ -1985,6 +2099,7 @@ export function OverviewDashboard({
   access,
   estate,
   fieldConfigs,
+  jsm,
   automation,
   filters,
   dashboards,
@@ -2010,6 +2125,7 @@ export function OverviewDashboard({
     access,
     estate,
     fieldConfigs,
+    jsm,
     automation,
     filters,
     dashboards,

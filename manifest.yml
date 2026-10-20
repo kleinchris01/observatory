@@ -148,6 +148,19 @@ modules:
       actions:
         - search-estate
         - inspect-estate
+    - key: observatory-jsm-expert
+      name: Observatory JSM Expert
+      description: A Jira Service Management specialist that explains service desks, request types, queues, SLA...
+      prompt: resource:agent-resources;prompts/jsm-expert.txt
+      conversationStarters:
+        - Give me an overview of the service desks and how they are set up
+        - Which request types are hidden from the portal or never used?
+        - Which SLAs breach most often?
+        - Which request types and queues use a specific field?
+      actions:
+        - search-jsm
+        - inspect-jsm
+        - jsm-impact
     - key: observatory-fieldconfig-expert
       name: Observatory Field Setup Expert
       description: A specialist in what Jira enforces on each field per project and work type - field schemes, or...
@@ -531,6 +544,49 @@ modules:
           type: string
           required: false
           description: Limit to priorities or resolutions
+    - key: search-jsm
+      name: Search Service Management configuration
+      function: rovo-jsm
+      actionVerb: GET
+      description: Search service desks, request types, queues, SLAs and customer organizations by name, with...
+      inputs:
+        query:
+          title: Search query
+          type: string
+          required: true
+          description: A desk, request type, queue, SLA or organization name
+        kind:
+          title: Kind
+          type: string
+          required: false
+          description: desk, request-type, queue, sla or organization
+        maxResults:
+          title: Maximum results
+          type: integer
+          required: false
+          description: Optional maximum number of matches to return
+    - key: inspect-jsm
+      name: Inspect a service desk
+      function: rovo-jsm
+      actionVerb: GET
+      description: Retrieve one service desk - its request types with volume and findings, its queues, and...
+      inputs:
+        identifier:
+          title: Service desk
+          type: string
+          required: true
+          description: The desk's project key or name.
+    - key: jsm-impact
+      name: Where a field is used in Service Management
+      function: rovo-jsm
+      actionVerb: GET
+      description: Report which request types show a field on the portal (and require it) and which queues...
+      inputs:
+        field:
+          title: Field
+          type: string
+          required: true
+          description: A field id (customfield_10030) or field name.
     - key: search-fieldconfig
       name: Search field schemes and configurations
       function: rovo-fieldcfg
@@ -728,6 +784,8 @@ modules:
       handler: index.rovoEstateSearch
     - key: rovo-estate-inspect
       handler: index.rovoEstateInspect
+    - key: rovo-jsm
+      handler: index.rovoJsmAction
     - key: rovo-fieldcfg
       handler: index.rovoFieldConfigAction
     - key: rovo-screen

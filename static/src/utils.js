@@ -395,6 +395,13 @@ export const PILLAR_REPORT_NAV = [
   { key: "people", label: "People", icon: "user", agent: "observatory-people-expert", health: ["users"] },
   { key: "assets", label: "Assets", icon: "database", agent: "observatory-assets-expert", health: ["assets"] },
   {
+    key: "jsm",
+    label: "Service management",
+    icon: "headset",
+    agent: "observatory-jsm-expert",
+    health: ["requestTypes", "queues", "slas", "customers"],
+  },
+  {
     key: "access",
     label: "Access",
     icon: "shield",
@@ -875,6 +882,10 @@ export const ROVO_AGENTS = {
   "observatory-estate-expert": {
     name: "Observatory Priorities Expert",
     reads: "the resolution and priority value lists",
+  },
+  "observatory-jsm-expert": {
+    name: "Observatory JSM Expert",
+    reads: "the service desks, request types, queues, SLA outcomes and organizations",
   },
   "observatory-change-expert": {
     name: "Observatory Change Expert",

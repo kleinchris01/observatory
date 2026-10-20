@@ -7,6 +7,8 @@ import {
   estateUnusedValues,
   fieldCandidates,
   filterCandidates,
+  jsmFlagged,
+  jsmSlas,
   partialOf,
   reasonsWithCode,
 } from "./remediation-candidates.js";
@@ -37,6 +39,7 @@ describe("CANDIDATE_SELECTORS", () => {
       "fields",
       "filters",
       "issueTypes",
+      "jsm",
       "projects",
       "users",
       "workflow",
@@ -345,5 +348,91 @@ describe("shared item shapes", () => {
         "priority",
       ),
     ).toEqual({ available: true, items: [{ id: "1", kind: "priority", name: "Low", isDefault: false }] });
+  });
+});
+
+describe("Jira Service Management candidates", () => {
+  const f = (code) => ({ code });
+  const view = {
+    desks: [
+      { deskId: "1", projectKey: "SD" },
+      { deskId: "2", projectKey: "HR" },
+    ],
+    requestTypes: [
+      { deskId: "1", id: "10", name: "Get help", projectKey: "SD", findings: [f("hidden"), f("unused")] },
+      { deskId: "2", id: "10", name: "Onboard", projectKey: "HR", findings: [] },
+    ],
+    queues: [{ deskId: "1", id: "7", name: "Broken", projectKey: "SD", findings: [f("broken-ref")] }],
+    slas: [
+      {
+        fieldId: "customfield_1",
+        name: "TTR",
+        activeCount: 40,
+        breachedCount: 30,
+        desks: [{ deskId: "1" }, { deskId: "2" }],
+        findings: [f("high-breach")],
+      },
+    ],
+    organizations: [{ id: "4", name: "Acme", findings: [f("empty")] }],
+  };
+
+  // Two desks can each have a request type 10, and they are different things to fix.
+  test("request types and queues are ticketed per desk, keeping the raw id for links", () => {
+    expect(jsmFlagged(view.requestTypes, "hidden").items).toEqual([
+      expect.objectContaining({ id: "1:10", itemId: "10", projectKey: "SD", name: "Get help" }),
+    ]);
+    expect(CANDIDATE_SELECTORS["queue-integrity"].select(view).items.map((q) => q.id)).toEqual(["1:7"]);
+    expect(CANDIDATE_SELECTORS["rt-descriptions"].select(view).items).toEqual([]);
+  });
+
+  test("an SLA is one ticket linking every desk it runs on", () => {
+    expect(jsmSlas(view, "high-breach").items).toEqual([
+      {
+        id: "customfield_1",
+        fieldId: "customfield_1",
+        name: "TTR",
+        activeCount: 40,
+        breachedCount: 30,
+        projectKeys: ["SD", "HR"],
+      },
+    ]);
+    expect(CANDIDATE_SELECTORS["sla-usage"].select(view).items).toEqual([]);
+  });
+
+  test("every JSM selector picks only its own finding", () => {
+    const row = (code) => ({ deskId: "1", id: code, name: code, findings: [f(code)] });
+    const all = {
+      desks: [],
+      requestTypes: ["hidden", "unused", "undescribed", "duplicate-name"].map(row),
+      queues: ["broken-ref", "empty", "duplicate-jql"].map(row),
+      slas: ["high-breach", "unused"].map((code) => ({ fieldId: code, name: code, desks: [], findings: [f(code)] })),
+      organizations: ["empty", "unattached"].map((code) => ({ id: code, name: code, findings: [f(code)] })),
+    };
+    const expected = {
+      "rt-visibility": "1:hidden",
+      "rt-usage": "1:unused",
+      "rt-descriptions": "1:undescribed",
+      "rt-naming": "1:duplicate-name",
+      "queue-integrity": "1:broken-ref",
+      "queue-usage": "1:empty",
+      "queue-duplicates": "1:duplicate-jql",
+      "sla-breach-rate": "high-breach",
+      "sla-usage": "unused",
+      "org-membership": "empty",
+      "org-attachment": "unattached",
+    };
+    for (const [key, id] of Object.entries(expected)) {
+      expect(CANDIDATE_SELECTORS[key].source, key).toBe("jsm");
+      expect(
+        CANDIDATE_SELECTORS[key].select(all).items.map((i) => i.id),
+        key,
+      ).toEqual([id]);
+    }
+    expect(jsmFlagged(undefined, "hidden")).toEqual({ available: true, items: [] });
+    expect(jsmSlas({}, "unused")).toEqual({ available: true, items: [] });
+  });
+
+  test("organizations are keyed by their own id", () => {
+    expect(CANDIDATE_SELECTORS["org-membership"].select(view).items.map((o) => o.id)).toEqual(["4"]);
   });
 });

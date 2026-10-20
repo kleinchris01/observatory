@@ -1942,6 +1942,115 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent, targetPct, setTa
         </div>
       </ConfigSection>
 
+      <ConfigSection title="Service Management" icon="headset">
+        <p className="admin-config-section__desc">
+          Four pillars on the Service Management snapshot. Not scored at all on a site without service desks. A broken
+          queue is bounded tightest: agents working from it are missing issues. Empty queues and undescribed request
+          types are loose, because both are often deliberate.
+        </p>
+        <div className="admin-threshold-rules">
+          <ToleranceRule
+            tone="standardize"
+            badge="Request types"
+            name="Not on the portal"
+            pct={pct}
+            set={setTolerancePercent}
+            k="hiddenRequestTypes"
+            tail="of request types in no portal group &mdash; agent-only ones are hidden on purpose."
+          />
+          <ToleranceRule
+            tone="cleanup"
+            badge="Request types"
+            name="Unused request types"
+            pct={pct}
+            set={setTolerancePercent}
+            k="unusedRequestTypes"
+            tail="of measured request types with no request in the last 90 days."
+          />
+          <ToleranceRule
+            tone="standardize"
+            badge="Request types"
+            name="No description"
+            pct={pct}
+            set={setTolerancePercent}
+            k="undescribedRequestTypes"
+            tail="of request types with no description for the customer choosing."
+          />
+          <ToleranceRule
+            tone="standardize"
+            badge="Request types"
+            name="Duplicate names"
+            pct={pct}
+            set={setTolerancePercent}
+            k="duplicateRequestTypeNames"
+            tail="of request types sharing a name with another on the same desk."
+          />
+          <ToleranceRule
+            tone="risk"
+            badge="Queues"
+            name="Broken queues"
+            pct={pct}
+            set={setTolerancePercent}
+            k="brokenQueueRefs"
+            tail="of queues whose JQL names a custom field the site no longer has."
+          />
+          <ToleranceRule
+            tone="cleanup"
+            badge="Queues"
+            name="Empty queues"
+            pct={pct}
+            set={setTolerancePercent}
+            k="emptyQueues"
+            tail="of queues holding no issues right now."
+          />
+          <ToleranceRule
+            tone="standardize"
+            badge="Queues"
+            name="Duplicate queues"
+            pct={pct}
+            set={setTolerancePercent}
+            k="duplicateQueues"
+            tail="of queues running the same query as another on their desk."
+          />
+          <ToleranceRule
+            tone="risk"
+            badge="SLAs"
+            name="SLA breach rate"
+            pct={pct}
+            set={setTolerancePercent}
+            k="slaBreachRate"
+            tail="of requests measured against an SLA in the last 90 days that breached it."
+          />
+          <ToleranceRule
+            tone="cleanup"
+            badge="SLAs"
+            name="Unused SLAs"
+            pct={pct}
+            set={setTolerancePercent}
+            k="unusedSlas"
+            tail="of SLAs no request ran against in the last 90 days."
+          />
+          <ToleranceRule
+            tone="cleanup"
+            badge="Organizations"
+            name="Empty organizations"
+            pct={pct}
+            set={setTolerancePercent}
+            k="emptyOrganizations"
+            tail="of customer organizations with no members."
+          />
+          <ToleranceRule
+            tone="cleanup"
+            badge="Organizations"
+            name="Organizations no desk uses"
+            pct={pct}
+            set={setTolerancePercent}
+            k="unattachedOrganizations"
+            tail="of organizations attached to no service desk."
+          />
+        </div>
+      </ConfigSection>
+
       <ConfigSection title="Configuration drift" icon="clock">
         <p className="admin-config-section__desc">
           Not a defect rate &mdash; structural change is neither good nor bad on its own. This scores a rate of motion:

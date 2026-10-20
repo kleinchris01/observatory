@@ -88,6 +88,16 @@ export const PILLAR_MEASURES = {
     usage: { label: "Not measured: no board activity is collected", value: null },
     impact: { label: "Not measured", value: null },
   },
+  jsm: {
+    // Request types and SLAs carry a 90-day request count; a queue's figure is its current
+    // backlog and an organization's is its size, neither of which is usage, so those rows rank
+    // as unmeasured rather than being compared with requests on one scale.
+    usage: { label: "Requests in the last 90 days (request types and SLAs)", value: (r) => num(r.requests) },
+    impact: {
+      label: "Portal fields, queue backlog or organization members",
+      value: (r) => num(r.fields ?? r.openIssues ?? r.members),
+    },
+  },
   automation: {
     usage: { label: "Not measured: no execution counts are collected", value: null },
     impact: { label: "Projects in scope (blank for global rules)", value: (r) => num(r.projects) },

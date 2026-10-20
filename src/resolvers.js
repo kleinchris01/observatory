@@ -14,7 +14,7 @@ import {
 import { getFieldConfigInventory, getFieldConfigItems, getFieldBehaviour } from "./lib/fieldconfig-reads.js";
 import { getAdminConfigResolver, saveAdminConfigResolver } from "./resolvers/admin-config.js";
 import { withAdminGuard, withAuditTrail } from "./resolvers/admin-guard.js";
-import { probeServiceManagementApi } from "./resolvers/jsm.js";
+import { probeServiceManagementApi, getJsmInventory, buildJsmInventory } from "./resolvers/jsm.js";
 import { probeMarketplaceApps } from "./resolvers/apps.js";
 import { checkMacroAccess } from "./resolvers/macro-access.js";
 import { getIssueTypeInventory, buildIssueTypeInventory } from "./resolvers/issue-types.js";
@@ -142,6 +142,7 @@ export { rovoChangeSearch, rovoChangeInspect } from "./resolvers/rovo/changes.js
 export { rovoBoardSearch, rovoBoardInspect, rovoBoardImpact } from "./resolvers/rovo/boards.js";
 export { rovoScreenSearch, rovoScreenInspect, rovoScreenImpact } from "./resolvers/rovo/screens.js";
 export { rovoEstateSearch, rovoEstateInspect } from "./resolvers/rovo/estate.js";
+export { rovoJsmSearch, rovoJsmInspect, rovoJsmImpact } from "./resolvers/rovo/jsm.js";
 export { rovoAssetSearch, rovoAssetInspect, rovoAssetImpact } from "./resolvers/rovo/assets.js";
 export { rovoPeopleSearch, rovoPeopleInspect, rovoPeopleImpact } from "./resolvers/rovo/people.js";
 export { rovoAccessSearch, rovoAccessInspect, rovoAccessImpact } from "./resolvers/rovo/access.js";
@@ -371,6 +372,8 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   probeAssetsApi, // Admin read: confirms the JSM Assets API and workspace on this site
   probeServiceManagementApi, // Admin read: what the JSM API answers, per JSM pillar and build stage
   probeMarketplaceApps, // Admin read: which Marketplace-app signals this site answers, and the apps they reveal
+  getJsmInventory, // Admin read: desks, request types, queues, SLA outcomes, organizations, with findings
+  buildJsmInventory, // Mutating: queues a Service Management snapshot build
   probeScreenFetchCost, // Admin read: samples the cost of a full screen inventory pass
   migrateNamespaceKeys, // Mutating: rewrites scope keys across every table
 };

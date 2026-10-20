@@ -54,6 +54,7 @@ import {
   readBoardSnapshotMeta,
   readUserSnapshotMeta,
   readAssetSnapshotMeta,
+  readJsmSnapshotMeta,
   readDriftSnapshotMeta,
   readSnapshotMeta,
   recordFullScanRun,
@@ -69,6 +70,7 @@ import { buildFieldConfigSnapshot } from "./fieldconfig-engine.js";
 import { buildBoardSnapshot } from "./board-engine.js";
 import { buildUserSnapshot } from "./user-engine.js";
 import { buildAssetSnapshot } from "./asset-engine.js";
+import { buildJsmSnapshot } from "./jsm-engine.js";
 import { buildDriftSnapshot } from "./drift-engine.js";
 import { queueSnapshotBuild, isSnapshotBuildStale, requeueStaleSnapshotBuild } from "./snapshot-engine.js";
 import { runIssueScanCoordinator, reviveStalledIssueScanWorkers } from "./scan-engine.js";
@@ -92,6 +94,8 @@ const people = { run: (key) => buildUserSnapshot(key) };
 // completes on a site without Assets and the pillar reports not-applicable. Nothing to
 // special-case here -- the engine already made "not enabled" a terminal success.
 const assets = { run: (key) => buildAssetSnapshot(key) };
+// Same terminal-success contract as Assets: a site with no service desk completes the stage.
+const jsm = { run: (key) => buildJsmSnapshot(key) };
 const drift = { run: (key) => buildDriftSnapshot(key) };
 const statusHistory = { run: (key) => buildStatusHistorySnapshot(key) };
 
@@ -212,6 +216,7 @@ export const STAGE_RUNNERS = {
   boards,
   people,
   assets,
+  jsm,
   drift,
   health,
 };
@@ -253,6 +258,7 @@ export const QUICK_SCAN_RUNNERS = {
   boards,
   people,
   assets,
+  jsm,
   drift,
   health,
 };
@@ -628,6 +634,7 @@ export async function readStageProducedCounts(installationKey, scanType) {
     // more work than the schema count suggests, and zero here on an Assets-less site is a
     // true count, not a failure -- the stage's own state carries that distinction.
     put("assets", readAssetSnapshotMeta, (m) => m.totalObjectTypes),
+    put("jsm", readJsmSnapshotMeta, (m) => m.totalRequestTypes + m.totalQueues),
     put("drift", readDriftSnapshotMeta, (m) => m.lastRunChanges),
     put("filters", readFilterSnapshotMeta, (m) => m.totalFilters),
     put("dashboards", readDashboardSnapshotMeta, (m) => m.totalDashboards),

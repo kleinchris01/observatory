@@ -194,6 +194,7 @@ export const AUDITED_ADMIN_ACTIONS = new Set([
   "buildEstateInventory",
   "buildFieldConfigInventory",
   "buildBoardInventory",
+  "buildJsmInventory",
   "createRemediationEpic",
   "syncRemediationNow",
   "applyRemediationVerification",

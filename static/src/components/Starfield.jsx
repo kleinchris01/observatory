@@ -73,6 +73,7 @@ export const BEARING_ORDER = [
   "priorities",
   "people",
   "assets",
+  "jsm",
   "access",
   "screens",
   "filters",

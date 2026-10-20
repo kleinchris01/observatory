@@ -33,6 +33,11 @@ export const INITIATIVE_LABELS = {
   boards: "Boards",
   assets: "Assets",
   automation: "Automation",
+  // The four JSM pillars share one initiative: one owner runs a service desk end to end.
+  requestTypes: "Service Management",
+  queues: "Service Management",
+  slas: "Service Management",
+  customers: "Service Management",
 };
 
 export const ROOT_NODE = "root";

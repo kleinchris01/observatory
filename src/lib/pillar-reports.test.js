@@ -500,3 +500,61 @@ describe("builders", () => {
     expect(report.notes[0]).toMatch(/30 days/);
   });
 });
+
+describe("service management report", () => {
+  const f = (code) => ({ code });
+  const input = {
+    refreshedAt: "2026-10-19T00:00:00Z",
+    desks: [{ deskId: "1", projectKey: "SD" }],
+    requestTypes: [
+      {
+        deskId: "1",
+        id: "10",
+        name: "Get help",
+        recentCount: 4,
+        fieldCount: 5,
+        requiredFieldCount: 2,
+        findings: [f("hidden")],
+      },
+    ],
+    queues: [{ deskId: "1", id: "7", name: "Q", jql: "project = SD", issueCount: 0, findings: [f("empty")] }],
+    slas: [
+      { fieldId: "customfield_1", name: "TTR", measuredDesks: 1, activeCount: 20, breachRate: 0.25, findings: [] },
+    ],
+    organizations: [{ id: "4", name: "Acme", memberCount: 0, deskCount: null, findings: [f("empty")] }],
+    summary: { available: true, totalDesks: 1, slas: { breachRate: 0.25 } },
+  };
+
+  // A queue and an organization can both be "empty"; a code must mean one thing.
+  test("one row per entity, finding codes prefixed by kind, numbers in their own columns", () => {
+    const report = buildPillarReport("jsm", input);
+    expect(report.healthPillars).toEqual(["requestTypes", "queues", "slas", "customers"]);
+    const byType = Object.fromEntries(report.rows.map((r) => [r.type, r]));
+    expect(byType["Request type"]).toMatchObject({ desk: "SD", requests: 4, fields: 5, findings: ["rt-hidden"] });
+    expect(byType.Queue).toMatchObject({ openIssues: 0, requests: null, findings: ["queue-empty"] });
+    expect(byType.SLA).toMatchObject({ requests: 20, detail: "25% breached across 1 desks", findings: [] });
+    expect(byType.Organization).toMatchObject({ members: 0, detail: null, findings: ["org-empty"] });
+    expect(report.summary).toEqual(
+      expect.arrayContaining([
+        { label: "Service desks", value: 1 },
+        { label: "SLA breach rate", value: "25%" },
+      ]),
+    );
+    expect(report.notes.join(" ")).toMatch(/SLA goals and calendars have no REST endpoint/);
+  });
+
+  test("a site with no service desk says so", () => {
+    const report = buildPillarReport("jsm", { jsmEnabled: false, summary: { available: false } });
+    expect(report.rows).toEqual([]);
+    expect(report.notes[0]).toMatch(/no service desks/);
+  });
+
+  test("an SLA measured on no desk has no figures", () => {
+    const report = buildPillarReport("jsm", {
+      slas: [{ fieldId: "x", name: "X", measuredDesks: 0, activeCount: 0, breachRate: null, findings: [] }],
+      summary: { available: true, totalDesks: 0, slas: { breachRate: null } },
+    });
+    expect(report.rows[0]).toMatchObject({ requests: null, detail: null });
+    expect(report.summary).toContainEqual({ label: "SLA breach rate", value: "—" });
+  });
+});

@@ -52,6 +52,12 @@ export const PILLAR_REPORTS = [
   { key: "filters", label: "Saved filters", entity: "filters", health: ["filters"] },
   { key: "dashboards", label: "Dashboards", entity: "dashboards", health: ["dashboards"] },
   { key: "boards", label: "Boards", entity: "boards", health: ["boards"] },
+  {
+    key: "jsm",
+    label: "Service management",
+    entity: "request types, queues, SLAs and organizations",
+    health: ["requestTypes", "queues", "slas", "customers"],
+  },
   { key: "automation", label: "Automation", entity: "rules", health: ["automation"] },
   { key: "changes", label: "Changes", entity: "changes", health: ["drift"], findings: false },
 ];
@@ -737,6 +743,102 @@ function round(value, places) {
   return Math.round(Number(value) * f) / f;
 }
 
+// Four kinds of row in one report, so every finding code carries its kind's prefix: a queue
+// and an organization can both be "empty", and a code has to mean one thing.
+export const JSM_REPORT_PREFIX = { requestType: "rt", queue: "queue", sla: "sla", organization: "org" };
+const prefixed = (prefix, findings = []) => findings.map((f) => `${prefix}-${f.code}`);
+
+function buildJsmReport({
+  refreshedAt,
+  jsmEnabled = true,
+  desks = [],
+  requestTypes = [],
+  queues = [],
+  slas = [],
+  organizations = [],
+  summary = null,
+  windowDays = 90,
+}) {
+  const deskKey = new Map(desks.map((d) => [d.deskId, d.projectKey]));
+  const blank = { requests: null, openIssues: null, members: null, fields: null };
+  const rows = [
+    ...requestTypes.map((rt) => ({
+      type: "Request type",
+      desk: deskKey.get(rt.deskId) ?? rt.projectKey ?? null,
+      id: rt.id,
+      name: rt.name,
+      ...blank,
+      requests: rt.recentCount ?? null,
+      fields: rt.fieldCount ?? null,
+      detail: rt.requiredFieldCount != null ? `${rt.requiredFieldCount} required fields` : null,
+      findings: prefixed(JSM_REPORT_PREFIX.requestType, rt.findings),
+    })),
+    ...queues.map((q) => ({
+      type: "Queue",
+      desk: deskKey.get(q.deskId) ?? q.projectKey ?? null,
+      id: q.id,
+      name: q.name,
+      ...blank,
+      openIssues: q.issueCount ?? null,
+      detail: q.jql || null,
+      findings: prefixed(JSM_REPORT_PREFIX.queue, q.findings),
+    })),
+    ...slas.map((s) => ({
+      type: "SLA",
+      desk: null,
+      id: s.fieldId,
+      name: s.name,
+      ...blank,
+      requests: s.measuredDesks > 0 ? s.activeCount : null,
+      detail:
+        s.breachRate !== null && s.breachRate !== undefined
+          ? `${Math.round(s.breachRate * 100)}% breached across ${s.measuredDesks} desks`
+          : null,
+      findings: prefixed(JSM_REPORT_PREFIX.sla, s.findings),
+    })),
+    ...organizations.map((o) => ({
+      type: "Organization",
+      desk: null,
+      id: o.id,
+      name: o.name,
+      ...blank,
+      members: o.memberCount ?? null,
+      detail: o.deskCount != null ? `${o.deskCount} desks` : null,
+      findings: prefixed(JSM_REPORT_PREFIX.organization, o.findings),
+    })),
+  ];
+  const notes = [
+    `SLA goals and calendars have no REST endpoint, so SLAs are reported by outcome: requests measured against each, and how many breached, over the last ${windowDays} days.`,
+    "Customers are counted, never listed: their names and email addresses are not stored.",
+  ];
+  if (!jsmEnabled) notes.unshift("Jira Service Management has no service desks on this site.");
+  return {
+    refreshedAt,
+    columns: [
+      { key: "type", label: "Type", kind: "text" },
+      { key: "desk", label: "Desk", kind: "text" },
+      { key: "id", label: "ID", kind: "text" },
+      { key: "name", label: "Name", kind: "text" },
+      { key: "requests", label: `Requests (${windowDays}d)`, kind: "number" },
+      { key: "openIssues", label: "Issues in queue", kind: "number" },
+      { key: "members", label: "Members", kind: "number" },
+      { key: "fields", label: "Portal fields", kind: "number" },
+      { key: "detail", label: "Detail", kind: "text" },
+    ],
+    rows,
+    summary: summary?.available
+      ? [
+          { label: "Service desks", value: summary.totalDesks },
+          {
+            label: "SLA breach rate",
+            value: summary.slas?.breachRate == null ? "—" : `${Math.round(summary.slas.breachRate * 100)}%`,
+          },
+        ]
+      : [],
+    notes,
+  };
+}
+
 export const PILLAR_REPORT_BUILDERS = {
   fields: buildFieldsReport,
   projects: buildProjectsReport,
@@ -751,6 +853,7 @@ export const PILLAR_REPORT_BUILDERS = {
   filters: buildFiltersReport,
   dashboards: buildDashboardsReport,
   boards: buildBoardsReport,
+  jsm: buildJsmReport,
   automation: buildAutomationReport,
   changes: buildChangesReport,
 };

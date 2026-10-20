@@ -21,6 +21,7 @@ import {
 import { fallbackOn, logger, errorContext } from "./logger.js";
 import { summarizeRuleInsights } from "./workflow-rules.js";
 import { summarizeFieldConfigHealth, SOURCE_LABEL as FIELD_BEHAVIOUR_SOURCE_LABEL } from "./fieldconfig-insights.js";
+import { summarizeJsm, summarizeJsmHealth } from "./jsm-insights.js";
 import {
   loadIssueScanProjectTotals,
   loadProjectActivity,
@@ -56,6 +57,7 @@ import {
   loadSchemeLevels,
   loadSchemeProjects,
   readEstateSnapshotMeta,
+  readJsmSnapshotMeta,
   loadEstateValues,
   loadIssueTypeSchemes,
   loadIssueTypeSchemeItems,
@@ -871,6 +873,43 @@ export async function buildFieldConfigOverview(installationKey) {
   }
 }
 
+// The four Jira Service Management pillars' inputs. The summary was computed and stored at
+// build time, so this is one meta read. A site with no service desk is "unavailable", which
+// every JSM dimension reports as not-applicable rather than unmeasured.
+export async function buildJsmOverview(installationKey) {
+  try {
+    const meta = await readJsmSnapshotMeta(installationKey);
+    if (meta?.state === "unavailable") {
+      const summary = summarizeJsm({ jsmEnabled: false });
+      return {
+        available: false,
+        jsmEnabled: false,
+        state: "unavailable",
+        refreshedAt: meta.refreshedAt || null,
+        lastError: meta.lastError || null,
+        summary,
+        health: summarizeJsmHealth(summary),
+      };
+    }
+    if (!meta?.version || !meta.summary) {
+      return { available: false, state: meta?.state || "idle", lastError: meta?.lastError || null };
+    }
+    return {
+      available: Boolean(meta.summary.available),
+      jsmEnabled: true,
+      state: meta.state || "idle",
+      refreshedAt: meta.refreshedAt || null,
+      lastError: meta.lastError || null,
+      unreadCount: meta.unreadCount || 0,
+      summary: meta.summary,
+      health: summarizeJsmHealth(meta.summary),
+    };
+  } catch (error) {
+    logger.warn("buildJsmOverview.failed", errorContext(error));
+    return { available: false, state: "error" };
+  }
+}
+
 // The drift pillar's input to the score: not a rate of anything broken, but a rate of
 // motion. Structural change is neither good nor bad on its own -- the finding is that an
 // admin reviewing the estate right now would be reviewing a moving target, and the size of
@@ -996,6 +1035,7 @@ export async function captureSiteHealth(installationKey, deps) {
       driftHealth,
       automationAnalysis,
       fieldConfigOverview,
+      jsmOverview,
     ] = await Promise.all([
       readSnapshotMeta(installationKey),
       readAdminConfig(),
@@ -1010,6 +1050,7 @@ export async function captureSiteHealth(installationKey, deps) {
       buildDriftHealthOverview(installationKey),
       readAutomationAnalysis(installationKey).catch(() => null),
       buildFieldConfigOverview(installationKey),
+      buildJsmOverview(installationKey),
     ]);
     let filters = null;
     let dashboards = null;
@@ -1095,6 +1136,10 @@ export async function captureSiteHealth(installationKey, deps) {
       boards: boardOverview?.health ?? null,
       drift: driftHealth,
       fieldConfigs: fieldConfigOverview?.health ?? null,
+      requestTypes: jsmOverview?.health?.requestTypes ?? null,
+      queues: jsmOverview?.health?.queues ?? null,
+      slas: jsmOverview?.health?.slas ?? null,
+      customers: jsmOverview?.health?.customers ?? null,
       tolerances: config?.healthTolerances,
       targets: config?.healthTargets,
       priorValues,

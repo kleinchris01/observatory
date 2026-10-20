@@ -66,6 +66,7 @@ export function OverviewTab({
           access={overview.access}
           estate={overview.estate}
           fieldConfigs={overview.fieldConfigs}
+          jsm={overview.jsm}
           automation={overview.automation}
           filters={overview.filters}
           dashboards={overview.dashboards}

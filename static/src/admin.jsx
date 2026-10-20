@@ -35,6 +35,9 @@ const AutomationTab = React.lazy(() => import("./tabs/AutomationTab").then((m) =
 const IssueTypesTab = React.lazy(() => import("./tabs/IssueTypesTab").then((m) => ({ default: m.IssueTypesTab })));
 const PeopleTab = React.lazy(() => import("./tabs/PeopleTab").then((m) => ({ default: m.PeopleTab })));
 const AssetsTab = React.lazy(() => import("./tabs/AssetsTab").then((m) => ({ default: m.AssetsTab })));
+const ServiceManagementTab = React.lazy(() =>
+  import("./tabs/ServiceManagementTab").then((m) => ({ default: m.ServiceManagementTab })),
+);
 const AccessTab = React.lazy(() => import("./tabs/AccessTab").then((m) => ({ default: m.AccessTab })));
 const ChangesTab = React.lazy(() => import("./tabs/ChangesTab").then((m) => ({ default: m.ChangesTab })));
 const FieldConfigsTab = React.lazy(() =>
@@ -94,6 +97,7 @@ export const ADMIN_NAV_TABS = [
   { key: "priorities", label: "Priorities", icon: "flag", group: "Pillars" },
   { key: "people", label: "People", icon: "user", group: "Pillars" },
   { key: "assets", label: "Assets", icon: "database", group: "Pillars" },
+  { key: "jsm", label: "Service Management", icon: "headset", group: "Pillars" },
   { key: "access", label: "Access", icon: "shield", group: "Pillars" },
   { key: "screens", label: "Screens", icon: "browser", group: "Pillars" },
   { key: "filters", label: "Saved Filters", icon: "search", group: "Pillars" },
@@ -456,6 +460,8 @@ export function AdminApp() {
                 <PeopleTab intent={navIntent} siteOrigin={siteOrigin} />
               ) : activeTab === "assets" ? (
                 <AssetsTab intent={navIntent} siteOrigin={siteOrigin} />
+              ) : activeTab === "jsm" ? (
+                <ServiceManagementTab intent={navIntent} siteOrigin={siteOrigin} />
               ) : activeTab === "access" ? (
                 <AccessTab intent={navIntent} siteOrigin={siteOrigin} />
               ) : activeTab === "screens" ? (

@@ -53,6 +53,9 @@ vi.mock("./lib/fieldconfig-engine.js", () => ({
     .fn()
     .mockResolvedValue({ version: "v1", source: "field-schemes", schemes: 4, configs: 0, unread: 0 }),
 }));
+vi.mock("./lib/jsm-engine.js", () => ({
+  buildJsmSnapshot: vi.fn().mockResolvedValue({ version: "v1", desks: 3, requestTypes: 40, queues: 12, unread: 0 }),
+}));
 vi.mock("./lib/estate-engine.js", () => ({
   buildEstateSnapshot: vi.fn().mockResolvedValue({ version: "v1", resolutions: 7, priorities: 5 }),
 }));
@@ -168,6 +171,9 @@ vi.mock("./resolvers.js", () => ({
   rovoAssetImpact: vi.fn(),
   rovoEstateSearch: vi.fn(),
   rovoEstateInspect: vi.fn(),
+  rovoJsmSearch: vi.fn(async () => "search"),
+  rovoJsmInspect: vi.fn(async () => "inspect"),
+  rovoJsmImpact: vi.fn(async () => "impact"),
   rovoScreenSearch: vi.fn(),
   rovoScreenInspect: vi.fn(),
   rovoScreenImpact: vi.fn(),
@@ -241,6 +247,7 @@ import { buildAccessSnapshot } from "./lib/access-engine.js";
 import { buildDriftSnapshot } from "./lib/drift-engine.js";
 import { buildEstateSnapshot } from "./lib/estate-engine.js";
 import { buildFieldConfigSnapshot } from "./lib/fieldconfig-engine.js";
+import { buildJsmSnapshot } from "./lib/jsm-engine.js";
 import { buildBoardSnapshot } from "./lib/board-engine.js";
 import { runFullScanStep, runQuickScanStep, startQuickScan, recoverStalledScan } from "./lib/full-scan-runner.js";
 import { buildFilterSnapshot } from "./lib/filter-engine.js";
@@ -822,6 +829,13 @@ describe("consumeSnapshot job routing", () => {
     expect(buildEstateSnapshot).toHaveBeenCalledWith("scope-1");
   });
 
+  test("routes build-jsm-snapshot to the Service Management engine, unavailable sites included", async () => {
+    await consumeSnapshot(event({ jobType: "build-jsm-snapshot" }));
+    expect(buildJsmSnapshot).toHaveBeenCalledWith("scope-1");
+    buildJsmSnapshot.mockResolvedValueOnce({ unavailable: true, reason: "no service desks" });
+    await expect(consumeSnapshot(event({ jobType: "build-jsm-snapshot" }))).resolves.toBeUndefined();
+  });
+
   test("routes build-fieldconfig-snapshot to the field scheme engine", async () => {
     await consumeSnapshot(event({ jobType: "build-fieldconfig-snapshot" }));
     expect(buildFieldConfigSnapshot).toHaveBeenCalledWith("scope-1");
@@ -1326,6 +1340,13 @@ describe("manifest wiring", () => {
 // One Forge function per Rovo agent, routed by each action's single required input. The
 // descriptor size limit is why; these pin that no action is routed to the wrong handler.
 describe("Rovo action routing", () => {
+  test("the Service Management agent routes a field to impact, an identifier to inspect, else search", async () => {
+    const { rovoJsmAction } = await import("./index.js");
+    expect(await rovoJsmAction({ field: "customfield_1" }, {})).toBe("impact");
+    expect(await rovoJsmAction({ identifier: "SD" }, {})).toBe("inspect");
+    expect(await rovoJsmAction({ query: "laptop" }, {})).toBe("search");
+  });
+
   test("routes by the one required input each action declares", async () => {
     const { routeAgentAction } = await import("./index.js");
     const search = vi.fn(async () => "search");

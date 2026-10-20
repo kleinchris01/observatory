@@ -119,6 +119,7 @@ export function siteHealthInputs({
   estateOverview,
   fieldConfigOverview,
   boardOverview,
+  jsmOverview,
   driftHealth,
   config,
   priorValues,
@@ -142,6 +143,10 @@ export function siteHealthInputs({
     estate: estateOverview?.health ?? null,
     fieldConfigs: fieldConfigOverview?.health ?? null,
     boards: boardOverview?.health ?? null,
+    requestTypes: jsmOverview?.health?.requestTypes ?? null,
+    queues: jsmOverview?.health?.queues ?? null,
+    slas: jsmOverview?.health?.slas ?? null,
+    customers: jsmOverview?.health?.customers ?? null,
     drift: driftHealth,
     // Workflow, project and automation dimensions were scored against hardcoded constants
     // while every field rule was tunable. Same config surface now feeds both.

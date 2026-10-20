@@ -30,6 +30,7 @@ vi.mock("./project-store.js", () => ({
   readBoardSnapshotMeta: vi.fn(async () => null),
   readUserSnapshotMeta: vi.fn(async () => null),
   readAssetSnapshotMeta: vi.fn(async () => null),
+  readJsmSnapshotMeta: vi.fn(async () => null),
   readDriftSnapshotMeta: vi.fn(async () => null),
   readSnapshotMeta: vi.fn(async () => null),
   recordFullScanRun: vi.fn(async () => ({ recorded: true })),
@@ -41,6 +42,7 @@ vi.mock("./fieldconfig-engine.js", () => ({ buildFieldConfigSnapshot: vi.fn() })
 vi.mock("./board-engine.js", () => ({ buildBoardSnapshot: vi.fn() }));
 vi.mock("./user-engine.js", () => ({ buildUserSnapshot: vi.fn() }));
 vi.mock("./asset-engine.js", () => ({ buildAssetSnapshot: vi.fn() }));
+vi.mock("./jsm-engine.js", () => ({ buildJsmSnapshot: vi.fn() }));
 vi.mock("./drift-engine.js", () => ({ buildDriftSnapshot: vi.fn() }));
 
 vi.mock("./filter-engine.js", () => ({ isFilterBuildStale: vi.fn(() => false), queueFilterSnapshotBuild: vi.fn() }));
@@ -109,6 +111,7 @@ import { buildIssueTypeSnapshot } from "./issuetype-engine.js";
 import { buildFieldConfigSnapshot } from "./fieldconfig-engine.js";
 import { buildUserSnapshot } from "./user-engine.js";
 import { buildAssetSnapshot } from "./asset-engine.js";
+import { buildJsmSnapshot } from "./jsm-engine.js";
 import { queueFilterSnapshotBuild } from "./filter-engine.js";
 import { queueSnapshotBuild, isSnapshotBuildStale, requeueStaleSnapshotBuild } from "./snapshot-engine.js";
 import { readSnapshotMeta } from "./project-store.js";
@@ -260,6 +263,18 @@ describe("running a stage", () => {
     expect(lastWrite().stages.find((s) => s.key === "assets").state).toBe("done");
   });
 
+  test("runs the Service Management stage inline, and a JSM-less site completes it", async () => {
+    // buildJsmSnapshot resolves { unavailable: true } on a site with no service desk, like
+    // Assets off Premium: the four JSM pillars report not-applicable and the scan carries on.
+    readFullScanMeta.mockResolvedValue(running({ stages: withDone([...upToBoards, "people", "assets"]) }));
+    buildJsmSnapshot.mockResolvedValueOnce({ unavailable: true, reason: "no service desks" });
+
+    await runFullScanStep("inst", { jobToken: "job-token" });
+
+    expect(buildJsmSnapshot).toHaveBeenCalledWith("inst");
+    expect(lastWrite().stages.find((s) => s.key === "jsm").state).toBe("done");
+  });
+
   test("every declared stage has a runner, in both scan types", () => {
     // The check that makes "a stage exists but nothing runs it" impossible to ship.
     for (const { key } of fullScanStageCatalog()) {
@@ -308,6 +323,7 @@ describe("running a stage", () => {
           "boards",
           "people",
           "assets",
+          "jsm",
         ]),
       }),
     );
