@@ -123,6 +123,14 @@ export function hydrateFieldForGovernance(field, summary, duplicateNameCount = 1
   };
 }
 
+// Every snapshot field hydrated for governance against the given thresholds, each knowing how
+// many fields share its normalised name. The one computation the Overview's field counts and
+// the remediation field epics both come from, so an epic's task count matches its card.
+export function hydrateFieldsForGovernance(fields, thresholds = {}) {
+  const dup = buildDuplicateNameCountMap(fields);
+  return fields.map((f) => hydrateFieldForGovernance(f, null, dup.get(normalizeFieldName(f.name)) ?? 1, thresholds));
+}
+
 // ----- Queue helpers -----
 
 // Stop and re-queue a build that has been running this long, rather than letting Forge kill
